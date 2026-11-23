@@ -192,6 +192,7 @@ and no silent skipping.
 | Custom hooks | supported | Expanded at each call site ([`custom-hooks-v1.md`](custom-hooks-v1.md)) |
 | Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
 | `useReducer`, `memo`, `forwardRef`; `useMemo`/`useCallback` outside the safe forms | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`. `useMemo(() => pure expr, deps)` and `useCallback(setter-call arrow, deps)` lower as plain locals/handlers (Q16, `jsx-intrinsics-v1/react-compat.md` 4.2) |
+| `useMemo`/`useCallback` list that disagrees with the inferred set, or names an expression | `TESSERA_REACT_MEMO_DEPS` | A mismatch is a warning (the compiler recomputes on the inferred set); a non-name element is an error like `useEffect`'s; an absent list is accepted (`react-compat.md` 4.2.1) |
 | Lowercase tags with no alias mapping | `TESSERA_JSX_SUBSET_HTML_TAG` | See the alternative in `jsx-intrinsics-v1/html-aliases.md` |
 | Dynamic component type, member tags outside the built-in startup namespaces, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag; the startup exception is [`startup-api-v1.md`](startup-api-v1.md) section 4 |
 | `==`, `!=` | `TESSERA_JSX_SUBSET_LOOSE_EQUALITY` | Use `===`, `!==` |

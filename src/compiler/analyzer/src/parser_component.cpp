@@ -394,16 +394,21 @@ bool Parser::parse_const_statement(Statement& statement) {
 // Desugaring here rather than in the rules means every later pass sees the ordinary form it already
 // handles, so there is no second path to keep in step.
 //
+// The dependency list is dropped here but recorded on the statement (issue #829), so the rules pass
+// can compare it with the inferred reactive set. An absent array (`useMemo(() => x)`) is accepted,
+// with or without a second argument (issue #829 decision 3); the record says whether one was
+// written.
+//
 // A form outside the two shapes is left alone, so the rules report `TESSERA_REACT_UNSUPPORTED_API`
 // with the message that names the accepted spelling.
 void Parser::desugar_memo_or_callback(Statement& statement) {
     if (statement.kind != StatementKind::Const || statement.array_pattern ||
-        statement.names.size() != 1 || !statement.init || statement.init->kind != ExprKind::Call ||
-        statement.init->operands.size() != 3) {
+        statement.names.size() != 1 || !statement.init || statement.init->kind != ExprKind::Call) {
         return;
     }
     const Expr& call = *statement.init;
-    if (call.operands[0]->kind != ExprKind::Identifier) {
+    if (call.operands.size() < 2 || call.operands.size() > 3 ||
+        call.operands[0]->kind != ExprKind::Identifier) {
         return;
     }
     const std::string_view name = call.operands[0]->text;
@@ -411,18 +416,43 @@ void Parser::desugar_memo_or_callback(Statement& statement) {
     if (!memo && name != "useCallback") {
         return;
     }
-    // The wrapped value is the first argument and must be an arrow; the second is the dependency
-    // list, which the desugared form does not carry (the value is recomputed on every update, which
-    // is what a pure expression costs).
+    // The wrapped value is the first argument and must be an arrow. The second, when written, is
+    // the dependency list, which the desugared form does not carry (the value is recomputed on
+    // every update, which is what a pure expression costs).
     const Expr* wrapped = call.operands[1].get();
-    if (wrapped == nullptr || wrapped->kind != ExprKind::Arrow ||
-        call.operands[2]->kind != ExprKind::Array) {
+    if (wrapped == nullptr || wrapped->kind != ExprKind::Arrow) {
+        return;
+    }
+    const bool has_array = call.operands.size() == 3;
+    if (has_array && call.operands[2]->kind != ExprKind::Array) {
         return;
     }
     // A memo needs an expression body (a block body would be a function value, not a value); a
     // callback keeps whatever body it has, because the arrow IS the handler.
     if (memo && (wrapped->arrow_block_body || wrapped->operands.size() != 1)) {
         return;
+    }
+    // Issue #829: the list is no longer silently dropped. Record it on the statement so the rules
+    // pass can compare it with the inferred reactive set; the desugar itself does not change. An
+    // element that is not a plain name is recorded only as its span, and the rules report the hard
+    // error (the parser has no component symbol table to name what a `[a.b]` element would mean,
+    // and the rules pass owns the `useEffect` rule this one mirrors).
+    statement.memo_hook = std::string(name);
+    statement.memo_array = has_array;
+    if (has_array) {
+        statement.memo_deps_span = call.operands[2]->span;
+        for (const ExprPtr& element : call.operands[2]->operands) {
+            if (element == nullptr) {
+                continue;
+            }
+            if (element->kind != ExprKind::Identifier) {
+                if (statement.memo_deps_error_span.length == 0) {
+                    statement.memo_deps_error_span = element->span;
+                }
+                continue;
+            }
+            statement.memo_deps.push_back({element->text, element->span});
+        }
     }
     // Move the wrapped arrow out of the call and make it the statement's initializer. For a memo
     // the arrow's single expression becomes the initializer directly, so the local is inlined like

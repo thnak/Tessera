@@ -122,13 +122,43 @@ later pass sees the ordinary form it already handles. A form outside them keeps
 
 | Source | Safe lowering | Condition |
 |---|---|---|
-| `const v = useMemo(() => <PureExpr>, [deps])` | `const v = <PureExpr>` (a `LocalDecl`, inlined, decision 8) | arrow with an expression body that is a pure expression; the dependency list is ignored, or checked for exactness like `useEffect`. The memo's only effect in React is skipping recomputation, which a pure inlined expression does not need |
+| `const v = useMemo(() => <PureExpr>, [deps])` | `const v = <PureExpr>` (a `LocalDecl`, inlined, decision 8) | arrow with an expression body that is a pure expression; the dependency list is **checked for agreement, not exactness** (section 4.2.1). The memo's only effect in React is skipping recomputation, which a pure inlined expression does not need |
 | `const f = useCallback(() => setN(n + 1), [n])` | `const f = () => setN(n + 1)`, a reusable inline handler (decision 4) | the arrow body is made of setter calls only (subset 9.2) |
-| `// Note: bind::x` + `const f = useCallback((e: TextChangeEvent): void => {...}, [])` | the native handler form (subset 9.3) | the annotation sits before the `const`; deps ignored |
+| `// Note: bind::x` + `const f = useCallback((e: TextChangeEvent): void => {...}, [])` | the native handler form (subset 9.3) | the annotation sits before the `const`; deps checked for agreement |
 | `useReducer`, `useContext`, `useTransition`, `useDeferredValue`, `forwardRef` | not safe | They need switch statements, context or different timing. `useReducer` and `useContext` are ADR-066 items 4 and 5; `useTransition` and `useDeferredValue` are ADR-067 |
 
 `TESSERA_REACT_UNSUPPORTED_API` stays for the unsafe rows and for any `useMemo`/`useCallback` outside
 the first three rows. The subset spec section 7 table carries the two forms.
+
+#### 4.2.1 The dependency list is compared, not obeyed (issue #829)
+
+React is a runtime library, so its author has to declare the memo dependencies by hand and a wrong
+list silently keeps a stale value. Tessera compiles statically and infers the reactive inputs, so
+**the inferred set is authoritative** and the declared list only serves to tell the author where
+their port disagrees with it. React Compiler infers them at build time too; the array is an escape
+hatch for a compiler that cannot see a closure.
+
+| Declared list vs inferred set | Behaviour | Diagnostic |
+|---|---|---|
+| Exact | as today | none |
+| Missing a name the body reads | recompute on the inferred set (no stale value) | **warning** `TESSERA_REACT_MEMO_DEPS`: "`query` is read but not listed; Tessera recomputes when it changes, React would keep the old value", fix-it to add it |
+| Lists a name the body does not read | ignored | warning, fix-it to remove it |
+| Element is not a plain name | — | error, the same rule `useEffect` has |
+| No array (`useMemo(() => x)`) | recompute | accepted, no diagnostic |
+
+A mismatch is **never an error**: with React Compiler the array does not decide behaviour in React
+either, so the compiler's set wins and the warning points at the difference. There is no strict or
+React-parity mode. `useEffect` keeps its exact rule on purpose (section 4.2.2).
+
+The inferred set is the reactive names the inlined body reads after local inlining, so a memo over
+another memo or local resolves through to props, state variables and animated values.
+
+#### 4.2.2 Why `useEffect` stays exact
+
+For an effect the array is *intent*, not optimisation: `[]` means "run once at mount" even when the
+body reads props, so inferring effect dependencies would change meaning. A memo's array only ever
+skips a recomputation, so inferring it changes nothing the author can observe except a stale value
+they did not want. The two hooks therefore keep different rules on purpose.
 
 ### 4.3 `children` of user components (Q14, decided: O2)
 
@@ -217,7 +247,7 @@ field is done, section 3.5), `text-editing-v1.md` (Q4 read-only behavior, Q5 tri
 | 13 | Closed by #226 (focusable `View`, `tabIndex`, key/focus events) | Focusable `View`, `tabIndex`, key/focus events on `View`; role inference for clickable `View` | Keep deferred and warn (as written); allow `tabIndex={0}` | Keep deferred; revisit with the accessibility spec |
 | 14 | Decided: O2 (section 4.3) | `children` prop of user components | Reject in V1 (as written); lower to child nodes as `component-model-v1.md` says, which needs the `Component` node to carry children | Static `Children` slot; specs updated, code in slice 9 |
 | 15 | Decided: accept the three hooks | `import ... from "react"` | Reject; accept `useState`, `useEffect`, `useRef` from `"react"` as `"tessera"` and ignore `import React` | Accept the three hooks from `"react"`; every React file starts with this import |
-| 16 | Decided: lower safe forms | `useMemo`/`useCallback` | Keep rejecting; lower the safe forms of section 4.2 | Lower the safe forms; reject the rest |
+| 16 | Decided: lower safe forms; compare the list | `useMemo`/`useCallback` | Keep rejecting; lower the safe forms of section 4.2 | Lower the safe forms; reject the rest. Issue #829: the declared list is compared with the inferred set and a mismatch warns (`TESSERA_REACT_MEMO_DEPS`), never errors; an absent array is accepted (section 4.2.1) |
 | 17 | Decided: rewrite | `svg` with one `path` | Unsupported (as written); rewrite to `Path` | Rewrite when `d` and `viewBox` are literals (typical ported icon) |
 | 18 | Decided: reject | Fragment as returned root | Reject (as written); wrap in an implicit `View` | Reject; an implicit box changes layout silently |
 | 19 | Decided: as written | Defaults and vocabularies: `rows`, `wrap`, `autofill`, `inputMode` extras | `rows` 2 as HTML; `wrap` `word`/`none`; `autofill` tokens of the alias table | As written; owner of `text-editing-v1.md` confirms |

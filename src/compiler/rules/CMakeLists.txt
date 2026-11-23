@@ -5,10 +5,12 @@
 add_library(tessera_react_rules STATIC
     src/analyze.cpp
     src/arrows.cpp
+    src/dependency_names.cpp
     src/effect_deps.cpp
     src/expr_walk.cpp
     src/hook_placement.cpp
     src/hooks.cpp
+    src/memo_deps.cpp
     src/reducer.cpp)
 
 target_include_directories(tessera_react_rules

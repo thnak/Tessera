@@ -104,7 +104,7 @@ All state is per call.
 | `use*` call that is not a core hook | `TESSERA_REACT_UNKNOWN_HOOK` | `useReducer`, `useContext` and unsafe forms of `useMemo`/`useCallback` give `TESSERA_REACT_UNSUPPORTED_API`; the safe forms lower as locals/handlers (slice 13) |
 | Hook not in its section 7 form | `TESSERA_REACT_HOOK_FORM` (new) | `useState` pair, `useRef` initial `null`, single-name `useAnimatedValue`, `useEffect` arrow plus array |
 | `return` in an effect body other than the final cleanup arrow | `TESSERA_REACT_EFFECT_RETURN` | cleanup arrows (including their own bodies) are checked too |
-| Dependencies not exact | `TESSERA_REACT_EFFECT_DEPS` | missing, extra, duplicate, non-name, non-array, no array, not a prop/state/animated value |
+| Effect dependencies not exact; memo/callback list differs from the inferred set | `TESSERA_REACT_EFFECT_DEPS`; `TESSERA_REACT_MEMO_DEPS` (issue #829) | effect: missing, extra, duplicate, non-name, non-array, no array, not a prop/state/animated value. memo: missing or extra warns, a non-name element errors, an absent array is accepted |
 | `const f = arrow` without `bind::`, body not setter calls only | `TESSERA_REACT_BIND_MISSING` (new) | decision 4; an empty body also fails |
 
 Arrow roles: `NativeHandler` (with bind id), `InlineHandler`, `Effect`, `Cleanup` (bind id plus
@@ -547,10 +547,10 @@ Each slice is behavior, tests and docs, committed on its own.
     ([`machine-readable.md`](../specs/jsx-intrinsics-v1/machine-readable.md)). Slice 4 (types) needs
     the intrinsic part of it, so it comes before slice 4 or is built with it.
 13. **Lowercase alias and `react` import.** Tag resolution and the parser change are done (issue
-    #592); the analysis-side attribute rewrites, the `from "react"` hooks alias and the
-    `useMemo`/`useCallback` safe-form lowering remain
-    ([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md);
-    [`react-compat.md`](../specs/jsx-intrinsics-v1/react-compat.md) sections 4.2 and 5). Needs slice 12.
+    #592); the attribute rewrites and the `from "react"` hooks alias remain. The `useMemo` and
+    `useCallback` forms lower and their list is compared, not required exact: `memo_deps.cpp`,
+    #829, [ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md),
+    [`react-compat.md`](../specs/jsx-intrinsics-v1/react-compat.md) 4.2.1, and needs slice 12.
 
 Slices 1 and 2 can start first.
 

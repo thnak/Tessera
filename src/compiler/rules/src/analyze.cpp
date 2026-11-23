@@ -67,6 +67,7 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
         check_hooks(ctx);
         classify_arrows(ctx);
         check_effect_deps(ctx);
+        check_memo_deps(ctx);
         analysis.ok = !ctx.failed;
         result.components.push_back(std::move(analysis));
     }
