@@ -9,8 +9,11 @@
 // because it is a different job - actions emit *statements* into a handler body, expressions emit
 // an rvalue - and the two only meet at `emit_expr`.
 
+#include "binding_reads.hpp"
 #include "codegen_internal.hpp"
+#include "emit_dirty.hpp"
 #include "emit_events.hpp"
+#include "emit_types_header.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -40,9 +43,72 @@ LocalBindings payload_field_locals(std::span<const ir::Param> params) {
     }
     return locals;
 }
-// One action as C++ statements appended to `body`; false with `error` set on failure.
+// The declared record a state cell's type is exactly (`Form`, not `list<Form>`), or null. A
+// wrapper-typed cell keeps one bit: a dotted ref cannot index it.
+const ir::RecordType* find_record_type_for_action(std::string_view ir_type,
+                                                  std::span<const ir::RecordType> records) {
+    for (const ir::RecordType& record : records) {
+        if (record.name == ir_type) {
+            return &record;
+        }
+    }
+    return nullptr;
+}
+
+// A `set` of a record-typed state cell: compare field by field, raise the bits of the fields that
+// changed, then assign. `value` is the C++ text of an expression of exactly this record type.
+//
+//   Form tessera_next = <value>;
+//   if (!(state_form_.name == tessera_next.name)) { dirty_.set(kBit_state_form_name_); }
+//   ... (one guarded set per member)
+//   state_form_ = std::move(tessera_next);
+//
+// A `recordUpdate` writes exactly the fields it lists, so only those are compared: an unwritten
+// field is copied from the current value and can never differ, and emitting its compare would be
+// dead code (issue #834). A whole-record `set` passes `written` empty and compares every field. A
+// NaN field always compares unequal, the safe direction (ADR-041 decision 6).
+void emit_record_set(std::string_view cell_id, const ir::RecordType& record,
+                     std::span<const ir::RecordType> records, const std::string& value,
+                     std::span<const ir::RecordField> written, std::string& body) {
+    const std::string member = member_name(cell_id);
+    const std::vector<std::string> bits = cell_bit_ids(cell_id, record.name, records);
+    body += "{\n";
+    body += "const " + record.name + " tessera_next = " + value + ";\n";
+    for (const ir::RecordMember& field : record.members) {
+        if (!written.empty()) {
+            bool is_written = false;
+            for (const ir::RecordField& w : written) {
+                if (w.name == field.name) {
+                    is_written = true;
+                    break;
+                }
+            }
+            if (!is_written) {
+                continue;
+            }
+        }
+        body += "if (!(" + member + "." + field.name + " == tessera_next." + field.name +
+                ")) {\n";
+        // Raise only the leaf bits below this member (a member is a leaf itself when it is not a
+        // plain record; a record member expands to its leaves).
+        const std::string prefix = std::string(cell_id) + "." + field.name;
+        for (const std::string& bit : bits) {
+            if (bit == prefix || bit.rfind(prefix + ".", 0) == 0) {
+                body += "dirty_.set(" + dirty_bit_name(bit) + ");\n";
+            }
+        }
+        body += "}\n";
+    }
+    body += member + " = std::move(tessera_next);\n";
+    body += "}\n";
+}
+
+// One action as C++ statements appended to `body`; false with `error` set on failure. `records` is
+// the module's record type table: a `set` of a record-typed state splits its dirty bit into one per
+// changed field (ADR-056 decision 1, #834).
 bool emit_one_action(const ir::Action& action, const ir::Component& component,
-                     std::span<const ir::Param> params, std::string& body, std::string& error) {
+                     std::span<const ir::Param> params, std::span<const ir::RecordType> records,
+                     std::string& body, std::string& error) {
     if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
         // The component reaches the scene's FocusManager through `set_focus_manager`; before
         // the host provides one (or before build() assigns the ref) the call is a no-op.
@@ -120,6 +186,25 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         if (action.transition) {
             body += "pending_transition_.begin(pending_resource_.epoch());\n";
         }
+        // A record-typed state cell splits into one bit per read leaf path (ADR-056 decision 1,
+        // #834): a `set` of `{...state, name: x}` writes only the changed field's bit, and a
+        // whole-record `set` compares field by field. Every other cell keeps its single bit.
+        for (const ir::State& state : component.state) {
+            if (state.id == target) {
+                if (const ir::RecordType* record =
+                        find_record_type_for_action(state.type, records)) {
+                    const bool is_update =
+                        action.value != nullptr &&
+                        action.value->kind == ir::ExprKind::RecordUpdate;
+                    emit_record_set(state.id, *record, records, value.text,
+                                    is_update ? std::span<const ir::RecordField>(action.value->fields)
+                                              : std::span<const ir::RecordField>(),
+                                    body);
+                    return true;
+                }
+                break;
+            }
+        }
         body += member_name(target) + " = " + value.text + ";\n";
         // ADR-056: a handler's write marks the cell dirty even when the value is unchanged, so the
         // apply_state() it ends with re-evaluates (a controlled input snaps back this way).
@@ -190,7 +275,9 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
 
 std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                         const ir::Component& component,
-                                        std::span<const ir::Param> params, std::string& error) {
+                                        std::span<const ir::Param> params,
+                                        std::span<const ir::RecordType> records,
+                                        std::string& error) {
     std::string body;
     for (const ir::Action& action : actions) {
         // ADR-066 item 2: an `If` action is a C++ `if`/`else` whose branches are emitted by this
@@ -208,14 +295,14 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                 return std::nullopt;
             }
             std::optional<std::string> then_body =
-                emit_actions(action.then_actions, component, params, error);
+                emit_actions(action.then_actions, component, params, records, error);
             if (!then_body) {
                 return std::nullopt;
             }
             body += "if (" + condition.text + ") {\n" + *then_body + "}";
             if (!action.else_actions.empty()) {
                 std::optional<std::string> else_body =
-                    emit_actions(action.else_actions, component, params, error);
+                    emit_actions(action.else_actions, component, params, records, error);
                 if (!else_body) {
                     return std::nullopt;
                 }
@@ -225,7 +312,7 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             continue;
         }
         std::string one;
-        if (!emit_one_action(action, component, params, one, error)) {
+        if (!emit_one_action(action, component, params, records, one, error)) {
             return std::nullopt;
         }
         if (!action.guard) {

@@ -11,6 +11,7 @@
 // `emit_expr_actions.cpp` (issue #327: this file had grown past the 500-line hard limit).
 
 #include "codegen_internal.hpp"
+#include "value_ops.hpp"
 
 #include <cstddef>
 #include <string>
@@ -61,10 +62,17 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
             return ExprEmission{member_name(base) + field + "()", {}};
         }
         if (const std::size_t dot = expr.id.find('.'); dot != std::string::npos) {
-            if (find_local(locals, std::string_view(expr.id).substr(0, dot)) != nullptr) {
-                return fail("`" + expr.id +
-                            "` reads a field of a loop item; record element types have no C++ form "
-                            "in this codegen slice (list element types are primitives only)");
+            // A dotted read of a loop item's record field (`row.name`): the loop local's C++ name
+            // plus the field path is exactly the aggregate member the item scope reads. The IR has
+            // no member-access expression, so the dot is part of the id, as for a record cell. A
+            // primitive element type (a type with a printable form) has no field, so it stays an
+            // error.
+            const std::string_view local = std::string_view(expr.id).substr(0, dot);
+            if (const LocalBinding* binding = find_local(locals, local); binding != nullptr) {
+                if (text_value_type(binding->ir_type).has_value()) {
+                    return fail("`" + expr.id + "` reads a field of a primitive loop item");
+                }
+                return ExprEmission{binding->cpp + std::string(expr.id.substr(dot)), {}};
             }
             // ADR-066 item 4: a dotted read into a record-typed cell. The IR has no member-access
             // expression, so the dot is part of the id (ir-v1-expr.md section 4.3, "dotted

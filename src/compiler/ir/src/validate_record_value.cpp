@@ -273,6 +273,15 @@ void validate_record_position(ValidationContext& context, const ComponentScope& 
     if (expr == nullptr) {
         return;
     }
+    // A `list<Record>`/`optional<Record>` position takes an ordinary expression (an array, a list
+    // ref, a null); only a bare record-typed position requires a record value. Issue #834: a list
+    // of records is a value list like any other, so it is not a record *value* position even
+    // though its innermost type is a record.
+    const bool wrapper = innermost_type(declared_type) != std::string_view(declared_type);
+    if (wrapper) {
+        validate_expr(context, scope, {}, expr, where);
+        return;
+    }
     // Only a *project* record has a value form: a framework payload record is a valid type name but
     // its values come from the runtime, so a payload-typed position takes any ordinary expression
     // and never a `record` value.

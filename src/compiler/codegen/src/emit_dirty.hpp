@@ -35,7 +35,11 @@ struct DirtyPlan {
                                         std::string_view name = {}) const;
 };
 
-[[nodiscard]] DirtyPlan make_dirty_plan(const ir::Component& component);
+// `records` is the module's record type table: a record-typed cell takes one bit per read leaf
+// path (ADR-051 implementation note #834), everything else one bit per cell. Empty keeps the
+// one-bit-per-cell layout every record-free golden already has.
+[[nodiscard]] DirtyPlan make_dirty_plan(const ir::Component& component,
+                                        std::span<const ir::RecordType> records = {});
 
 // `state::count` -> `kBit_state_count_`: the public static constant holding the cell's bit.
 [[nodiscard]] std::string dirty_bit_name(std::string_view cell_id);

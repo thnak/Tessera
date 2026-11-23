@@ -167,12 +167,25 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
         return fail(error, "the list source `" + loop.source->id + "` has type `" + *source_type +
                                "`, not `list<T>`");
     }
+    // A printable primitive element (`bool`, `int`, `float`, `length`, `string`, `color`), or a
+    // declared record whose fields the template reads (issue #834). Anything else has no C++ form.
     if (!text_value_type(*element)) {
-        return fail(error, "the element type `" + *element + "` of `" + loop.source->id +
-                               "` has no printable C++ form in this slice; only bool/int/float/"
-                               "string/length/color element lists are generated");
+        const bool is_record_element = [&] {
+            for (const ir::RecordType& record : records) {
+                if (record.name == *element) {
+                    return true;
+                }
+            }
+            return false;
+        }();
+        if (!is_record_element) {
+            return fail(error, "the element type `" + *element + "` of `" + loop.source->id +
+                                   "` has no printable C++ form in this slice; only bool/int/float/"
+                                   "string/length/color element lists and declared records are "
+                                   "generated");
+        }
     }
-    const std::optional<std::string> cpp = cpp_type(*element);
+    const std::optional<std::string> cpp = cpp_type(*element, records);
     if (!cpp) {
         return fail(error, "the element type `" + *element + "` has no C++ form in this slice");
     }
@@ -435,50 +448,6 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
 }
 
 } // namespace
-
-const DynamicGroup* DynamicPlan::group(unsigned parent_ordinal) const {
-    for (const DynamicGroup& group : groups) {
-        if (group.parent_ordinal == parent_ordinal) {
-            return &group;
-        }
-    }
-    return nullptr;
-}
-
-const ListTemplate* DynamicPlan::list(unsigned ordinal) const {
-    for (const ListTemplate& list : lists) {
-        if (list.ordinal == ordinal) {
-            return &list;
-        }
-    }
-    return nullptr;
-}
-
-const ListTemplate* DynamicPlan::virtual_collection(unsigned container_ordinal) const {
-    for (const ListTemplate& list : lists) {
-        if (list.is_virtual && list.container_ordinal == container_ordinal) {
-            return &list;
-        }
-    }
-    return nullptr;
-}
-
-DynamicChildKind DynamicPlan::child_kind(unsigned parent_ordinal, unsigned child_ordinal) const {
-    const DynamicGroup* owning = group(parent_ordinal);
-    if (owning == nullptr) {
-        return DynamicChildKind::Static;
-    }
-    for (const DynamicChild& child : owning->children) {
-        if (child.kind != DynamicChildKind::Static && child.ordinal == child_ordinal) {
-            return child.kind;
-        }
-    }
-    return DynamicChildKind::Static;
-}
-
-std::string branch_member(unsigned ordinal, std::string_view suffix) {
-    return "branch_" + std::to_string(ordinal) + "_" + std::string(suffix);
-}
 
 bool collect_dynamic_plan(const ir::Component& component, std::span<const ir::RecordType> records,
                           DynamicPlan& plan, std::string& error) {

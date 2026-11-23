@@ -13,6 +13,12 @@
 #include <variant>
 
 namespace tessera::compiler::codegen::internal {
+
+// Defined below (and used by `dotted_text_type` and the loop-item path): the declared type of a
+// record member.
+std::string_view record_member_type(std::span<const ir::RecordType> records,
+                                    std::string_view type_name, std::string_view name);
+
 namespace {
 
 bool fail(std::string& error, std::string message) {
@@ -20,12 +26,36 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-std::optional<TextValueType> local_text_type(const LocalBindings& locals, std::string_view id) {
-    const LocalBinding* local = find_local(locals, id);
+std::optional<TextValueType> local_text_type(const LocalBindings& locals, std::string_view id,
+                                             std::span<const ir::RecordType> records) {
+    if (const LocalBinding* local = find_local(locals, id)) {
+        return text_value_type(local->ir_type);
+    }
+    // A record loop item read as `row.name` (issue #834): the field's declared type through the
+    // module's record table, so a list of records can render `{row.name}`.
+    const std::size_t dot = id.find('.');
+    if (dot == std::string_view::npos) {
+        return std::nullopt;
+    }
+    const LocalBinding* local = find_local(locals, id.substr(0, dot));
     if (local == nullptr) {
         return std::nullopt;
     }
-    return text_value_type(local->ir_type);
+    std::string_view type = local->ir_type;
+    std::string_view rest = id.substr(dot + 1);
+    while (!rest.empty()) {
+        const std::size_t next = rest.find('.');
+        const std::string_view name = next == std::string_view::npos ? rest : rest.substr(0, next);
+        type = record_member_type(records, type, name);
+        if (type.empty()) {
+            return std::nullopt;
+        }
+        if (next == std::string_view::npos) {
+            break;
+        }
+        rest = rest.substr(next + 1);
+    }
+    return text_value_type(type);
 }
 
 std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Component& component,
@@ -47,7 +77,8 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         }
         return std::nullopt;
     case ir::ExprKind::Ref:
-        if (const std::optional<TextValueType> local = local_text_type(locals, expr.id)) {
+        if (const std::optional<TextValueType> local =
+                local_text_type(locals, expr.id, records)) {
             return local;
         }
         return declared_text_type(component, records, expr.id);

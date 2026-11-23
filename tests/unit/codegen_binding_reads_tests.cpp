@@ -189,6 +189,48 @@ void test_record_field_reads_its_base_cell() {
           "a dotted field reference reads its base cell");
 }
 
+// Issue #834: with the module's record table, a record-typed cell splits into one bit per read leaf
+// path, so a binding that reads only one field depends on only that field's bit.
+void test_record_field_splits_into_leaf_bits() {
+    const std::vector<ir::RecordType> records{
+        {"type::Form",
+         "Form",
+         {{"name", "string", false}, {"email", "string", false}},
+         ir::SourceSpan{}}};
+    ir::Component c = with_child(node(ir::NodeKind::Text));
+    c.state.push_back({"state::form", "form", "Form", nullptr});
+    c.root.children[0].text = text_of([&] {
+        std::vector<ir::ExprPtr> v;
+        v.push_back(ref("state::form.name"));
+        return v;
+    }());
+    const auto table = internal::analyze_binding_reads(c, records);
+    check(reads_exactly(table.find(BindingKind::Text, kFirstChild), {"state::form.name"}),
+          "a single-field read depends on that field's bit only");
+
+    // A whole-record read depends on every leaf bit under it.
+    c.root.children[0].text = ref("state::form");
+    const auto whole = internal::analyze_binding_reads(c, records);
+    check(reads_exactly(whole.find(BindingKind::Text, kFirstChild),
+                        {"state::form.email", "state::form.name"}),
+          "a whole-record read depends on every leaf bit");
+
+    // An intermediate record read (`state.form.address`) depends on every leaf below it.
+    ir::Component nested = with_child(node(ir::NodeKind::Text));
+    nested.state.push_back({"state::form", "form", "Envelope", nullptr});
+    nested.root.children[0].text = ref("state::form.address");
+    const std::vector<ir::RecordType> envelope{
+        {"type::Address",
+         "Address",
+         {{"city", "string", false}, {"zip", "string", false}},
+         ir::SourceSpan{}},
+        {"type::Envelope", "Envelope", {{"address", "Address", false}}, ir::SourceSpan{}}};
+    const auto nested_table = internal::analyze_binding_reads(nested, envelope);
+    check(reads_exactly(nested_table.find(BindingKind::Text, kFirstChild),
+                        {"state::form.address.city", "state::form.address.zip"}),
+          "an intermediate record read depends on every leaf under it");
+}
+
 void test_list_template() {
     ir::Node row = node(ir::NodeKind::Text);
     ir::Loop loop;
@@ -400,6 +442,7 @@ int main() {
     test_conservative_default();
     test_known_call_reads_its_arguments();
     test_record_field_reads_its_base_cell();
+    test_record_field_splits_into_leaf_bits();
     test_list_template();
     test_virtual_collection_item_template();
     test_controlled_input_value();

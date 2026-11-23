@@ -238,7 +238,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         writer.line("(void)" + param_name + ";");
         std::string action_error;
         const std::optional<std::string> body =
-            emit_actions(handler.actions, component, handler.params, action_error);
+            emit_actions(handler.actions, component, handler.params, module.types, action_error);
         if (!body) {
             return fail(error, action_error);
         }
@@ -289,7 +289,7 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     if (!collect_dynamic_plan(component, module.types, plan, error)) {
         return false;
     }
-    plan.dirty = make_dirty_plan(component);
+    plan.dirty = make_dirty_plan(component, module.types);
     // The collection-level events of every virtual collection in the plan (onScroll/onEndReached):
     // resolved here so a failing form reports one deterministic error before any file is emitted.
     if (!collect_virtual_events(component, owned, plan, error)) {
