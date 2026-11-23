@@ -4,8 +4,11 @@ package dev.tessera.app;
 
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.CursorAnchorInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
+
+import java.text.BreakIterator;
 
 /**
  * The engine's IME bridge (issue #189, docs/design/mobile-integration.md section 3.3).
@@ -34,6 +37,7 @@ final class TesseraInputConnection extends InputConnectionWrapper {
     private static final int kNoCursor = -1;
 
     private final long handle;
+    private final TesseraView view;
 
     TesseraInputConnection(TesseraView view, long handle) {
         // The base connection needs a target for the calls this class does not override. The view is
@@ -41,6 +45,7 @@ final class TesseraInputConnection extends InputConnectionWrapper {
         // change happened when the engine refused it.
         super(new BaseInputConnection(view, false), false);
         this.handle = handle;
+        this.view = view;
     }
 
     @Override
@@ -169,6 +174,33 @@ final class TesseraInputConnection extends InputConnectionWrapper {
      */
     public boolean selectAll() {
         return TesseraView.nativeSelectAll(handle);
+    }
+
+    // --- Cursor anchor (docs/guides/android-lane.md section 3.18) -----------------------------
+    //
+    // The IME places its suggestion strip, its autocorrect highlight and its magnifier from the
+    // cursor anchor. Without one it guesses, and the strip lands in the wrong place on a
+    // custom-rendered field. The engine answers with the SAME box paint draws, so the two cannot
+    // drift.
+
+    @Override
+    public boolean requestCursorUpdates(int cursorUpdateMode) {
+        // The engine has no async cursor stream, so a MONITOR request is answered with one
+        // immediate update and no follow-ups: the IME gets a truthful anchor now, and polls again
+        // when it needs a fresh one. Reporting "not handled" made Gboard fall back to guessing,
+        // which is what put its suggestion strip in the wrong place.
+        final float[] box = new float[4];
+        if (!TesseraView.nativeCaretGeometry(handle, box)) {
+            return false;
+        }
+        final float density = view.getResources().getDisplayMetrics().density;
+        final CursorAnchorInfo.Builder builder = new CursorAnchorInfo.Builder();
+        // The engine's box is in logical pixels; the platform wants physical ones.
+        builder.setInsertionMarkerLocation(box[0] * density, box[1] * density,
+                (box[0] + box[2]) * density, (box[1] + box[3]) * density,
+                CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION);
+        view.requestCursorAnchorUpdate(builder.build());
+        return true;
     }
 
     @Override

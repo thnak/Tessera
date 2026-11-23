@@ -2488,6 +2488,8 @@ header include/tessera/ui/paint/paint_text_metrics.hpp
 class include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::FontPaintTextMetrics
 class include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::PaintTextMetricsSource
 class include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::StubPaintTextMetrics
+struct include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::CaretBox
+function include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::caret_box
 constant include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::kStubTextMetricsId
 
 header include/tessera/ui/paint/scene_style_sync.hpp

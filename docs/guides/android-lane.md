@@ -291,17 +291,12 @@ stays inside its size budget.
 ### 3.7 What is still missing
 
 - **Accessibility's long tail.** The role/action mapping, the pull-side provider and the Java
-  `AccessibilityNodeProvider` are done (section 3.9). Not wired: live-region announcements,
-  collection set-size/position, and `SetText`/`SetSelection` (offered to the platform but dropped,
-  because `ProviderAction` carries no text payload).
-- **The IME's long tail.** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
-  report). The compose/commit/delete path and the text queries are wired.
-- **The context menu itself.** A tap places the caret (3.13), a long-press starts a selection and a
-  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), Copy/Cut/Paste and Select
-  all work through the platform's keys and the IME's `InputConnection` (3.16), and a selection raises
-  the platform's floating toolbar (3.17).
+  `AccessibilityNodeProvider` are done (3.9). Not wired: live regions, collection set-size/position,
+  and `SetText`/`SetSelection` (offered but dropped - `ProviderAction` carries no text payload).
+- **The IME's long tail.** `requestCursorUpdates` is forwarded (3.18); what remains is the async
+  cursor stream, which the engine has no notion of, so a monitor request is answered once.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is hand-built,
-  because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated on
+  because the codegen CLI runs on the host and `tessera_compiler_demo` is gated on
   `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
   tool - the same `ExternalProject` pattern the shader manifest checker uses.
 
@@ -334,21 +329,20 @@ So the Android column is a different shape, not a branch in an existing one:
 
 Three details that are easy to get wrong, and that the tests pin:
 
-**Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers whenever
-the tree is rebuilt, and a screen reader that focused virtual view 3 would then point at a different
-control. `SnapshotProvider` keeps a slot table: a node keeps its id while it stays in the tree, and a
-node that leaves frees its slot. Id `0` is the host view, so a real node is always `1..kMaxNodes`.
+**Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers on every
+rebuild and a screen reader focused on virtual view 3 would point at a different control.
+`SnapshotProvider` keeps a slot table: a node keeps its id while it stays in the tree, and a node
+that leaves frees its slot. Id `0` is the host view, so a real node is always `1..kMaxNodes`.
 
-**The action ids are the platform's, not ours.** They are *not* consecutive powers of two:
-`ACTION_FOCUS` is 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is
-2097152. Numbering them in enum order turns a click into a focus request, and because the platform
-echoes back the id it was offered, that failure is silent. The values were read from `android.jar`
-with `javap -constants` and the test asserts them. They are also a **list**, not a bit set:
-`Click | LongClick` would be 48, which is not an id the platform knows.
+**The action ids are the platform's.** They are *not* consecutive powers of two: `ACTION_FOCUS` is
+1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is 2097152. Numbering them
+in enum order turns a click into a focus request, and since the platform echoes back the id it was
+offered, that failure is silent. They were read from `android.jar` with `javap -constants` and the
+test asserts them. They are also a **list**, not a bit set: `Click | LongClick` is 48, which is no id
+the platform knows.
 
-**Bounds are the engine's logical pixels.** They are the view's own coordinate space, so no density
-conversion happens in Java; they cross as fixed point in 1/64 px so a fractional position is rounded
-once rather than truncated twice.
+**Bounds are the engine's logical pixels**, the view's own coordinate space, so Java converts no
+density; they cross as fixed point in 1/64 px so a fractional position rounds once, not twice.
 
 ```powershell
 # What a screen reader should see, without a screen reader:
@@ -384,14 +378,11 @@ from Java means calling suspend functions through `BuildersKt` with a hand-writt
 breaks on any coroutines version bump; `FoldObserver.kt` does it in three lines instead. All the
 mapping stays in `TesseraFoldReader.java` with the rest of the shell.
 
-**Why a listener, not just a config-change re-read.** A fold change is *not* always a configuration
-change: the emulator's `HALF_OPENED` transition changes the hinge angle without resizing the window,
-so `onConfigurationChanged` never fires. A re-read on that hook alone reports the posture the app
-started with, forever.
-
-**The ordering trap.** `onResume` runs *before* `surfaceCreated`, so a fold read there has no native
-handle to push to. `TesseraView.whenNativeReady` defers the first push until the shell exists;
-without it a device already folded at launch reports no fold until the next change.
+**Two traps.** A fold change is *not* always a configuration change - the emulator's `HALF_OPENED`
+transition changes the hinge angle without resizing the window - so a re-read on
+`onConfigurationChanged` alone reports the launch posture forever. And `onResume` runs *before*
+`surfaceCreated`, so a fold read there has no native handle; `TesseraView.whenNativeReady` defers the
+first push until the shell exists.
 
 Verification on the emulator, which can simulate a foldable: `adb shell cmd device_state state 1`
 is `HALF_OPENED` and `state 2` is `OPENED` (`print-states` lists them). Both report posture 1/2 with
@@ -405,35 +396,26 @@ exposes it as a sensor, `android.hardware.Sensor.TYPE_HINGE_ANGLE` (36), present
 for API 35 and later and in the NDK as `ASENSOR_TYPE_HINGE_ANGLE`. So this slice adds no dependency
 — it is `SensorManager`, which every Android build already has.
 
-**Why it is a separate reader, not part of `TesseraFoldReader`.** The two read different sources at
-different rates, and a device can have one without the other:
+**Why it is a separate reader.** The two read different sources at different rates, and a device can
+have one without the other. Posture comes from `FoldingFeature` (AndroidX) as `FLAT`/`HALF_OPENED`,
+one event per transition; the angle comes from `SensorManager` as 0-360 degrees, continuous while
+folding. A foldable with no hinge sensor still reports posture, and a device whose window is not laid
+out yet reports no posture while the sensor keeps working. One reader would make each depend on the
+other's failure mode.
 
-Posture comes from `FoldingFeature` (AndroidX) as `FLAT`/`HALF_OPENED`, one event per transition,
-and is absent on a non-foldable. The angle comes from `SensorManager` (platform) as 0-360 degrees,
-continuous while folding, and is absent when there is no hinge sensor. A foldable with no hinge
-sensor still reports posture; a device whose window is not laid out yet
-reports no posture while the sensor keeps working. Folding them into one reader would make each
-depend on the other's failure mode.
-
-**Why a separate event type.** `HingeAngleChanged` is not `FoldChanged`. A posture change is a
-discrete relayout; the angle is a continuous signal a scene may animate against. Merging them would
-rebuild the layout on every degree of a slow fold. The angle event coalesces into the newest, so a
-burst of sensor samples between two ticks costs one event, and it maps onto the taxonomy's
-`PostureChanged` (`FoldChanged` stays the discrete transition).
+`HingeAngleChanged` is a separate event for the same reason: a posture change is a discrete relayout,
+the angle is a continuous signal a scene may animate against, and merging them would rebuild the
+layout on every degree. The angle coalesces into the newest, so a burst between two ticks costs one
+event.
 
 **The sentinel is negative.** `kUnknownHingeAngle` is `-1`, not `0`, because `0` is a real
-measurement — a fully closed hinge. A sentinel of `0` would make "no sensor" indistinguishable from
-"closed". The decode (`android::hinge_angle`) also turns a non-finite reading into the sentinel
-rather than clamping it to `0`, because a broken HAL reporting `NaN` must not look like a closed
-device. The upper clamp is 360, not 180: a display that folds all the way around is real.
+measurement - a fully closed hinge. The decode also turns a non-finite reading into the sentinel
+rather than clamping, because a broken HAL reporting `NaN` must not look closed. The upper clamp is
+360, not 180: a display that folds all the way around is real. And `fold_info` sets the angle before
+the posture switch, so a device with a sensor but no `FoldingFeature` still reports it.
 
-**The angle survives an unknown posture.** `fold_info` sets the angle before the posture switch, so
-a device that has a sensor but no `FoldingFeature` still reports its angle. Dropping it there would
-make a foldable look like a slab for as long as the posture is unknown.
-
-**Registration follows the lifecycle.** The sensor is registered on resume and released on pause.
-It is a non-wake-up sensor, so leaving it registered while backgrounded would keep it powered for a
-value no frame can show.
+**Registration follows the lifecycle.** The sensor is registered on resume and released on pause: a
+non-wake-up sensor left registered while backgrounded stays powered for a value no frame can show.
 
 Verification on the emulator, which has a hinge sensor:
 
@@ -441,11 +423,10 @@ Verification on the emulator, which has a hinge sensor:
 adb shell dumpsys sensorservice | Select-String "hinge"
 # 0x0000000b) Goldfish hinge sensor0 (in degrees)
 #   type: android.sensor.hinge_angle(36)
-#   last events: 90.00, 0.00
 ```
 
-The emulator reports `90.00` at `HALF_OPENED` and `0.00` at `CLOSED`, which is the sensor's own
-scale (0 closed, 180 flat) and not the posture enum.
+It reports `90.00` at `HALF_OPENED` and `0.00` at `CLOSED` - the sensor's scale, not the enum.
+
 
 ### 3.12 Keys and the caret: two seams a custom-rendered field does not get for free
 
@@ -553,11 +534,10 @@ and ticks it from the caret callback:
 
 ### 3.16 Copy, Cut, Paste and Select all: a phone has no Ctrl key
 
-`hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but the manager must be
-touched on a thread with a `Looper`, and the engine's render thread has none. The backend keeps a
-cache: a **write** updates the engine's copy immediately (so a copy-then-paste in the same frame sees
-the new text) and asks the view to post the platform write to the UI thread; a **read** returns the
-cached text, which the UI thread refreshes on `OnPrimaryClipChangedListener`.
+`hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but the manager needs a
+`Looper` thread and the engine's render thread has none. The backend caches: a **write** updates the
+engine's copy immediately (so a copy-then-paste in the same frame sees it) and posts the platform
+write to the UI thread; a **read** returns the cache, refreshed on `OnPrimaryClipChangedListener`.
 
 Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a hardware
 keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu). The key codes are
@@ -565,9 +545,9 @@ keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu
 them first. `Select all` reaches the buffer the same way: `nativeSelectAll` from the platform's
 action, and `Ctrl+A` from a hardware keyboard.
 
-The chord exposed a defect worth naming: `codepoint_from_key` derived a character from every letter
-key regardless of modifiers, so `Ctrl+A` produced BOTH a `KeyDown` (Select all) and a `Text` event
-(insert) - every chord also typed its letter. A chord with Control, Alt or Meta now types nothing.
+The chord exposed a defect: `codepoint_from_key` derived a character from every letter key
+regardless of modifiers, so `Ctrl+A` produced BOTH a `KeyDown` (Select all) and a `Text` event
+(insert) - every chord also typed its letter. Control/Alt/Meta chords now type nothing.
 
 `android_clipboard_text.cpp` does the UTF-8/UTF-16 conversion, and it is **pure** so
 `android_clipboard_text` pins the rule that bites: a code point above U+FFFF is a **surrogate pair**,
@@ -590,6 +570,27 @@ finishes the mode, because each one collapses or changes the selection.
 
 Verified on the emulator: long-press and drag over `hello` raises the toolbar above the field; Copy
 writes `hello` (the platform's clipboard chip confirms it); Select all highlights the whole buffer.
+
+### 3.19 Going to the background: pause the loop
+
+Home does **not** destroy the surface on current Android. Only `onPause`/`onStop` run, so
+`surfaceDestroyed` never fires and the render thread kept presenting into a buffer queue the
+compositor stopped consuming. That wedged the queue, the task's snapshot never completed, and coming
+back showed a starting window over an app with no input focus that ANR'd on every touch (`dumpsys
+input` reported an empty `FocusedWindows`). Three things had to be true:
+
+1. **Stop rendering in `onPause`, not `onStop`.** An app can sit paused indefinitely without ever
+   being stopped, so only `onPause` is guaranteed.
+2. **`close()` must wake the parked loop.** It set the flag and returned, so a caller joining the
+   render thread waited for the next timeout - a deadlock on the UI thread. It now notifies the same
+   condition variable `request_redraw` does, and `closed_` is atomic.
+3. **The join is bounded.** A thread inside a present cannot abandon it, so `stop_host` gives the
+   loop 250 ms then detaches, leaking the host on purpose.
+
+`onResume` runs **before** `surfaceCreated` and the borrowed window is stale then, so starting there
+reported "the window host is unavailable". `nativeSurfaceCreated` owns the start; `resumeRendering`
+only starts on an already-valid window. Verified: type `abc`, Home, return, tap and type `xyz` - the
+field reads `abcxyz`.
 
 ## 4. Related
 

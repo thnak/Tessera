@@ -106,4 +106,24 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+// The caret's box for one byte offset, in the same coordinates the painted lines use (relative to
+// the content box's top-left).
+//
+// This is the geometry paint draws, exposed so a platform IME can answer `requestCursorUpdates`
+// with the SAME box: an IME that gets a different one places its suggestion strip in the wrong
+// place, and the two would drift the moment either changed. `line_x`/`line_top` are the first
+// line's origin, which paint already knows (a centred or end-aligned line starts right of the
+// content box); a caller with no alignment passes 0.
+struct CaretBox {
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+
+[[nodiscard]] CaretBox caret_box(std::string_view text, const text::TextLayout& layout,
+                                 std::size_t byte_offset, const text::TextStyle& style,
+                                 const PaintTextMetricsSource& source, float device_scale,
+                                 float line_x = 0.0f, float line_top = 0.0f);
+
 } // namespace tessera::ui::paint

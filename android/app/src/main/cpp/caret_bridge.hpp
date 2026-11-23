@@ -67,4 +67,20 @@ struct SelectionState {
 
 [[nodiscard]] SelectionState selection_state(Shell& shell);
 
+// The caret's box in LOGICAL pixels, relative to the window, for the IME's `requestCursorUpdates`
+// (docs/guides/android-lane.md section 3.18). The IME places its suggestion strip and its
+// autocorrect highlight from this, so it must be the geometry paint draws - which is why both come
+// from `paint::detail::caret_box`.
+//
+// Returns false when the shell has no field or no face, so the caller leaves the IME's cursor
+// anchor alone rather than reporting a box at the origin.
+struct CaretGeometry {
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+
+[[nodiscard]] bool caret_geometry(Shell& shell, CaretGeometry& out);
+
 } // namespace tessera::android_shell

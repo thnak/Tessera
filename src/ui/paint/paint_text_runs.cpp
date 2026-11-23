@@ -140,6 +140,10 @@ float line_offset_x(std::string_view text, const text::TextLine& line, std::size
     return text::bidi_offset_x(text, line, offset, style, &run_advance, &source);
 }
 
+} // namespace tessera::ui::paint::detail
+
+namespace tessera::ui::paint::detail {
+
 void emit_line_runs(const text::TextLine& line, std::string_view text,
                     const text::TextStyle& text_style, const PaintTextMetricsSource& source,
                     float line_x, float line_top, float available_width, const rhi::Color& color,
@@ -174,3 +178,36 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
 }
 
 } // namespace tessera::ui::paint::detail
+
+namespace tessera::ui::paint {
+
+CaretBox caret_box(std::string_view text, const text::TextLayout& layout, std::size_t byte_offset,
+                   const text::TextStyle& style, const PaintTextMetricsSource& source,
+                   float device_scale, float line_x, float line_top) {
+    CaretBox box;
+    if (layout.lines.empty()) {
+        return box;
+    }
+    const std::size_t caret = std::min(byte_offset, text.size());
+    // The line the caret belongs to: the first whose range contains it, else the last. The same
+    // rule the paint loop uses, so the box and the drawn caret never disagree.
+    const text::TextLine* caret_line = &layout.lines.back();
+    for (const text::TextLine& line : layout.lines) {
+        if (caret >= line.begin && caret <= line.end) {
+            caret_line = &line;
+            break;
+        }
+    }
+    const std::size_t clamped = std::min(caret, caret_line->end);
+    box.x = line_x + detail::line_offset_x(text, *caret_line, clamped, style, source);
+    // `line_top` is the caret's OWN line origin, in the caller's coordinates. Paint passes the
+    // `LineGeometry::top` it already computed, which is absolute; a caller with no alignment passes
+    // the accumulated height. Not adding the preceding lines here is what keeps the two identical.
+    box.y = line_top;
+    // The painted caret is 1 px at device scale 1 and 2 px at >= 2; the IME wants the same width so
+    // its suggestion strip lines up with what the user sees.
+    box.width = device_scale >= 2.0f ? 2.0f : 1.0f;
+    box.height = caret_line->height;
+    return box;
+}
+} // namespace tessera::ui::paint

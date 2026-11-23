@@ -37,6 +37,7 @@
 #include <android/input.h>
 #include <android/native_window.h>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -202,6 +203,15 @@ public:
         }
         closed_ = true;
         lifetime_.revoke();
+        // Wake the parked loop. `close()` used to set the flag and return, which left the loop
+        // sleeping until the next timeout: a caller that then joined the render thread waited for
+        // a frame that was already refused, and on the UI thread (the app going to the background)
+        // that is a deadlock and an ANR. The wake is what makes the stop prompt.
+        {
+            const std::lock_guard lock(wake_mutex_);
+            wake_requested_ = true;
+        }
+        wake_cv_.notify_all();
     }
 
     // --- Android-specific, called by the host that owns the surface -----------------------------
@@ -427,7 +437,10 @@ private:
     AndroidInputTranslator input_;
     std::uint64_t sequence_ = 0;
     bool visible_ = true;
-    bool closed_ = false;
+    // Written by the UI thread (lifecycle) and read by the render thread inside the frame loop, so
+    // it must be atomic: a plain bool is a data race, and the read is what decides whether the loop
+    // stops.
+    std::atomic<bool> closed_{false};
     bool pending_resize_ = false;
     bool pending_safe_area_ = false;
     bool pending_fold_ = false;

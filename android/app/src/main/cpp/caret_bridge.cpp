@@ -15,8 +15,10 @@
 #include "caret_bridge.hpp"
 #include "shell.hpp"
 #include "tessera/runtime/steady_clock.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
+#include <algorithm>
 #include <string_view>
 
 namespace tessera::android_shell {
@@ -227,6 +229,28 @@ SelectionState selection_state(Shell& shell) {
         state.anchor_y = field.box_y;
     }
     return state;
+}
+
+bool caret_geometry(Shell& shell, CaretGeometry& out) {
+    tessera::hal::android::CaretField field;
+    if (!caret_field_for_shell(shell, field) || shell.field_advance == nullptr) {
+        return false;
+    }
+    // The layout paint would produce: the same text, style, constraints and advance source.
+    tessera::ui::text::TextConstraints constraints;
+    constraints.wrap = field.wrap;
+    constraints.max_width = std::max(0.0f, field.box_width - field.pad_left - field.pad_right);
+    const tessera::ui::text::TextLayout layout =
+        shell.field_advance->layout(field.text, *field.style, constraints);
+    const tessera::ui::paint::CaretBox box =
+        tessera::ui::paint::caret_box(field.text, layout, shell.editor.buffer().caret(),
+                                      *field.style, *shell.field_advance, shell.dpi_scale);
+    // The box is relative to the content box; the IME wants window coordinates.
+    out.x = field.box_x + field.pad_left + box.x;
+    out.y = field.box_y + field.pad_top + box.y;
+    out.width = box.width;
+    out.height = box.height;
+    return true;
 }
 
 } // namespace tessera::android_shell
