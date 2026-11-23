@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/list_diagnostics.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "demo_types.hpp"
 
@@ -160,6 +161,8 @@ namespace demo {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_2 = tessera::ui::DirtyMask<6>::of({3, 5});
       // text binding of node::3 reads: state::form.email.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_3 = tessera::ui::DirtyMask<6>::of({2, 5});
+      // source binding of node::4 reads: state::rows.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_source_4 = tessera::ui::DirtyMask<6>::of({4, 5});
       // list binding of node::4 reads: state::rows.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_list_4 = tessera::ui::DirtyMask<6>::of({4, 5});
     }
@@ -320,6 +323,13 @@ namespace demo {
             if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
+              break;
+            }
+          }
+          for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; ++tessera_prior) {
+            if (tessera_next_keys[tessera_prior] == tessera_key) {
+              TESSERA_LIST_DUPLICATE_KEY(this, "node::4", tessera_key);
+              tessera_key += "#" + std::to_string(tessera_next);
               break;
             }
           }
