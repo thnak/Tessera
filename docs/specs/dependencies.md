@@ -471,7 +471,7 @@ renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
 
 ### What is *not* a dependency
 
-**Developer-run, not a dependency:** Playwright with headless Chromium (`scripts/ci/preview_browser_verify.mjs`, Apache-2.0 / BSD-style) opens the assembled studio in a real browser. It is not in `designer/web/package.json` and no lane runs it, so nothing shipped pulls in a browser engine; see the script header.
+**Build-and-test tooling, never shipped:** Playwright with headless Chromium (Apache-2.0 / BSD-style) drives the assembled studio page in `scripts/ci/preview_browser_*.mjs`, declared in `scripts/ci/package.json` (lockfile committed; `npm ci --prefix scripts/ci`) and **not** in `designer/web/package.json`, so no shipped artifact pulls in a browser engine. `preview_browser_canvas_handover.mjs` is a CI gate: it runs in the Pages lane after assembly and fails when the WebGPU device handover regresses to null handles or either unsupported heading names the wrong side (#375). Headless Chromium gets a SwiftShader adapter *and* device with `--enable-unsafe-webgpu`, which lets it be a gate rather than a skip; it does **not** prove the pixel comparison against the lavapipe goldens (#167), because a software adapter is not a pixel reference.
 
 The scene graph, layout integration, CSS subset, renderer batching, game clock, dirty-flag
 invalidation, IR, codegen, golden runner, and the AI-agent feedback loop are our

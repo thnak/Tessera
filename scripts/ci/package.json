@@ -1,0 +1,10 @@
+{
+  "name": "tessera-ci-scripts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Node tooling for the gates under scripts/ci. Developer-run browser checks (preview_browser_*.mjs, chrome_parity.mjs) import Playwright, which is a real dependency of that tooling and of no shipped artifact; see docs/specs/dependencies.md.",
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}
