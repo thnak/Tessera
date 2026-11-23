@@ -219,6 +219,38 @@ bool functions() {
          ok;
     ok = fails(call("min", lit(1)), "TESSERA_IR_EVAL_ARITY", "arity is checked") && ok;
     ok = fails(call("abs", text("x")), "TESSERA_IR_EVAL_TYPE", "argument types are checked") && ok;
+    // Issue #803: the strict whole-string parses. The parse rule and its limits are ir-v1-expr.md
+    // section 4.2.
+    ok = is_int(call("parseIntOr", text("42"), lit(0)), 42, "parseIntOr of a plain int") && ok;
+    ok = is_int(call("parseIntOr", text("  -7  "), lit(0)), -7,
+                "parseIntOr trims ASCII whitespace") &&
+         ok;
+    ok =
+        is_int(call("parseIntOr", text("+13"), lit(0)), 13, "parseIntOr accepts a plus sign") && ok;
+    ok = is_int(call("parseIntOr", text("12abc"), lit(-1)), -1,
+                "the parse is whole-string: a trailing suffix falls back") &&
+         ok;
+    ok = is_int(call("parseIntOr", text("1.5"), lit(0)), 0,
+                "an integer parse rejects a decimal point") &&
+         ok;
+    ok = is_int(call("parseIntOr", text("1e3"), lit(0)), 0, "no exponent form") && ok;
+    ok = is_int(call("parseIntOr", text("0x10"), lit(0)), 0, "no hex form") && ok;
+    ok = is_int(call("parseIntOr", text(""), lit(9)), 9, "the empty string falls back") && ok;
+    ok = is_int(call("parseIntOr", text("  "), lit(9)), 9, "whitespace alone falls back") && ok;
+    ok = is_int(call("parseIntOr", text("2147483648"), lit(0)), kIntMax,
+                "out of range saturates rather than falling back") &&
+         ok;
+    ok =
+        is_float(call("parseFloatOr", text("1.5"), lit(0.0)), 1.5, "parseFloatOr of a float") && ok;
+    ok = is_float(call("parseFloatOr", text("1e3"), lit(0.0)), 0.0, "no exponent form") && ok;
+    ok = is_float(call("parseFloatOr", text("abc"), lit(2.5)), 2.5, "letters fall back") && ok;
+    ok = fails(call("parseIntOr", text("1"), lit(1.5)), "TESSERA_IR_EVAL_TYPE",
+               "an int parse takes an int fallback") &&
+         ok;
+    ok = fails(call("parseIntOr", lit(1), lit(1)), "TESSERA_IR_EVAL_TYPE",
+               "the parsed value must be a string") &&
+         ok;
+    ok = fails(call("parseFloatOr", text("1")), "TESSERA_IR_EVAL_ARITY", "arity is checked") && ok;
     return ok;
 }
 

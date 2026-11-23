@@ -20,9 +20,9 @@ constexpr std::string_view kUnaryOps[] = {"!", "-", "+"};
 // ir-v1.md section 4.2. The last six are the total string methods of ADR-066 item 3; each takes its
 // receiver as the first argument, so a method call and a function call are one shape.
 constexpr std::string_view kFunctions[] = {
-    "min",         "max",         "clamp",      "abs",    "floor",        "ceil",
-    "round",       "toInt",       "toFloat",    "length", "formatNumber", "trim",
-    "toUpperCase", "toLowerCase", "startsWith", "slice",  "toFixed"};
+    "min",        "max",     "clamp",   "abs",          "floor",       "ceil",        "round",
+    "toInt",      "toFloat", "length",  "formatNumber", "trim",        "toUpperCase", "toLowerCase",
+    "startsWith", "slice",   "toFixed", "parseIntOr",   "parseFloatOr"};
 constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",    "string",
                                                 "color", "length", "node_ref", "children"};
 

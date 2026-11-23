@@ -77,6 +77,20 @@ A `call` expression may name only the functions in this table. They are pure, to
 | `toFloat(x)` | `int -> float` | Exact conversion |
 | `length(x)` | `string -> int`, `list<T> -> int` | For a string, the number of Unicode code points; for a list, its element count |
 | `formatNumber(x, decimals)` | `(int or float, int) -> string` | Fixed-point text with `decimals` digits after a `.` separator (`decimals` is clamped to 0..20), correctly rounded from the exact value of `x` with ties away from zero; no thousands separator; `NaN`, `Infinity`, `-Infinity` as in section 4.1 |
+| `parseIntOr(text, fallback)` | `(string, int) -> int` | The strict whole-string parse (below); `fallback` when `text` does not parse |
+| `parseFloatOr(text, fallback)` | `(string, float) -> float` | The strict whole-string parse (below); `fallback` when `text` does not parse |
+
+The parse behind `parseIntOr`/`parseFloatOr` (issue #803) is **whole-string, not a leading scan**:
+`text` is trimmed of ASCII whitespace, then must be *entirely* a number — an optional `+`/`-` sign
+and decimal digits, with at most one decimal point for the float form — or the result is `fallback`.
+This is the deliberate difference from JavaScript's `parseInt`, whose leading scan reads `12` out of
+`12abc`: a ported form field holds exactly such text, and silently taking a prefix of it is the
+mistake the `Or` form exists to avoid. There is no exponent, no hex, no digit separators — `"1e3"`
+and `"0x10"` are unparseable text, because reading them as `1000` and `16` would be a silent
+reinterpretation. Out of range **saturates** to the type's limit rather than falling back: the
+string *is* a number, and the fallback is for the not-a-number case only. The fallback's type must
+match (`parseIntOr` takes an `int`, `parseFloatOr` a `float`), so the generated C++ calls the same
+instantiation the evaluator does and never truncates silently.
 
 Adding a function to this table is a change to this specification and to the evaluator and the code generator together. Functions that depend on locale, time, randomness or the environment are never allowed.
 

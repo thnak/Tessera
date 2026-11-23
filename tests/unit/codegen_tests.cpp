@@ -195,6 +195,30 @@ std::string first_error(const codegen::CodegenResult& result) {
     return result.error().empty() ? std::string("<empty>") : result.error().front();
 }
 
+void test_parse_or_emits_the_shared_helper() {
+    // Issue #803: `parseIntOr`/`parseFloatOr` emit `tessera::ui::parse_number_or`, the same
+    // inline rule the evaluator runs, so the generated C++ and the evaluator agree byte for byte.
+    ir::IrModule module = make_sample_module();
+    std::vector<ir::ExprPtr> args;
+    args.push_back(ir::make_ref("prop::title"));
+    args.push_back(ir::make_literal(std::int64_t{0}));
+    module.components[0].root.children[0].children[0].text =
+        ir::make_call("parseIntOr", std::move(args));
+    const auto result = generate_base(module);
+    check(result.has_value(), first_error(result));
+    if (!result) {
+        return;
+    }
+    std::string all;
+    for (const codegen::GeneratedFile& file : *result) {
+        all += file.text;
+    }
+    check(all.find("tessera::ui::parse_number_or(") != std::string::npos,
+          "the generated text calls the shared strict-parse helper");
+    check(all.find("parseIntOr") == std::string::npos,
+          "no internal function name leaks into the generated C++");
+}
+
 void test_rejections() {
     {
         ir::IrModule module = make_sample_module();
@@ -279,6 +303,7 @@ int main() {
     test_fixture_is_valid();
     test_generated_shape();
     test_determinism();
+    test_parse_or_emits_the_shared_helper();
     test_rejections();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
