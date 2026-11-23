@@ -76,10 +76,19 @@ Rules:
 - **Context.** Every task coroutine takes `TaskContext` as its first parameter (completion queue,
   priority, cancellation token). A task without one does not compile; the queue and token must
   outlive the task.
-- **Queue-only resumption.** `start()` and every continuation post a closure to the task's
+- **Queue-only resumption.** `start()` and every continuation post the task's resume to its
   `CompletionQueue` at the priority from its context. A continuation is posted to the *awaiting*
   task's queue/priority, so completion never resumes inline and no thread is created, detached, or
   joined.
+- **Task resumes are never dropped (issue #843).** A resume goes on an unbounded *continuation
+  lane* rather than the bounded fire-and-forget queue, so a full plain-completion queue can no
+  longer drop a resume and hang its task forever. There is one lane per priority, and it drains
+  before plain completions at the same priority, so a task is never starved behind a burst of
+  fire-and-forget work. The lane's size is bounded by the number of live tasks (which `TaskScope`
+  already caps), and the link is threaded through the task state, so a continuation post is
+  allocation-free: no `std::function` wrapper is created. Fire-and-forget completions keep the
+  bounded capacity and the `Stats::dropped` counter; `Stats::pending_continuations` and
+  `Stats::continuations_executed` report the lane.
 - **Results and errors.** `co_await` yields the value (or void) and rethrows the child's exception
   at the await point. An exception that leaves a task body is stored in the task state, so a root
   task fails without terminating.
@@ -118,9 +127,33 @@ Limitations of this slice:
   one exception is a child parked on an awaitable that declares it will never resume it
   ([ADR-069](../../decisions/ADR-069-awaitable-declares-no-resume.md)): that child drops its reference
   to the parent, so the pair is freed at the parent's owner instead of never.
-- A full bounded queue drops the resume (`CompletionQueue::Stats::dropped`) and the task stays
-  suspended; the caller sizes the queue and the per-tick budget.
+- A full *fire-and-forget* queue still refuses a plain `post` and counts it in
+  `CompletionQueue::Stats::dropped`; the caller sizes that queue and the per-tick budget. A task
+  resume never takes that path: it goes on the unbounded continuation lane and is never dropped
+  (issue #843).
 - One `shared_ptr` control block per task frame; no frame pool yet.
+
+### 2.2 Cancellation (issue #845)
+
+`CancellationSource` / `CancellationToken` carry the .NET shape. `cancel(reason)` is a one-shot
+atomic flip; the first reason wins and `token.reason()` returns it. `TaskCancelled` carries the same
+reason, so an awaiter tells a user abort (`Requested`) from a `Timeout` from a `Shutdown` from a
+linked `Parent` without a side channel.
+
+- **RAII registration.** `on_cancel` returns a move-only `CancellationRegistration`; destroying it
+  or calling `reset()` unregisters, so a long-lived token does not accumulate one callback per
+  request. Unregistering is O(1) over a stable slot list and allocates nothing. A registration
+  destroyed on another thread while `cancel()` runs that callback waits for it to return (.NET's
+  `Dispose` guarantee), except when the callback unregisters itself, which must not deadlock.
+- **Linked sources.** `CancellationSource::linked(parents...)` is cancelled when any parent is
+  cancelled (reason `Parent`) and holds the parent registrations, so destroying the child
+  unregisters from every parent. `TaskScope` nests through it.
+- **Deadlines.** `source.cancel_after(clock, timers, seconds)` schedules a `TimerQueue` one-shot, so
+  a `ManualClock` fires it deterministically; re-arming moves the deadline, it is a no-op after
+  `cancel()`, and destroying the last handle removes the timer.
+- **Thread rule (kept from .NET).** Callbacks run synchronously on the thread that calls `cancel()`.
+  A callback that must touch UI-owned state hands the work to the `CompletionQueue` itself; it NEVER
+  mutates the scene graph from a worker thread.
 
 ## 3. Executors and threading
 

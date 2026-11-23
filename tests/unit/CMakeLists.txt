@@ -1174,6 +1174,15 @@ target_link_libraries(task_tests PRIVATE tessera_runtime)
 
 add_test(NAME task COMMAND task_tests)
 
+# Issues #843, #845 and #842: an undroppable resume, cancellation reasons/linked sources/deadlines,
+# and the one-wake-per-edge hook. Split from `task_tests` so neither file passes the 500-line limit.
+add_executable(task_cancellation_tests
+    task_cancellation_tests.cpp)
+
+target_link_libraries(task_cancellation_tests PRIVATE tessera_runtime)
+
+add_test(NAME task_cancellation COMMAND task_cancellation_tests)
+
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)
 

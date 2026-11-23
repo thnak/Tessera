@@ -115,6 +115,8 @@ struct TaskScopeState {
     runtime::Clock* clock = nullptr;
     runtime::CompletionQueue* completions = nullptr;
     TaskScopeConfig config;
+    // The scope token. With a parent it is a linked source (issue #845), so a parent cancel
+    // arrives with reason `Parent` and the link is unregistered when this scope is destroyed.
     runtime::CancellationSource cancel;
     std::unique_ptr<Slot[]> slots;
     std::size_t capacity = 1;

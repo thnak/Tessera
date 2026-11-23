@@ -1509,11 +1509,16 @@ function include/tessera/rendering/vulkan/vulkan_validation.hpp tessera::renderi
 function include/tessera/rendering/vulkan/vulkan_validation.hpp tessera::rendering::vulkan::validation_message_count
 
 header include/tessera/runtime/async.hpp
+class include/tessera/runtime/async.hpp tessera::runtime::CancellationRegistration
 class include/tessera/runtime/async.hpp tessera::runtime::CancellationSource
 class include/tessera/runtime/async.hpp tessera::runtime::CancellationToken
+class include/tessera/runtime/async.hpp tessera::runtime::Clock
 class include/tessera/runtime/async.hpp tessera::runtime::CompletionQueue
 class include/tessera/runtime/async.hpp tessera::runtime::ManualExecutor
+class include/tessera/runtime/async.hpp tessera::runtime::TimerQueue
+class include/tessera/runtime/async.hpp tessera::runtime::detail::ContinuationNode
 struct include/tessera/runtime/async.hpp tessera::runtime::detail::CancellationState
+enum include/tessera/runtime/async.hpp tessera::runtime::CancelReason
 enum include/tessera/runtime/async.hpp tessera::runtime::CompletionPriority
 
 header include/tessera/runtime/clock.hpp

@@ -73,24 +73,41 @@ bool a_child_cancelled_before_its_first_step_is_counted() {
     return ok;
 }
 
-// --- a spawn the queue cannot accept leaves nothing live ---------------------------------------
-bool a_refused_post_leaves_nothing_live() {
+// --- a spawn is accepted even when the fire-and-forget queue is full ---------------------------
+// Issue #843: a task resume goes on the unbounded continuation lane, so a full plain-completion
+// queue can no longer refuse a spawn (which used to leave nothing live and refuse the child).
+bool a_full_queue_still_accepts_a_spawn() {
     bool ok = true;
     runtime::ManualClock clock;
-    // A queue with capacity 1 is filled with an unrelated completion, so the driver's first resume
-    // is refused. The scope must not count a child it never started.
+    // A queue with capacity 1 is filled with an unrelated plain completion. Before #843 the
+    // driver's first resume was refused here; now it is queued on the continuation lane and runs.
     runtime::CompletionQueue queue(1);
     appfw::TaskScope scope = make_scope(clock, queue);
-    ok = expect(queue.post(runtime::CompletionPriority::Visible, [] {}), "the queue is filled") &&
-         ok;
+    ok =
+        expect(queue.post(runtime::CompletionPriority::Visible, [] {}), "the plain lane is full") &&
+        ok;
     ChildLog log;
-    ok = expect(!scope.spawn(hop_child(scope.context(), queue, log, 1)),
-                "a refused post refuses the spawn") &&
+    ok = expect(scope.spawn(hop_child(scope.context(), queue, log, 0)),
+                "a full plain lane does not refuse a spawn") &&
          ok;
-    ok = expect(scope.live() == 0, "a refused spawn leaves nothing live") && ok;
-    ok = expect(log.entries == 0, "a refused spawn never entered the child body") && ok;
-    ok = expect(scope.spawned() == 0, "a refused spawn is not counted as spawned") && ok;
-    ok = expect(scope.refused() == 1, "a refused spawn is counted") && ok;
+    ok = expect(scope.live() == 1, "the spawned child is live") && ok;
+    ok = expect(scope.spawned() == 1, "the spawn is counted") && ok;
+
+    // The continuation lanes drain before the plain lane at the same priority, even though the
+    // plain completion was posted first. A zero-step child needs no further plain post, so the
+    // capacity-1 plain lane stays full and nothing drops.
+    ok = expect(queue.pending(runtime::CompletionPriority::Visible) == 2,
+                "the driver's resume is queued next to the plain completion") &&
+         ok;
+    ok = expect(queue.run(1) == 1, "the driver resume drains first") && ok;
+    ok = expect(queue.run(1) == 1 && log.entries == 1,
+                "the child body ran from the continuation lane") &&
+         ok;
+    ok = expect(scope.refused() == 0, "nothing was refused") && ok;
+    // The driver's completion resumes before the plain completion, so the child retires while the
+    // plain work is still queued: the plain lane was never needed to make progress.
+    ok = expect(queue.run(1) == 1 && scope.live() == 0, "the driver retires the slot") && ok;
+    ok = expect(!queue.empty(), "the plain completion is still queued") && ok;
     return ok;
 }
 
@@ -98,7 +115,7 @@ int run_cancel_tests() {
     const int before = failures;
     a_throwing_child_is_counted_not_propagated();
     a_child_cancelled_before_its_first_step_is_counted();
-    a_refused_post_leaves_nothing_live();
+    a_full_queue_still_accepts_a_spawn();
     return failures - before;
 }
 
