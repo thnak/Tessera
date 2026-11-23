@@ -109,6 +109,13 @@ Statement clone_statement(const Statement& statement) {
     copy.init = statement.init ? clone_expr(*statement.init) : nullptr;
     copy.bind_id = statement.bind_id;
     copy.bind_span = statement.bind_span;
+    // Issue #829: a memo/callback inside a hook body keeps its recorded dependency list, so the
+    // rules pass checks the list at the expanded position. Only plain names are stored, so nothing
+    // here needs a rename or a substitution.
+    copy.memo_hook = statement.memo_hook;
+    copy.memo_deps = statement.memo_deps;
+    copy.memo_deps_span = statement.memo_deps_span;
+    copy.memo_deps_error_span = statement.memo_deps_error_span;
     return copy;
 }
 

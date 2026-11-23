@@ -79,6 +79,8 @@ void check_hooks(Context& ctx);          // hooks.cpp: symbols and forms, then t
 void check_hook_placement(Context& ctx); // hook_placement.cpp: nesting and declaration order
 void classify_arrows(Context& ctx);      // arrows.cpp: roles, BIND_MISSING, effect returns
 void check_effect_deps(Context& ctx);    // effect_deps.cpp: exact dependency match
+// memo_deps.cpp: a memo/callback list is compared, not required to match exactly (issue #829).
+void check_memo_deps(Context& ctx);
 // reducer.cpp: the `useReducer` form, run after the hook forms so its symbols exist.
 void check_reducers(Context& ctx);
 

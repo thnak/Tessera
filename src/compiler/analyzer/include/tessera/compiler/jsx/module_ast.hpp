@@ -44,6 +44,13 @@ struct PatternBinding {
     Span span;
 };
 
+// One element of a `useMemo`/`useCallback` dependency list the parser desugared away (issue #829):
+// a plain name and the span it was written at.
+struct DependencyName {
+    std::string name;
+    Span span;
+};
+
 // Hooks are not special here: `const [x, setX] = useState<int>(0);` is a Const statement whose
 // init is a Call with type_args. Recognising hooks is the analyzer's job.
 struct Statement {
@@ -70,6 +77,19 @@ struct Statement {
     // statement (spec 9.3). Empty when the statement has no annotation.
     std::string bind_id;
     Span bind_span;
+    // ADR-066 item 1 and issue #829: the dependency list a `useMemo`/`useCallback` was written
+    // with, recorded before the desugar drops it so the rules pass can compare it with the inferred
+    // set. `memo_hook` is `useMemo`/`useCallback` when the statement is a desugared memo/callback,
+    // empty otherwise. `memo_array` is true when the author wrote an array; an absent one is
+    // accepted and the pass knows not to look for it. `memo_deps` holds the plain-name elements in
+    // written order; `memo_deps_span` is the whole array literal (the span of the "missing"
+    // warning), and `memo_deps_error_span` is the first element that is not a plain name (offset 0,
+    // length 0 when none), the span of the hard error.
+    std::string memo_hook;
+    bool memo_array = false;
+    std::vector<DependencyName> memo_deps;
+    Span memo_deps_span;
+    Span memo_deps_error_span;
 };
 
 struct PropBinding {

@@ -241,6 +241,15 @@ target_link_libraries(rules_effect_deps_tests PRIVATE tessera_react_rules)
 
 add_test(NAME rules_effect_deps COMMAND rules_effect_deps_tests)
 
+# Issue #829: `useMemo`/`useCallback` dependency lists are compared with the inferred set and warn
+# on a mismatch (never an error), unlike the exact `useEffect` rule above.
+add_executable(rules_memo_deps_tests
+    rules_memo_deps_tests.cpp)
+
+target_link_libraries(rules_memo_deps_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_memo_deps COMMAND rules_memo_deps_tests)
+
 add_executable(rules_concurrent_tests
     rules_concurrent_tests.cpp)
 

@@ -298,6 +298,14 @@ inline const std::vector<Case> kCases = {
             27, 5, 2),
     fixture("TESSERA_REACT_LIST_KEY", "react-list-key", Entry::kExpression, "rows.map(r => <Row/>)",
             14, 6),
+    // Issue #829: a memo dependency list that does not match the inferred set warns; the span is
+    // the array, and the fixture has one warning only (one name read and not listed).
+    fixture("TESSERA_REACT_MEMO_DEPS", "react-memo-deps", Entry::kRules,
+            "function A({ label }: P) {\n"
+            "  const n = useMemo(() => label.length, []);\n"
+            "  return <View/>;\n"
+            "}\n",
+            67, 2, 2),
     fixture("TESSERA_REACT_NO_PREVIEW_BODY", "react-no-preview-body", Entry::kRules,
             "function A() {\n"
             "  // Note: bind::go\n"
