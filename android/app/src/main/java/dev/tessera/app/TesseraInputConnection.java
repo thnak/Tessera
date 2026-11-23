@@ -139,6 +139,28 @@ final class TesseraInputConnection extends InputConnectionWrapper {
         return TesseraView.nativeSelectedText(handle);
     }
 
+    // --- Clipboard (docs/guides/android-lane.md section 3.16) --------------------------------
+    //
+    // The IME's own context menu (and the platform's Copy/Paste toolbar) calls these, not the
+    // engine's key chords: a phone has no Ctrl key. The engine owns the buffer and the selection, so
+    // these forward rather than answering from a copy.
+    //
+    // No `@Override`: `BaseInputConnection` does not implement these, so they are new methods on
+    // this class rather than overrides. The platform reaches them through the `InputConnection`
+    // interface, which is what the IME holds.
+
+    public boolean copy() {
+        return TesseraView.nativeClipboardCopy(handle);
+    }
+
+    public boolean cut() {
+        return TesseraView.nativeClipboardCut(handle);
+    }
+
+    public boolean paste() {
+        return TesseraView.nativeClipboardPaste(handle);
+    }
+
     @Override
     public boolean setSelection(int start, int end) {
         // A negative offset is the platform's "no selection"; the engine clamps, so passing it

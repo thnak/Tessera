@@ -2,6 +2,8 @@
 
 package dev.tessera.app;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Insets;
 import android.graphics.Rect;
@@ -71,6 +73,14 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         // A view that draws its own controls advertises accessibility while keeping its semantics
         // out of the view hierarchy. Without this the platform sees one unlabelled rectangle.
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+        // The clipboard cache and its change listener. Installed here rather than with the surface
+        // because a paste can arrive before the first frame, and the engine's seam is synchronous.
+        final ClipboardManager clipboard =
+                (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.addPrimaryClipChangedListener(this::refreshClipboard);
+            refreshClipboard();
+        }
     }
 
     /** Called by the activity when it is being destroyed. */
@@ -114,6 +124,9 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
     public void surfaceCreated(SurfaceHolder holder) {
         if (nativeHandle == 0) {
             nativeHandle = nativeCreate(this, holder.getSurface());
+            // The shell exists now, so the clipboard cache can be installed. Doing it here rather
+            // than in the constructor is what gives the bridge a live handle.
+            nativeClipboardAttach(nativeHandle, this);
         }
         nativeSurfaceCreated(nativeHandle, holder.getSurface());
         requestApplyInsets();
@@ -196,6 +209,22 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // The platform's Copy/Cut/Paste keys are not logical keys the engine has a code for: they
+        // are commands, and a phone's IME toolbar sends them as key events. Handling them here is
+        // what makes the toolbar work; `translate_key_sample` would map them to "unknown" and drop
+        // them.
+        if (nativeHandle != 0 && event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_COPY:
+                    return nativeClipboardCopy(nativeHandle);
+                case KeyEvent.KEYCODE_CUT:
+                    return nativeClipboardCut(nativeHandle);
+                case KeyEvent.KEYCODE_PASTE:
+                    return nativeClipboardPaste(nativeHandle);
+                default:
+                    break;
+            }
+        }
         if (nativeHandle != 0 && event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
             if (nativeKey(nativeHandle, event.getKeyCode(), event.getMetaState(), event.getAction(),
                     event.getRepeatCount(), event.getEventTime())) {
@@ -212,12 +241,28 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         }
         // A tap is also how the platform learns the view wants the keyboard: a custom-rendered text
         // field cannot focus itself the way an EditText does, so the show request is explicit.
+        //
+        // The engine answers whether the tap landed on the field. Without that answer the keyboard
+        // appeared on every tap anywhere in the window, which is what a plain scene should not do.
         if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-            requestFocus();
-            InputMethodManager imm = (InputMethodManager) getContext().getSystemService(
-                    Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+            final float density = getResources().getDisplayMetrics().density;
+            final boolean onField =
+                    nativeTapOnField(nativeHandle, event.getX() / density, event.getY() / density);
+            if (onField) {
+                requestFocus();
+                InputMethodManager imm = (InputMethodManager) getContext().getSystemService(
+                        Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+                }
+            } else {
+                // A tap elsewhere dismisses the keyboard, which is what every app does and what
+                // makes the button below the field usable without a second gesture.
+                InputMethodManager imm = (InputMethodManager) getContext().getSystemService(
+                        Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.hideSoftInputFromWindow(getWindowToken(), 0);
+                }
             }
         }
         // The engine's translator owns the normalization; this only forwards. Returning true keeps
@@ -353,7 +398,78 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      */
     static native void nativeSetSelection(long handle, int start, int end);
 
+    // --- Clipboard (docs/guides/android-lane.md section 3.16) --------------------------------
+
+    /**
+     * Installs the clipboard cache and the change listener.
+     *
+     * <p>{@code ClipboardManager} must be touched on a thread with a {@code Looper}, and the
+     * engine's render thread has none. The cache is what lets the engine's synchronous
+     * {@code hal::Clipboard} seam work without blocking on the UI thread.
+     */
+    static native void nativeClipboardAttach(long handle, TesseraView view);
+
+    /** Refreshes the engine's cached clipboard after the platform reports a new clip. */
+    static native void nativeClipboardChanged(String text);
+
+    /** The text the view should write to the platform clipboard, as UTF-16. */
+    static native String nativeClipboardText();
+
+    /** Copies the selection to the clipboard. False when there is no selection. */
+    static native boolean nativeClipboardCopy(long handle);
+
+    /** Copies the selection to the clipboard and deletes it. False when there is no selection. */
+    static native boolean nativeClipboardCut(long handle);
+
+    /** Inserts the clipboard at the caret. False when the clipboard is empty or unavailable. */
+    static native boolean nativeClipboardPaste(long handle);
+
+    /**
+     * Posts the platform clipboard write to the UI thread.
+     *
+     * <p>Called from the engine's render thread, which has no {@code Looper}: a direct
+     * {@code ClipboardManager} call from it throws.
+     */
+    void postClipboardWrite() {
+        post(
+                () -> {
+                    final String text = nativeClipboardText();
+                    final ClipboardManager manager =
+                            (ClipboardManager) getContext().getSystemService(
+                                    Context.CLIPBOARD_SERVICE);
+                    if (manager != null) {
+                        manager.setPrimaryClip(ClipData.newPlainText("Tessera", text));
+                    }
+                });
+    }
+
+    /** Reads the platform clipboard and hands it to the engine's cache. */
+    private void refreshClipboard() {
+        final ClipboardManager manager =
+                (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        if (manager == null || !manager.hasPrimaryClip()) {
+            nativeClipboardChanged("");
+            return;
+        }
+        final ClipData clip = manager.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
+            nativeClipboardChanged("");
+            return;
+        }
+        final CharSequence text = clip.getItemAt(0).coerceToText(getContext());
+        nativeClipboardChanged(text != null ? text.toString() : "");
+    }
+
     private static native boolean nativeOnTouch(long handle, MotionEvent event);
+
+    /**
+     * Whether a point, in LOGICAL pixels, is on the engine's text field.
+     *
+     * <p>The view asks this before showing the keyboard. A custom-rendered field cannot focus itself
+     * the way an {@code EditText} does, so the platform needs the engine's answer; without it the
+     * keyboard appears on every tap anywhere in the window.
+     */
+    private static native boolean nativeTapOnField(long handle, float x, float y);
 
     /**
      * Forwards one IME callback to the engine's edit controller.

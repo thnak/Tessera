@@ -52,8 +52,8 @@ bool caret_active_for_shell(void* user) {
             // The anchor is the press point, which the state machine kept. Placing it collapses the
             // selection to a caret; the caller's drag then extends from there. A long-press with no
             // drag leaves a caret, which is what every platform does before the finger moves.
-            tessera::android_shell::place_caret_from_touch(*shell, shell->selection_press_x,
-                                                           shell->selection_press_y);
+            (void)tessera::android_shell::place_caret_from_touch(*shell, shell->selection_press_x,
+                                                                 shell->selection_press_y);
         }
     }
     const bool focused = tessera::ui::style::has_state(shell->scene->input_label->pseudo_state(),
@@ -97,10 +97,10 @@ bool caret_field_for_shell(Shell& shell, tessera::hal::android::CaretField& fiel
     return true;
 }
 
-void place_caret_from_touch(Shell& shell, float logical_x, float logical_y) {
+bool place_caret_from_touch(Shell& shell, float logical_x, float logical_y) {
     tessera::hal::android::CaretField field;
     if (!caret_field_for_shell(shell, field)) {
-        return;
+        return false;
     }
     tessera::hal::android::CaretSample sample;
     // The caller passes LOGICAL pixels: `translate_motion_sample` already divided the platform's
@@ -113,13 +113,14 @@ void place_caret_from_touch(Shell& shell, float logical_x, float logical_y) {
         tessera::hal::android::caret_from_point(field, sample);
     if (!caret.inside) {
         // A tap outside the field leaves the caret alone instead of jumping it to the start.
-        return;
+        return false;
     }
     (void)shell.editor.place_caret_at(caret.hit);
     shell.editor_runtime.publish_decoration();
     if (shell.window != nullptr) {
         shell.window->request_redraw();
     }
+    return true;
 }
 
 void extend_selection_from_touch(Shell& shell, float logical_x, float logical_y) {
@@ -143,6 +144,58 @@ void extend_selection_from_touch(Shell& shell, float logical_x, float logical_y)
     if (shell.window != nullptr) {
         shell.window->request_redraw();
     }
+}
+
+bool clipboard_copy(Shell& shell) {
+    if (shell.clipboard == nullptr) {
+        return false;
+    }
+    const tessera::ui::text::EditController::ClipboardResult result =
+        shell.editor.copy(*shell.clipboard);
+    if (!result.changed) {
+        // No selection, or the backend is unavailable: the platform's Copy stays a no-op rather
+        // than reporting success and leaving the clipboard untouched.
+        return false;
+    }
+    shell.editor_runtime.publish_decoration();
+    if (shell.window != nullptr) {
+        shell.window->request_redraw();
+    }
+    return true;
+}
+
+bool clipboard_cut(Shell& shell) {
+    if (shell.clipboard == nullptr) {
+        return false;
+    }
+    const tessera::ui::text::EditController::ClipboardResult result =
+        shell.editor.cut(*shell.clipboard);
+    if (!result.changed) {
+        return false;
+    }
+    shell.editor_runtime.publish_decoration();
+    if (shell.window != nullptr) {
+        shell.window->request_redraw();
+    }
+    return true;
+}
+
+bool clipboard_paste(Shell& shell) {
+    if (shell.clipboard == nullptr) {
+        return false;
+    }
+    const tessera::ui::text::EditController::ClipboardResult result =
+        shell.editor.paste(*shell.clipboard);
+    if (!result.changed) {
+        // An empty clipboard, an unavailable backend, or a read-only field: the platform's Paste
+        // stays a no-op instead of reporting success.
+        return false;
+    }
+    shell.editor_runtime.publish_decoration();
+    if (shell.window != nullptr) {
+        shell.window->request_redraw();
+    }
+    return true;
 }
 
 } // namespace tessera::android_shell

@@ -13,7 +13,6 @@
 // The engine never sees a `jobject`, and this file never interprets a scene: it is a thin,
 // value-only bridge, which is what docs/design/bridges.md section 3 asks for.
 
-#include "android_caret_translation.hpp"
 #include "android_input_translation.hpp"
 #include "android_motion_translation.hpp"
 #include "caret_bridge.hpp"
@@ -137,6 +136,10 @@ void start_host(Shell& shell) {
     // turns each committed edit into the scene's `TextChange`. Attaching before the host exists is
     // safe: the node is already in the tree, and the runtime only reads it on an event.
     shell.editor_runtime.attach(shell.scene->input_label);
+    // The clipboard the editor's Copy/Cut/Paste chords write through. The Android backend keeps a
+    // cache the UI thread refreshes, so the engine's synchronous seam never blocks on the UI
+    // thread.
+    shell.editor.set_clipboard(shell.clipboard.get());
     // The demo field is multi-line, so Enter inserts a newline instead of being dropped. A
     // single-line field ignores Enter by design (submit is a form concern the engine defers), which
     // on a phone reads as "the Enter key is broken" - the shell has no form to submit, so a
@@ -459,17 +462,15 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
         // The slop is 8 dp, so it scales with the density; the event is already in logical pixels.
         tessera::hal::android::SelectionGestureConfig config;
         config.touch_slop = 8.0f;
-        // `selecting()` is read BEFORE the feed, because an up clears it: the answer to "was this
-        // gesture a selection?" is the state the gesture was in, not the state it left.
+        // Read BEFORE the feed: an up clears `selecting()`, and the answer to "was this a
+        // selection?" is the state the gesture was in, not the state it left.
         const bool was_selecting = shell->selection_gesture.selecting();
         if (down) {
-            // Remembered for the long-press tick: a finger that holds still sends no samples, so
-            // the tick has no event to read the anchor from.
+            // Remembered for the long-press tick: a finger that holds still sends no samples.
             shell->selection_press_x = out.event.x;
             shell->selection_press_y = out.event.y;
-            // A static scene idles (ADR-019), so nothing would tick the long-press timeout. Asking
-            // for a frame is what wakes the loop for the duration of the press; the caret tick then
-            // runs and can turn the press into a selection.
+            // A static scene idles (ADR-019), so nothing would tick the long-press timeout; asking
+            // for a frame wakes the loop for the duration of the press.
             shell->window->request_redraw();
         }
         const tessera::hal::android::SelectionGestureAction action =
@@ -479,7 +480,7 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
         case tessera::hal::android::SelectionGestureAction::BeginSelection:
             // The long-press anchor is the caret the press started on, so the drag grows from
             // there. Placing it first is what makes `extend_selection_to` keep that anchor.
-            tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+            (void)tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
             break;
         case tessera::hal::android::SelectionGestureAction::ExtendSelection:
             tessera::android_shell::extend_selection_from_touch(*shell, out.event.x, out.event.y);
@@ -491,10 +492,9 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
         // A tap - a press that never became a selection - places the caret on the way up, which is
         // what makes a tap feel immediate rather than waiting for the long-press timeout.
         if (up && !was_selecting) {
-            tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+            (void)tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
         }
     }
     return posted ? JNI_TRUE : JNI_FALSE;
 }
-
 } // extern "C"

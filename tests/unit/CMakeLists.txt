@@ -1003,6 +1003,20 @@ target_include_directories(android_selection_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/platform/android)
 
 add_test(NAME android_selection COMMAND android_selection_tests)
+
+# Android clipboard text conversion (issue #189, android-lane.md section 3.16): pure over plain
+# bytes, so it runs on every lane without an NDK or a device. The rule that bites is that a code
+# point above U+FFFF is a SURROGATE PAIR, two UTF-16 units; one unit per code point turns every
+# emoji into a mojibake box and makes every offset after it wrong.
+add_executable(android_clipboard_text_tests
+    hal/android_clipboard_text_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_clipboard_text.cpp)
+
+target_include_directories(android_clipboard_text_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+add_test(NAME android_clipboard_text COMMAND android_clipboard_text_tests)
+
 # Android window-metrics decode (issue #189): pure over plain numbers, so it runs on every lane
 # without an NDK or a device. The source lives under src/platform/android but includes no Android
 # header.
