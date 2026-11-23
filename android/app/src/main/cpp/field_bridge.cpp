@@ -79,4 +79,25 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeSelectAll(JNIE
     return tessera::android_shell::select_all(*shell) ? JNI_TRUE : JNI_FALSE;
 }
 
+// The selection's state, for the platform's floating toolbar. `out` is a float[3]: has-selection,
+// anchor x, anchor y (logical pixels). A float array rather than three calls keeps the answer
+// consistent: the selection cannot change between the "is there one" and "where" reads.
+JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSelectionState(JNIEnv* env, jclass,
+                                                                             jlong handle,
+                                                                             jfloatArray out) {
+    if (out == nullptr || env->GetArrayLength(out) < 3) {
+        return;
+    }
+    Shell* shell = shell_from(handle);
+    jfloat values[3] = {0.0f, 0.0f, 0.0f};
+    if (shell != nullptr) {
+        const tessera::android_shell::SelectionState state =
+            tessera::android_shell::selection_state(*shell);
+        values[0] = state.has_selection ? 1.0f : 0.0f;
+        values[1] = state.anchor_x;
+        values[2] = state.anchor_y;
+    }
+    env->SetFloatArrayRegion(out, 0, 3, values);
+}
+
 } // extern "C"
