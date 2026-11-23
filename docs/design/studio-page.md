@@ -383,8 +383,8 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
 - `.github/workflows/pages.yml` runs `npm ci` + `npm run build` in `designer/web` and assembles the site from
   `dist/` plus the three Wasm modules and the build id (no samples: they open from a clone).
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
-- **Browser verification** is the acceptance bar for a layout change, and it is developer-run (no lane has a
-  browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
+- **Browser verification** is the acceptance bar for a layout change, and almost all of it is
+  developer-run: `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
   `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements, minimally updated for the dock; W6
   #563 rewrites it) and `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence),
   `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
@@ -394,8 +394,16 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   still paints), and `scripts/ci/preview_browser_css_live_edit.mjs` (**the combined case, and the one neither
   feature's own probe covers**: with author CSS applied, a source edit must keep the author's styling -- a
   sheet dropped from `tessera_canvas_apply` repaints the built-in dark, so the colour is read after a
-  keystroke, not after a button). All five are Playwright scripts run from a directory that resolves
-  `playwright`; they are not repository dependencies.
+  keystroke, not after a button). These are Playwright scripts, resolved from `scripts/ci/package.json`
+  (`npm ci --prefix scripts/ci`); Playwright is build-and-test tooling and never ships. **They are stale
+  as of the dock redesign**: they click `#tab-<view>`, which the FlexLayout adapter renamed to
+  `#flexlayout-tabbutton-<panel>`, and they assume a project is already open, which #391 removed. Nothing
+  ran them, so nothing noticed; repairing them (and re-recording their results) is issue #849.
+- **One browser check is a CI gate**: `scripts/ci/preview_browser_canvas_handover.mjs` runs in the Pages
+  lane against the assembled `build/pages`. Headless Chromium on SwiftShader gives it a real device, so it
+  requires the canvas to draw and fails when the handover regresses to null handles, and it asserts both
+  unsupported headings (browser-side and module-side). It proves the handover, not the pixels (#375;
+  section 8.3 of [`compiler-wasm.md`](compiler-wasm.md) says which half is which).
 
 ## 6. The P6 budget, three times
 

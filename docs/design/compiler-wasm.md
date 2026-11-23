@@ -325,20 +325,17 @@ laid-out frame, so the bound is asserted where a person sees it.
 | `prepare_scene` + frame command stream + report | `scene_frame` ctest, any host | the path builds, lays out, records draws, is deterministic, and the counters are not vacuous |
 | glyph runs from shipped font bytes | `scene_frame` ctest, any host | text paints with a font, is skipped without one, and the atlas reports what it drops (#387) |
 | lavapipe reference render | `webgpu.yml` `canvas-native-parity` (Ubuntu + `mesa-vulkan-drivers`) | the reference images exist, are deterministic across processes, and meet their minimum draw counts |
-| WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
+| device handover and a drawn frame | `pages.yml`, headless Chromium + SwiftShader (`--enable-unsafe-webgpu`) | the page's JS device reaches the module as a real handle and the frame has draw calls (#375); both unsupported headings name the right side |
+| WebGPU candidate render as a *pixel* reference | **nowhere automatically** | needs a browser with a real WebGPU device; SwiftShader is not one |
 | the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
 
-**The honest statement.** The pixel acceptance cannot be proven on this machine or a hosted CI runner:
-Node has no `navigator.gpu`, so a module loaded there has no device to draw with; the WebGPU candidate is
-a *browser* artifact and a hosted runner has no GPU, so a headless browser would draw through a software
-adapter, not the user's frame; and the golden must be lavapipe (ADR-009), whose manifest this box lacks,
-so `--write-goldens` **refuses**. So the slice lands the whole native path, the canvas page with its
-device plumbing, render-on-demand and unsupported-browser state, and the node-count-equivalent of a pixel
-gate. **Remaining** is the WebGPU candidate itself: a real browser with a real device is a new CI
-dependency (Playwright-class, plus a GPU runner), so a spec/ADR decision rather than a patch — a job
-serves `build/pages`, draws into `canvas.html`, reads it back with `toDataURL()` and feeds
-`scene_frame_parity.py --mode compare` at `tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair. Only
-the device is missing.
+**The honest statement.** The *handover* is now a CI gate: a hosted runner can give headless Chromium a
+SwiftShader adapter and device, which is enough to prove the page's device reaches the module and the
+canvas draws (#375, `preview_browser_canvas_handover.mjs`). The *pixel* acceptance still cannot be
+proven: SwiftShader is a software renderer, not "a WebGPU frame the user would see", and the golden must
+be lavapipe (ADR-009), whose manifest this box lacks, so `--write-goldens` **refuses**. **Remaining** is
+that candidate: a real GPU runner draws into the page's canvas, reads it back and feeds
+`scene_frame_parity.py --mode compare` at `tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair.
 
 ### 8.3a How the frame reaches the canvas
 
@@ -593,8 +590,10 @@ normative record; here the summary is that every one of them passes against the 
 
 **The browser half.** The browser checks could not run on the authoring box before #422; they now do
 (Chrome 143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred
-to the deploy. They still do not cover a browser without WebGPU: that state is asserted in the pane's
-markup, not by hiding the adapter, and a human opening the deployed URL remains the last word on CSS.
-The three pages above are now one `index.html` with three views (#392), and its chrome is React 19 +
-TypeScript built by Vite (#422, ADR-054); [`studio-page.md`](studio-page.md) records both, with the
-budget re-records.
+to the deploy. A browser **without** WebGPU is now covered too: `preview_browser_canvas_handover.mjs`
+removes `navigator.gpu` before the page loads and asserts the browser-side heading, and breaks the
+module's handle table to assert the module-side one. One of these is a CI gate, not a developer-run
+note: the device handover runs in the Pages lane with headless Chromium on SwiftShader (#375). A human
+opening the deployed URL remains the last word on CSS. The three pages above are now one `index.html`
+with three views (#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054);
+[`studio-page.md`](studio-page.md) records both, with the budget re-records.

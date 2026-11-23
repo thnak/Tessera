@@ -72,6 +72,9 @@ on:
       - 'scripts/ci/scene_snapshot_parity.py'
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
+      - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/package.json'
+      - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
@@ -110,6 +113,9 @@ on:
       - 'scripts/ci/scene_snapshot_parity.py'
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
+      - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/package.json'
+      - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -125,7 +131,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 -> 40 when the canvas device-handover gate landed (issue #375): it installs a headless Chromium
+    # (~130 MB, cached by Playwright's own store) and drives three browser contexts. The margin is for a
+    # cold browser download on a slow runner, not for the gate itself, which runs in well under a minute.
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v4
@@ -486,6 +495,39 @@ jobs:
           python3 -B scripts/check_preview_budget.py --check
           --module-dir build/pages
           --node "$EMSDK_NODE"
+
+      # P3's browser half (issue #375): the WebGPU **device handover**, which no static check can see.
+      #
+      # `--enable-unsafe-webgpu` gives headless Chromium a SwiftShader adapter *and* a device on a
+      # runner with no GPU, so this is a real gate: it opens the assembled page, opens a project, and
+      # requires the canvas to draw (`drawCalls > 0`). #375's bug was that the page handed the module
+      # the JS `GPUDevice` object, which coerced to a null handle, so the module reported "no device"
+      # and never drew while every other step stayed green. The same script asserts both unsupported
+      # headings ("this browser has no WebGPU" vs "the module could not take the device"), which is
+      # #375's second acceptance sentence.
+      #
+      # It runs HERE, after "Assemble site", because it serves `build/pages` itself -- the artifact
+      # under test, not a directory of sources. What it does NOT prove is the P3 pixel comparison
+      # (issue #167): a software adapter is not a pixel reference, and `canvas-native-parity` owns the
+      # lavapipe goldens.
+      - name: Install the browser gates' Node dependencies
+        run: npm ci --prefix scripts/ci
+
+      # The browser download is ~130 MB and changes only when the Playwright version does, so it is
+      # cached against the lockfile rather than repeated on every push. `playwright install` is
+      # idempotent: a warm cache makes it a no-op, which is the point.
+      - name: Cache the Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('scripts/ci/package-lock.json') }}
+
+      - name: Install headless Chromium for the browser gates
+        run: npx --prefix scripts/ci playwright install --with-deps chromium
+
+      - name: Canvas device handover (headless Chromium + SwiftShader)
+        run: >-
+          node scripts/ci/preview_browser_canvas_handover.mjs build/pages
 
       # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
       # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why

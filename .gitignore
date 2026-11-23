@@ -67,6 +67,11 @@ shader_cache/
 *.profraw
 *.png.tmp
 
+# Node tooling installed outside the front end: `scripts/ci/package.json` declares Playwright for the
+# developer-run browser gates, and CI installs exactly that lockfile. Like designer/web, the packages
+# are never committed; the lockfile is.
+/scripts/ci/node_modules/
+
 # OS
 .DS_Store
 Thumbs.db
