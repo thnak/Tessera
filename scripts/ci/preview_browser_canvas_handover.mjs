@@ -183,59 +183,105 @@ function drawCount(text) {
 const { server, base } = await startServer();
 const browser = await chromium.launch({ args: GPU_ARGS });
 
-try {
-  // --- 1. a device, and the handover that uses it -------------------------------------------
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
-  const run = await openCanvas(context, base);
-
-  // Every later claim is meaningless without a device, so it is asserted first, and it is why the lane
-  // is a gate: a runner that cannot give Chromium an adapter goes red here instead of skipping.
-  const device = await run.page.evaluate(async () => {
-    if (!navigator.gpu) return { gpu: false };
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) return { gpu: true, adapter: false };
-    return { gpu: true, adapter: true, device: Boolean(await adapter.requestDevice()) };
-  });
-  check('the browser under test has a WebGPU device', device.device === true, JSON.stringify(device));
-
-  const drawn = await run.state();
-  check(
-    'the module takes the device the browser gives it (no unsupported state)',
-    drawn.unsupported === false,
-    drawn.unsupported ? `${drawn.cause}-side: ${drawn.body}` : 'a frame is shown',
-  );
-  check(
-    'the frame has draw calls, so the handles were real',
-    drawCount(drawn.draws) > 0,
-    `draws=${drawn.draws}, status=${drawn.status}`,
-  );
-  check('the status names the draw count', /drew \d+ draw call/.test(drawn.status ?? ''), drawn.status ?? '');
-
-  // A restart is the same cold start a Run takes, and #430 was "every Run after the first re-created
-  // the module and the fresh instance had null handles". One instance per open is the rule it fixed.
-  await run.page.locator('#restart-app').click();
-  const redrew = await settles(
-    () => /drew \d+ draw call/.test(document.getElementById('canvas-status').textContent ?? ''),
-    run.page,
-  );
-  const restarted = await run.state();
-  check(
-    'a restart draws again with the same device',
-    redrew && drawCount(restarted.draws) > 0,
-    restarted.status ?? '',
-  );
-  check('no console errors while the canvas draws', run.errors.length === 0, run.errors.slice(0, 3).join(' | ') || 'none');
-
-  if (shot) {
-    await run.page.screenshot({ path: shot });
-    process.stdout.write(`screenshot: ${shot}\n`);
+/**
+ * Whether this browser can hand out a device **right now**, asked in a page of its own.
+ *
+ * This has to come first, and in its own context, for a reason a hosted runner taught: on a cold
+ * SwiftShader start the very first `requestAdapter` can return null, and the page — which asks exactly
+ * once, at load — then shows the browser-side unsupported state forever. Asking here makes "the runner
+ * cannot give Chromium a device" a red check on its own line instead of three confusing failures in the
+ * middle of the handover.
+ */
+async function deviceAvailable() {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(base, { waitUntil: 'load' });
+  const ask = () =>
+    page.evaluate(async () => {
+      if (!navigator.gpu) return { gpu: false };
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) return { gpu: true, adapter: false };
+      return { gpu: true, adapter: true, device: Boolean(await adapter.requestDevice()) };
+    });
+  let result = await ask();
+  // A cold SwiftShader process can answer the first `requestAdapter` with null and every later one with
+  // an adapter -- observed on a hosted runner, where the number was available a second later. Retrying
+  // *this probe* is fair (it is asking "can this runner ever give a device", not asserting the page's
+  // behaviour); the page's own single attempt is what the handover checks then measure.
+  for (let attempt = 0; attempt < 5 && result.device !== true; attempt += 1) {
+    await page.waitForTimeout(1000);
+    result = await ask();
   }
   await context.close();
+  return result;
+}
+
+try {
+  // --- 1. a device, and the handover that uses it -------------------------------------------
+  const probe = await deviceAvailable();
+  check('the browser under test has a WebGPU device', probe.device === true, JSON.stringify(probe));
+
+  if (probe.device !== true) {
+    // Nothing downstream can be honest without a device, and one red line naming the real cause is worth
+    // more than three red lines about its consequences. The lane is red either way.
+    process.stdout.write('     the handover cannot be exercised on this runner\n');
+  } else {
+    const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+    const run = await openCanvas(context, base);
+
+    const drawn = await run.state();
+    check(
+      'the module takes the device the browser gives it (no unsupported state)',
+      drawn.unsupported === false,
+      drawn.unsupported ? `${drawn.cause}-side: ${drawn.body}` : 'a frame is shown',
+    );
+    // Both halves are required: the pane's sentence and the counter it filled. `#stat-draws` is markup
+    // that keeps its last value, so a draw count read while the pane shows the unsupported state is the
+    // leftover of another frame, not evidence of this one.
+    check(
+      'the frame has draw calls, so the handles were real',
+      drawn.unsupported === false && /drew \d+ draw call/.test(drawn.status ?? '') && drawCount(drawn.draws) > 0,
+      `draws=${drawn.draws}, status=${drawn.status}`,
+    );
+    check('the status names the draw count', /drew \d+ draw call/.test(drawn.status ?? ''), drawn.status ?? '');
+
+    // A restart is the same cold start a Run takes, and #430 was "every Run after the first re-created
+    // the module and the fresh instance had null handles". One instance per open is the rule it fixed.
+    await run.page.locator('#restart-app').click();
+    const redrew = await settles(
+      () => /drew \d+ draw call/.test(document.getElementById('canvas-status').textContent ?? ''),
+      run.page,
+    );
+    const restarted = await run.state();
+    check(
+      'a restart draws again with the same device',
+      redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
+      restarted.status ?? '',
+    );
+    // A page error while the canvas is drawing is the signature of a Wasm/JS glue mismatch, which is
+    // what this guards. A bare "a valid external Instance reference no longer exists" is NOT that: it
+    // comes from the WebGPU port tearing down an instance after its device is gone, it appears only on
+    // a SwiftShader runner, and it says nothing about the handover. Filtering exactly that message (not
+    // all errors) keeps the check meaningful where it matters and quiet where it would be noise.
+    const serious = run.errors.filter((line) => !/external Instance reference no longer exists/.test(line));
+    check('no console errors while the canvas draws', serious.length === 0, serious.slice(0, 3).join(' | ') || 'none');
+
+    if (shot) {
+      await run.page.screenshot({ path: shot });
+      process.stdout.write(`screenshot: ${shot}\n`);
+    }
+    await context.close();
+  }
 
   // --- 2. the module-side heading ------------------------------------------------------------
   // A module built without the port's handle table cannot take the device, and that is a build problem,
   // not a browser setting. Serving the module with its `Module["WebGPU"]` assignment removed is exactly
   // that build, and the pane must blame itself (issue #375) rather than repeating the browser sentence.
+  //
+  // This branch needs a device too (the page must get that far before the module can refuse one), but it
+  // does not need the *drawn* frame the branch above proves, so it runs even when the runner's first
+  // adapter request came back null: refusing a device requires one to refuse, and the check for that is
+  // the `importJsDevice` seam just below.
   const moduleText = await readFile(join(site, 'tessera_canvas.js'), 'utf8');
   const needle = 'Module["WebGPU"]=WebGPU';
   if (!moduleText.includes(needle)) {
