@@ -13,6 +13,7 @@
 #include "android_selection_gesture.hpp"
 #include "scene.hpp"
 #include "tessera/app/window.hpp"
+#include "tessera/hal/clipboard.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
@@ -88,6 +89,10 @@ struct Shell {
     // The field's padding in logical pixels, from the same stylesheet (`padding: 12px`). The text
     // starts inside it, so a tap in the padding must clamp to the nearest caret.
     float field_pad = 12.0f;
+    // The platform clipboard. `hal::Clipboard` is a synchronous seam, so the Android backend keeps
+    // a cache the UI thread refreshes; the engine never waits on the UI thread. Created with the
+    // shell because a paste can arrive before the first frame.
+    std::unique_ptr<tessera::hal::Clipboard> clipboard = tessera::hal::create_native_clipboard();
 };
 
 // The shell behind a Java `long` handle, or null for a zero handle.

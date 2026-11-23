@@ -241,7 +241,10 @@ Two other hooks are required, and both are easy to miss:
 
 - `onCheckIsTextEditor()` must return true, or the platform never offers the view a keyboard.
 - The show request is explicit (`InputMethodManager.showSoftInput`), because a `SurfaceView` cannot
-  focus itself the way an `EditText` does.
+  focus itself the way an `EditText` does. It is also **conditional**: the view asks the engine
+  whether the tap landed on the field (`nativeTapOnField`), because the whole window is one surface
+  and the platform cannot know which part is editable. Without that answer the keyboard appeared on
+  every tap anywhere in the window; a tap elsewhere now dismisses it instead.
 
 The mapping rules live in `android_ime_translation.cpp` and are **pure over UTF-16** — no SDK, no
 JNI — so `android_ime` pins the two conversions that fail silently on screen:
@@ -287,39 +290,26 @@ stays inside its size budget.
 
 ### 3.7 What is still missing
 
-- **Fold posture over JNI.** Done — see section 3.10. The decode, the HAL seam
-  (`set_physical_fold`), the Java reader and the live observer are all wired.
-- **The accessibility bridge itself.** The role/action mapping
-  (`android_a11y_mapping.cpp`), the pull-side provider (`snapshot_provider.cpp`) and the Java
-  `AccessibilityNodeProvider` are done — see section 3.9. What is not wired: live-region
-  announcements, collection set-size/position, and `SetText`/`SetSelection` actions (they are offered
-  to the platform but the edit controller drops them).
-- **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
-  report), and `performEditorAction` reports "not handled" because the edit controller has no
-  Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
-- **The context menu and the clipboard.** A tap places the caret (section 3.13), a long-press starts
-  a selection and a drag extends it (section 3.14), and `request_redraw` wakes the parked loop so the
-  timeout can fire (section 3.15). What is still missing is what a selection is *for*: there is no
-  context menu (Copy / Cut / Paste / Select all) and no clipboard backend for Android
-  (`src/platform/windows/clipboard_win32.cpp` is the only implementation;
-  `clipboard_unsupported.cpp` is the fallback).
-- **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
-  hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
-  on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
-  stylesheet, Yoga layout, Batched2D and the input path (a Button that counts taps, a TextInput).
-  Replacing it with the generated `demo::Demo` needs the codegen host tool — the same
-  `ExternalProject` pattern the shader manifest checker uses.
+- **Accessibility's long tail.** The role/action mapping, the pull-side provider and the Java
+  `AccessibilityNodeProvider` are done (section 3.9). Not wired: live-region announcements,
+  collection set-size/position, and `SetText`/`SetSelection` (offered to the platform but dropped,
+  because `ProviderAction` carries no text payload).
+- **The IME's long tail.** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
+  report). The compose/commit/delete path and the text queries are wired.
+- **The context menu itself.** A tap places the caret (3.13), a long-press starts a selection and a
+  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), and Copy/Cut/Paste work
+  through the platform's keys and the IME's `InputConnection` (3.16). Missing: the floating toolbar a
+  long-press normally raises (the engine has no popup surface) and `Select all`.
+- **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is hand-built,
+  because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated on
+  `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
+  tool - the same `ExternalProject` pattern the shader manifest checker uses.
 
 ### 3.8 Emulator GPU mode matters
 
-| Emulator GPU mode | Device | API version | Tessera accepts? |
-|---|---|---|---|
-| `-gpu swiftshader_indirect` (the CI default) | SwiftShader | 1.2.0 | **No** — `choose_device` requires 1.3 |
-| `-gpu host` | the host GPU (passthrough) | 1.3.0+ | Yes |
-
-A lane that wants to exercise the real renderer must boot with `-gpu host`; the default software
-renderer is below the minimum the device-selection policy enforces
-(`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`).
+A lane that wants to exercise the real renderer must boot with `-gpu host`. The CI default
+(`-gpu swiftshader_indirect`) reports Vulkan 1.2.0, below the 1.3 minimum `choose_device` enforces
+(`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`), so the app refuses to start.
 
 ### 3.9 Accessibility: the one platform that pulls instead of pushing
 
@@ -489,12 +479,10 @@ the Java getters into a `KeySample` and lets the pure `translate_key_sample`
 (`android_input_translation.cpp`) do the mapping — the same split as the touch path, so
 `android_input` pins it on every lane.
 
-Two rules matter there:
-
-- A key-down that types a character produces **two** events, the key event and a `Text` event. The
-  edit controller inserts from the latter; a bridge that forwards only the key event types nothing.
-- A key the engine has no logical code for produces **nothing**, so the caller lets the platform
-  handle it. That is what keeps the system Back gesture working; consuming it would break navigation.
+Two rules matter there. A key-down that types a character produces **two** events, the key event
+and a `Text` event; the edit controller inserts from the latter, so a bridge that forwards only the
+key event types nothing. And a key the engine has no logical code for produces **nothing**, so the
+caller lets the platform handle it - that is what keeps the system Back gesture working.
 
 An IME that synthesises a key (Space, Enter) does **not** go through the view's dispatcher: the IME
 owns the input connection, so the event arrives at `TesseraInputConnection.sendKeyEvent` instead.
@@ -530,26 +518,23 @@ flip publishes a hidden one, and blurring publishes hidden immediately.
 
 A custom-rendered field does not get caret placement for free either. The platform reports a touch
 as a point in view coordinates; the edit controller wants a `TextHit` (a UTF-8 byte offset plus a
-caret affinity). `hit_test_point` already does the hard part — line selection by y, then x inside
-that line's visual runs, bidi-aware and snapped to a grapheme boundary — but it takes a `TextStyle`,
+caret affinity). `hit_test_point` already does the hard part - line selection by y, then x inside
+that line's visual runs, bidi-aware and snapped to a grapheme boundary - but it takes a `TextStyle`,
 a `TextConstraints` and a `FontMetrics`, and the bridge has none of those.
 
 `android_caret_translation.cpp` is the adapter, and it is **pure**: no NDK, no JNI, no device. The
 box arithmetic is where a caret lands one character off, so `android_caret` pins it on every lane:
+physical pixels / density then minus the box origin (the layout is logical); the point measured from
+the **content** box (a tap in the padding clamps, never resolves negative); a point outside the
+border box is `inside == false` (a tap elsewhere leaves the caret alone); a zero density treated as 1
+(dividing by it would make every point NaN).
 
-The rules, each one a defect if wrong: physical pixels / density then minus the box
-origin (the layout is logical); the point measured from the **content** box (a tap in
-the padding clamps, never resolves negative); a point outside the border box is
-inside == false (a tap elsewhere leaves the caret alone); a zero density treated as
-1 (dividing by it would make every point NaN).
-
-- **The density is already applied.** `translate_motion_sample` divides the platform's physical
-  pixels by the density, so the event the bridge sees is in logical pixels. Passing the density to
-  `caret_from_point` again divides twice — the first version of this slice did exactly that, and the
-  caret did not move at all.
-- **The hit test must measure the glyphs paint draws.** The shell loads the same face paint uses
-  (`/system/fonts/Roboto-Regular.ttf`) and keeps a `FreeTypeFontMetricsProvider`, rather than
-  guessing metrics. A face that fails to load leaves the provider null and the tap declines.
+Two things are easy to get wrong. **The density is already applied**: `translate_motion_sample`
+divides the platform's physical pixels by the density, so passing it to `caret_from_point` again
+divides twice - the first version of this slice did exactly that, and the caret did not move at all.
+**The hit test must measure the glyphs paint draws**: the shell loads the same face paint uses
+(`/system/fonts/Roboto-Regular.ttf`) and keeps a `FreeTypeFontMetricsProvider`, rather than guessing
+metrics.
 
 `caret_bridge.cpp` holds the shell half (the field's box, the blink policy, the placement call) so
 `jni_bridge.cpp` stays inside its size budget.
@@ -559,39 +544,54 @@ inside == false (a tap elsewhere leaves the caret alone); a zero density treated
 The other half of the gesture is a long-press that starts a selection and a drag that extends it. The
 platform does not report either one: it reports raw DOWN/MOVE/UP samples with timestamps, and the app
 decides what they mean. That decision is `SelectionGesture` (`android_selection_gesture.cpp`), and it
-is **pure** — no NDK, no JNI, no device — so `android_selection` pins the thresholds and the
+is **pure** - no NDK, no JNI, no device - so `android_selection` pins the thresholds and the
 transitions on every lane.
 
 The thresholds are the platform's own, so a long-press feels like every other app: 500 ms
-(`ViewConfiguration.getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Four rules carry the
-behaviour, and each one is a defect if it is wrong:
+(`ViewConfiguration.getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Each rule is a defect
+if wrong: a move past the slop before the timeout abandons the press (else every drag selects instead
+of scrolling); a move inside the slop keeps it alive (else a jittering finger never selects); a new
+down resets a gesture that never saw its up (else a dropped up turns the next tap into a selection);
+`tick()` also checks the timeout (a still finger sends no samples, so `feed()` alone never fires).
+`SelectionGesture` is deliberately not `MotionGesture`: that one tracks pointer identity for the
+input queue, and the selection thresholds must not affect its capture bookkeeping.
 
-Each rule is a defect if wrong: a move past the slop before the timeout abandons the
-press (else every drag selects instead of scrolling); a move inside the slop keeps it
-alive (else a jittering finger never selects); a new down resets a gesture that never
-saw its up (else a dropped up turns the next tap into a selection); tick() also checks
-the timeout (a still finger sends no samples, so feed() alone never fires).
-the input queue, and the selection thresholds must not affect its capture bookkeeping.
-
-**The two seams it needs, and both are now in place.** The shell wires the state machine into
-`nativeOnTouch` and ticks it from the caret callback. Two things had to be fixed for that to work:
+**Three seams it needs, all now in place.** The shell wires the state machine into `nativeOnTouch`
+and ticks it from the caret callback:
 
 1. **A wake seam.** `request_redraw` was a no-op on Android, so a static scene never woke to run the
-   tick — and a finger that holds still sends no `MotionEvent` at all, so the timeout had nothing to
-   fire on. `wait_for_events` is now interruptible: `request_redraw` sets a flag under its own
-   mutex and notifies a condition variable, and the wait keeps the same bounded timeout, so a
-   caller that never asks for a frame still throttles. Measured on the emulator: six screenshots
-   250 ms apart show the caret pixel alternating visible/hidden.
+   tick - and a finger that holds still sends no `MotionEvent`, so the timeout had nothing to fire
+   on. `wait_for_events` is now interruptible: `request_redraw` sets a flag under its own mutex and
+   notifies a condition variable, and the wait keeps the same bounded timeout, so a caller that
+   never asks for a frame still throttles. Measured on the emulator: six screenshots 250 ms apart
+   show the caret pixel alternating visible/hidden.
 2. **The right box.** `caret_field_for_shell` read `node.bounds()`, which is **parent-relative**,
    while a touch is **window-relative**. The field sits 24 px inside its parent, so every caret
    landed 24 px right of the finger: a tap mid-word resolved past the end of the line and a drag
-   selected nothing. `world_bounds()` is the correct accessor, and `android_caret` now pins the
-   contract (the same point resolves to the same caret at any offset).
+   selected nothing. `world_bounds()` is correct, and `android_caret` pins the contract.
+3. **The right advances.** The hit test must measure with the **same advance source paint uses**
+   (`FontPaintTextMetrics`, FreeType + HarfBuzz); stub advances do not match a real face, so a tap
+   mid-word resolves to the end of the line even with the box correct.
 
-The hit test must also measure with the **same advance source paint uses** (`FontPaintTextMetrics`,
-FreeType + HarfBuzz): stub advances do not match a real face, so a tap mid-word resolves to
-the end of the line even with the box correct.
+### 3.16 Copy, Cut and Paste: a phone has no Ctrl key
 
+`hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but the manager must be
+touched on a thread with a `Looper`, and the engine's render thread has none. The backend keeps a
+cache: a **write** updates the engine's copy immediately (so a copy-then-paste in the same frame sees
+the new text) and asks the view to post the platform write to the UI thread; a **read** returns the
+cached text, which the UI thread refreshes on `OnPrimaryClipChangedListener`. The engine never waits
+on the UI thread, and the UI thread never waits on the engine.
+
+Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a hardware
+keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu). The key codes are
+**commands, not logical keys** - `translate_key_sample` drops them - so `dispatchKeyEvent` handles
+them first.
+
+`android_clipboard_text.cpp` does the UTF-8/UTF-16 conversion, and it is **pure** so
+`android_clipboard_text` pins the rule that bites: a code point above U+FFFF is a **surrogate pair**,
+two UTF-16 units. One unit per code point turns every emoji into a mojibake box and makes every
+offset after it wrong. An invalid byte becomes U+FFFD rather than being dropped, so the UTF-16 length
+always agrees with the UTF-8 length. Verified: select, copy, delete, paste restores the text.
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.
