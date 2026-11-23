@@ -31,6 +31,9 @@ using plan_detail::starts_with;
 
 struct PlanWalk {
     const ir::Component& component;
+    // The module's record type table, so a text/key/condition position can resolve a dotted
+    // member read (#827).
+    std::span<const ir::RecordType> records;
     DynamicPlan& plan;
     std::string& error;
     unsigned ordinal = 0;
@@ -122,7 +125,7 @@ bool PlanWalk::collect_text_site(const ir::Node& node, unsigned node_ordinal) {
     }
     ListTemplate& list = plan.lists[current_list];
     const LocalBindings locals = template_locals();
-    if (!printable_text_expression(*node.text, component, locals)) {
+    if (!printable_text_expression(*node.text, component, records, locals)) {
         return fail(error, "the text of `" + node.id +
                                "` inside the list template has no printable C++ type");
     }
@@ -184,7 +187,7 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
     if (!key.error.empty()) {
         return fail(error, "the key of `" + node.id + "`: " + key.error);
     }
-    if (!printable_text_expression(*node.key, component, locals)) {
+    if (!printable_text_expression(*node.key, component, records, locals)) {
         return fail(error, "the key of `" + node.id + "` has no printable C++ type");
     }
     if (!mentions_loop_local(*node.key, loop.item, loop.index)) {
@@ -340,7 +343,7 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         if (!condition.error.empty()) {
             return fail(error, "the condition of `" + node.id + "`: " + condition.error);
         }
-        if (!printable_text_expression(*node.condition, component, locals)) {
+        if (!printable_text_expression(*node.condition, component, records, locals)) {
             return fail(error, "the condition of `" + node.id + "` has no printable C++ type");
         }
         plan.has_conditionals = true;
@@ -477,8 +480,9 @@ std::string branch_member(unsigned ordinal, std::string_view suffix) {
     return "branch_" + std::to_string(ordinal) + "_" + std::string(suffix);
 }
 
-bool collect_dynamic_plan(const ir::Component& component, DynamicPlan& plan, std::string& error) {
-    PlanWalk walk{component, plan, error};
+bool collect_dynamic_plan(const ir::Component& component, std::span<const ir::RecordType> records,
+                          DynamicPlan& plan, std::string& error) {
+    PlanWalk walk{component, records, plan, error};
     return walk.walk(component.root, 0, true);
 }
 

@@ -51,6 +51,7 @@ std::string suffix(std::string_view prefix, unsigned ordinal) {
 } // namespace
 
 bool collect_controlled_inputs(const ir::Node& node, const ir::Component& component,
+                               std::span<const ir::RecordType> records,
                                const std::vector<const ir::Binding*>& bindings, unsigned& ordinal,
                                std::vector<ControlledInput>& inputs, std::string& error) {
     ++ordinal;
@@ -71,7 +72,7 @@ bool collect_controlled_inputs(const ir::Node& node, const ir::Component& compon
             input.runtime_member = suffix("input_", ordinal) + "runtime_";
             input.binding_member = suffix("input_", ordinal) + "change_binding_";
             input.adapter = "text_change_adapter_" + std::to_string(ordinal);
-            if (!printable_text_expression(*value, component)) {
+            if (!printable_text_expression(*value, component, records)) {
                 return fail(error, "the `value` of `" + node.id +
                                        "` has no printable text type for a controlled field");
             }
@@ -107,14 +108,15 @@ bool collect_controlled_inputs(const ir::Node& node, const ir::Component& compon
         }
     }
     for (const ir::Node& child : node.children) {
-        if (!collect_controlled_inputs(child, component, bindings, ordinal, inputs, error)) {
+        if (!collect_controlled_inputs(child, component, records, bindings, ordinal, inputs,
+                                       error)) {
             return false;
         }
     }
     // A controlled field inside a virtual item template is rejected by the plan; the recursion
     // keeps the pre-order ordinals of the nodes after the collection aligned.
-    if (node.item_template && !collect_controlled_inputs(*node.item_template, component, bindings,
-                                                         ordinal, inputs, error)) {
+    if (node.item_template && !collect_controlled_inputs(*node.item_template, component, records,
+                                                         bindings, ordinal, inputs, error)) {
         return false;
     }
     return true;

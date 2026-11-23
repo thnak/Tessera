@@ -69,6 +69,7 @@ void emit_update_virtual_geometry(CppWriter& writer, const ir::Component& compon
 // against the bounded table, attaches item nodes with absolute-index NodeId slots, then runs the
 // hash-compared per-item content pass.
 [[nodiscard]] bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
+                                      std::span<const ir::RecordType> records,
                                       const ListTemplate& collection, std::string& error);
 
 // Emits `<Name>::scroll_virtual_<n>(scroll_offset, viewport_extent)`: the generated scroll entry

@@ -307,7 +307,7 @@ void check_component_coverage(const ir::Component& component, std::string_view l
 
     unsigned ordinal = 0;
     std::vector<internal::DynamicText> texts;
-    check(internal::collect_dynamic_text(component.root, component, ordinal, texts, error),
+    check(internal::collect_dynamic_text(component.root, component, {}, ordinal, texts, error),
           where + "collect_dynamic_text succeeds");
     for (const internal::DynamicText& entry : texts) {
         ++seen.texts;
@@ -317,8 +317,9 @@ void check_component_coverage(const ir::Component& component, std::string_view l
 
     ordinal = 0;
     std::vector<internal::DynamicMetadata> metadata;
-    check(internal::collect_dynamic_metadata(component.root, component, ordinal, metadata, error),
-          where + "collect_dynamic_metadata succeeds");
+    check(
+        internal::collect_dynamic_metadata(component.root, component, {}, ordinal, metadata, error),
+        where + "collect_dynamic_metadata succeeds");
     for (const internal::DynamicMetadata& entry : metadata) {
         ++seen.metadata;
         std::string name = entry.name;
@@ -345,7 +346,7 @@ void check_component_coverage(const ir::Component& component, std::string_view l
     }
 
     internal::DynamicPlan plan;
-    check(internal::collect_dynamic_plan(component, plan, error),
+    check(internal::collect_dynamic_plan(component, {}, plan, error),
           where + "collect_dynamic_plan succeeds");
     for (const internal::DynamicGroup& group : plan.groups) {
         for (const internal::DynamicChild& child : group.children) {

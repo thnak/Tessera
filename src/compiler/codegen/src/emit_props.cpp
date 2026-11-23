@@ -333,14 +333,15 @@ bool emit_literal_hash(CppWriter& writer, const std::string& hash_var, const ir:
 // Builds the allocation-free change-detection statements for one value prop. Returns false when the
 // prop (or one list element) has no printable/hashable form; the caller then assigns unguarded.
 bool build_value_guard(CppWriter& out, const PropBinding& binding, const ir::Component& owner,
-                       const std::string& hash_var, std::string& error) {
+                       std::span<const ir::RecordType> records, const std::string& hash_var,
+                       std::string& error) {
     const std::string_view element = list_element(binding.type);
     if (element.empty()) {
-        if (!printable_text_expression(*binding.value, owner)) {
+        if (!printable_text_expression(*binding.value, owner, records)) {
             return false;
         }
         out.line("std::uint64_t " + hash_var + " = tessera::ui::kEffectHashSeed;");
-        return emit_value_ops(out, *binding.value, owner, {}, hash_var, "", error);
+        return emit_value_ops(out, *binding.value, owner, records, {}, hash_var, "", error);
     }
     out.line("std::uint64_t " + hash_var + " = tessera::ui::kEffectHashSeed;");
     if (binding.value->kind == ir::ExprKind::Array) {
@@ -376,7 +377,8 @@ bool build_value_guard(CppWriter& out, const PropBinding& binding, const ir::Com
 
 } // namespace
 
-bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const DirtyPlan& dirty,
+bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
+                      std::span<const ir::RecordType> records, const DirtyPlan& dirty,
                       const std::vector<ComponentInstance>& instances, std::string& error) {
     bool any = false;
     for (const ComponentInstance& instance : instances) {
@@ -446,7 +448,7 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const Dirty
             const std::string hash_var =
                 "prop_" + std::to_string(instance.ordinal) + "_" + binding.name + "_hash";
             if (prop_guard(binding.type) == PropGuard::Value &&
-                build_value_guard(guard, binding, owner, hash_var, error)) {
+                build_value_guard(guard, binding, owner, records, hash_var, error)) {
                 const std::string hash_member = prop_guard_member(instance.ordinal, binding.name);
                 writer.text += guard.text;
                 writer.line("if (" + hash_var + " != " + hash_member + ") {");

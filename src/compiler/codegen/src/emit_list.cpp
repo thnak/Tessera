@@ -117,7 +117,8 @@ bool emit_build_item(CppWriter& writer, const ir::Component& component, const ir
     return true;
 }
 
-bool emit_apply_item(CppWriter& writer, const ir::Component& component, const DynamicPlan& plan,
+bool emit_apply_item(CppWriter& writer, const ir::Component& component,
+                     std::span<const ir::RecordType> records, const DynamicPlan& plan,
                      const ListTemplate& list, const std::vector<ComponentInstance>& instances,
                      std::string& error) {
     const std::string ordinal = std::to_string(list.ordinal);
@@ -152,7 +153,8 @@ bool emit_apply_item(CppWriter& writer, const ir::Component& component, const Dy
     }
     writer.line("std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;");
     for (const ListTextSite& site : list.text_sites) {
-        if (!emit_value_ops(writer, *site.text, component, locals, "tessera_hash", "", error)) {
+        if (!emit_value_ops(writer, *site.text, component, records, locals, "tessera_hash", "",
+                            error)) {
             return false;
         }
     }
@@ -163,8 +165,8 @@ bool emit_apply_item(CppWriter& writer, const ir::Component& component, const Dy
     for (const ListTextSite& site : list.text_sites) {
         const std::string site_text = std::to_string(site.site);
         writer.line("std::string tessera_text_" + site_text + ";");
-        if (!emit_value_ops(writer, *site.text, component, locals, "", "tessera_text_" + site_text,
-                            error)) {
+        if (!emit_value_ops(writer, *site.text, component, records, locals, "",
+                            "tessera_text_" + site_text, error)) {
             return false;
         }
         writer.line("tessera::ui::PaintData tessera_paint_" + site_text + ";");
@@ -179,7 +181,8 @@ bool emit_apply_item(CppWriter& writer, const ir::Component& component, const Dy
     return true;
 }
 
-bool emit_apply_list(CppWriter& writer, const ir::Component& component, const ListTemplate& list,
+bool emit_apply_list(CppWriter& writer, const ir::Component& component,
+                     std::span<const ir::RecordType> records, const ListTemplate& list,
                      std::string& error) {
     const std::string ordinal = std::to_string(list.ordinal);
     writer.open("void " + component.name + "::apply_list_" + ordinal +
@@ -199,8 +202,8 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     // A key that reads only the loop index leaves the item binding unused in this pass; marking it
     // used keeps the generated file warning-clean without changing the emitted code.
     writer.line("(void)" + list.item + ";");
-    if (!emit_value_ops(writer, *list.node->key, component, key_locals, "tessera_order", "",
-                        error)) {
+    if (!emit_value_ops(writer, *list.node->key, component, records, key_locals, "tessera_order",
+                        "", error)) {
         return false;
     }
     writer.line("++tessera_position;");
@@ -343,11 +346,11 @@ bool emit_list_sources(CppWriter& writer, const ir::Component& component,
                              dynamic_metadata, controlled_inputs, instances, error)) {
             return false;
         }
-        if (!emit_apply_item(writer, component, plan, list, instances, error)) {
+        if (!emit_apply_item(writer, component, module.types, plan, list, instances, error)) {
             return false;
         }
         if (list.is_virtual) {
-            if (!emit_apply_virtual(writer, component, list, error)) {
+            if (!emit_apply_virtual(writer, component, module.types, list, error)) {
                 return false;
             }
             emit_update_virtual_geometry(writer, component, list);
@@ -356,7 +359,7 @@ bool emit_list_sources(CppWriter& writer, const ir::Component& component,
             }
             continue;
         }
-        if (!emit_apply_list(writer, component, list, error)) {
+        if (!emit_apply_list(writer, component, module.types, list, error)) {
             return false;
         }
     }
@@ -372,12 +375,12 @@ bool emit_dynamic_sources(CppWriter& writer, const ir::Component& component,
                           const std::vector<ComponentInstance>& instances, std::string& error) {
     for (const DynamicGroup& group : plan.groups) {
         if (group.in_template()) {
-            if (!emit_item_apply_children(writer, component, plan, group, error)) {
+            if (!emit_item_apply_children(writer, component, module.types, plan, group, error)) {
                 return false;
             }
             continue;
         }
-        if (!emit_apply_children(writer, component, plan, group, error)) {
+        if (!emit_apply_children(writer, component, module.types, plan, group, error)) {
             return false;
         }
     }

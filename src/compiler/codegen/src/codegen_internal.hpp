@@ -42,9 +42,9 @@ struct CppWriter {
                                                   std::span<const ir::RecordType> records = {});
 
 // C++ literal text for one IR literal (string literals are escaped).
-[[nodiscard]] std::string literal_text(const ir::LiteralValue& literal);
-
-// The generated member name for a reference id (`state::count` -> `state_count_`).
+[[nodiscard]] std::string
+literal_text(const ir::LiteralValue& literal); // The generated member name for a reference id
+                                               // (`state::count` -> `state_count_`).
 [[nodiscard]] std::string member_name(std::string_view ir_id);
 
 // A C++ string literal for `text`, with quotes, backslash and control characters escaped. Shared by

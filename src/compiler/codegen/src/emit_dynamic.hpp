@@ -165,7 +165,11 @@ struct DynamicPlan {
 // Walks the component tree once, validates the dynamic forms this slice supports, and fills `plan`.
 // The ordinal numbering matches emit_node/the other collectors (pre-order over every node, template
 // subtrees included). Unsupported forms are reported as TESSERA_CODEGEN_UNSUPPORTED.
-[[nodiscard]] bool collect_dynamic_plan(const ir::Component& component, DynamicPlan& plan,
+//
+// `records` is the module's record type table, threaded through so a text, key or condition
+// position can resolve a dotted member read into a record-typed cell (#827).
+[[nodiscard]] bool collect_dynamic_plan(const ir::Component& component,
+                                        std::span<const ir::RecordType> records, DynamicPlan& plan,
                                         std::string& error);
 
 // Header emission: the bounded item cap/item structs (namespace scope, before the component
@@ -184,6 +188,7 @@ struct EventAdapter;
 // Emits one `<Name>::apply_children_<p>()` (emit_conditional.cpp): the deterministic attach/detach
 // walk over one parent's child slots.
 [[nodiscard]] bool emit_apply_children(CppWriter& writer, const ir::Component& component,
+                                       std::span<const ir::RecordType> records,
                                        const DynamicPlan& plan, const DynamicGroup& group,
                                        std::string& error);
 
@@ -191,6 +196,7 @@ struct EventAdapter;
 // dynamic child set inside a list item, over the item record's own branch slots
 // (docs/design/compiler-node-state.md section 4).
 [[nodiscard]] bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
+                                            std::span<const ir::RecordType> records,
                                             const DynamicPlan& plan, const DynamicGroup& group,
                                             std::string& error);
 

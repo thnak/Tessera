@@ -48,7 +48,8 @@ struct WalkTarget {
     bool item = false;
 };
 
-bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicPlan& plan,
+bool emit_walk(CppWriter& writer, const ir::Component& component,
+               std::span<const ir::RecordType> records, const DynamicPlan& plan,
                const DynamicGroup& group, const WalkTarget& target, std::string& error) {
     writer.open(target.head);
     writer.line(target.parent_check);
@@ -87,7 +88,7 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicP
         }
         case DynamicChildKind::Conditional: {
             if (child.node == nullptr || !child.node->condition) {
-                return fail(error, "conditional branch `node::" + std::to_string(child.ordinal) +
+                return fail(error, "conditional branch " + std::to_string(child.ordinal) +
                                        "` has no condition expression");
             }
             const std::string branch = std::to_string(child.ordinal);
@@ -106,8 +107,8 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicP
                 !target.item && open_dirty_gate(writer, plan.dirty, BindingKind::Condition,
                                                 child.ordinal, {}, "cond:" + branch);
             writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
-            if (!emit_value_ops(writer, *child.node->condition, component, target.locals, hash, "",
-                                error)) {
+            if (!emit_value_ops(writer, *child.node->condition, component, records, target.locals,
+                                hash, "", error)) {
                 return false;
             }
             const ExprEmission condition =
@@ -149,7 +150,8 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicP
 
 } // namespace
 
-bool emit_apply_children(CppWriter& writer, const ir::Component& component, const DynamicPlan& plan,
+bool emit_apply_children(CppWriter& writer, const ir::Component& component,
+                         std::span<const ir::RecordType> records, const DynamicPlan& plan,
                          const DynamicGroup& group, std::string& error) {
     const std::string ordinal = std::to_string(group.parent_ordinal);
     WalkTarget target;
@@ -158,12 +160,12 @@ bool emit_apply_children(CppWriter& writer, const ir::Component& component, cons
     target.parent = "*children_parent_" + ordinal + "_";
     target.branch_prefix = "branch_";
     target.field_suffix = "_";
-    return emit_walk(writer, component, plan, group, target, error);
+    return emit_walk(writer, component, records, plan, group, target, error);
 }
 
 bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
-                              const DynamicPlan& plan, const DynamicGroup& group,
-                              std::string& error) {
+                              std::span<const ir::RecordType> records, const DynamicPlan& plan,
+                              const DynamicGroup& group, std::string& error) {
     const ListTemplate* owner = nullptr;
     for (const ListTemplate& list : plan.lists) {
         if (list.ordinal == group.template_ordinal) {
@@ -189,7 +191,7 @@ bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
         target.locals.push_back(
             LocalBinding{owner->index, "static_cast<int>(tessera_index)", "int"});
     }
-    return emit_walk(writer, component, plan, group, target, error);
+    return emit_walk(writer, component, records, plan, group, target, error);
 }
 
 } // namespace tessera::compiler::codegen::internal

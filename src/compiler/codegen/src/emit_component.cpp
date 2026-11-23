@@ -184,15 +184,15 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     writer.close("");
     writer.line("");
-    if (!emit_apply_props(writer, component, plan.dirty, instances, error)) {
+    if (!emit_apply_props(writer, component, module.types, plan.dirty, instances, error)) {
         return false;
     }
     if (!emit_form_source(writer, component, forms, error)) {
         return false;
     }
     if (has_update) {
-        if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, controlled_inputs,
-                              plan, forms, has_props, error)) {
+        if (!emit_apply_state(writer, component, module.types, dynamic_text, dynamic_metadata,
+                              controlled_inputs, plan, forms, has_props, error)) {
             return false;
         }
     } else {
@@ -286,7 +286,7 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     // The dynamic plan next: it is the authoritative validation of conditional/list forms, so its
     // diagnostics win over the per-collector checks below.
     DynamicPlan plan;
-    if (!collect_dynamic_plan(component, plan, error)) {
+    if (!collect_dynamic_plan(component, module.types, plan, error)) {
         return false;
     }
     plan.dirty = make_dirty_plan(component);
@@ -303,18 +303,20 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     }
     unsigned ordinal = 0;
     std::vector<DynamicText> dynamic_text;
-    if (!collect_dynamic_text(component.root, component, ordinal, dynamic_text, error)) {
+    if (!collect_dynamic_text(component.root, component, module.types, ordinal, dynamic_text,
+                              error)) {
         return false;
     }
     ordinal = 0;
     std::vector<DynamicMetadata> dynamic_metadata;
-    if (!collect_dynamic_metadata(component.root, component, ordinal, dynamic_metadata, error)) {
+    if (!collect_dynamic_metadata(component.root, component, module.types, ordinal,
+                                  dynamic_metadata, error)) {
         return false;
     }
     ordinal = 0;
     std::vector<ControlledInput> controlled_inputs;
-    if (!collect_controlled_inputs(component.root, component, owned, ordinal, controlled_inputs,
-                                   error)) {
+    if (!collect_controlled_inputs(component.root, component, module.types, owned, ordinal,
+                                   controlled_inputs, error)) {
         return false;
     }
     GeneratedFile header;
