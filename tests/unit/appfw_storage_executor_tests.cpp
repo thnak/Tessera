@@ -120,27 +120,37 @@ void the_worker_executor_runs_work_off_the_submitting_thread() {
     WorkerIoExecutor executor(queue, WorkerIoExecutor::Config{2, 2, 64});
 
     const std::thread::id submitting = std::this_thread::get_id();
-    std::promise<void> body_ran;
-    auto body_future = body_ran.get_future();
+    std::promise<void> body_started;
+    auto body_future = body_started.get_future();
+    std::promise<void> let_body_finish;
     std::atomic<bool> ran_off_thread{false};
     std::atomic<bool> completion_on_drain{false};
 
     const bool posted = executor.post(tessera::runtime::IoTask{
         [&] {
             ran_off_thread = std::this_thread::get_id() != submitting;
-            body_ran.set_value();
+            body_started.set_value();
+            // Hold the body inside the worker until this thread says it may finish. Without the
+            // gate the assertions below race a worker that is already running: the slot is released
+            // as soon as the body returns, so on a loaded machine the body can be over before
+            // `post()` even returns, which is exactly how this test went red on a small CI runner.
+            let_body_finish.get_future().wait();
         },
         [&] { completion_on_drain = true; },
     });
     expect(posted, "the production executor accepts the task");
-    expect(!ran_off_thread.load(), "posting does not run the body inline");
-    expect(executor.stats().in_flight == 1, "one task is in flight before it runs");
-
-    // Wait for the body, then drain the queue for its completion. Both waits are bounded by a hang
-    // guard rather than by a fixed sleep: in practice the body finishes immediately and the
-    // completion is on the queue by the first drain.
+    // The slot is reserved before the handoff and released only when the body returns, and the body
+    // cannot return yet, so this is a fact about what `post()` left behind rather than a race.
+    expect(executor.stats().in_flight == 1, "one task is in flight while its body runs");
     expect(body_future.wait_for(std::chrono::seconds(10)) == std::future_status::ready,
            "the body ran");
+    // The body has now run, and it ran somewhere else: that is "posting does not run the body
+    // inline".
+    expect(ran_off_thread.load(), "the work body ran on a worker thread, not the caller's");
+    let_body_finish.set_value();
+
+    // Drain the queue for the completion. The wait is bounded by a hang guard rather than by a
+    // fixed sleep: the completion is on the queue by the first drain in practice.
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     while (!completion_on_drain.load() && std::chrono::steady_clock::now() < deadline) {
         queue.run(8);
@@ -148,7 +158,6 @@ void the_worker_executor_runs_work_off_the_submitting_thread() {
     }
 
     expect(completion_on_drain.load(), "the completion was delivered through the queue");
-    expect(ran_off_thread.load(), "the work body ran on a worker thread, not the caller's");
     expect(executor.stats().completed == 1, "the production executor counted the completion");
     expect(executor.stats().in_flight == 0, "the slot was released");
     executor.shutdown();
