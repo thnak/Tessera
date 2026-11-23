@@ -28,4 +28,9 @@ bool caret_field_for_shell(Shell& shell, tessera::hal::android::CaretField& fiel
 // a point inside it - including in the padding - resolves to the nearest caret.
 void place_caret_from_touch(Shell& shell, float logical_x, float logical_y);
 
+// Extends the selection to a touch, in LOGICAL pixels. The anchor stays where the long-press put
+// it, so a drag grows the selection from that point. A point outside the field keeps the selection
+// the caller already has rather than collapsing it.
+void extend_selection_from_touch(Shell& shell, float logical_x, float logical_y);
+
 } // namespace tessera::android_shell

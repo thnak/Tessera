@@ -10,6 +10,7 @@
 #pragma once
 
 #include "android_motion_translation.hpp"
+#include "android_selection_gesture.hpp"
 #include "scene.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
@@ -39,6 +40,14 @@ struct Shell {
     // The gesture state the Java motion translation needs: the pointer id is fixed at DOWN because
     // Android renumbers indices as fingers lift.
     tessera::hal::android::MotionGesture gesture;
+    // What a press MEANS: a tap places the caret, a held press starts a selection and a drag
+    // extends it. Kept apart from `gesture` because that one tracks pointer identity for the input
+    // queue, and a change to the selection thresholds must not affect the queue's bookkeeping.
+    tessera::hal::android::SelectionGesture selection_gesture;
+    // The press point, in logical pixels, kept so the long-press tick can place the anchor without
+    // a MotionEvent: a finger that holds still produces no samples at all.
+    float selection_press_x = 0.0f;
+    float selection_press_y = 0.0f;
     // Whether the IME has an active composition, so a composing update becomes Start then Update.
     bool composing = false;
     // The frame loop runs on its own thread. `WindowHost` is single-threaded and must be created,
