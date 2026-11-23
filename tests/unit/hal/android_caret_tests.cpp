@@ -56,6 +56,41 @@ int main() {
     const TextStyle style{};
     const FontMetrics metrics{12.8f, 3.2f, 0.0f};
 
+    // --- The box is in WINDOW coordinates, not the parent's -----------------------------------
+    //
+    // A node's `bounds` are parent-relative; a touch is window-relative. Reading the wrong one put
+    // the field 24 px left of where it paints on the device, so a tap in the middle of "hello"
+    // resolved past the end of the line and a drag selected nothing. The mapping itself cannot tell
+    // the difference - it trusts the box - so this pins the contract the caller must honour: the
+    // same point inside the text resolves to the same caret whether the field sits at the origin or
+    // is offset, and an un-offset point does NOT resolve as if the field were at the origin.
+    {
+        android::CaretField at_origin = field("hello");
+        at_origin.box_x = 0.0f;
+        at_origin.box_y = 0.0f;
+        at_origin.style = &style;
+        at_origin.metrics = &metrics;
+        android::CaretField offset = at_origin;
+        offset.box_x = 48.0f;
+        offset.box_y = 174.0f;
+
+        android::CaretSample origin_sample;
+        origin_sample.x = 34.0f;
+        origin_sample.y = 12.0f;
+        android::CaretSample offset_sample;
+        offset_sample.x = 34.0f + 48.0f;
+        offset_sample.y = 12.0f + 174.0f;
+
+        const android::CaretTranslation a = android::caret_from_point(at_origin, origin_sample);
+        const android::CaretTranslation b = android::caret_from_point(offset, offset_sample);
+        check(a.inside && b.inside, "both points are inside their field");
+        check(a.hit.byte_offset == b.hit.byte_offset,
+              "a window-relative box resolves the same caret at any offset");
+        const android::CaretTranslation wrong = android::caret_from_point(offset, origin_sample);
+        check(!wrong.inside || wrong.hit.byte_offset != b.hit.byte_offset,
+              "an un-offset point does not resolve as if the field were at the origin");
+    }
+
     // --- A point outside the field is not a tap on the field --------------------------------
     {
         android::CaretField target = field("hello");

@@ -117,6 +117,9 @@ void start_host(Shell& shell) {
             shell.field_face = std::move(*loaded);
             shell.field_metrics =
                 std::make_unique<tessera::ui::text::FreeTypeFontMetricsProvider>(shell.field_face);
+            // The advance source paint measures with; the hit test must use the same one.
+            shell.field_advance =
+                std::make_unique<tessera::ui::paint::FontPaintTextMetrics>(shell.field_face, 1);
             // The field's authored style: `TextInput { font-size: 16px }` in the shell's sheet.
             shell.field_text_style.font_size = 16.0f;
             shell.field_font_metrics = shell.field_metrics->metrics(shell.field_text_style);

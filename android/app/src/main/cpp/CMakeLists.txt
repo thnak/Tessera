@@ -25,6 +25,7 @@ target_link_libraries(tessera_android_app PRIVATE
     tessera_app_window
     tessera_app
     tessera_hal_window
+    tessera_paint
     tessera_text_edit)
 
 # The bridge includes android_motion_translation.hpp and android_a11y_mapping.hpp, which live with

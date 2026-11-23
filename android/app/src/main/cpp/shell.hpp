@@ -15,6 +15,7 @@
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/text/edit_controller.hpp"
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/freetype_metrics.hpp"
@@ -75,6 +76,10 @@ struct Shell {
     // shell loads the face once and keeps the provider, rather than letting the bridge guess.
     tessera::ui::text::FontFace field_face;
     std::unique_ptr<tessera::ui::text::FreeTypeFontMetricsProvider> field_metrics;
+    // The advance source paint measures with (FreeType metrics + HarfBuzz shaping). The hit test
+    // must use the SAME advances, or a tap in the middle of a word resolves to the end of the line
+    // and a drag selects nothing.
+    std::unique_ptr<tessera::ui::paint::FontPaintTextMetrics> field_advance;
     // The field's text style and baseline metrics, resolved once from the stylesheet the shell
     // installs (`TextInput { font-size: 16px }`) and the face above. The hit test needs both, and
     // the scene does not expose a node's computed style, so the shell keeps the values it authored.

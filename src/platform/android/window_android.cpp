@@ -37,7 +37,9 @@
 #include <android/input.h>
 #include <android/native_window.h>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -137,8 +139,17 @@ public:
         // Nothing to pump: Android delivers input on the UI thread through the host's own
         // callbacks, not through a queue this backend drains. Idle for the bounded timeout so a
         // caller that waits between ticks still throttles instead of spinning.
+        //
+        // The wait is interruptible, which is the whole point of the condition variable: a static
+        // scene parks here (ADR-019), and `request_redraw` is how the app says "there is work now".
+        // Without the wake, a request from another thread - a long-press timeout, an IME commit -
+        // would sit until the timeout expired, and a finger that holds still sends no MotionEvent
+        // at all, so nothing else would ever wake the loop.
         if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
-            wait_until_seconds(steady_now_seconds() + timeout_seconds);
+            std::unique_lock lock(wake_mutex_);
+            wake_cv_.wait_for(lock, std::chrono::duration<double>(timeout_seconds),
+                              [this] { return wake_requested_; });
+            wake_requested_ = false;
         }
         const std::lock_guard lock(metrics_mutex_);
         return pending_resize_ || pending_safe_area_ || pending_fold_ || pending_hinge_angle_;
@@ -174,8 +185,15 @@ public:
     }
 
     void request_redraw() override {
-        // The host owns the frame loop; a redraw request is a no-op here because Android drives
-        // frames from `Choreographer`, not from a window message.
+        // Wake the parked loop. The host owns the frame loop, so a redraw request is not a window
+        // message here: it is a signal that there is work, and `wait_for_events` is where the loop
+        // is parked. A request from the render thread itself (the common case) finds the loop
+        // awake and costs one uncontended lock.
+        {
+            const std::lock_guard lock(wake_mutex_);
+            wake_requested_ = true;
+        }
+        wake_cv_.notify_one();
     }
 
     void close() override {
@@ -398,6 +416,12 @@ private:
     // them from `metrics()` and `poll_events()`, so every access is a cross-thread one. The mutex
     // is held for one struct copy or one decode, never across a present or a platform call.
     mutable std::mutex metrics_mutex_;
+    // The parked-loop wake (see `wait_for_events`). Separate from `metrics_mutex_` because the two
+    // have different lifetimes: a metrics read holds its lock for one struct copy, while the wake
+    // lock is held across the wait.
+    std::mutex wake_mutex_;
+    std::condition_variable wake_cv_;
+    bool wake_requested_ = false;
     WindowMetrics metrics_{};
     SurfaceLifetime lifetime_;
     AndroidInputTranslator input_;
