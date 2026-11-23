@@ -177,6 +177,24 @@ void test_a_dotted_state_read_emits_the_field() {
     check(contains(text, "state_state_.count + 1"), "a dotted state read emits the member");
 }
 
+void test_a_record_field_read_in_a_text_position_is_printable() {
+    // #827: `<Text>{state.count}</Text>` where `state` is a record-typed cell. The cell's type is a
+    // record, which has no printable form; the *member* does. The lookup therefore has to reach the
+    // member's declared type through the module's record table, never the cell's.
+    ir::IrModule module = reducer_module({ir::DispatchCase{"inc", "handler::1"}}, "inc");
+    ir::Component& component = module.components.front();
+    ir::Node text_node;
+    text_node.kind = ir::NodeKind::Text;
+    text_node.id = "node::2";
+    text_node.source = span();
+    text_node.text = ir::make_ref("state::state.count");
+    component.root.children.push_back(std::move(text_node));
+    const std::string text = generate(module);
+    check(!text.empty(), "a record field read in a text position generates");
+    // The emitted read is the aggregate's own member, the same spelling the handler path uses.
+    check(contains(text, "state_state_.count"), "the text position reads the record member");
+}
+
 } // namespace
 
 int main() {
@@ -184,6 +202,7 @@ int main() {
     test_dispatch_to_the_other_case();
     test_an_unknown_literal_is_an_error();
     test_a_dotted_state_read_emits_the_field();
+    test_a_record_field_read_in_a_text_position_is_printable();
     if (failures == 0) {
         std::cout << "codegen reducer tests passed\n";
     }

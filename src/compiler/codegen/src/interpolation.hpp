@@ -21,8 +21,8 @@ namespace tessera::compiler::codegen::internal {
 // its text is per item and its interpolation goes through the generated per-item content pass. Sets
 // `error` for a text expression with no printable C++ type.
 [[nodiscard]] bool collect_dynamic_text(const ir::Node& node, const ir::Component& component,
-                                        unsigned& ordinal, std::vector<DynamicText>& entries,
-                                        std::string& error);
+                                        std::span<const ir::RecordType> records, unsigned& ordinal,
+                                        std::vector<DynamicText>& entries, std::string& error);
 
 // A static text payload: a string literal or an all-text template folded by codegen.
 [[nodiscard]] std::optional<std::string> static_text_value(const ir::Expr* expr);
@@ -33,6 +33,7 @@ void emit_format_helpers(CppWriter& writer);
 // Walks the node tree in pre-order and collects interpolated element metadata values. List template
 // subtrees are skipped (dynamic metadata inside a template is rejected loudly by the plan).
 [[nodiscard]] bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& component,
+                                            std::span<const ir::RecordType> records,
                                             unsigned& ordinal,
                                             std::vector<DynamicMetadata>& entries,
                                             std::string& error);
@@ -45,6 +46,7 @@ void emit_format_helpers(CppWriter& writer);
 // controlled-editor sync. `has_props` emits the `apply_props()` call that refreshes the declared
 // props of the owned component instances.
 [[nodiscard]] bool emit_apply_state(CppWriter& writer, const ir::Component& component,
+                                    std::span<const ir::RecordType> records,
                                     const std::vector<DynamicText>& text_entries,
                                     const std::vector<DynamicMetadata>& metadata_entries,
                                     const std::vector<ControlledInput>& controlled_inputs,

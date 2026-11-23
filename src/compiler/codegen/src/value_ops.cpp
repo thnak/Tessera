@@ -6,6 +6,7 @@
 #include "value_ops.hpp"
 
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,6 +29,7 @@ std::optional<TextValueType> local_text_type(const LocalBindings& locals, std::s
 }
 
 std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Component& component,
+                                        std::span<const ir::RecordType> records,
                                         const LocalBindings& locals) {
     switch (expr.kind) {
     case ir::ExprKind::Literal:
@@ -48,7 +50,7 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         if (const std::optional<TextValueType> local = local_text_type(locals, expr.id)) {
             return local;
         }
-        return declared_text_type(component, expr.id);
+        return declared_text_type(component, records, expr.id);
     case ir::ExprKind::Template:
         return TextValueType::String;
     case ir::ExprKind::Binary: {
@@ -62,8 +64,10 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         if (expr.operands.size() != 2 || !expr.operands[0] || !expr.operands[1]) {
             return std::nullopt;
         }
-        const std::optional<TextValueType> left = infer_type(*expr.operands[0], component, locals);
-        const std::optional<TextValueType> right = infer_type(*expr.operands[1], component, locals);
+        const std::optional<TextValueType> left =
+            infer_type(*expr.operands[0], component, records, locals);
+        const std::optional<TextValueType> right =
+            infer_type(*expr.operands[1], component, records, locals);
         if (!left || !right || *left == TextValueType::String || *right == TextValueType::String ||
             *left == TextValueType::Bool || *right == TextValueType::Bool) {
             return std::nullopt;
@@ -80,15 +84,15 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         if (expr.operands.size() != 1 || !expr.operands[0]) {
             return std::nullopt;
         }
-        return infer_type(*expr.operands[0], component, locals);
+        return infer_type(*expr.operands[0], component, records, locals);
     case ir::ExprKind::Conditional: {
         if (expr.operands.size() != 3 || !expr.operands[1] || !expr.operands[2]) {
             return std::nullopt;
         }
         const std::optional<TextValueType> then_type =
-            infer_type(*expr.operands[1], component, locals);
+            infer_type(*expr.operands[1], component, records, locals);
         const std::optional<TextValueType> else_type =
-            infer_type(*expr.operands[2], component, locals);
+            infer_type(*expr.operands[2], component, records, locals);
         if (!then_type || !else_type || *then_type != *else_type) {
             return std::nullopt;
         }
@@ -107,7 +111,7 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         if (expr.operands.empty() || !expr.operands[0]) {
             return std::nullopt;
         }
-        return infer_type(*expr.operands[0], component, locals);
+        return infer_type(*expr.operands[0], component, records, locals);
     case ir::ExprKind::Array:
         // A list literal has no printable text form (a list is not interpolated in v1).
         return std::nullopt;
@@ -149,28 +153,31 @@ std::optional<TextValueType> text_value_type(std::string_view ir_type) {
     return std::nullopt;
 }
 
-std::optional<TextValueType> declared_text_type(const ir::Component& component,
-                                                std::string_view id) {
+// The declared IR type of a component field reference (`state::x`, `prop::x`, `anim::x`), or an
+// empty view when `id` names no declared cell. A dotted id is *not* resolved here: the caller
+// splits it first, because the base has to be looked up and the rest walked through the record
+// table.
+std::string_view declared_ir_type(const ir::Component& component, std::string_view id) {
     for (const ir::State& state : component.state) {
         if (state.id == id) {
-            return text_value_type(state.type);
+            return state.type;
         }
     }
     for (const ir::Prop& prop : component.props) {
         if ("prop::" + prop.name == id) {
-            return text_value_type(prop.type);
+            return prop.type;
         }
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
         if (value.id == id) {
-            return text_value_type(value.type);
+            return value.type;
         }
     }
     // An `environment` hook value (issue #692): `useBreakpoint()` returns a string, so a Text that
     // renders it is printable like any other string cell.
     for (const ir::Environment& env : component.environment) {
         if (env.id == id) {
-            return text_value_type(env.type);
+            return env.type;
         }
     }
     // A behavior output (ADR-064 item 7): `beh::<name>.<field>` is printable when the manifest
@@ -178,26 +185,99 @@ std::optional<TextValueType> declared_text_type(const ir::Component& component,
     for (const ir::Behavior& behavior : component.behaviors) {
         for (const ir::BehaviorOutput& output : behavior.outputs) {
             if (behavior.id + "." + output.name == id) {
-                return text_value_type(output.type);
+                return output.type;
             }
         }
+    }
+    return {};
+}
+
+// One step of a member path: the declared type of field `name` in record `type_name`, or an empty
+// view when either the record or the member is unknown.
+std::string_view record_member_type(std::span<const ir::RecordType> records,
+                                    std::string_view type_name, std::string_view name) {
+    for (const ir::RecordType& record : records) {
+        if (record.name != type_name) {
+            continue;
+        }
+        for (const ir::RecordMember& member : record.members) {
+            if (member.name == name) {
+                return member.type;
+            }
+        }
+        return {};
+    }
+    return {};
+}
+
+// The text family of a dotted id: the longest cell prefix that names a declared cell decides the
+// base, and the remainder is a member path (ir-v1-expr.md section 4.3, "dotted members"). The
+// evaluator resolves `ExprKind::Ref` exactly this way and is the reference implementation.
+//
+// A record-typed *cell* has no printable form; its *member* does. The lookup therefore has to reach
+// the member's declared type, never the cell's, which is what the first loop's `text_value_type`
+// would otherwise report.
+std::optional<TextValueType> dotted_text_type(const ir::Component& component,
+                                              std::span<const ir::RecordType> records,
+                                              std::string_view id) {
+    // Walk the dots from the right: the base is the longest prefix that names a cell, so `a.b.c`
+    // tries `a.b` before `a` when both could be cells.
+    for (std::size_t dot = id.rfind('.'); dot != std::string_view::npos;
+         dot = dot == 0 ? std::string_view::npos : id.rfind('.', dot - 1)) {
+        const std::string_view base = id.substr(0, dot);
+        const std::string_view type_name = declared_ir_type(component, base);
+        if (type_name.empty()) {
+            continue;
+        }
+        // The base names a cell whose type is a record: walk the remaining path through the table.
+        std::string_view current = type_name;
+        std::string_view rest = id.substr(dot + 1);
+        while (!rest.empty()) {
+            const std::size_t next = rest.find('.');
+            const std::string_view name =
+                next == std::string_view::npos ? rest : rest.substr(0, next);
+            current = record_member_type(records, current, name);
+            if (current.empty()) {
+                return std::nullopt;
+            }
+            if (next == std::string_view::npos) {
+                break;
+            }
+            rest = rest.substr(next + 1);
+        }
+        return text_value_type(current);
     }
     return std::nullopt;
 }
 
+std::optional<TextValueType> declared_text_type(const ir::Component& component,
+                                                std::span<const ir::RecordType> records,
+                                                std::string_view id) {
+    if (const std::string_view type = declared_ir_type(component, id); !type.empty()) {
+        return text_value_type(type);
+    }
+    // A dotted member read into a record-typed cell (#827). Only reached when the whole id is not
+    // itself a declared name, so an id that happens to contain a dot but names a cell still takes
+    // the branch above.
+    return dotted_text_type(component, records, id);
+}
+
 std::optional<TextValueType> infer_text_type(const ir::Expr& expr, const ir::Component& component,
+                                             std::span<const ir::RecordType> records,
                                              const LocalBindings& locals) {
-    return infer_type(expr, component, locals);
+    return infer_type(expr, component, records, locals);
 }
 
 bool printable_text_expression(const ir::Expr& expr, const ir::Component& component,
+                               std::span<const ir::RecordType> records,
                                const LocalBindings& locals) {
-    return infer_text_type(expr, component, locals).has_value();
+    return infer_text_type(expr, component, records, locals).has_value();
 }
 
 bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component& component,
-                    const LocalBindings& locals, const std::string& hash_var,
-                    const std::string& append_target, std::string& error) {
+                    std::span<const ir::RecordType> records, const LocalBindings& locals,
+                    const std::string& hash_var, const std::string& append_target,
+                    std::string& error) {
     const auto hash_literal = [&](std::string_view value) {
         // A bare string literal would bind the hash overload for bool (pointer conversion); wrap
         // it so the string_view overload is selected.
@@ -213,7 +293,7 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
             return fail(error, emission.error);
         }
         if (!hash_var.empty()) {
-            const std::optional<TextValueType> type = infer_type(value, component, locals);
+            const std::optional<TextValueType> type = infer_type(value, component, records, locals);
             if (type == TextValueType::String) {
                 writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
                             ", std::string_view(" + emission.text + "));");
@@ -240,13 +320,13 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
             }
             if (part.expr->kind == ir::ExprKind::Template ||
                 part.expr->kind == ir::ExprKind::Conditional) {
-                if (!emit_value_ops(writer, *part.expr, component, locals, hash_var, append_target,
-                                    error)) {
+                if (!emit_value_ops(writer, *part.expr, component, records, locals, hash_var,
+                                    append_target, error)) {
                     return false;
                 }
                 continue;
             }
-            if (!infer_type(*part.expr, component, locals)) {
+            if (!infer_type(*part.expr, component, records, locals)) {
                 return fail(error, "a text interpolation has no printable C++ type");
             }
             if (!emit_expression(*part.expr)) {
@@ -264,8 +344,8 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
         if (!test.error.empty()) {
             return fail(error, test.error);
         }
-        if (!infer_type(*expr.operands[1], component, locals) ||
-            !infer_type(*expr.operands[2], component, locals)) {
+        if (!infer_type(*expr.operands[1], component, records, locals) ||
+            !infer_type(*expr.operands[2], component, records, locals)) {
             return fail(error, "a text conditional has no printable C++ type");
         }
         std::string test_text = test.text;
@@ -274,22 +354,22 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
         }
         writer.line("if " + test_text + " {");
         ++writer.indent;
-        if (!emit_value_ops(writer, *expr.operands[1], component, locals, hash_var, append_target,
-                            error)) {
+        if (!emit_value_ops(writer, *expr.operands[1], component, records, locals, hash_var,
+                            append_target, error)) {
             return false;
         }
         --writer.indent;
         writer.line("} else {");
         ++writer.indent;
-        if (!emit_value_ops(writer, *expr.operands[2], component, locals, hash_var, append_target,
-                            error)) {
+        if (!emit_value_ops(writer, *expr.operands[2], component, records, locals, hash_var,
+                            append_target, error)) {
             return false;
         }
         --writer.indent;
         writer.line("}");
         return true;
     }
-    if (!infer_type(expr, component, locals)) {
+    if (!infer_type(expr, component, records, locals)) {
         return fail(error, "a text interpolation has no printable C++ type");
     }
     return emit_expression(expr);

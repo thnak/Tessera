@@ -67,7 +67,8 @@ std::string item_table_prefix(const ListTemplate& list) {
 }
 
 bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
-                        const ListTemplate& collection, std::string& error) {
+                        std::span<const ir::RecordType> records, const ListTemplate& collection,
+                        std::string& error) {
     const std::string ordinal = std::to_string(collection.ordinal);
     const std::string container_ordinal = std::to_string(collection.container_ordinal);
     const std::string table = item_table_prefix(collection);
@@ -104,8 +105,8 @@ bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
                 "++tessera_i)");
     writer.line("const " + collection.element_cpp + "& " + collection.item +
                 " = tessera_source[tessera_i];");
-    if (!emit_value_ops(writer, *collection.node->key, component, key_locals, "tessera_order", "",
-                        error)) {
+    if (!emit_value_ops(writer, *collection.node->key, component, records, key_locals,
+                        "tessera_order", "", error)) {
         return false;
     }
     writer.line("++tessera_window;");

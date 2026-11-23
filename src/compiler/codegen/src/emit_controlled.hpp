@@ -25,6 +25,7 @@ struct ControlledInput {
 };
 
 [[nodiscard]] bool collect_controlled_inputs(const ir::Node& node, const ir::Component& component,
+                                             std::span<const ir::RecordType> records,
                                              const std::vector<const ir::Binding*>& bindings,
                                              unsigned& ordinal,
                                              std::vector<ControlledInput>& inputs,

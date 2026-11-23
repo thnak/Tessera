@@ -42,8 +42,9 @@ const ir::Expr* paint_expression(const ir::Node& node) {
     return default_value == node.props.end() ? nullptr : default_value->second.get();
 }
 
-bool collect_text(const ir::Node& node, const ir::Component& component, bool in_template,
-                  unsigned& ordinal, std::vector<DynamicText>& entries, std::string& error) {
+bool collect_text(const ir::Node& node, const ir::Component& component,
+                  std::span<const ir::RecordType> records, bool in_template, unsigned& ordinal,
+                  std::vector<DynamicText>& entries, std::string& error) {
     const unsigned self = ++ordinal;
     if (node.loop) {
         in_template = true; // the whole template subtree is per item (handled by its list)
@@ -51,29 +52,29 @@ bool collect_text(const ir::Node& node, const ir::Component& component, bool in_
     if (!in_template) {
         const ir::Expr* text_expr = paint_expression(node);
         if (text_expr != nullptr && !static_text_value(text_expr)) {
-            if (!printable_text_expression(*text_expr, component)) {
+            if (!printable_text_expression(*text_expr, component, records)) {
                 return fail(error, "text of `" + node.id + "` has no printable C++ type");
             }
             entries.push_back(DynamicText{self, text_expr});
         }
     }
     for (const ir::Node& child : node.children) {
-        if (!collect_text(child, component, in_template, ordinal, entries, error)) {
+        if (!collect_text(child, component, records, in_template, ordinal, entries, error)) {
             return false;
         }
     }
     // The item template of a virtual collection is not a child (ir-v1 section 3.5) but takes its
     // pre-order ordinals; its text is painted by the per-item content pass, not by apply_state().
     if (node.item_template &&
-        !collect_text(*node.item_template, component, true, ordinal, entries, error)) {
+        !collect_text(*node.item_template, component, records, true, ordinal, entries, error)) {
         return false;
     }
     return true;
 }
 
-bool collect_metadata(const ir::Node& node, const ir::Component& component, bool in_template,
-                      unsigned& ordinal, std::vector<DynamicMetadata>& entries,
-                      std::string& error) {
+bool collect_metadata(const ir::Node& node, const ir::Component& component,
+                      std::span<const ir::RecordType> records, bool in_template, unsigned& ordinal,
+                      std::vector<DynamicMetadata>& entries, std::string& error) {
     const unsigned self = ++ordinal;
     if (node.loop) {
         in_template = true;
@@ -87,7 +88,7 @@ bool collect_metadata(const ir::Node& node, const ir::Component& component, bool
             if (static_text_value(value)) {
                 return true; // a literal string stays inline in build()
             }
-            if (!printable_text_expression(*value, component)) {
+            if (!printable_text_expression(*value, component, records)) {
                 return fail(error, "dynamic `" + name + "` on `" + node.id +
                                        "` has no printable C++ type");
             }
@@ -118,14 +119,14 @@ bool collect_metadata(const ir::Node& node, const ir::Component& component, bool
         }
     }
     for (const ir::Node& child : node.children) {
-        if (!collect_metadata(child, component, in_template, ordinal, entries, error)) {
+        if (!collect_metadata(child, component, records, in_template, ordinal, entries, error)) {
             return false;
         }
     }
     // Item templates keep their per-item metadata out of the component-level apply_state() table
     // (the plan rejects dynamic per-item metadata); the recursion keeps ordinals aligned.
     if (node.item_template &&
-        !collect_metadata(*node.item_template, component, true, ordinal, entries, error)) {
+        !collect_metadata(*node.item_template, component, records, true, ordinal, entries, error)) {
         return false;
     }
     return true;
@@ -133,9 +134,10 @@ bool collect_metadata(const ir::Node& node, const ir::Component& component, bool
 
 } // namespace
 
-bool collect_dynamic_text(const ir::Node& node, const ir::Component& component, unsigned& ordinal,
+bool collect_dynamic_text(const ir::Node& node, const ir::Component& component,
+                          std::span<const ir::RecordType> records, unsigned& ordinal,
                           std::vector<DynamicText>& entries, std::string& error) {
-    return collect_text(node, component, false, ordinal, entries, error);
+    return collect_text(node, component, records, false, ordinal, entries, error);
 }
 
 std::optional<std::string> static_text_value(const ir::Expr* expr) {
@@ -189,9 +191,9 @@ std::string metadata_member(const DynamicMetadata& entry) {
 }
 
 bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& component,
-                              unsigned& ordinal, std::vector<DynamicMetadata>& entries,
-                              std::string& error) {
-    return collect_metadata(node, component, false, ordinal, entries, error);
+                              std::span<const ir::RecordType> records, unsigned& ordinal,
+                              std::vector<DynamicMetadata>& entries, std::string& error) {
+    return collect_metadata(node, component, records, false, ordinal, entries, error);
 }
 
 void emit_format_helpers(CppWriter& writer) {
@@ -238,6 +240,7 @@ void emit_format_helpers(CppWriter& writer) {
 }
 
 bool emit_apply_state(CppWriter& writer, const ir::Component& component,
+                      std::span<const ir::RecordType> records,
                       const std::vector<DynamicText>& text_entries,
                       const std::vector<DynamicMetadata>& metadata_entries,
                       const std::vector<ControlledInput>& controlled_inputs,
@@ -269,7 +272,7 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         const bool gated = open_dirty_gate(writer, plan.dirty, BindingKind::Text, entry.ordinal, {},
                                            "text:" + suffix);
         writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
-        if (!emit_value_ops(writer, *entry.text, component, {}, hash, "", error)) {
+        if (!emit_value_ops(writer, *entry.text, component, records, {}, hash, "", error)) {
             return false;
         }
         writer.open("if (!text_node_" + suffix + "_set_ || " + hash + " != text_node_" + suffix +
@@ -278,7 +281,8 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         writer.line("text_node_" + suffix + "_hash_ = " + hash + ";");
         writer.line("text_node_" + suffix + "_set_ = true;");
         writer.line("std::string next_" + suffix + ";");
-        if (!emit_value_ops(writer, *entry.text, component, {}, "", "next_" + suffix, error)) {
+        if (!emit_value_ops(writer, *entry.text, component, records, {}, "", "next_" + suffix,
+                            error)) {
             return false;
         }
         writer.line("text_node_" + suffix + "_value_ = std::move(next_" + suffix + ");");
@@ -298,7 +302,7 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
             entry.ordinal, entry.name,
             (is_style ? "style:" : "meta:") + std::to_string(entry.ordinal) + ":" + entry.name);
         writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
-        if (!emit_value_ops(writer, *entry.value, component, {}, hash, "", error)) {
+        if (!emit_value_ops(writer, *entry.value, component, records, {}, hash, "", error)) {
             return false;
         }
         writer.open("if (!" + base + "_set_ || " + hash + " != " + base + "_hash_)");
@@ -306,7 +310,8 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         writer.line(base + "_hash_ = " + hash + ";");
         writer.line(base + "_set_ = true;");
         writer.line("std::string next_" + base + ";");
-        if (!emit_value_ops(writer, *entry.value, component, {}, "", "next_" + base, error)) {
+        if (!emit_value_ops(writer, *entry.value, component, records, {}, "", "next_" + base,
+                            error)) {
             return false;
         }
         writer.line("if (" + base + "_value_ != next_" + base + ") {");

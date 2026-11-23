@@ -118,8 +118,14 @@ NodeEmitContext::Outcome emit_node_prelude(NodeEmitContext& context) {
         fail(context.error, "node `" + node.id + "` has more than 16 inline style declarations");
         return NodeEmitContext::Outcome::Failed;
     }
+    // The module's record type table, so a style value that reads a record member resolves to the
+    // member's declared type (#827). Empty when the state carries no module, which keeps the old
+    // behaviour for a caller that never set one.
+    const std::span<const ir::RecordType> module_records =
+        state.module != nullptr ? std::span<const ir::RecordType>(state.module->types)
+                                : std::span<const ir::RecordType>{};
     for (const auto& [name, value] : node.style) {
-        if (value && !printable_text_expression(*value, state.component)) {
+        if (value && !printable_text_expression(*value, state.component, module_records)) {
             fail(context.error, "style `" + name + "` has no printable C++ type");
             return NodeEmitContext::Outcome::Failed;
         }
