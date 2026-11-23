@@ -36,6 +36,36 @@ WindowDevice::~WindowDevice() {
     release_presentation();
 }
 
+void WindowDevice::set_completion_wake(runtime::CompletionQueue* completions) {
+    if (completions == nullptr) {
+        // Detach from every window before the wake dies: a window whose wait still joins a freed
+        // descriptor is the one thing this must not leave behind.
+        for (std::size_t index = 0; index < window_list_size_; ++index) {
+            if (hal::Window* window = windows_[index]->window(); window != nullptr) {
+                window->set_wake_source(nullptr);
+            }
+        }
+        wake_.reset();
+        return;
+    }
+    wake_ = hal::create_wake_source();
+    if (wake_ == nullptr) {
+        // The platform has no joinable wake primitive: the park keeps its bounded sleep, which is
+        // the documented fallback, and the clamp stays the latency path there.
+        return;
+    }
+    hal::WakeSource* source = wake_.get();
+    // A wake source is a function pointer plus a context, so a lambda with no capture converts;
+    // the completion queue's wake is called from any thread.
+    completions->set_wake(
+        [](void* context) { static_cast<hal::WakeSource*>(context)->wake(); }, source);
+    for (std::size_t index = 0; index < window_list_size_; ++index) {
+        if (hal::Window* window = windows_[index]->window(); window != nullptr) {
+            window->set_wake_source(source);
+        }
+    }
+}
+
 bool WindowDevice::register_window(WindowHost& window) noexcept {
     if (window_list_size_ >= kMaxWindowsPerDevice) {
         return false;
@@ -49,6 +79,13 @@ bool WindowDevice::register_window(WindowHost& window) noexcept {
     }
     windows_[window_list_size_] = &window;
     ++window_list_size_;
+    // A window that joins after `set_completion_wake` joins the same wake, so its park is not the
+    // one place an async result still waits out the clamp (issue #842).
+    if (wake_ != nullptr) {
+        if (hal::Window* native = window.window(); native != nullptr) {
+            native->set_wake_source(wake_.get());
+        }
+    }
     return true;
 }
 
@@ -157,10 +194,15 @@ WindowDevice::RunStats WindowDevice::run_windows(std::uint32_t max_frames) {
         if (wait > 0.0) {
             ++stats.idle_waits;
             // Park on the group's own deadline. With no window there is no platform event wait to
-            // join, so this is a plain bounded sleep - which is exactly what a tray app does
-            // between activations. The wait is always bounded (`next_wait_seconds` clamps it), so a
-            // window-less run polls at that cadence instead of hanging.
-            hal::wait_until_seconds(hal::steady_now_seconds() + wait);
+            // join, but with a completion queue installed the wake is, so a worker's post ends the
+            // park instead of the tray app waiting out the clamp (issue #842). Without a wake the
+            // wait is the plain bounded sleep it always was.
+            const double deadline = hal::steady_now_seconds() + wait;
+            if (wake_ == nullptr) {
+                hal::wait_until_seconds(deadline);
+            } else if (wake_->wait_until(deadline)) {
+                wake_->drain();
+            }
         }
     }
     return stats;

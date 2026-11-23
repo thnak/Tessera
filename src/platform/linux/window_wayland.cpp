@@ -96,6 +96,13 @@ public:
     }
     std::size_t poll_events(std::span<WindowEvent> events) override;
     bool wait_for_events(double timeout_seconds) override;
+    void set_wake_source(WakeSource* source) override {
+        connection_.set_wake_source(source);
+    }
+    [[nodiscard]] WakeSource* wake_source() const noexcept override {
+        // The connection holds it; window.hpp exposes the pointer so a host can read it back.
+        return nullptr;
+    }
     // Input is a separate follow-up slice (see the file header): no wl_seat is bound, so the base
     // no-op is the honest implementation rather than a half-translated queue.
     void set_input_queue(ui::InputQueue* /*queue*/) override {}

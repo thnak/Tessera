@@ -75,10 +75,24 @@ bool WaylandConnection::wait_once(double deadline) {
     const int milliseconds = wait_milliseconds >= static_cast<double>(INT_MAX)
                                  ? INT_MAX
                                  : static_cast<int>(wait_milliseconds);
-    pollfd descriptor{};
-    descriptor.fd = wl_display_get_fd(display_);
-    descriptor.events = POLLIN;
-    const int result = poll(&descriptor, 1, milliseconds);
+    // The display and, when the host installed one, the completion wake (issue #842). A wake means
+    // a completion is queued: dismiss the read so the connection is not left half-read, then return
+    // so the runtime loop drains the queue on its own thread.
+    const int wake_fd = wake_ != nullptr ? wake_->file_descriptor() : -1;
+    pollfd descriptors[2] = {};
+    const nfds_t count = wake_fd >= 0 ? 2 : 1;
+    descriptors[0].fd = wl_display_get_fd(display_);
+    descriptors[0].events = POLLIN;
+    if (wake_fd >= 0) {
+        descriptors[1].fd = wake_fd;
+        descriptors[1].events = POLLIN;
+    }
+    const int result = poll(descriptors, count, milliseconds);
+    if (result > 0 && wake_fd >= 0 && (descriptors[1].revents & POLLIN) != 0) {
+        wake_->drain();
+        wl_display_cancel_read(display_);
+        return true;
+    }
     if (result > 0) {
         // read_events() observes a disconnect as -1/EPIPE, so it is called even when the same poll
         // reports POLLERR/POLLHUP.

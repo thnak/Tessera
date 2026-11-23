@@ -47,12 +47,23 @@ Resize/DPI/lifecycle rules are in [`window-resize.md`](window-resize.md).
 
 The UI thread may idle in `wait_until_seconds` between ticks because the wait is bounded by the
 next deadline and holds no locks; [ADR-021](../../decisions/ADR-021-async-runtime.md) treats this
-as idling rather than blocking. Early wakeups from input, async completions, and
-`request_frame()` are provided by the B3 window event wait (§1.2), not by this portable primitive.
+as idling rather than blocking. Early wakeups from input and `request_frame()` are provided by the
+B3 window event wait (§1.2), not by this portable primitive; async completions joined it with
+issue #842 - see the wake paragraph in §1.2.
 `runtime::SystemClock` (`src/runtime/system_clock.*`) is the only runtime adapter and delegates
 here; `src/hal/` never depends on `src/runtime/`.
 
 ### 1.2 Window event wait (implemented, Windows and Linux/X11)
+
+**Completion wake (issue #842).** A worker that posts a completion has to end a parked UI thread
+early, or every async result in a settled app arrives at the idle clamp (`kMaxIdleWaitSeconds`,
+up to 250 ms) rather than when it is ready. `hal::WakeSource` (`include/tessera/hal/wake_source.hpp`)
+is the primitive the host installs: Linux joins an `eventfd` beside the display fd in `poll()`,
+Windows adds an auto-reset event to the `MsgWaitForMultipleObjectsEx` handle list, and a window-less
+group waits on it directly. `CompletionQueue::set_wake` fires it once per empty -> non-empty edge,
+so a burst is one wake. The wake only ends the park; the next tick still drains the queue on the UI
+thread, and the clamp stays as the safety net rather than the latency path. A platform with no
+primitive returns null from `create_wake_source`, which is the documented bounded-sleep fallback.
 
 `hal::Window::wait_for_events(timeout_seconds)` idles on the owning thread while pumping OS
 messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close or

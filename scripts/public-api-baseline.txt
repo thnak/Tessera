@@ -898,6 +898,11 @@ function include/tessera/hal/timer/steady_time.hpp tessera::hal::seconds_until
 function include/tessera/hal/timer/steady_time.hpp tessera::hal::steady_now_seconds
 function include/tessera/hal/timer/steady_time.hpp tessera::hal::wait_until_seconds
 
+header include/tessera/hal/wake_source.hpp
+class include/tessera/hal/wake_source.hpp tessera::hal::WakeSource
+function include/tessera/hal/wake_source.hpp tessera::hal::create_manual_wake_source
+function include/tessera/hal/wake_source.hpp tessera::hal::create_wake_source
+
 header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue

@@ -53,6 +53,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/fold_posture_tests.cpp)
     target_link_libraries(fold_posture_tests PRIVATE tessera_hal_metrics)
     add_test(NAME fold_posture COMMAND fold_posture_tests)
+
+    # The cross-thread wake (issue #842). Registered here, not in the shared unit registry, so this
+    # lane never edits a file another lane is working in.
+    add_executable(hal_wake_source_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/hal_wake_source_tests.cpp)
+    target_link_libraries(hal_wake_source_tests PRIVATE tessera_hal_window)
+    add_test(NAME hal_wake_source COMMAND hal_wake_source_tests)
 endif ()
 
 add_library(tessera_hal_window STATIC)
@@ -61,6 +68,10 @@ add_library(tessera_hal_window STATIC)
 # X11 mode math) live here on every platform, so the platform files only read the OS value and hand
 # it over. Tests compile this file directly, without a window or a display.
 target_sources(tessera_hal_window PRIVATE
+    # The cross-thread wake a parked UI thread joins (issue #842): an `eventfd` on POSIX, null
+    # where the platform has no such primitive (the host then keeps its bounded sleep). Pure POSIX,
+    # so it compiles on every non-Windows lane including the stub build.
+    ${CMAKE_CURRENT_SOURCE_DIR}/wake_source_posix.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/refresh_rate.cpp
     # The OS backdrop resolution table (docs/specs/glass-v1.md section 6): pure, platform-neutral,
     # so the platform files only detect capabilities and apply the returned material.

@@ -9,6 +9,7 @@
 #include "tessera/hal/event_reason.hpp"
 #include "tessera/hal/geometry.hpp"
 #include "tessera/hal/refresh_rate.hpp"
+#include "tessera/hal/wake_source.hpp"
 #include "tessera/hal/window_backdrop.hpp"
 #include "tessera/hal/window_desc.hpp"
 
@@ -50,9 +51,9 @@ struct FoldInfo {
     FoldOrientation orientation = FoldOrientation::None;
     FoldOcclusion occlusion = FoldOcclusion::None;
     bool separating = false;
-    // Hinge rectangle, logical pixels, window coordinates; zero when there is no fold. The angle is
-    // degrees from the platform's hinge sensor (0 closed, 180 flat), `kUnknownHingeAngle` when
-    // nothing measured one; it is independent of `state`, so a flat fold still has an angle.
+    // Hinge rectangle, logical pixels, window coordinates; zero when there is no fold. The angle
+    // (degrees from the platform's hinge sensor, `kUnknownHingeAngle` when nothing measured one) is
+    // independent of `state`, so a flat fold still has an angle.
     WindowRect hinge_bounds;
     float hinge_angle_degrees = kUnknownHingeAngle;
 };
@@ -147,8 +148,8 @@ struct WindowMetrics {
 // Budget for the per-event metrics snapshot. `WindowMetrics` is embedded in `WindowEvent`, which
 // the platform event ring and the pump path copy, and `OsEvent` copies it again, so its size is a
 // hot-path cost, not an ergonomics question: the same guardrail as `kNodeSizeBudget` for `Node`
-// (docs/guides/code-style.md). `sizeof(WindowMetrics)` is 380 today, so this leaves 4 bytes of
-// headroom; growing past it needs a deliberate decision, not an accidental struct member.
+// (docs/guides/code-style.md). `sizeof(WindowMetrics)` is 380 today (4 bytes of headroom); past
+// the budget needs a deliberate decision, not an accidental struct member.
 inline constexpr std::size_t kWindowMetricsSizeBudget = 384;
 
 static_assert(
@@ -242,8 +243,8 @@ enum class WindowEventCategory : std::uint8_t {
     Settings,
 };
 
-// The category `type` belongs to. An out-of-range value is `Settings`, which sorts last: a value
-// this build does not understand can never jump ahead of a lifecycle transition.
+// The category `type` belongs to. An out-of-range value is `Settings`, which sorts last, so a
+// value this build does not understand can never jump ahead of a lifecycle transition.
 [[nodiscard]] WindowEventCategory window_event_category(WindowEventType type) noexcept;
 
 // The position of `type`'s category in the fixed delivery order (Lifecycle 0 ... Settings 3).
@@ -291,9 +292,8 @@ public:
 
     // The window-system family this window was created by. It tells the renderer which presentation
     // surface to build from native_handle() without guessing from the environment, which matters on
-    // a Linux box where both X11 and Wayland are available (issue #155). The default `NoWindow` is
-    // the answer for backends with no native presentation surface (offscreen/null or a platform
-    // stub).
+    // a Linux box where both X11 and Wayland are available (issue #155). `NoWindow` is the answer
+    // for backends with no native presentation surface (offscreen/null or a platform stub).
     [[nodiscard]] virtual WindowSystem window_system() const noexcept {
         return WindowSystem::NoWindow;
     }
@@ -301,23 +301,17 @@ public:
     // The refresh rate of the display the window is on, in Hz, as the platform currently reports
     // it. `kUnknownRefreshHz` (0) is the documented "unknown" answer: no display, a platform or
     // server that cannot answer, a failed query, or a report outside the sane bounds of
-    // tessera/hal/refresh_rate.hpp. It never guesses and never throws.
-    //
-    // It is not a per-frame query: the app window host reads it once, when the window is created,
-    // to resolve WindowOptions::refresh_hz (an explicit option still wins). A monitor change is not
-    // tracked in this slice; the OS-event display-capabilities item owns that.
+    // tessera/hal/refresh_rate.hpp. Never guesses, never throws. Read once at window creation to
+    // resolve WindowOptions::refresh_hz; a monitor change arrives as a display event.
     [[nodiscard]] virtual double display_refresh_hz() const noexcept {
         return kUnknownRefreshHz;
     }
 
     // Copies the current display topology into `displays` and returns the count written, at most
-    // `kMaxDisplays`. `DisplayInfo` is the per-monitor list; `WindowMetrics` carries only the
-    // capabilities of the display this window is on, so a caller that needs the others reads them
-    // here. A platform without a topology query leaves the span untouched and returns 0, which is
-    // the documented "no per-monitor information" answer, never a fabricated monitor.
-    //
-    // It is a state query, not an event: a `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` event
-    // says the list is stale, and the loop re-reads it at that tick's boundary.
+    // `kMaxDisplays`. `WindowMetrics` carries only the display this window is on, so a caller that
+    // needs the others reads them here; a platform without a topology query returns 0 rather than
+    // a fabricated monitor. It is a state query, not an event: a `DisplayAdded`/`DisplayRemoved`/
+    // `DisplayChanged` event says the list is stale, and the loop re-reads it at that tick.
     virtual std::size_t displays(std::span<DisplayInfo> displays) const {
         (void)displays;
         return 0;
@@ -325,11 +319,9 @@ public:
 
     // The OS appearance preferences this window mirrors: color scheme and reduced motion
     // (issue #187, `tessera/hal/appearance.hpp`). It is the value the platform measured LAST, not a
-    // query: every platform that has a source keeps a normalized snapshot and a change arrives as
-    // `ThemeChanged`/`SystemSettingsChanged`, so the owner re-reads it at that tick's boundary
-    // instead of polling. The read is cheap and non-blocking (a lock-free load), so it is safe on
-    // the frame path; the platform does any I/O on its own thread. The default is the documented
-    // fallback (light, motion enabled, both recorded as assumed) for platforms with no source.
+    // query: a change arrives as `ThemeChanged`/`SystemSettingsChanged`, so the owner re-reads it
+    // at that tick instead of polling. A lock-free load, safe on the frame path; the default is the
+    // documented fallback (light, motion enabled, both assumed) for a platform with no source.
     [[nodiscard]] virtual AppearancePreference appearance() const noexcept {
         return assumed_appearance();
     }
@@ -340,11 +332,21 @@ public:
 
     // Idles for at most `timeout_seconds` while pumping the platform message queue, then returns
     // true if at least one WindowEvent is queued (or a Close is pending) and false on timeout.
-    // Negative or non-finite timeouts are clamped to zero, so the call degrades to a poll. The
-    // platform implementation only records normalized events; no user code runs from the wait.
-    // Must be called on the thread that created the window. The default implementation is a
-    // bounded idle sleep that reports no event, for platforms without an event source.
+    // Negative or non-finite timeouts are clamped to zero, so the call degrades to a poll. Only
+    // normalized events are recorded; no user code runs from the wait. Must be called on the
+    // thread that created the window. The default is a bounded idle sleep that reports no event,
+    // for platforms without an event source.
     virtual bool wait_for_events(double timeout_seconds);
+
+    // The cross-thread wake this window's idle wait joins (issue #842). The host installs the
+    // primitive its completion queue signals, so a worker post ends the park instead of waiting out
+    // the clamp; null (the default) keeps the OS-source wait. Borrowed: it must outlive the window.
+    virtual void set_wake_source(WakeSource* source) {
+        (void)source;
+    }
+    [[nodiscard]] virtual WakeSource* wake_source() const noexcept {
+        return nullptr;
+    }
 
     // Routes translated pointer, wheel, key and text input into `queue` as ui::InputEvent, in
     // logical pixels with the web sign for wheel deltas (see ui/key_code.hpp for key codes). The
@@ -372,8 +374,8 @@ public:
     // The platform's window-metrics signals, for a platform that reports them through a callback
     // the host does not own (Android's `WindowInsets`/`DisplayCutout`/`FoldingFeature` over JNI).
     // Values are PHYSICAL pixels; the backend converts them to logical ones. Cutouts keep at most
-    // `kMaxCutouts`; a fold is ignored unless HalfOpened. `set_physical_fold` also carries the
-    // hinge angle, which is independent of the posture and may arrive alone.
+    // `kMaxCutouts`. `set_physical_fold` also carries the hinge angle, which is independent of the
+    // posture and may arrive alone.
     virtual void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
                                      const PhysicalInsets& gestures) {
         (void)system_bars;
@@ -426,19 +428,17 @@ public:
 
     // False when full-screen cannot be requested at all on this platform, so a caller can report
     // the unsupported path once instead of calling set_fullscreen() and re-reading the metrics.
-    // True does not promise that a request succeeds: a window manager may still refuse it, which
-    // the metrics report. The default is false.
+    // True does not promise a request succeeds: a window manager may still refuse, which the
+    // metrics report. The default is false.
     [[nodiscard]] virtual bool supports_fullscreen() const noexcept {
         return false;
     }
 
     // Publishes the interactive regions of the framework's custom title bar (window-chrome-v1.md
     // section 8.1); an empty span returns the window to the system-chrome answer where every point
-    // is client area. The regions are in logical pixels and are copied: the platform keeps them for
-    // its non-client hit test, and the caller may pass a stack buffer. They also appear in
-    // WindowMetrics::caption_regions, so a fake window and a real one report the same list. This is
-    // a framework-only seam (WindowChrome); app code never calls it. The default stores nothing,
-    // for platforms with no custom caption.
+    // is client area. The regions are in logical pixels and are copied, so the caller may pass a
+    // stack buffer. They also appear in WindowMetrics::caption_regions, so a fake window and a real
+    // one report the same list. Framework-only (WindowChrome); the default stores nothing.
     virtual void set_caption_regions(std::span<const CaptionRegion> regions) {
         (void)regions;
     }

@@ -6,6 +6,7 @@
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
 #include "window_x11.hpp"
+#include "x11_wake_poll.hpp"
 #include "x11_input.hpp"
 #include "x11_xi2.hpp"
 // After the input headers: it is the first include that pulls <X11/Xlib.h>, whose `None`/`Bool`
@@ -171,6 +172,7 @@ private:
     bool mapped_ = false;
     bool focused_ = false;
     bool redraw_pending_ = false;
+    WakeSource* wake_ = nullptr; // issue #842; borrowed, null keeps the display-only poll
     bool close_posted_ = false;
     bool close_requested_ = false;
     bool close_delivered_ = false;
@@ -611,23 +613,21 @@ bool X11Window::wait_for_events(double timeout_seconds) {
         const int milliseconds = wait_milliseconds >= static_cast<double>(INT_MAX)
                                      ? INT_MAX
                                      : static_cast<int>(wait_milliseconds);
-        pollfd descriptor{};
-        descriptor.fd = ConnectionNumber(display_);
-        descriptor.events = POLLIN;
-        const int result = poll(&descriptor, 1, milliseconds);
-        if (result > 0) {
-            if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                // A dead connection never becomes readable; idle out the budget once so callers
-                // still throttle instead of spinning on a broken display.
-                wait_until_seconds(deadline);
-                pump(false);
-                return has_pending_events();
-            }
+        // The display, plus the completion wake when installed (#842): a worker's post ends the
+        // park here rather than waiting out the clamp. The wake is drained so the next park blocks.
+        const int wake_fd = wake_ != nullptr ? wake_->file_descriptor() : -1;
+        switch (detail::x11_poll_for_events(ConnectionNumber(display_), wake_fd, milliseconds)) {
+        case detail::X11PollResult::Wake:
+            wake_->drain();
+            pump(false);
+            return true; // A completion is queued: the loop drains it on this thread.
+        case detail::X11PollResult::Display:
             continue; // Readable: drain and re-check for normalized events.
-        }
-        if (result == 0) {
+        case detail::X11PollResult::Timeout:
             pump(false);
             return has_pending_events();
+        case detail::X11PollResult::Error:
+            break;
         }
         if (errno == EINTR) {
             continue;
