@@ -57,8 +57,8 @@ void WindowDevice::set_completion_wake(runtime::CompletionQueue* completions) {
     hal::WakeSource* source = wake_.get();
     // A wake source is a function pointer plus a context, so a lambda with no capture converts;
     // the completion queue's wake is called from any thread.
-    completions->set_wake(
-        [](void* context) { static_cast<hal::WakeSource*>(context)->wake(); }, source);
+    completions->set_wake([](void* context) { static_cast<hal::WakeSource*>(context)->wake(); },
+                          source);
     for (std::size_t index = 0; index < window_list_size_; ++index) {
         if (hal::Window* window = windows_[index]->window(); window != nullptr) {
             window->set_wake_source(source);

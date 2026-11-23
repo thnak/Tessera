@@ -6,8 +6,8 @@
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
 #include "window_x11.hpp"
-#include "x11_wake_poll.hpp"
 #include "x11_input.hpp"
+#include "x11_wake_poll.hpp"
 #include "x11_xi2.hpp"
 // After the input headers: it is the first include that pulls <X11/Xlib.h>, whose `None`/`Bool`
 // macros would rewrite the enumerators in tessera/ui/input.hpp. The tessera headers must be parsed

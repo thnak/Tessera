@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // The POSIX wake primitive (issue #842): an `eventfd` the UI thread joins beside its display fd.
-// A completion posted from a worker writes it, the parked `poll()` returns, and the next tick drains
-// the queue on the UI thread. Nothing here runs a completion.
+// A completion posted from a worker writes it, the parked `poll()` returns, and the next tick
+// drains the queue on the UI thread. Nothing here runs a completion.
 //
 // `eventfd` is used rather than a self-pipe because it is one descriptor with no buffering to fill:
 // a burst of wakes before the thread drains is a single readable descriptor, which is exactly the
@@ -10,11 +10,11 @@
 // empty -> non-empty edge). Where `eventfd` is unavailable the implementation is absent and
 // `create_wake_source` returns null, so the host keeps today's bounded sleep.
 
-#include "tessera/hal/wake_source.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/hal/wake_source.hpp"
 
-#include <chrono>
 #include <cerrno>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
