@@ -48,8 +48,8 @@ bool dep_member(const ir::Component& component, const ir::IrModule& module, std:
         if (state.id == dep) {
             const std::optional<std::string> mapped = cpp_type(state.type, module.types);
             if (!mapped) {
-                return fail(error, "effect dep `" + std::string(dep) +
-                                       "` has a type with no C++ form");
+                return fail(error,
+                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
             }
             member = member_name(state.id);
             type = *mapped;
@@ -63,8 +63,7 @@ bool dep_member(const ir::Component& component, const ir::IrModule& module, std:
         }
         const std::optional<std::string> mapped = cpp_type(prop.type, module.types);
         if (!mapped) {
-            return fail(error, "effect dep `" + std::string(dep) +
-                                   "` has a type with no C++ form");
+            return fail(error, "effect dep `" + std::string(dep) + "` has a type with no C++ form");
         }
         member = member_name("prop::" + prop.name);
         type = *mapped;
@@ -75,8 +74,8 @@ bool dep_member(const ir::Component& component, const ir::IrModule& module, std:
         if (value.id == dep) {
             const std::optional<std::string> mapped = cpp_type(value.type, module.types);
             if (!mapped) {
-                return fail(error, "effect dep `" + std::string(dep) +
-                                       "` has a type with no C++ form");
+                return fail(error,
+                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
             }
             member = member_name(value.id);
             type = *mapped;
@@ -104,8 +103,7 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, const ir::
         // A record folds its generated field-wise hash in as a 64-bit value; every other type uses
         // the scalar/list overload directly.
         writer.line("hash = tessera::ui::effect_hash(hash, " +
-                    (is_record ? "hash_value(component." + member + ")"
-                               : "component." + member) +
+                    (is_record ? "hash_value(component." + member + ")" : "component." + member) +
                     ");");
     }
     writer.line("return hash;");

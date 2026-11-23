@@ -246,8 +246,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
             const std::string field = mask + "." + member.name;
             writer.open("if (!(" + field + " == value." + member.name + "))");
             writer.line("tessera_changed = true;");
-            for (const std::string& bit :
-                 cell_bit_ids(state.id, record->name, module.types)) {
+            for (const std::string& bit : cell_bit_ids(state.id, record->name, module.types)) {
                 if (!bit.starts_with(std::string(state.id) + "." + member.name)) {
                     continue;
                 }

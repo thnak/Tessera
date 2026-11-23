@@ -87,8 +87,7 @@ void emit_record_set(std::string_view cell_id, const ir::RecordType& record,
                 continue;
             }
         }
-        body += "if (!(" + member + "." + field.name + " == tessera_next." + field.name +
-                ")) {\n";
+        body += "if (!(" + member + "." + field.name + " == tessera_next." + field.name + ")) {\n";
         // Raise only the leaf bits below this member (a member is a leaf itself when it is not a
         // plain record; a record member expands to its leaves).
         const std::string prefix = std::string(cell_id) + "." + field.name;
@@ -194,11 +193,11 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
                 if (const ir::RecordType* record =
                         find_record_type_for_action(state.type, records)) {
                     const bool is_update =
-                        action.value != nullptr &&
-                        action.value->kind == ir::ExprKind::RecordUpdate;
+                        action.value != nullptr && action.value->kind == ir::ExprKind::RecordUpdate;
                     emit_record_set(state.id, *record, records, value.text,
-                                    is_update ? std::span<const ir::RecordField>(action.value->fields)
-                                              : std::span<const ir::RecordField>(),
+                                    is_update
+                                        ? std::span<const ir::RecordField>(action.value->fields)
+                                        : std::span<const ir::RecordField>(),
                                     body);
                     return true;
                 }

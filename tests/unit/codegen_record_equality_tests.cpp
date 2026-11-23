@@ -157,8 +157,7 @@ void test_record_list(const std::string& header) {
               contains(header, "std::vector<Entry> state_rows_"),
           "the record list iterates the record cells");
     // The per-item content hashes row.label, the only field the template reads.
-    check(contains(header, "row.label"),
-          "the per-item content reads the template's record field");
+    check(contains(header, "row.label"), "the per-item content reads the template's record field");
 }
 
 void test_golden(bool update, const std::string& name, const std::string& text) {

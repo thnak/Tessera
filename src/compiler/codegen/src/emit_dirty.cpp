@@ -76,8 +76,7 @@ std::string DirtyPlan::mask_name(BindingKind kind, unsigned ordinal, std::string
     return out;
 }
 
-DirtyPlan make_dirty_plan(const ir::Component& component,
-                          std::span<const ir::RecordType> records) {
+DirtyPlan make_dirty_plan(const ir::Component& component, std::span<const ir::RecordType> records) {
     DirtyPlan plan;
     plan.cells = declared_cells(component, records);
     plan.reads = analyze_binding_reads(component, records);

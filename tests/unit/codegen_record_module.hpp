@@ -7,8 +7,8 @@
 //   - `FormPage` renders `{form.name}` in one Text and `{form.email}` in another, so a change to
 //     `email` must re-run no binding that reads only `name`.
 //   - `Entry { id: string; label: string }` is a keyed `list<Entry>` source, rendered by a Text
-//     that reads only `row.label`; the key is `row.id`. Editing one row's `label` repaints that item
-//     only.
+//     that reads only `row.label`; the key is `row.id`. Editing one row's `label` repaints that
+//     item only.
 //
 // The shape is hand-built (the IR is what codegen consumes); the emitted bytes and the runtime
 // behaviour are the two things under test.

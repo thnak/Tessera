@@ -144,9 +144,10 @@ std::vector<std::string> cell_bit_ids(std::string_view cell_id, std::string_view
 
 // The leaf bits under `cell_id` for the member path `rest` (`name`, `address.city`). A path that
 // does not resolve to a member falls back to the whole-cell bit, the safe direction.
-[[maybe_unused]] std::vector<std::string> member_bit_ids(
-    const ir::Component& component, std::span<const ir::RecordType> records,
-    std::string_view cell_id, std::string_view rest) {
+[[maybe_unused]] std::vector<std::string> member_bit_ids(const ir::Component& component,
+                                                         std::span<const ir::RecordType> records,
+                                                         std::string_view cell_id,
+                                                         std::string_view rest) {
     // Resolve each segment down to the member the read stops at, then expand that member. A dotted
     // read into a non-record member is not a form v1 emits, so it falls back to the whole cell.
     std::string_view type = cell_type(component, cell_id);
@@ -184,8 +185,8 @@ std::vector<std::string> cell_bit_ids(std::string_view cell_id, std::string_view
     // A read that stops at a wrapper member (`optional<T>`/`list<T>`) names no bit the generated
     // C++ could read (`std::optional` has no `.field`), so it depends on the whole cell rather than
     // a leaf that does not exist.
-    if (const std::string inner = member->optional ? "optional<" + member->type + ">"
-                                                   : member->type;
+    if (const std::string inner =
+            member->optional ? "optional<" + member->type + ">" : member->type;
         !wrapper_inner(inner, "optional<").empty() || !wrapper_inner(inner, "list<").empty()) {
         return {std::string(cell_id)};
     }
@@ -212,8 +213,7 @@ void ReadCollector::add_bits(std::string_view id) {
         }
         return;
     }
-    for (const std::string& bit :
-         member_bit_ids(component_, records_, base, rest)) {
+    for (const std::string& bit : member_bit_ids(component_, records_, base, rest)) {
         cells_.push_back(bit);
     }
 }

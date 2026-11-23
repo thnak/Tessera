@@ -24,8 +24,8 @@
 //   - a field-wise FNV-1a `hash_value(const R&)` over the shared `tessera::ui::effect_hash`
 //     helpers, used by the prop hash guards and the per-item content pass. It allocates nothing.
 
-#include "emit_types_header.hpp"
 #include "emit_record_hash.hpp"
+#include "emit_types_header.hpp"
 
 #include <optional>
 #include <string>

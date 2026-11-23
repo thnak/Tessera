@@ -40,7 +40,8 @@ bool emit_value_hash(CppWriter& writer, std::string_view type, const std::string
         // A list member: hash the length, then every element, so an unchanged list is
         // allocation-free and an empty list matches a fresh one.
         writer.line("hash = tessera::ui::effect_hash(hash, "
-                    "static_cast<std::int64_t>(" + access + ".size()));");
+                    "static_cast<std::int64_t>(" +
+                    access + ".size()));");
         const std::string item = "tessera_record_item_" + std::to_string(depth);
         writer.open("for (const auto& " + item + " : " + access + ")");
         if (!emit_value_hash(writer, element, item, module, depth + 1, error)) {
@@ -86,8 +87,7 @@ bool emit_record_hash_definition(CppWriter& writer, const ir::RecordType& record
     writer.open("inline std::uint64_t hash_value(const " + record.name + "& value)");
     writer.line("std::uint64_t hash = tessera::ui::kEffectHashSeed;");
     for (const ir::RecordMember& member : record.members) {
-        const std::string type =
-            member.optional ? "optional<" + member.type + ">" : member.type;
+        const std::string type = member.optional ? "optional<" + member.type + ">" : member.type;
         std::string member_error;
         if (!emit_value_hash(writer, type, "value." + member.name, module, 0, member_error)) {
             error = "TESSERA_CODEGEN_UNSUPPORTED: member `" + member.name + "` of record `" +

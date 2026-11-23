@@ -74,7 +74,6 @@ struct Fixture {
     ui::Node root{1};
     demo::FormPage page;
     ui::UpdateScheduler scheduler;
-    
 
     explicit Fixture(std::vector<demo::gen::Entry> rows) {
         page.build(root);
@@ -137,7 +136,8 @@ void test_email_change_does_not_touch_name_binding() {
 
 // Level 3: a list of records renders keyed by row.id; changing one row's label repaints one item.
 void test_record_list_repaints_one_item() {
-    Fixture f({demo::gen::Entry{"a", "Alpha"}, demo::gen::Entry{"b", "Beta"}, demo::gen::Entry{"c", "Gamma"}});
+    Fixture f({demo::gen::Entry{"a", "Alpha"}, demo::gen::Entry{"b", "Beta"},
+               demo::gen::Entry{"c", "Gamma"}});
     const std::vector<std::string> before = tree_texts(f.root);
     check(std::find(before.begin(), before.end(), "label=Alpha") != before.end(),
           "the first record item renders its label");
@@ -146,7 +146,8 @@ void test_record_list_repaints_one_item() {
 
     // Replace the middle row's label: a keyed list keeps `a` and `c`, so only `b` repaints.
     const std::string trace = f.run([](demo::FormPage& page) {
-        page.set_rows({demo::gen::Entry{"a", "Alpha"}, demo::gen::Entry{"b", "Beta 2"}, demo::gen::Entry{"c", "Gamma"}});
+        page.set_rows({demo::gen::Entry{"a", "Alpha"}, demo::gen::Entry{"b", "Beta 2"},
+                       demo::gen::Entry{"c", "Gamma"}});
     });
     check(trace == "list:4", "only the list binding re-runs on a row edit, got: " + trace);
     const std::vector<std::string> after = tree_texts(f.root);

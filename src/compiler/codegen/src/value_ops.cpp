@@ -77,8 +77,7 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         }
         return std::nullopt;
     case ir::ExprKind::Ref:
-        if (const std::optional<TextValueType> local =
-                local_text_type(locals, expr.id, records)) {
+        if (const std::optional<TextValueType> local = local_text_type(locals, expr.id, records)) {
             return local;
         }
         return declared_text_type(component, records, expr.id);
