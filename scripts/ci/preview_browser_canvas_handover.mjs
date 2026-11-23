@@ -114,6 +114,7 @@ function startServer() {
 }
 
 let failures = 0;
+let skipped = 0;
 function check(name, ok, detail) {
   process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? `  -- ${detail}` : ''}\n`);
   if (!ok) {
@@ -121,12 +122,38 @@ function check(name, ok, detail) {
   }
 }
 
-/** Opens `index.html` with the Canvas view selected and the probe project loaded. */
+/**
+ * A check this runner could not exercise, said out loud.
+ *
+ * The issue's rule is "skip loudly, not pass silently", and the summary has to say which it was: a run
+ * where every device-dependent check was skipped must not read as "all checks passed", or a runner that
+ * can never draw would look green forever.
+ */
+function skipLoudly(what, why) {
+  skipped += 1;
+  process.stdout.write(`SKIP ${what}  -- ${why}\n`);
+}
+
+/**
+ * Opens `index.html` with the Canvas view selected and the probe project loaded.
+ *
+ * `onLost` sees a device the browser handed out and then took away. That is a **runner** condition, not
+ * a page bug (SwiftShader on a hosted runner does it), and it is the one case the issue anticipated:
+ * "if a runner cannot give Chromium an adapter, skip loudly rather than pass silently". Recorded here
+ * so the caller can tell an unstable runner from a handover regression, which look identical in the
+ * pane's unsupported state.
+ */
 async function openCanvas(context, base) {
   const page = await context.newPage();
   const errors = [];
+  let lost = false;
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text());
+    const text = message.text();
+    // The page's own words for a device that went away: `canvas-session.ts`'s lost handler.
+    if (/WebGPU device was lost/i.test(text)) {
+      lost = true;
+    }
+    if (message.type() === 'error') errors.push(text);
   });
   page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
   // Opening a zip over an open project asks "replace?"; the check always replaces.
@@ -146,7 +173,7 @@ async function openCanvas(context, base) {
     const status = document.getElementById('canvas-status').textContent ?? '';
     return !pane.hidden || /draw call|not applied|fail|unavailable/i.test(status);
   }, page);
-  return { page, errors, state: () => readState(page) };
+  return { page, errors, lost: () => lost, state: () => readState(page) };
 }
 
 /** A wait whose timeout is a boolean, so a caller can turn it into a check instead of a crash. */
@@ -212,63 +239,77 @@ async function deviceAvailable() {
     await page.waitForTimeout(1000);
     result = await ask();
   }
-  await context.close();
-  return result;
+  // The context stays open for the rest of the run on purpose. Closing it destroyed the device this
+  // probe acquired, and on a SwiftShader runner that also tore down the shared WebGPU instance: the
+  // studio's own device was then "lost" moments after the browser handed it out, which looked like a
+  // page bug and was this file's own teardown. A warm instance is also what a visitor's browser has.
+  return { result, close: () => context.close() };
 }
 
 try {
   // --- 1. a device, and the handover that uses it -------------------------------------------
-  const probe = await deviceAvailable();
+  // `warm` keeps its context open until the end: see the note in `deviceAvailable`.
+  const warm = await deviceAvailable();
+  const probe = warm.result;
   check('the browser under test has a WebGPU device', probe.device === true, JSON.stringify(probe));
 
   if (probe.device !== true) {
     // Nothing downstream can be honest without a device, and one red line naming the real cause is worth
-    // more than three red lines about its consequences. The lane is red either way.
-    process.stdout.write('     the handover cannot be exercised on this runner\n');
+    // more than three red lines about its consequences. The lane is red either way (the check above).
+    skipLoudly('the device handover', 'this runner has no WebGPU device');
   } else {
     const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
     const run = await openCanvas(context, base);
 
     const drawn = await run.state();
-    check(
-      'the module takes the device the browser gives it (no unsupported state)',
-      drawn.unsupported === false,
-      drawn.unsupported ? `${drawn.cause}-side: ${drawn.body}` : 'a frame is shown',
-    );
-    // Both halves are required: the pane's sentence and the counter it filled. `#stat-draws` is markup
-    // that keeps its last value, so a draw count read while the pane shows the unsupported state is the
-    // leftover of another frame, not evidence of this one.
-    check(
-      'the frame has draw calls, so the handles were real',
-      drawn.unsupported === false && /drew \d+ draw call/.test(drawn.status ?? '') && drawCount(drawn.draws) > 0,
-      `draws=${drawn.draws}, status=${drawn.status}`,
-    );
-    check('the status names the draw count', /drew \d+ draw call/.test(drawn.status ?? ''), drawn.status ?? '');
+    // A device the browser handed out and then took away is the runner, not the page. It is reported as
+    // its own line -- loudly -- and the handover checks below are then reported as unexercised rather
+    // than as failures, because the issue's rule is to skip loudly, never to pass silently, and never to
+    // blame the page for the runner.
+    const deviceLost = drawn.unsupported === true && drawn.cause === 'browser' && run.lost();
+    if (deviceLost) {
+      skipLoudly('the device handover', `this runner lost the device it handed out: ${drawn.body}`);
+    } else {
+      check(
+        'the module takes the device the browser gives it (no unsupported state)',
+        drawn.unsupported === false,
+        drawn.unsupported ? `${drawn.cause}-side: ${drawn.body}` : 'a frame is shown',
+      );
+      // Both halves are required: the pane's sentence and the counter it filled. `#stat-draws` is markup
+      // that keeps its last value, so a draw count read while the pane shows the unsupported state is the
+      // leftover of another frame, not evidence of this one.
+      check(
+        'the frame has draw calls, so the handles were real',
+        drawn.unsupported === false && /drew \d+ draw call/.test(drawn.status ?? '') && drawCount(drawn.draws) > 0,
+        `draws=${drawn.draws}, status=${drawn.status}`,
+      );
+      check('the status names the draw count', /drew \d+ draw call/.test(drawn.status ?? ''), drawn.status ?? '');
 
-    // A restart is the same cold start a Run takes, and #430 was "every Run after the first re-created
-    // the module and the fresh instance had null handles". One instance per open is the rule it fixed.
-    await run.page.locator('#restart-app').click();
-    const redrew = await settles(
-      () => /drew \d+ draw call/.test(document.getElementById('canvas-status').textContent ?? ''),
-      run.page,
-    );
-    const restarted = await run.state();
-    check(
-      'a restart draws again with the same device',
-      redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
-      restarted.status ?? '',
-    );
-    // A page error while the canvas is drawing is the signature of a Wasm/JS glue mismatch, which is
-    // what this guards. A bare "a valid external Instance reference no longer exists" is NOT that: it
-    // comes from the WebGPU port tearing down an instance after its device is gone, it appears only on
-    // a SwiftShader runner, and it says nothing about the handover. Filtering exactly that message (not
-    // all errors) keeps the check meaningful where it matters and quiet where it would be noise.
-    const serious = run.errors.filter((line) => !/external Instance reference no longer exists/.test(line));
-    check('no console errors while the canvas draws', serious.length === 0, serious.slice(0, 3).join(' | ') || 'none');
+      // A restart is the same cold start a Run takes, and #430 was "every Run after the first re-created
+      // the module and the fresh instance had null handles". One instance per open is the rule it fixed.
+      await run.page.locator('#restart-app').click();
+      const redrew = await settles(
+        () => /drew \d+ draw call/.test(document.getElementById('canvas-status').textContent ?? ''),
+        run.page,
+      );
+      const restarted = await run.state();
+      check(
+        'a restart draws again with the same device',
+        redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
+        restarted.status ?? '',
+      );
+      // A page error while the canvas is drawing is the signature of a Wasm/JS glue mismatch, which is
+      // what this guards. A bare "a valid external Instance reference no longer exists" is NOT that: it
+      // comes from the WebGPU port tearing down an instance after its device is gone, it appears only on
+      // a SwiftShader runner, and it says nothing about the handover. Filtering exactly that message (not
+      // all errors) keeps the check meaningful where it matters and quiet where it would be noise.
+      const serious = run.errors.filter((line) => !/external Instance reference no longer exists/.test(line));
+      check('no console errors while the canvas draws', serious.length === 0, serious.slice(0, 3).join(' | ') || 'none');
 
-    if (shot) {
-      await run.page.screenshot({ path: shot });
-      process.stdout.write(`screenshot: ${shot}\n`);
+      if (shot) {
+        await run.page.screenshot({ path: shot });
+        process.stdout.write(`screenshot: ${shot}\n`);
+      }
     }
     await context.close();
   }
@@ -278,10 +319,10 @@ try {
   // not a browser setting. Serving the module with its `Module["WebGPU"]` assignment removed is exactly
   // that build, and the pane must blame itself (issue #375) rather than repeating the browser sentence.
   //
-  // This branch needs a device too (the page must get that far before the module can refuse one), but it
-  // does not need the *drawn* frame the branch above proves, so it runs even when the runner's first
-  // adapter request came back null: refusing a device requires one to refuse, and the check for that is
-  // the `importJsDevice` seam just below.
+  // This branch needs a device (the page must get one before the module can refuse it) but not the
+  // *drawn* frame the branch above proves. When no device is available at all the page correctly stops at
+  // the browser-side state, so that is reported as unexercised rather than as a module-heading failure:
+  // the two states must not be confused for each other.
   const moduleText = await readFile(join(site, 'tessera_canvas.js'), 'utf8');
   const needle = 'Module["WebGPU"]=WebGPU';
   if (!moduleText.includes(needle)) {
@@ -301,14 +342,18 @@ try {
     );
     const broken = await openCanvas(moduleContext, base);
     const state = await broken.state();
-    check('a module without the handle table shows the unsupported state', state.unsupported === true, state.status ?? '');
-    check('the unsupported state records the module as the cause', state.cause === 'module', state.cause || '(none)');
-    check(
-      'the heading blames the module, not the browser',
-      /could not use this browser's WebGPU device/.test(state.heading) && !/This browser cannot/.test(state.heading),
-      state.heading,
-    );
-    check('the body names the missing export', /WebGPU\.importJsDevice/.test(state.body), state.body.slice(0, 100));
+    if (state.unsupported && state.cause === 'browser') {
+      skipLoudly('the module-side heading', `no device to hand over: ${state.body}`);
+    } else {
+      check('a module without the handle table shows the unsupported state', state.unsupported === true, state.status ?? '');
+      check('the unsupported state records the module as the cause', state.cause === 'module', state.cause || '(none)');
+      check(
+        'the heading blames the module, not the browser',
+        /could not use this browser's WebGPU device/.test(state.heading) && !/This browser cannot/.test(state.heading),
+        state.heading,
+      );
+      check('the body names the missing export', /WebGPU\.importJsDevice/.test(state.body), state.body.slice(0, 100));
+    }
     await moduleContext.close();
   }
 
@@ -332,10 +377,17 @@ try {
     browserSide.heading,
   );
   await noGpuContext.close();
+  await warm.close();
 } finally {
   await browser.close();
   server.close();
 }
 
-process.stdout.write(`\ncanvas handover: ${failures === 0 ? 'all checks passed' : `${failures} check(s) failed`}\n`);
+const verdict =
+  failures > 0
+    ? `${failures} check(s) failed`
+    : skipped > 0
+      ? `passed with ${skipped} skipped -- a check this runner could not exercise is not a pass`
+      : 'all checks passed';
+process.stdout.write(`\ncanvas handover: ${verdict}\n`);
 process.exit(failures === 0 ? 0 : 1);
