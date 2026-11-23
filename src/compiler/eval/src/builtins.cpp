@@ -7,6 +7,7 @@
 #include "tessera/compiler/eval/number_text.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -100,6 +101,82 @@ std::string trimmed(const std::string& text) {
         --end;
     }
     return text.substr(begin, end - begin);
+}
+
+// Issue #803: the strict parse behind `parseIntOr`/`parseFloatOr`. Whole-string, not a leading
+// scan: the input is `trim`med, then must be *entirely* a number, or the fallback wins. That is
+// the deliberate difference from JavaScript's `parseInt`, whose leading scan accepts `12abc` â€”
+// a form field holds exactly such text, and silently reading `12` out of it is the mistake the
+// `Or` form exists to avoid.
+//
+// Accepted syntax: an optional `+`/`-` sign, decimal digits with at most one decimal point
+// (`parseIntOr` rejects the point), and no exponent, no hex, no separators â€” `1e3` and `0x10`
+// are unparseable text here, because a ported `Number("0x10")` reading 16 would be a silent
+// reinterpretation. Out of range saturates to the type's limit rather than falling back: the
+// string *is* a number, and the fallback is for the not-a-number case only.
+[[nodiscard]] bool parse_number_strict(std::string_view text, bool integral, double& out) {
+    // The trimmed text must own its storage: assigning a temporary string to the view would leave
+    // it dangling, and the parse reads it afterwards.
+    const std::string owned_trimmed = trimmed(std::string(text));
+    const std::string_view body = owned_trimmed;
+    if (body.empty()) {
+        return false;
+    }
+    std::size_t at = 0;
+    bool negative = false;
+    if (body[at] == '+' || body[at] == '-') {
+        // `from_chars` accepts a leading `-` but not `+` for integers (the standard's grammar), so
+        // the sign is consumed here and re-attached to the value below.
+        negative = body[at] == '-';
+        ++at;
+    }
+    // The digits begin here, right after any sign: this is where the parse starts. (`at` keeps
+    // walking below, so it is not the start once the loop has run.)
+    const char* const digits_first = body.data() + at;
+    std::size_t digits = 0;
+    bool point = false;
+    for (; at < body.size(); ++at) {
+        const char c = body[at];
+        if (c >= '0' && c <= '9') {
+            ++digits;
+            continue;
+        }
+        if (c == '.' && !point) {
+            if (integral) {
+                return false; // an integer literal has no decimal point
+            }
+            point = true;
+            continue;
+        }
+        return false;
+    }
+    if (digits == 0) {
+        return false; // a sign alone, or a bare point, is not a number
+    }
+    const char* first = digits_first;
+    const char* last = body.data() + body.size();
+    if (integral) {
+        // `int64_t`, not `int32_t`: `from_chars` reports out of range rather than a partial read,
+        // and the rule is to saturate, not to fall back. Parsing wide, applying the sign, and
+        // clamping to the `int` range gives the saturation; a direct `int32_t` parse would report
+        // out-of-range as an error and a naive narrowing cast would wrap.
+        std::int64_t parsed = 0;
+        const auto [ptr, ec] = std::from_chars(first, last, parsed, 10);
+        if (ec != std::errc{} || ptr != last) {
+            return false;
+        }
+        const std::int64_t signed_value = negative ? -parsed : parsed;
+        out = static_cast<double>(std::clamp(signed_value, static_cast<std::int64_t>(kIntMin),
+                                             static_cast<std::int64_t>(kIntMax)));
+        return true;
+    }
+    double parsed = 0;
+    const auto [ptr, ec] = std::from_chars(first, last, parsed);
+    if (ec != std::errc{} || ptr != last) {
+        return false;
+    }
+    out = negative ? -parsed : parsed;
+    return true;
 }
 
 // ADR-066 item 3: `toUpperCase`/`toLowerCase` fold ASCII letters only. A non-ASCII byte passes
@@ -256,6 +333,27 @@ std::expected<Value, EvalError> call_function(std::string_view name, std::span<c
         const std::int64_t to = std::clamp<std::int64_t>(*end, from, size);
         return Value::of_string(
             text->substr(static_cast<std::size_t>(from), static_cast<std::size_t>(to - from)));
+    }
+    if (name == "parseIntOr" || name == "parseFloatOr") {
+        if (args.size() != 2) {
+            return arity(name, 2);
+        }
+        const std::string* text = args[0].as_string();
+        if (text == nullptr) {
+            return needs(name, "a string and the fallback");
+        }
+        // The fallback type is checked, not coerced: `parseIntOr(s, 1.5)` would silently truncate
+        // in the generated C++ too, so the evaluator rejects it here.
+        const bool integral = name == "parseIntOr";
+        if (integral ? args[1].as_int() == nullptr : !args[1].is_number()) {
+            return needs(name, integral ? "an int fallback" : "a number fallback");
+        }
+        double parsed = 0;
+        if (!parse_number_strict(*text, integral, parsed)) {
+            return args[1];
+        }
+        return integral ? Value::of_int(static_cast<std::int32_t>(parsed))
+                        : Value::of_float(parsed);
     }
     if (name == "toFixed") {
         if (args.size() != 2) {

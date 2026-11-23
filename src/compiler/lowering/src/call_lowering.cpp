@@ -16,9 +16,12 @@ namespace {
 constexpr std::string_view kUnsupported = "TESSERA_IR_UNSUPPORTED";
 constexpr std::string_view kMalformed = "TESSERA_IR_MALFORMED";
 
-constexpr std::string_view kFunctions[] = {"min",     "max",    "clamp",       "abs",
-                                           "floor",   "ceil",   "round",       "toInt",
-                                           "toFloat", "length", "formatNumber"};
+constexpr std::string_view kFunctions[] = {"min", "max", "clamp", "abs", "floor", "ceil", "round",
+                                           "toInt", "toFloat", "length", "formatNumber",
+                                           // Issue #803: the strict whole-string parses. Each
+                                           // takes a fallback, so they are functions, not
+                                           // methods.
+                                           "parseIntOr", "parseFloatOr"};
 
 // ADR-066 item 3: the total string methods. Each is total (never throws) and locale-independent, so
 // it is a pure function of its receiver and arguments like the numeric ones. `slice` is shared with

@@ -2351,7 +2351,7 @@ target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
 
-# ADR-066 item 4: the `useReducer` lowering ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â one state cell, one handler per case, and a
+# ADR-066 item 4: the `useReducer` lowering ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â one state cell, one handler per case, and a
 # `dispatch({ type: "x" })` that becomes a `Dispatch` action.
 add_executable(lowering_reducer_tests
     lowering_reducer_tests.cpp)
@@ -2384,6 +2384,14 @@ add_executable(lowering_list_ops_tests
 target_link_libraries(lowering_list_ops_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_list_ops COMMAND lowering_list_ops_tests)
+# Issue #803: the strict whole-string parse behind parseIntOr/parseFloatOr. These are the C++
+# pins; `ir_eval` pins the same rule for the evaluator, so the two cannot drift.
+add_executable(parse_number_or_tests
+    parse_number_or_tests.cpp)
+
+target_link_libraries(parse_number_or_tests PRIVATE tessera_scene)
+
+add_test(NAME parse_number_or COMMAND parse_number_or_tests)
 
 add_executable(lowering_control_reject_tests
     lowering_control_reject_tests.cpp)

@@ -2654,6 +2654,7 @@ variable include/tessera/ui/scene/list_diagnostics.hpp tessera::ui::g_list_key_d
 
 header include/tessera/ui/scene/list_ops.hpp
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::filter_list
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::parse_number_or
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::slice_bounds
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::slice_list
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_slice

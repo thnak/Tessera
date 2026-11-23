@@ -14,8 +14,11 @@ namespace {
 
 // The pure calls that `list_ops.hpp` defines. `slice` is both a list and a string form, so it is
 // listed once.
-constexpr std::string_view kListOps[] = {"trim",       "toUpperCase", "toLowerCase",
-                                         "startsWith", "slice",       "toFixed"};
+constexpr std::string_view kListOps[] = {"trim", "toUpperCase", "toLowerCase", "startsWith",
+                                         "slice", "toFixed",
+                                         // Issue #803: the strict parses emit
+                                         // `tessera::ui::parse_number_or` from the same header.
+                                         "parseIntOr", "parseFloatOr"};
 
 bool uses_list_ops(const ir::Expr& expr);
 

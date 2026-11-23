@@ -310,6 +310,25 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
             }
             return ExprEmission{"tessera::ui::string_" + expr.id + "(" + args + ")", {}};
         }
+        if (expr.id == "parseIntOr" || expr.id == "parseFloatOr") {
+            // Issue #803: the strict whole-string parse. The fallback's C++ type decides which
+            // instantiation is called, which is also why the IR validator requires the fallback
+            // to be the matching type — an `int` fallback with a `float` parse would silently
+            // truncate here.
+            if (expr.operands.size() != 2 || !expr.operands[0] || !expr.operands[1]) {
+                return fail("`" + expr.id + "` takes a string and a fallback");
+            }
+            ExprEmission text = emit_expr(*expr.operands[0], component, locals);
+            if (!text.error.empty()) {
+                return text;
+            }
+            ExprEmission fallback = emit_expr(*expr.operands[1], component, locals);
+            if (!fallback.error.empty()) {
+                return fallback;
+            }
+            return ExprEmission{
+                "tessera::ui::parse_number_or(" + text.text + ", " + fallback.text + ")", {}};
+        }
         if (expr.id == "toInt" || expr.id == "toFloat") {
             if (expr.operands.size() != 1 || !expr.operands[0]) {
                 return fail("`" + expr.id + "` takes one argument");
