@@ -68,4 +68,15 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeClipboardPaste
     return tessera::android_shell::clipboard_paste(*shell) ? JNI_TRUE : JNI_FALSE;
 }
 
+// The platform's "Select all". A phone has no Ctrl+A, so the IME's context menu and the platform's
+// text toolbar reach the buffer through this rather than through the key chord.
+JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeSelectAll(JNIEnv*, jclass,
+                                                                            jlong handle) {
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr) {
+        return JNI_FALSE;
+    }
+    return tessera::android_shell::select_all(*shell) ? JNI_TRUE : JNI_FALSE;
+}
+
 } // extern "C"

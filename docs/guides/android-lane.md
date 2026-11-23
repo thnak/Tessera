@@ -297,9 +297,9 @@ stays inside its size budget.
 - **The IME's long tail.** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report). The compose/commit/delete path and the text queries are wired.
 - **The context menu itself.** A tap places the caret (3.13), a long-press starts a selection and a
-  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), and Copy/Cut/Paste work
-  through the platform's keys and the IME's `InputConnection` (3.16). Missing: the floating toolbar a
-  long-press normally raises (the engine has no popup surface) and `Select all`.
+  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), and Copy/Cut/Paste and
+  Select all work through the platform's keys and the IME's `InputConnection` (3.16). Missing: the
+  floating toolbar a long-press normally raises, because the engine has no popup surface.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is hand-built,
   because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated on
   `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
@@ -503,16 +503,12 @@ reproduced with it. Tap the soft keyboard's Enter instead.
 iteration, but the host cannot know whether a field is focused — only the app can. Two options close
 the loop:
 
-| option | direction | why |
-|---|---|---|
-| `caret_active` | app → host | the app's focus/editability policy, asked every iteration |
-| `caret_target` | host → app | the `TextInputRuntime` whose decoration carries the caret |
-
-Without `caret_active` the blink never starts; without `caret_target` it starts but nothing it
-decides reaches `TextDecoration::blink_phase`, so paint draws a solid caret forever. Both are null by
-default, which keeps every desktop caller on the pre-blink behaviour. `caret_blink_target` (a GPU
-test) pins the round trip: focus through the policy alone publishes a visible phase, a half-period
-flip publishes a hidden one, and blurring publishes hidden immediately.
+Two options close the loop: `caret_active` (app → host, the focus/editability policy, asked every
+iteration) and `caret_target` (host → app, the `TextInputRuntime` whose decoration carries the
+caret). Without the first the blink never starts; without the second it starts but nothing it decides
+reaches `TextDecoration::blink_phase`, so paint draws a solid caret forever. Both are null by default,
+which keeps every desktop caller on the pre-blink behaviour. `caret_blink_target` (a GPU test) pins
+the round trip.
 
 ### 3.13 A tap places the caret
 
@@ -573,7 +569,7 @@ and ticks it from the caret callback:
    (`FontPaintTextMetrics`, FreeType + HarfBuzz); stub advances do not match a real face, so a tap
    mid-word resolves to the end of the line even with the box correct.
 
-### 3.16 Copy, Cut and Paste: a phone has no Ctrl key
+### 3.16 Copy, Cut, Paste and Select all: a phone has no Ctrl key
 
 `hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but the manager must be
 touched on a thread with a `Looper`, and the engine's render thread has none. The backend keeps a
@@ -585,13 +581,17 @@ on the UI thread, and the UI thread never waits on the engine.
 Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a hardware
 keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu). The key codes are
 **commands, not logical keys** - `translate_key_sample` drops them - so `dispatchKeyEvent` handles
-them first.
+them first. `Select all` reaches the buffer the same way: `nativeSelectAll` from the platform's
+action, and `Ctrl+A` from a hardware keyboard.
+
+The chord exposed a defect worth naming: `codepoint_from_key` derived a character from every letter
+key regardless of modifiers, so `Ctrl+A` produced BOTH a `KeyDown` (Select all) and a `Text` event
+(insert) - every chord also typed its letter. A chord with Control, Alt or Meta now types nothing.
 
 `android_clipboard_text.cpp` does the UTF-8/UTF-16 conversion, and it is **pure** so
 `android_clipboard_text` pins the rule that bites: a code point above U+FFFF is a **surrogate pair**,
-two UTF-16 units. One unit per code point turns every emoji into a mojibake box and makes every
-offset after it wrong. An invalid byte becomes U+FFFD rather than being dropped, so the UTF-16 length
-always agrees with the UTF-8 length. Verified: select, copy, delete, paste restores the text.
+two UTF-16 units. One unit per code point turns every emoji into a mojibake box and makes every offset
+after it wrong. An invalid byte becomes U+FFFD rather than being dropped, so the lengths always agree.
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.

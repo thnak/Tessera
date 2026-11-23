@@ -161,6 +161,11 @@ EditResult EditController::extend_selection_to(TextHit hit) {
     return last_result_;
 }
 
+EditResult EditController::select_all() {
+    accept(buffer_.select_all(), false);
+    return last_result_;
+}
+
 bool EditController::handle_event(Event& event) {
     if (event.prevent_default || event.handled) {
         return false;

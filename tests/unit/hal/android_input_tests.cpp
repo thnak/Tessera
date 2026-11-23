@@ -250,6 +250,34 @@ int main() {
               "the key event carries the shift modifier");
     }
     {
+        // A chord types NOTHING. Ctrl+A is Select all, not "insert a": without this guard the key
+        // produced both a KeyDown (which the edit controller runs as a command) and a Text event
+        // (which it inserts), so every chord also typed its letter.
+        android::KeySample chord;
+        chord.keycode = android::kKeycodeA;
+        chord.meta_state = android::kMetaCtrlOn;
+        chord.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(chord);
+        check(out.count == 1, "a Ctrl chord produces only the key event");
+        check(out.events[0].type == tessera::ui::InputEventType::KeyDown,
+              "the chord's one event is the key");
+        check(tessera::ui::has_modifier(out.events[0].modifiers, Modifier::Control),
+              "the chord carries Control");
+    }
+    {
+        // Alt and Meta are chords too: an Alt+letter belongs to the app, not to the field.
+        android::KeySample alt;
+        alt.keycode = android::kKeycodeA;
+        alt.meta_state = android::kMetaAltOn;
+        alt.action = android::kKeyActionDown;
+        check(android::translate_key_sample(alt).count == 1, "an Alt chord types nothing");
+        android::KeySample meta;
+        meta.keycode = android::kKeycodeA;
+        meta.meta_state = android::kMetaMetaOn;
+        meta.action = android::kKeyActionDown;
+        check(android::translate_key_sample(meta).count == 1, "a Meta chord types nothing");
+    }
+    {
         // A key-up never types: the character was already committed by the key-down, and emitting
         // it twice would double every keystroke.
         android::KeySample up;

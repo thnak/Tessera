@@ -198,4 +198,17 @@ bool clipboard_paste(Shell& shell) {
     return true;
 }
 
+bool select_all(Shell& shell) {
+    const tessera::ui::text::EditResult result = shell.editor.select_all();
+    if (result.status == tessera::ui::text::EditStatus::NoChange) {
+        // Already fully selected: the platform's Select all stays a no-op.
+        return false;
+    }
+    shell.editor_runtime.publish_decoration();
+    if (shell.window != nullptr) {
+        shell.window->request_redraw();
+    }
+    return true;
+}
+
 } // namespace tessera::android_shell
