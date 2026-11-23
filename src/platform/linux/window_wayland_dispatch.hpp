@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "tessera/hal/wake_source.hpp"
+
 struct wl_display;
 
 namespace tessera::hal::detail {
@@ -40,6 +42,12 @@ public:
     // dispatch whatever arrived. False when the connection ended.
     bool wait_once(double deadline);
 
+    // The completion wake this connection's poll joins (issue #842), or null. Not owned: the host
+    // owns it and outlives the waits.
+    void set_wake_source(WakeSource* source) noexcept {
+        wake_ = source;
+    }
+
     // True after a failed read/write. Sticky: a lost Wayland connection cannot be resumed.
     [[nodiscard]] bool lost() const noexcept {
         return lost_;
@@ -62,6 +70,7 @@ public:
 
 private:
     wl_display* display_ = nullptr;
+    WakeSource* wake_ = nullptr;
     bool lost_ = false;
 };
 

@@ -26,9 +26,11 @@
 
 #pragma once
 
+#include "tessera/hal/wake_source.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/rhi/device.hpp"
+#include "tessera/runtime/async.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/device_recovery.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
@@ -137,6 +139,13 @@ public:
     [[nodiscard]] runtime::DeviceRecoveryController* recovery() noexcept {
         return recovery_.get();
     }
+
+    // Installs the cross-thread wake a parked run joins (issue #842). Passing the group's
+    // `CompletionQueue` installs a wake fired once per empty -> non-empty edge, so a worker's post
+    // ends the park instead of waiting out the clamp. The queue is borrowed and must outlive this
+    // device; nullptr clears. Every window in the group joins the same wake, including windows
+    // registered after this call. Must be called from the thread that runs the windows.
+    void set_completion_wake(runtime::CompletionQueue* completions);
 
     // The renderer's frame ring depth for this group: `kFramesInFlightPerWindow * max_windows`.
     [[nodiscard]] static constexpr std::uint32_t renderer_frames_in_flight() noexcept {
@@ -300,6 +309,9 @@ private:
     runtime::FramePacer pacer_;
     std::unique_ptr<runtime::DeviceRecoveryController> recovery_;
     runtime::SteadyClock clock_;
+    // The cross-thread wake a parked run joins (issue #842). Created lazily by
+    // `set_completion_wake`, null until then so a device that never opts in keeps today's sleep.
+    std::unique_ptr<hal::WakeSource> wake_;
 
     // The shared caches. Declaration order is dependency order: the sink borrows the renderer and
     // the text renderer, and the renderer borrows the pipeline and the white texture, so they are

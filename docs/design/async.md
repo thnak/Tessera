@@ -204,6 +204,9 @@ tick:
 ```
 
 - Async completion posts a message to the main queue; the loop drains it at a tick boundary.
+- A completion posted from a worker wakes a parked UI thread through the host's `hal::WakeSource`
+  (issue #842), once per empty -> non-empty edge, so a burst of posts is one wake. The wake only
+  ends the park: the drain still happens at the tick boundary, on the UI thread.
 - A pending task is a wake source only when it can produce visible work; background cancellations
   do not force frames.
 - Per-tick main-thread completion budget (`asyncMainThreadBudgetMs`, default 2.0 ms in
