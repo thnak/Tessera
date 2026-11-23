@@ -322,9 +322,10 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
     return true;
 }
 
-std::optional<LoweredModule> finish(ProjectState& state, std::string_view module_name,
-                                    const TypeNameTable* types,
-                                    const std::vector<ir::RecordType>* records) {
+std::optional<LoweredModule>
+finish(ProjectState& state, std::string_view module_name, const TypeNameTable* types,
+       const std::vector<ir::RecordType>* records,
+       const std::unordered_map<const jsx::TypeNode*, std::string>* anonymous_records) {
     LoweredModule lower;
     lower.name = std::string(module_name);
     if (records != nullptr) {
@@ -353,6 +354,7 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                                               source.module,
                                               types,
                                               records,
+                                              anonymous_records,
                                               entry.css_modules};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
@@ -529,14 +531,15 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
         record_sources.push_back(internal::RecordTypeSource{file.source->file, file.source->module,
                                                             file.source->source_map});
     }
-    std::expected<std::vector<ir::RecordType>, jsx::Diagnostic> collected =
+    std::expected<internal::CollectedRecords, jsx::Diagnostic> collected =
         internal::collect_record_types(record_sources, types.table);
     if (!collected) {
         state.error = std::move(collected.error());
         return std::unexpected(NodeLoweringErrors{*state.error});
     }
-    const std::vector<ir::RecordType>& records = *collected;
-    std::optional<LoweredModule> module = finish(state, module_name, &types.table, &records);
+    const std::vector<ir::RecordType>& records = collected->table;
+    std::optional<LoweredModule> module =
+        finish(state, module_name, &types.table, &records, &collected->anonymous);
     if (!module) {
         return std::unexpected(NodeLoweringErrors{*state.error});
     }

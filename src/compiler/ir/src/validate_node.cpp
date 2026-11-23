@@ -339,8 +339,15 @@ void NodeWalker::check_loop(const Node& node, const LocalNames& outer, int loop_
         context.report("TESSERA_IR_LOOP",
                        "a loop index must be a local name different from the item", node.source);
     }
-    if (!loop.source || loop.source->kind != ExprKind::Ref) {
-        context.report("TESSERA_IR_UNSUPPORTED", "a loop source must be a list reference",
+    // The source is a list reference, or a `.filter(...)`/`.slice(...)` chain over one (ADR-066
+    // item 3, issue #804): those two kinds yield a list again, so the loop reads a list either
+    // way. Their operands are validated recursively.
+    if (!loop.source ||
+        (loop.source->kind != ExprKind::Ref && loop.source->kind != ExprKind::ListFilter &&
+         loop.source->kind != ExprKind::ListSlice)) {
+        context.report("TESSERA_IR_UNSUPPORTED",
+                       "a loop source must be a list reference, or a "
+                       "`.filter(...)`/`.slice(...)` chain over one",
                        node.source);
     } else {
         validate_expr(context, scope, outer, loop.source.get(), node.source);

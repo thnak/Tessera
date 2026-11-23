@@ -55,6 +55,18 @@ std::optional<std::string> list_element_type(std::string_view type) {
     return std::string(type.substr(5, type.size() - 6));
 }
 
+std::optional<std::string> loop_source_type(const ir::Component& component,
+                                            const ir::Expr& source) {
+    if (source.kind == ir::ExprKind::Ref) {
+        return declared_field_type(component, source.id);
+    }
+    if ((source.kind == ir::ExprKind::ListFilter || source.kind == ir::ExprKind::ListSlice) &&
+        !source.operands.empty() && source.operands[0]) {
+        return loop_source_type(component, *source.operands[0]);
+    }
+    return std::nullopt;
+}
+
 bool mentions_loop_local(const ir::Expr& expr, std::string_view item, std::string_view index) {
     switch (expr.kind) {
     case ir::ExprKind::Ref: {

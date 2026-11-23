@@ -199,11 +199,25 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
         break;
     case ExprKind::ListFilter:
         // ADR-066 item 3: `list.filter(item => <bool>)`. The item name is what the predicate binds,
-        // so an empty one has nothing to bind.
+        // so an empty one has nothing to bind, and the predicate is validated with the item as a
+        // local — which is what makes `row.on` inside it resolve (issue #804). A filter's predicate
+        // is an expression scope like a loop template's, so the list operand is validated with the
+        // outer locals and the predicate with the inner ones.
         if (expr->id.empty()) {
             context.report("TESSERA_IR_MALFORMED", "a list filter needs an item name", where);
         }
-        operands(2, "a list filter");
+        if (expr->operands.size() != 2) {
+            context.report("TESSERA_IR_MALFORMED", "a list filter needs 2 operand(s)", where);
+        }
+        if (!expr->operands.empty() && expr->operands[0]) {
+            require_expr(context, scope, locals, expr->operands[0].get(), where, "an operand");
+        }
+        if (expr->operands.size() == 2 && !expr->id.empty() && expr->operands[1]) {
+            LocalNames inner = locals;
+            inner.push_back(expr->id);
+            require_expr(context, scope, inner, expr->operands[1].get(), where,
+                         "a filter predicate");
+        }
         break;
     case ExprKind::ListSlice:
         // ADR-066 item 3: `list.slice(start[, end])`. One or two bounds, and the list first.

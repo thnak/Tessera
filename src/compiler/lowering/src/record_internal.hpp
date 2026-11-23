@@ -6,6 +6,7 @@
 #include "tessera/compiler/ir/types.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
+#include "tessera/compiler/jsx/type_ast.hpp"
 #include "tessera/compiler/lowering/expression_lowering.hpp"
 #include "tessera/compiler/lowering/type_alias.hpp"
 
@@ -14,6 +15,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 // Internal seam of ADR-051 slice 3: the module record type table and the object-literal lowering
@@ -29,13 +31,28 @@ struct RecordTypeSource {
     const jsx::SourceMap* source_map = nullptr;
 };
 
+// The module's record type table plus the anonymous-record registry (issue #804). `anonymous`
+// maps a props-type object node to the synthesized record name that represents it, so the prop
+// type lowering can name an inline `{ id: string }[]` element without a `type X = ...` alias.
+// The node pointers are valid for as long as the parsed ASTs the collection saw live.
+struct CollectedRecords {
+    std::vector<ir::RecordType> table;
+    std::unordered_map<const jsx::TypeNode*, std::string> anonymous;
+};
+
 // The module's record type table (ir-v1 section 2.2): one entry per record declared anywhere in the
 // project, sorted by name. `names` is the project's resolved type-name table, so an alias of an
 // imported alias resolves to the one object body it names (issue #70). An alias that ultimately
 // names a non-object type is not a record and is skipped; a duplicate record name is
 // `TESSERA_IR_DUPLICATE_ID`, and a member with no IR form or a `children`/callback member is
 // `TESSERA_IR_MALFORMED`. Both stop the build.
-[[nodiscard]] std::expected<std::vector<ir::RecordType>, jsx::Diagnostic>
+//
+// Anonymous object types in a component's props (`rows: { id: string }[]`) are collected too
+// (issue #804, owner decision): each becomes a normal `types` entry under a deterministic
+// synthesized name derived from the file stem, so the prop type names it like any declared record.
+// A member the IR cannot express leaves that anonymous type uncollected, and the prop reports its
+// own `TESSERA_IR_UNSUPPORTED` as before.
+[[nodiscard]] std::expected<CollectedRecords, jsx::Diagnostic>
 collect_record_types(std::span<const RecordTypeSource> files, const TypeNameTable& names);
 
 // The record name `type` names, allowing one `optional<T>` wrapper (an optional record prop or a

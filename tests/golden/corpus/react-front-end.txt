@@ -1,7 +1,7 @@
 corpus: 52 file(s)
 front end accepted: 41 (78.8%), 11 rejected
 front end accepted with a component declaration: 41 (78.8%)
-pipeline accepted: 28 (53.8%)
+pipeline accepted: 31 (59.6%)
 warnings: 2
 
 front-end rejections (code, occurrences, files):
@@ -26,8 +26,8 @@ front-end first rejections (code, files):
   TESSERA_REACT_UNKNOWN_HOOK 1
 
 pipeline rejections (first blocking code, files):
-  TESSERA_IR_UNSUPPORTED 7
   TESSERA_IR_UNKNOWN_PROP 4
+  TESSERA_IR_UNSUPPORTED 4
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
   TESSERA_IR_BINDING 1
   TESSERA_IR_UNRESOLVED 1
@@ -55,14 +55,14 @@ files:
   accepted react/events/mouse-events.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/events/prevent-default.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
   accepted react/expressions/conditional-render.tsx components=1 pipeline=ok
-  accepted react/expressions/filter-map.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/filter-map.tsx components=1 pipeline=ok
   accepted react/expressions/list-length.tsx components=1 pipeline=ok
   accepted react/expressions/list-map-key.tsx components=1 pipeline=ok
   accepted react/expressions/nullish-coalescing.tsx components=1 pipeline=ok
   accepted react/expressions/object-destructure-local.tsx components=1 pipeline=ok
   accepted react/expressions/object-spread.tsx components=1 pipeline=ok
   accepted react/expressions/readonly-array-type.tsx components=1 pipeline=ok
-  accepted react/expressions/slice-map.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/slice-map.tsx components=1 pipeline=ok
   accepted react/expressions/string-methods.tsx components=1 pipeline=ok
   accepted react/expressions/style-literal.tsx components=1 pipeline=ok
   accepted react/expressions/template-string.tsx components=1 pipeline=ok
@@ -80,7 +80,7 @@ files:
   accepted react/hooks/use-layout-effect.tsx components=1 pipeline=TESSERA_IR_BINDING
   accepted react/hooks/use-memo-extra-dep.tsx components=1 pipeline=ok
   accepted react/hooks/use-memo-missing-dep.tsx components=1 pipeline=ok
-  accepted react/hooks/use-memo.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/hooks/use-memo.tsx components=1 pipeline=ok
   accepted react/hooks/use-reducer.tsx components=1 pipeline=ok
   accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
   accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok
