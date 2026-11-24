@@ -6,10 +6,12 @@
 
 #include "cpu_to_gpu_4k_measure.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/image/image_resize.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 
 #include <array>
 #include <cstdlib>
+#include <cstring>
 
 namespace measure {
 
@@ -88,6 +90,52 @@ void measure_resample_hypothesis(const std::vector<std::uint8_t>& frame) {
     if (sink.empty()) {
         std::cout << "(unreachable)\n";
     }
+}
+
+void measure_downscale_box(const std::vector<std::uint8_t>& source_4k) {
+    std::cout << "\n[H6. The image path's decode-target downscale (downscale_box), CPU only]\n";
+    // The real function, not a copy: the whole question is what the code the image path calls
+    // costs, and a reimplementation here could be faster or slower than the thing being judged.
+    image::DecodedImage source;
+    source.width = k4kWidth;
+    source.height = k4kHeight;
+    source.source_width = k4kWidth;
+    source.source_height = k4kHeight;
+    source.format = image::ImageFormat::png;
+    source.rgba = source_4k;
+
+    struct Case {
+        const char* name;
+        std::uint32_t width;
+        std::uint32_t height;
+    };
+    // 1080p is the common "4K image on a 1080p canvas" case; 540p is the 2x-downscale a thumbnail
+    // or an offscreen preview asks for. Both are in the issue, and a third would not change the
+    // answer.
+    const Case cases[] = {
+        {"downscale_box 4K -> 1080p", 1920, 1080},
+        {"downscale_box 4K -> 540p", 960, 540},
+    };
+    for (const Case& test_case : cases) {
+        std::size_t out_bytes = 0;
+        const Sample sample = time_it([&] {
+            const image::DecodedImage reduced =
+                image::downscale_box(source, test_case.width, test_case.height);
+            out_bytes = reduced.rgba.size();
+        });
+        // Reported against the OUTPUT bytes, so the GB/s is the rate it produces a reduced image -
+        // which is what an upload would then cost on top. The input is always 4K, so the same row
+        // also says how much work the box filter does per output pixel.
+        print_row(test_case.name, sample, out_bytes);
+        print_budget(test_case.name, sample.median);
+    }
+    // The floor this has to be judged against: moving the same bytes with no arithmetic at all.
+    // Without it "x GB/s" says nothing about whether the loop is slow.
+    const Sample copy = time_it([&] {
+        std::vector<std::uint8_t> sink(source_4k.size());
+        std::memcpy(sink.data(), source_4k.data(), source_4k.size());
+    });
+    print_row("memcpy 4K (the host-bandwidth floor)", copy, source_4k.size());
 }
 
 namespace {
