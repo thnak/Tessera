@@ -93,6 +93,11 @@ android {
 }
 
 dependencies {
+    // The first Java test in the shell (issue #889). JUnit 4 only, and deliberately not Robolectric:
+    // reading an `AccessibilityNodeInfo` needs an Android runtime, so anything that touches one is
+    // untestable here without a framework this environment cannot fetch. `TesseraA11ySlots` is pure
+    // arithmetic on constants, which is exactly the part that must agree with `a11y_bridge.cpp`.
+    testImplementation("junit:junit:4.13.2")
     // Jetpack WindowManager is the ONLY way to read fold posture on Android: the platform SDK has no
     // fold, hinge or posture API at any level (verified against android.jar for API 35, 36.1 and 37;
     // android.view.WindowInfo does not exist either). Google publishes it as an official Jetpack

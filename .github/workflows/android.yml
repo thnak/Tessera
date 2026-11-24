@@ -82,6 +82,15 @@ jobs:
         working-directory: android
         run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon --stacktrace
 
+      # The first Java unit tests in the shell (issue #889). They are JUnit 4 only and need no
+      # Android runtime, because what they pin - the packed slot layout the native bridge fills - is
+      # arithmetic on constants. That also means they run on the runner, not on the emulator, so a
+      # wrong slot index fails here in seconds instead of surfacing as a screen reader reading a
+      # node's width where its action count was expected.
+      - name: Run the Java unit tests
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
       - name: ccache statistics
         run: ccache --show-stats
 
