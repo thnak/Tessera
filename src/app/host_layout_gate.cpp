@@ -128,13 +128,24 @@ void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
     // cannot move boxes skips Yoga and only re-syncs the scene style.
     last_layout = layout_scheduler.update(input, viewport, true);
-    last_applied = ui::layout::apply_layout(last_layout, root);
+    last_applied = ui::layout::apply_layout(last_layout, root, resized_nodes);
     // Remember the inputs the gate compares against next frame. `apply_layout` is what writes the
     // boxes, so a reused result still has to be applied once - the gate skips building the input
     // and hashing it, not the (cheap, already-in-tree-order) box write.
     gated_viewport = viewport;
     gated_metrics = safe_area.current();
     gated_metrics_valid = safe_area.has_metrics();
+}
+
+bool AppHost::Impl::scoped_sync_allowed(bool incremental) const {
+    if (!incremental || tree == nullptr || !sheet.subtree_local() ||
+        tree->built_for_structure_epoch() != ui::scene_structure_epoch()) {
+        return false;
+    }
+    const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
+    return viewport.width == gated_viewport.width && viewport.height == gated_viewport.height &&
+           viewport.dpi_scale == gated_viewport.dpi_scale &&
+           same_safe_area(gated_metrics, gated_metrics_valid, safe_area);
 }
 
 bool AppHost::Impl::layout_unchanged(bool incremental) {

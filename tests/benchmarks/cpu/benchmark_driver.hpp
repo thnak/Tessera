@@ -107,6 +107,10 @@ private:
     ui::layout::LayoutApplyResult last_applied_;
     ui::frame::FrameRender last_render_;
     FramePhases phases_;
+    // Scoped-sync inputs, as the host keeps them: the nodes restyled this frame and the topmost
+    // nodes whose box size changed. Members so a steady frame reuses their capacity.
+    std::vector<const ui::Node*> sync_roots_;
+    std::vector<const ui::Node*> resized_nodes_;
     bool styles_resolved_ = false;
     bool full_repaint_pending_ = false;
 };

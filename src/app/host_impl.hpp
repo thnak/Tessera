@@ -94,6 +94,12 @@ struct AppHost::Impl {
     // from scratch, so there is no record of which nodes were restyled and the gate cannot prove
     // anything. It declines in that case rather than treating "no restyled nodes" as "no change".
     [[nodiscard]] bool layout_unchanged(bool incremental);
+    // True when a scoped style sync is sound even though layout runs: the selector tree was updated
+    // in place for an unchanged scene shape, no selector reads outside its subtree, and the
+    // viewport and safe area are the ones the last layout used. A node outside the restyled roots
+    // then kept its style, so only its box size can still owe the sync work (`resized_nodes`).
+    // Call it BEFORE `run_layout_pass`, which overwrites the viewport it compares against.
+    [[nodiscard]] bool scoped_sync_allowed(bool incremental) const;
     // Why the last `layout_unchanged()` declined, for the probe and for tests. `None` means it
     // accepted.
     enum class LayoutGate : std::uint8_t {
@@ -197,6 +203,10 @@ struct AppHost::Impl {
     // container's children vector (issue #701); see `fill_layout_input`.
     ui::layout::LayoutInput layout_input;
     ui::layout::LayoutApplyResult last_applied;
+    // The topmost nodes whose box size changed in the last layout pass, and the scoped sync's root
+    // list (restyled roots plus those). Kept as members so a steady frame reuses their capacity.
+    std::vector<const ui::Node*> resized_nodes;
+    std::vector<const ui::Node*> sync_roots;
     // The ADR-041 settle loop (issue #693): the layout read model, the container-query tracker and
     // the app observations, in one shared component the Studio canvas session also uses. It costs
     // one boolean test per frame when the sheet has no `@container` and nothing observes.

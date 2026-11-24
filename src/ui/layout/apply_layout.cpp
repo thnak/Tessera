@@ -85,13 +85,23 @@ private:
 };
 
 void apply_node(Node& node, BoxIndex& boxes, float parent_x, float parent_y,
-                LayoutApplyResult& result) {
+                LayoutApplyResult& result, std::vector<const Node*>* resized,
+                bool ancestor_resized) {
     const LayoutBox* box = boxes.find(node.id());
     if (box == nullptr) {
         result.missing += clear_text_fit_subtree(node);
         return;
     }
 
+    bool size_changed = false;
+    if (resized != nullptr) {
+        const rhi::Rect& old_bounds = node.bounds();
+        size_changed =
+            old_bounds.width != box->bounds.width || old_bounds.height != box->bounds.height;
+        if (size_changed && !ancestor_resized) {
+            resized->push_back(&node);
+        }
+    }
     node.set_bounds(rhi::Rect{box->bounds.x - parent_x, box->bounds.y - parent_y, box->bounds.width,
                               box->bounds.height});
     // The text-fit fact is rewritten on every pass, `Unknown` included, so a node whose box no
@@ -100,20 +110,36 @@ void apply_node(Node& node, BoxIndex& boxes, float parent_x, float parent_y,
     ++result.applied;
 
     for (const auto& child : node.children()) {
-        apply_node(*child, boxes, box->bounds.x, box->bounds.y, result);
+        apply_node(*child, boxes, box->bounds.x, box->bounds.y, result, resized,
+                   ancestor_resized || size_changed);
     }
 }
 
 } // namespace
 
-LayoutApplyResult apply_layout(const LayoutResult& result, Node& root) {
+namespace {
+
+LayoutApplyResult apply_impl(const LayoutResult& result, Node& root,
+                             std::vector<const Node*>* resized) {
     BoxIndex boxes(result.boxes);
     LayoutApplyResult applied;
-    apply_node(root, boxes, 0.0f, 0.0f, applied);
+    apply_node(root, boxes, 0.0f, 0.0f, applied, resized, false);
     if (result.boxes.size() > boxes.matched()) {
         applied.extra = result.boxes.size() - boxes.matched();
     }
     return applied;
+}
+
+} // namespace
+
+LayoutApplyResult apply_layout(const LayoutResult& result, Node& root) {
+    return apply_impl(result, root, nullptr);
+}
+
+LayoutApplyResult apply_layout(const LayoutResult& result, Node& root,
+                               std::vector<const Node*>& resized) {
+    resized.clear();
+    return apply_impl(result, root, &resized);
 }
 
 } // namespace tessera::ui::layout

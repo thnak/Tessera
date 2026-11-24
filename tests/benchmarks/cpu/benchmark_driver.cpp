@@ -166,7 +166,7 @@ void BenchmarkDriver::run_layout_pass() {
     last_layout_ = scheduler_.update(input, viewport_, true);
     const PhaseClock::time_point engine_end = PhaseClock::now();
     phases_.layout_engine_ms = phase_ms(input_end, engine_end);
-    last_applied_ = ui::layout::apply_layout(last_layout_, *root_);
+    last_applied_ = ui::layout::apply_layout(last_layout_, *root_, resized_nodes_);
     phases_.apply_layout_ms = phase_ms(engine_end, PhaseClock::now());
 }
 
@@ -185,6 +185,8 @@ FrameWork BenchmarkDriver::begin_frame() {
         damage_.force_full_redraw();
         full_repaint_pending_ = false;
     }
+    bool scoped = false;
+    sync_roots_.clear();
     if (!styles_resolved_) {
         resolve_all_styles();
         styles_resolved_ = true;
@@ -192,6 +194,10 @@ FrameWork BenchmarkDriver::begin_frame() {
     } else if (frame.tick.needs_style) {
         resolve_dirty_styles();
         frame.geometry = true;
+        scoped = true;
+    } else {
+        // Layout-only frame: no node restyled, so only a resized box can owe the sync anything.
+        scoped = true;
     }
     const PhaseClock::time_point styles_end = PhaseClock::now();
     phases_.styles_ms = phase_ms(tick_end, styles_end);
@@ -199,7 +205,21 @@ FrameWork BenchmarkDriver::begin_frame() {
         run_layout_pass();
         frame.layout = last_applied_;
         const PhaseClock::time_point sync_begin = PhaseClock::now();
-        frame.sync = pipeline_.sync_style(*root_, *provider_, frame.tick, true);
+        // The reference scene never attaches or detaches nodes after the driver exists, so once the
+        // first frame resolved every style a scoped sync (restyled roots plus resized boxes) sees
+        // everything the full walk would, which is the host's scoped path (issue #735).
+        if (scoped) {
+            for (const ui::DirtyNode& entry : dirty_.nodes()) {
+                if (entry.node != nullptr && ui::has_flag(entry.flags, ui::Dirty::Style)) {
+                    sync_roots_.push_back(entry.node);
+                }
+            }
+            sync_roots_.insert(sync_roots_.end(), resized_nodes_.begin(), resized_nodes_.end());
+            frame.sync =
+                pipeline_.sync_style_scoped(*root_, *provider_, sync_roots_, frame.tick, true);
+        } else {
+            frame.sync = pipeline_.sync_style(*root_, *provider_, frame.tick, true);
+        }
         phases_.sync_style_ms = phase_ms(sync_begin, PhaseClock::now());
     }
     const PhaseClock::time_point finish_begin = PhaseClock::now();

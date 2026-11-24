@@ -37,6 +37,7 @@ void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
     // `restyled_layout_changed` recomputes only the restyled nodes, which is the work the sync
     // below would do anyway, so a declined gate costs nothing extra.
     const bool layout_unchanged = this->layout_unchanged(incremental);
+    const bool scoped_after_layout = !layout_unchanged && scoped_sync_allowed(incremental);
     if (layout_unchanged) {
         ++layout_gate_hits;
     } else {
@@ -47,6 +48,13 @@ void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
     // proof the whole tree is synced, which is the pre-slice-B behaviour.
     if (layout_unchanged && tree != nullptr) {
         sync = pipeline->sync_style_scoped(root, restyle_memo, tree->restyled_roots(), tick, true);
+    } else if (scoped_after_layout) {
+        // Layout ran, but only the restyled subtrees changed style and only the nodes whose box
+        // size moved can owe the sync anything (the scene sync reads width/height and nothing else
+        // from the box). Position-only moves and untouched siblings are skipped.
+        sync_roots.assign(tree->restyled_roots().begin(), tree->restyled_roots().end());
+        sync_roots.insert(sync_roots.end(), resized_nodes.begin(), resized_nodes.end());
+        sync = pipeline->sync_style_scoped(root, restyle_memo, sync_roots, tick, true);
     } else {
         sync = pipeline->sync_style(root, restyle_memo, tick, true);
     }
