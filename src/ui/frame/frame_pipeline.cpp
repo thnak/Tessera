@@ -177,6 +177,9 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
             if (target == nullptr) {
                 continue;
             }
+            if (sample.held) {
+                continue; // a held fill-forwards value: nothing changed (issue #200)
+            }
             const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
             if (dirty != Dirty::Clean) {
                 target->mark_dirty(dirty);
