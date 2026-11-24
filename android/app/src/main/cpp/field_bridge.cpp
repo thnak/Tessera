@@ -100,4 +100,57 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSelectionState(JNI
     env->SetFloatArrayRegion(out, 0, 3, values);
 }
 
+// The caret's box for the IME's `requestCursorUpdates`. `out` is a float[4]: x, y, width, height in
+// LOGICAL pixels relative to the window. Returns false when the shell has no field, so the caller
+// leaves the IME's cursor anchor alone rather than reporting a box at the origin.
+JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeCaretGeometry(JNIEnv* env, jclass,
+                                                                                jlong handle,
+                                                                                jfloatArray out) {
+    if (out == nullptr || env->GetArrayLength(out) < 4) {
+        return JNI_FALSE;
+    }
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr) {
+        return JNI_FALSE;
+    }
+    tessera::android_shell::CaretGeometry geometry;
+    if (!tessera::android_shell::caret_geometry(*shell, geometry)) {
+        return JNI_FALSE;
+    }
+    const jfloat values[4] = {geometry.x, geometry.y, geometry.width, geometry.height};
+    env->SetFloatArrayRegion(out, 0, 4, values);
+    return JNI_TRUE;
+}
+
+// Pauses the render loop for the app going to the background.
+//
+// This does NOT tear the host down. `surfaceDestroyed` does not fire for a backgrounded app on
+// current Android, so the loop kept presenting into a buffer queue SurfaceFlinger had stopped
+// consuming, which wedges the queue and ANRs every touch on return. Stopping the host instead means
+// joining the render thread from the UI thread, and that deadlocks (the loop is inside a present)
+// or leaks a live renderer when detached (the next cycle then has two renderers on one queue, which
+// is the black window).
+//
+// `pause_host` marks the window minimized: the loop idles with zero presents, the thread stays put,
+// and the surface stays valid for `resume_host` to show again.
+JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativePauseRendering(JNIEnv*, jclass,
+                                                                             jlong handle) {
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr) {
+        return;
+    }
+    tessera::android_shell::pause_host(*shell);
+}
+
+// Resumes after `nativePauseRendering`. The window and thread were never torn down, so this is a
+// show plus a full repaint - no dependency on `surfaceCreated` ordering.
+JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeResumeRendering(JNIEnv*, jclass,
+                                                                              jlong handle) {
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr) {
+        return;
+    }
+    tessera::android_shell::resume_host(*shell);
+}
+
 } // extern "C"

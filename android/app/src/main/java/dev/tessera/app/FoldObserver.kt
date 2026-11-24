@@ -25,7 +25,10 @@ import kotlinx.coroutines.launch
  * readable and testable.
  */
 internal class FoldObserver(private val activity: Activity) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // A fresh scope per start(): `stop()` cancels it, and a cancelled scope cannot launch again.
+    // Reusing one scope meant a second `start()` (after the app returned from the background)
+    // launched into a dead scope, so the fold observer silently never ran again.
+    private var scope: CoroutineScope? = null
     private var job: Job? = null
 
     /**
@@ -44,7 +47,9 @@ internal class FoldObserver(private val activity: Activity) {
         }
         val flow: Flow<WindowLayoutInfo> = WindowInfoTracker.getOrCreate(activity)
             .windowLayoutInfo(activity)
-        job = scope.launch {
+        val fresh = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        scope = fresh
+        job = fresh.launch {
             flow.collect { info -> onLayout.accept(info) }
         }
     }
@@ -53,6 +58,7 @@ internal class FoldObserver(private val activity: Activity) {
     fun stop() {
         job?.cancel()
         job = null
-        scope.cancel()
+        scope?.cancel()
+        scope = null
     }
 }

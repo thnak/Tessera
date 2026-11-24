@@ -26,6 +26,7 @@
 #include <android/log.h>
 #include <android/native_window_jni.h>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <jni.h>
 #include <memory>
@@ -92,104 +93,11 @@ float display_scale(JNIEnv* env, jobject view) {
 
 // Creates the host around the surface and starts the frame loop. Called from `surfaceCreated`,
 // which is the first moment the engine may render.
-void start_host(Shell& shell) {
-    if (shell.host != nullptr || shell.native_window == nullptr) {
-        return;
-    }
-    tessera::app::WindowOptions options;
-    options.title = "Tessera";
-    options.visible = true;
-    options.vsync = true;
-    // The opaque token seam: the backend interprets this as an ANativeWindow*.
-    options.surface.token = shell.native_window;
-    options.dpi_scale = shell.dpi_scale;
-    // The text stack requires a font: TextStack throws on an empty path, which aborts the process.
-    // Android ships Roboto at a stable path, so the shell uses it rather than bundling a copy.
-    options.font_path = "/system/fonts/Roboto-Regular.ttf";
-    // The same face, loaded once for the caret hit test: a tap must resolve to the caret under the
-    // finger, so the hit test has to measure the glyphs paint draws. A face that fails to load
-    // leaves the metrics provider null, and `caret_field_for_shell` then declines - a tap that
-    // cannot place the caret leaves it alone instead of jumping it to the start.
-    if (!shell.field_face) {
-        auto loaded = tessera::ui::text::FontFace::load_from_file(options.font_path);
-        if (loaded.has_value()) {
-            shell.field_face = std::move(*loaded);
-            shell.field_metrics =
-                std::make_unique<tessera::ui::text::FreeTypeFontMetricsProvider>(shell.field_face);
-            // The advance source paint measures with; the hit test must use the same one.
-            shell.field_advance =
-                std::make_unique<tessera::ui::paint::FontPaintTextMetrics>(shell.field_face, 1);
-            // The field's authored style: `TextInput { font-size: 16px }` in the shell's sheet.
-            shell.field_text_style.font_size = 16.0f;
-            shell.field_font_metrics = shell.field_metrics->metrics(shell.field_text_style);
-        }
-    }
-    // The pull-side accessibility provider. Android's `AccessibilityNodeProvider` asks for one node
-    // at a time, so the driver keeps this provider current and the Java provider queries it from
-    // the platform's thread. The shell owns it, so it outlives the host.
-    options.accessibility_provider = shell.a11y.get();
+} // namespace
 
-    if (shell.scene == nullptr) {
-        shell.scene = std::make_unique<tessera::android_shell::ShellScene>();
-    }
-    // The edit runtime publishes the caret and the committed text into the field's paint data, and
-    // turns each committed edit into the scene's `TextChange`. Attaching before the host exists is
-    // safe: the node is already in the tree, and the runtime only reads it on an event.
-    shell.editor_runtime.attach(shell.scene->input_label);
-    // The clipboard the editor's Copy/Cut/Paste chords write through. The Android backend keeps a
-    // cache the UI thread refreshes, so the engine's synchronous seam never blocks on the UI
-    // thread.
-    shell.editor.set_clipboard(shell.clipboard.get());
-    // The demo field is multi-line, so Enter inserts a newline instead of being dropped. A
-    // single-line field ignores Enter by design (submit is a form concern the engine defers), which
-    // on a phone reads as "the Enter key is broken" - the shell has no form to submit, so a
-    // multi-line field is the honest demo.
-    shell.editor.set_multiline(true);
-    // The caret blink. The driver owns the clock, but only the shell knows whether the field is
-    // focused, so the policy is a callback and the runtime is where the phase lands: without both
-    // the caret would be solid, because nothing would ever flip the decoration's phase.
-    options.caret_active = &tessera::android_shell::caret_active_for_shell;
-    options.caret_active_user = &shell;
-    options.caret_target = &shell.editor_runtime;
-    shell.host = std::make_unique<tessera::app::WindowHost>(
-        shell.scene->root, tessera::android_shell::shell_stylesheet(), options,
-        &shell.scene->scheduler);
-    shell.window = shell.host->window();
-    if (!shell.host->available()) {
-        log_info("the window host is unavailable; no frame will be presented");
-        return;
-    }
-    log_info("window host started");
+namespace tessera::android_shell {} // namespace tessera::android_shell
 
-    // The frame loop. `run(0)` blocks until the window closes, which is what a render thread wants:
-    // it owns the host and the pacer, and the Java thread only signals it to stop. `pump_once`
-    // would need this thread to spin, and a spin on a phone burns battery for nothing.
-    shell.running.store(true);
-    shell.render_thread = std::thread([&shell] {
-        log_info("render thread entered");
-        (void)shell.host->run(0);
-        log_info("render thread exited");
-        shell.running.store(false);
-    });
-}
-
-// Stops the frame loop and destroys the host. Called from `surfaceDestroyed` and `nativeDestroy`,
-// so the host is gone before the surface can be reused.
-void stop_host(Shell& shell) {
-    if (shell.host == nullptr) {
-        return;
-    }
-    // `run(0)` returns when the window closes, so closing it is how the loop is asked to stop.
-    if (shell.window != nullptr) {
-        shell.window->close();
-    }
-    if (shell.render_thread.joinable()) {
-        shell.render_thread.join();
-    }
-    shell.host.reset();
-    shell.window = nullptr;
-    log_info("window host stopped");
-}
+namespace {
 
 // Reads the scalar fields of one Java `MotionEvent` into the pure `MotionSample` the mapping rules
 // take. This is the only place that touches a Java object's getters: the mapping itself is pure and

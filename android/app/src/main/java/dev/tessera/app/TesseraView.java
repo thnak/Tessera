@@ -20,6 +20,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowInsets;
 import android.view.accessibility.AccessibilityNodeProvider;
+import android.view.inputmethod.CursorAnchorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
@@ -538,6 +539,31 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
     static native boolean nativeSelectAll(long handle);
 
     /**
+     * Stops rendering while the app is not visible.
+     *
+     * <p>The surface is NOT destroyed when the app goes to the background on current Android: only
+     * {@code onStop} runs, so {@code surfaceDestroyed} never fires and the render thread kept
+     * presenting into a buffer queue SurfaceFlinger had stopped consuming. That wedges the queue,
+     * the platform's snapshot of the task never completes, and the app comes back with a starting
+     * window on top of it, no input focus, and an ANR for every touch.
+     *
+     * <p>Pausing the host releases the queue, and {@link #resumeRendering} rebuilds it. The scene
+     * survives either way, so the app keeps its state.
+     */
+    void pauseRendering() {
+        if (nativeHandle != 0) {
+            nativePauseRendering(nativeHandle);
+        }
+    }
+
+    /** Resumes rendering after {@link #pauseRendering}. Safe when rendering was never paused. */
+    void resumeRendering() {
+        if (nativeHandle != 0) {
+            nativeResumeRendering(nativeHandle);
+        }
+    }
+
+    /**
      * The selection's state, for the floating toolbar.
      *
      * <p>{@code out} is a {@code float[3]}: has-selection, anchor x, anchor y (logical pixels). A
@@ -545,6 +571,35 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      * between the "is there one" and "where" reads.
      */
     static native void nativeSelectionState(long handle, float[] out);
+
+    /** Stops the render loop without destroying the scene. See {@link #pauseRendering}. */
+    private static native void nativePauseRendering(long handle);
+
+    /** Restarts the render loop after {@link #nativePauseRendering}. */
+    private static native void nativeResumeRendering(long handle);
+
+    /**
+     * The caret's box for the IME's cursor anchor.
+     *
+     * <p>{@code out} is a {@code float[4]}: x, y, width, height in logical pixels relative to the
+     * window. False when the shell has no field, so the caller leaves the IME's anchor alone rather
+     * than reporting a box at the origin.
+     */
+    static native boolean nativeCaretGeometry(long handle, float[] out);
+
+    /**
+     * Hands the IME a fresh cursor anchor.
+     *
+     * <p>The platform's {@code InputMethodManager} owns the delivery; the view only forwards. Called
+     * from the input connection when the IME asks for an immediate update.
+     */
+    void requestCursorAnchorUpdate(CursorAnchorInfo info) {
+        final InputMethodManager imm =
+                (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.updateCursorAnchorInfo(this, info);
+        }
+    }
 
     /**
      * Posts the platform clipboard write to the UI thread.

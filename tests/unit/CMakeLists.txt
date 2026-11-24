@@ -2671,6 +2671,17 @@ target_link_libraries(paint_text_preedit_tests PRIVATE
 
 add_test(NAME paint_text_preedit COMMAND paint_text_preedit_tests)
 
+# The caret box paint draws, exposed so a platform IME can answer `requestCursorUpdates` with the
+# SAME geometry (issue #189, android-lane.md section 3.18). Pure over a laid-out `TextLayout`, so it
+# runs on every lane with no GPU and no device.
+add_executable(paint_caret_box_tests
+    paint_caret_box_tests.cpp)
+
+target_link_libraries(paint_caret_box_tests PRIVATE
+    tessera_paint)
+
+add_test(NAME paint_caret_box COMMAND paint_caret_box_tests)
+
 add_executable(forms_model_tests
     forms_model_tests.cpp)
 

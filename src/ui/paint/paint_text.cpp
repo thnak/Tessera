@@ -75,10 +75,9 @@ PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
 }
 
 // Caret/selection emission. Paint only consumes byte offsets: it resolves them through the same
-// line boxes the wrap path uses. Z-order: selection fills behind the glyph runs, caret fills after
-// them. Selection is a translucent fill derived from the text color; the caret is the text color at
-// full alpha, 1 px at device scale 1 and 2 px at scale >= 2. A blink phase below 0.5 hides only the
-// caret; paint has no timers.
+// line boxes the wrap path uses. Z-order: selection behind the glyph runs, caret after them. The
+// caret is the text color at full alpha, 1 px at device scale 1 and 2 px at >= 2; a blink phase
+// below 0.5 hides only the caret, because paint has no timers.
 void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                            const text::TextStyle& text_style, const rhi::Color& color,
                            float opacity, bool wrap, PaintTextAlign align, PaintSink& sink,
@@ -154,8 +153,8 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                 continue;
             }
             // One rectangle per visual run: a selection spanning a direction change is the union of
-            // the run-local visual intervals. Selection mapping uses run-local affinity (RTL run
-            // logical start is its visual right edge), unlike the caret's global join affinity.
+            // run-local visual intervals; selection uses run-local affinity (an RTL run's logical
+            // start is its visual right edge), unlike the caret's global join affinity.
             float run_x = geometry.x;
             for (const text::BidiVisualRun& visual_run : line.visual_runs) {
                 const std::string_view run_text = std::string_view(text).substr(
@@ -194,10 +193,8 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
     }
 
     // IME preedit: underline the composition range and, when the preedit is not part of the painted
-    // text, draw the uncommitted run at the composition anchor. Z-order: after the glyph runs (so
-    // above the selection), before the caret. The run uses the committed text's color (node opacity
-    // already folded); the underline is the text color, 1 px at device scale 1 and 2 px at >= 2.
-    // The byte range -> line-box mapping is the same one the selection/caret use.
+    // text, draw the uncommitted run at the composition anchor: after the glyph runs (above the
+    // selection), before the caret. The byte range -> line-box mapping is the selection/caret one.
     if (decoration.composition_active) {
         const std::size_t begin = std::min(decoration.preedit_begin, text.size());
         const std::size_t end = std::min(decoration.preedit_end, text.size());
@@ -260,21 +257,25 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
 
     const bool caret_visible = decoration.caret_visible && decoration.blink_phase >= 0.5f;
     if (caret_visible) {
+        // The shared helper, so the IME's `requestCursorUpdates` answer is this geometry exactly.
         const std::size_t caret = std::min(decoration.caret_byte_offset, text.size());
-        const LineGeometry* caret_line = &lines.back();
+        text::TextLayout layout;
+        layout.lines.reserve(lines.size());
+        // A line break matches both ranges; the FIRST is where the caret was typed.
+        const LineGeometry* caret_geometry = &lines.back();
+        bool found = false;
         for (const LineGeometry& geometry : lines) {
-            if (caret >= geometry.line.begin && caret <= geometry.line.end) {
-                caret_line = &geometry;
-                break;
+            layout.lines.push_back(geometry.line);
+            if (!found && caret >= geometry.line.begin && caret <= geometry.line.end) {
+                caret_geometry = &geometry;
+                found = true;
             }
         }
-        const std::size_t clamped = std::min(caret, caret_line->line.end);
-        const float advance =
-            line_offset_x(text, caret_line->line, clamped, text_style, *metrics_source);
-        const float caret_width = context.device_scale >= 2.0f ? 2.0f : 1.0f;
-        sink.fill_rect({std::round(caret_line->x + advance), std::round(caret_line->top),
-                        std::max(caret_width, 1.0f), caret_line->line.height},
-                       color);
+        const CaretBox box =
+            caret_box(text, layout, decoration.caret_byte_offset, text_style, *metrics_source,
+                      context.device_scale, caret_geometry->x, caret_geometry->top);
+        sink.fill_rect(
+            {std::round(box.x), std::round(box.y), std::max(box.width, 1.0f), box.height}, color);
     }
 }
 

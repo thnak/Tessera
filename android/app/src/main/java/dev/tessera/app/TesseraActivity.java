@@ -43,9 +43,67 @@ public final class TesseraActivity extends android.app.Activity {
     }
 
     @Override
+    protected void onStop() {
+        // Stop rendering before the app leaves the screen. `surfaceDestroyed` does NOT fire for a
+        // backgrounded app on current Android, so without this the render thread keeps presenting
+        // into a buffer queue the compositor stopped consuming: the queue wedges, the task's
+        // snapshot never completes, and returning shows a starting window over an app that has no
+        // input focus and ANRs on every touch.
+        if (view != null) {
+            view.pauseRendering();
+        }
+        super.onStop();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    protected void onPause() {
+        // Stop rendering here, not in `onStop`: an app can sit paused indefinitely without ever
+        // being stopped (the emulator's task snapshot keeps the window "visible" for the purposes
+        // of the lifecycle), and a render thread left presenting into a queue the compositor no
+        // longer consumes is what wedges the task and ANRs it on return. Pausing early is the only
+        // hook that is guaranteed to run.
+        if (view != null) {
+            view.pauseRendering();
+        }
+        // Both readers stop on pause: the hinge sensor is a non-wake-up sensor the platform expects
+        // to be released, and the fold observer's coroutine would otherwise keep collecting for a
+        // window no frame can show. `onResume` starts both again.
+        if (foldReader != null) {
+            foldReader.stop();
+        }
+        if (hingeReader != null) {
+            hingeReader.stop();
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         hideSystemBars();
+        // Rendering was paused in `onPause`; this is its matching resume. `start_host` is
+        // idempotent, so a first start (where `surfaceCreated` has not run yet) is a no-op and the
+        // surface callback starts it.
+        if (view != null) {
+            view.resumeRendering();
+        }
+        // The view must take focus back after the app returns from the background. Without this the
+        // window has no focused view, and the platform reports "Application does not have a focused
+        // window" for every touch: the app looks alive but nothing responds, and the input
+        // dispatcher eventually raises an ANR.
+        //
+        // `requestFocusFromTouch` rather than `requestFocus`: the platform tracks a touch-mode flag
+        // per window, and a view that only took focus in non-touch mode does not receive touches
+        // after the window comes back. The ANR trace names exactly that
+        // (`TouchModeEvent(inTouchMode=false)`).
+        if (view != null) {
+            view.requestFocusFromTouch();
+        }
         // The first read happens here rather than in onCreate: the window layout is not final until
         // the activity is resumed, and a fold read before that reports the pre-layout bounds.
         pushFold();
@@ -66,14 +124,6 @@ public final class TesseraActivity extends android.app.Activity {
         view.whenNativeReady(() -> hingeReader.start(view.nativeHandle()));
     }
 
-    @Override
-    protected void onPause() {
-        if (hingeReader != null) {
-            hingeReader.stop();
-        }
-        super.onPause();
-    }
-
     /**
      * Re-reads the fold after a configuration change.
      *
@@ -85,6 +135,22 @@ public final class TesseraActivity extends android.app.Activity {
     public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);
         pushFold();
+    }
+
+    /**
+     * Takes focus back when the window regains it.
+     *
+     * <p>Returning from the background can leave the window without a focused view even though
+     * {@code onResume} ran, and the platform then refuses to dispatch input: every touch is dropped
+     * and the dispatcher raises an ANR. Asking here as well as in {@code onResume} covers both
+     * orderings.
+     */
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && view != null && !view.hasFocus()) {
+            view.requestFocusFromTouch();
+        }
     }
 
     /** Pushes the current fold posture and hinge to the engine, if the surface exists yet. */

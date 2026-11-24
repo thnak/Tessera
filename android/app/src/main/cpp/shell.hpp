@@ -100,4 +100,19 @@ struct Shell {
     return reinterpret_cast<Shell*>(static_cast<std::intptr_t>(handle));
 }
 
+// The frame-loop lifecycle.
+//
+// `pause_host` marks the window minimized, which makes the loop idle with zero presents: nothing is
+// torn down, so nothing has to be joined. `resume_host` shows it again and requests a full repaint.
+// Those two are what the app going to the background uses.
+//
+// `start_host` builds the host and starts the thread (idempotent, needs the borrowed surface);
+// `stop_host` is for teardown only, where the surface is already gone and a bounded join is safe.
+//
+// Defined in `host_lifecycle.cpp` and declared here so the JNI entry points can reach them.
+void start_host(Shell& shell);
+void pause_host(Shell& shell);
+void resume_host(Shell& shell);
+void stop_host(Shell& shell);
+
 } // namespace tessera::android_shell
