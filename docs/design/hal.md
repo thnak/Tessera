@@ -64,6 +64,7 @@ group waits on it directly. `CompletionQueue::set_wake` fires it once per empty 
 so a burst is one wake. The wake only ends the park; the next tick still drains the queue on the UI
 thread, and the clamp stays as the safety net rather than the latency path. A platform with no
 primitive returns null from `create_wake_source`, which is the documented bounded-sleep fallback.
+Measured wake-to-return latency of a parked window wait under Xvfb (`window_x11`, 20 trials, a burst of three wakes each): X11 median 0.05 ms, max 0.07 ms. The X11 window did not override `set_wake_source` until this was measured, so the eventfd never joined its poll; the `window_x11` test now guards it.
 
 `hal::Window::wait_for_events(timeout_seconds)` idles on the owning thread while pumping OS
 messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close or

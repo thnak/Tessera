@@ -86,6 +86,12 @@ public:
     }
     std::size_t poll_events(std::span<WindowEvent> events) override;
     bool wait_for_events(double timeout_seconds) override;
+    void set_wake_source(WakeSource* source) override {
+        wake_ = source; // read only by the owner thread's wait, like the rest of the Xlib state
+    }
+    [[nodiscard]] WakeSource* wake_source() const noexcept override {
+        return wake_;
+    }
     void set_input_queue(ui::InputQueue* queue) override {
         input_.set_queue(queue);
         xi2_.set_queue(queue);
