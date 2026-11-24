@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/runtime/async.hpp"
+#include "tessera/runtime/task_context.hpp"
 
 #include <coroutine>
 #include <exception>
@@ -13,35 +14,6 @@
 #include <utility>
 
 namespace tessera::runtime {
-
-// Thrown at the co_await boundary when the awaited task observed cancellation. Cancellation is
-// cooperative: it is checked immediately before a task resumes, never asynchronously.
-//
-// `reason()` carries why the task's token was cancelled (issue #845), so an awaiter can tell a
-// user abort from a timeout from a shutdown without a side channel. The default is `Requested`,
-// which is what an unspecified `cancel()` means.
-class TaskCancelled : public std::exception {
-public:
-    TaskCancelled() = default;
-    explicit TaskCancelled(CancelReason reason) noexcept
-        : reason_(reason) {}
-
-    [[nodiscard]] const char* what() const noexcept override;
-    [[nodiscard]] CancelReason reason() const noexcept {
-        return reason_;
-    }
-
-private:
-    CancelReason reason_ = CancelReason::Requested;
-};
-
-// Scheduling context for one task. A task coroutine function takes it as its first parameter; the
-// promise copies it, so the queue and the token must outlive the task.
-struct TaskContext {
-    CompletionQueue* queue = nullptr;
-    CompletionPriority priority = CompletionPriority::Visible;
-    CancellationToken token;
-};
 
 template<typename T> class Task;
 
@@ -121,6 +93,19 @@ public:
     void finish();
     void set_exception(std::exception_ptr exception);
 
+    // Posts this task's resume onto its own continuation lane (see `post_resume` below): one call
+    // schedules exactly one queued resume, and later calls while that resume is still queued are
+    // absorbed by it. `finish()` and the eager-cancellation hook use it to wake a suspended task.
+    bool post_resume();
+
+    // Arms the eager-cancellation wakeup: registers one `on_cancel` callback on this task's token
+    // that posts the task's resume, so a frame suspended on a child (or on a timer) is cancelled
+    // promptly instead of at the child's next completion. The registration is stored here and
+    // released in `finish()` and the destructor. Callbacks run on the cancelling thread, so the
+    // callback only posts - it never touches the frame or a timer. Idempotent: a second call while
+    // armed is a no-op, and a token cancelled before the call runs the post immediately.
+    void arm_cancel_wakeup();
+
     // Records that this task is suspended on an awaitable that will never resume it, so it will
     // never finish and never resume its continuation. The strong reference to that continuation is
     // one half of the abandoned-frame reference cycle, so it is dropped here (ADR-069). Nothing is
@@ -140,6 +125,14 @@ public:
     [[nodiscard]] std::exception_ptr exception() const noexcept {
         return exception_;
     }
+    // The time seams from the task's context, for awaiters that schedule timers (`delay`,
+    // `timeout`). Null when the context carried none.
+    [[nodiscard]] Clock* clock() const noexcept {
+        return clock_;
+    }
+    [[nodiscard]] TimerQueue* timers() const noexcept {
+        return timers_;
+    }
 
 protected:
     // Runs in the queued completion: checks cancellation before touching the coroutine frame.
@@ -153,8 +146,6 @@ protected:
     std::exception_ptr exception_;
 
 private:
-    bool post_resume();
-
     CompletionQueue* queue_ = nullptr;
     CompletionPriority priority_ = CompletionPriority::Visible;
     CancellationToken token_;
@@ -162,6 +153,9 @@ private:
     // Keeps the frame alive while its resume sits on the queue without a `std::function` wrapper.
     // Released inside `resume_continuation`, which runs from the queue.
     std::shared_ptr<TaskStateBase> queued_keepalive_;
+    // The armed eager-cancellation wakeup, released in `finish()` (and the destructor) so a
+    // finished task never holds a callback on its token.
+    CancellationRegistration cancel_wakeup_;
 
 protected:
     // Why the token was cancelled, captured when this task observes it, so `TaskCancelled` carries
@@ -169,6 +163,8 @@ protected:
     CancelReason cancellation_ = CancelReason::Requested;
 
 private:
+    Clock* clock_ = nullptr;
+    TimerQueue* timers_ = nullptr;
     bool started_ = false;
     bool done_ = false;
     bool cancelled_ = false;
@@ -235,6 +231,12 @@ private:
 
 // Stores `child`'s continuation (the calling task) and posts the child's first resume. Any
 // failure happens before the caller suspends, so it surfaces as an exception at the co_await.
+//
+// Eager cancellation (issue #844): after the child is started, the awaiting parent arms its
+// wakeup hook, so if the parent's own token is cancelled while it waits, the parent is posted a
+// resume immediately; the queued resume observes the cancellation and finishes the parent with
+// `TaskCancelled`. A child does not stop - cancelling the parent is not fail-fast - and a task
+// that has not started yet keeps the plain start-time check.
 template<typename ParentPromise>
 bool attach_continuation(TaskStateBase& child, std::coroutine_handle<ParentPromise> parent) {
     std::shared_ptr<TaskStateBase> parent_state = parent.promise().self_.lock();
@@ -244,10 +246,11 @@ bool attach_continuation(TaskStateBase& child, std::coroutine_handle<ParentPromi
     if (child.started() || child.done()) {
         throw std::logic_error("task is already started");
     }
-    child.set_continuation(std::move(parent_state));
+    child.set_continuation(parent_state);
     if (!child.start()) {
         throw std::runtime_error("completion queue rejected the task resume");
     }
+    parent_state->arm_cancel_wakeup();
     return true;
 }
 

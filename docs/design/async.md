@@ -92,6 +92,40 @@ Rules:
 - **Results and errors.** `co_await` yields the value (or void) and rethrows the child's exception
   at the await point. An exception that leaves a task body is stored in the task state, so a root
   task fails without terminating.
+- **Combinators (`include/tessera/runtime/combinators.hpp`, issue #844).** `when_all(ctx, tasks...)`
+  resolves to the values as a tuple in argument order (a `Task<void>` child contributes
+  `std::monostate`); `when_all_range(ctx, std::span<Task<T>>)` resolves to a `std::vector<T>` in
+  span order, and an empty span resolves to an empty vector without suspending. A failing child
+  never cancels its siblings: every child runs to completion under a small driver task, and the
+  gate wakes the awaiting parent once, when the last child is done. `when_any(ctx, tasks...)` and
+  `when_any_range` resolve to the index of the first child to finish, by completion order; a
+  winner that finished with an exception or through cancellation counts as finished and its
+  exception is rethrown at the await (the race owns the child tasks, so an index alone would drop
+  the failure), and `when_any_value(ctx, child)` is the single-type convenience that returns the
+  winner's value. Losers are never cancelled; abandoned children keep running under their drivers
+  and the queue still drains to empty.
+- **Aggregate errors.** When at least one `when_all` child failed, the await throws
+  `TaskAggregateError`, which carries every child failure in argument order
+  (`failures()`, null for successful children) and the first one (`first()`), so no failure is
+  lost. The one exception to the wrapper rule keeps cancellation recognizable: when the first
+  failure in argument order is a `TaskCancelled` - normally the awaiting task's own cancellation
+  flowing to the children - the original `TaskCancelled` is rethrown directly, so
+  `catch (const TaskCancelled&)` keeps working at the cancellation boundary; a later
+  cancellation still travels inside the aggregate.
+- **Time helpers (`include/tessera/runtime/task_time.hpp`, issue #844).** `delay(ctx, seconds)`
+  resolves after the deadline on the context's `Clock` over the context's `TimerQueue`, or throws
+  `TaskCancelled` promptly when the task's token is cancelled while waiting (the timer is
+  removed; nothing fires late). `timeout(ctx, task, child_source, seconds)` races the child
+  against that deadline and resolves to `std::expected<T, TimedOut>`: on timeout the child is
+  cancelled with `CancelReason::Timeout` and the helper waits for the child to observe the
+  cancellation and finish (the drain) before returning `std::unexpected(TimedOut{})`, so no task
+  is left live and the timeout result fires after the drain; when the child wins, its value comes
+  back and the armed deadline is disarmed (`CancellationSource::cancel_deadline`). A child that
+  fails with a real exception propagates that exception, because a failure is not a timeout.
+  Both helpers resolve to `std::unexpected(TaskTimeError::...)` when the context carries no
+  clock/timer seams or the duration is invalid. The storage `Task` overloads and the
+  `service.hpp` example are the named follow-up: they need a callback-to-coroutine bridge and
+  are deliberately not in this slice.
 - **Cancellation.** Checked inside the queued resume: before the first resume and before every
   later resume, including resumptions of the awaiting task. A cancelled task never runs its body
   (or the part after the await) and finishes with `TaskCancelled`; the awaiter sees it rethrown at
@@ -117,10 +151,16 @@ Limitations of this slice:
   Nothing migrates or pins a task to a thread, and a worker thread must not touch UI state. One
   task graph must be pumped by one thread at a time: the queue is thread-safe, but task state
   assumes a single drainer.
-- No `sync_wait`, `when_all`, `when_any`, `timeout`, task names/ids, or coroutine-frame allocator
-  hooks yet (see [section 10](#10-open-questions)).
-- Cancellation is observed only at resume boundaries. A task suspended on a child is cancelled
-  when the child next completes; there is no eager cancellation wakeup.
+- No `sync_wait`, task names/ids, or coroutine-frame allocator hooks yet (see
+  [section 10](#10-open-questions)); `when_all`, `when_any`, `delay` and `timeout` are implemented
+  as combinators over `Task` (see the list above), not as scheduler primitives.
+- Cancellation is observed eagerly at every child-await boundary and checked at resume
+  boundaries: a task suspended on a child registers an `on_cancel` wakeup that posts its resume
+  (issue #844), so a cancelled parent finishes with `TaskCancelled` promptly even when the child
+  it waits on never completes; a child is not cancelled by that (cancelling the parent is not
+  fail-fast), and a task that has not started yet keeps the plain start-time check. A task
+  suspended on an arbitrary awaitable that posts nothing and registers no hook (not a child task,
+  not `delay`) is still only observed at its next resume.
 - Dropping the last `Task` handle does not cancel or detach a graph: a started task still runs to
   its next completion on the queue, and a parent suspended on a child keeps both states alive until
   the child finishes (the reference cycle breaks at that point). Cancel the token to stop work. The

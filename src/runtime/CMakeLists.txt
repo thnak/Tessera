@@ -7,6 +7,9 @@ add_library(tessera_runtime STATIC
     # manual executor tests drive.
     cancellation.cpp
     completion_queue.cpp
+    # Task combinators (issue #844): the aggregate error type and the exception_ptr inspection,
+    # both shared by the when_all/when_any awaiters.
+    combinators.cpp
     manual_executor.cpp
     clock.cpp
     config.cpp

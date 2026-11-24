@@ -139,6 +139,17 @@ public:
     // queue is full (the source stays live).
     bool cancel_after(Clock& clock, TimerQueue& timers, double seconds);
 
+    // Disarms an armed `cancel_after` deadline without cancelling the source (issue #844). The
+    // timeout helper calls it when the child wins the race: the deadline is moot, and leaving it
+    // armed would cancel a later operation on this source at a deadline nobody expects. A no-op
+    // when no deadline is armed.
+    void cancel_deadline();
+
+    // True once an armed `cancel_after` deadline elapsed and its timer callback ran (issue #844).
+    // This is how an awaiter racing a deadline tells "the deadline elapsed" from "someone called
+    // `cancel()`". Sticky: a re-armed deadline sets it again on its own fire.
+    [[nodiscard]] bool deadline_fired() const;
+
 private:
     std::shared_ptr<detail::CancellationState> state_;
 };

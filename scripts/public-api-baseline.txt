@@ -1530,6 +1530,41 @@ header include/tessera/runtime/clock.hpp
 class include/tessera/runtime/clock.hpp tessera::runtime::Clock
 class include/tessera/runtime/clock.hpp tessera::runtime::ManualClock
 
+header include/tessera/runtime/combinator_awaiters.hpp
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::CombinatorAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAllPackAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAllRangeAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAnyAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAnyValueAwaiter
+
+header include/tessera/runtime/combinator_states.hpp
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::TaskAggregateError
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::CombinatorState
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllRangeState
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllStateTyped
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyPackState
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyRangeState
+class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyStateBase
+struct include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllOutcome
+alias include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::DriverTask
+alias include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllResult
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::first_failure
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::is_task_cancelled
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::make_all_driver
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::make_all_range_driver
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::make_any_driver
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::make_any_value_driver
+function include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::take_slot
+constant include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::kNoWinner
+
+header include/tessera/runtime/combinators.hpp
+alias include/tessera/runtime/combinators.hpp tessera::runtime::WhenAllResult
+function include/tessera/runtime/combinators.hpp tessera::runtime::detail::rethrow_captured
+function include/tessera/runtime/combinators.hpp tessera::runtime::when_all
+function include/tessera/runtime/combinators.hpp tessera::runtime::when_all_range
+function include/tessera/runtime/combinators.hpp tessera::runtime::when_any
+function include/tessera/runtime/combinators.hpp tessera::runtime::when_any_range
+
 header include/tessera/runtime/config.hpp
 struct include/tessera/runtime/config.hpp tessera::RuntimeConfig
 struct include/tessera/runtime/config.hpp tessera::RuntimeConfigError
@@ -1618,14 +1653,27 @@ class include/tessera/runtime/system_clock.hpp tessera::runtime::SystemClock
 header include/tessera/runtime/task.hpp
 class include/tessera/runtime/task.hpp tessera::runtime::Task
 class include/tessera/runtime/task.hpp tessera::runtime::TaskAwaiter
-class include/tessera/runtime/task.hpp tessera::runtime::TaskCancelled
 class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskFinalAwaiter
 class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskPromiseBase
 class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskState
 class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskStateBase
-struct include/tessera/runtime/task.hpp tessera::runtime::TaskContext
 function include/tessera/runtime/task.hpp tessera::runtime::detail::attach_continuation
 function include/tessera/runtime/task.hpp tessera::runtime::detail::declare_no_resume
+
+header include/tessera/runtime/task_context.hpp
+class include/tessera/runtime/task_context.hpp tessera::runtime::TaskCancelled
+struct include/tessera/runtime/task_context.hpp tessera::runtime::TaskContext
+
+header include/tessera/runtime/task_time.hpp
+class include/tessera/runtime/task_time.hpp tessera::runtime::detail::DelayAwaiter
+class include/tessera/runtime/task_time.hpp tessera::runtime::detail::TimeoutAwaiter
+class include/tessera/runtime/task_time.hpp tessera::runtime::detail::TimeoutRace
+class include/tessera/runtime/task_time.hpp tessera::runtime::detail::TimerWait
+struct include/tessera/runtime/task_time.hpp tessera::runtime::TimedOut
+enum include/tessera/runtime/task_time.hpp tessera::runtime::TaskTimeError
+function include/tessera/runtime/task_time.hpp tessera::runtime::delay
+function include/tessera/runtime/task_time.hpp tessera::runtime::detail::drive_timeout_child
+function include/tessera/runtime/task_time.hpp tessera::runtime::timeout
 
 header include/tessera/runtime/timer_queue.hpp
 class include/tessera/runtime/timer_queue.hpp tessera::runtime::TimerQueue
