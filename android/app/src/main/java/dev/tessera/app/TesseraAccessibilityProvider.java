@@ -245,17 +245,51 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         // selection is a UTF-8 byte offset, while both platform values are UTF-16 offsets, so the
         // selection is passed as text for the same reason a `SetText` is - the bridge cannot do the
         // conversion without the buffer, and the engine already owns one.
-        // A selection request is not something the engine's Action vocabulary can express, so it is
-        // refused rather than accepted and ignored: `super` then answers with whatever this platform
-        // version does for it, and the screen reader is not told a caret move happened.
+        // A selection request is a caret move, and the engine already owns one: the IME's own path
+        // (`TesseraInputConnection`) sets it through `nativeSetSelection`, which converts UTF-16
+        // offsets to the buffer's UTF-8 bytes and publishes the painted decoration. Routing here
+        // through the same call means a screen reader's "select from here to here" and the user
+        // dragging a handle end in exactly the same engine state - two implementations would be two
+        // places to get the surrogate-pair arithmetic wrong.
         if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
-            return super.performAction(virtualViewId, action, arguments);
+            final int[] range = selectionRange(arguments);
+            if (range == null) {
+                // No usable start/end pair: fall back to the platform rather than moving the caret
+                // somewhere arbitrary.
+                return super.performAction(virtualViewId, action, arguments);
+            }
+            TesseraView.nativeSetSelection(nativeHandle, range[0], range[1]);
+            return true;
         }
         final String payload = payloadFor(action, arguments);
         if (nativePerformAction(nativeHandle, virtualViewId, action, payload)) {
             return true;
         }
         return super.performAction(virtualViewId, action, arguments);
+    }
+
+    /**
+     * The {@code (start, end)} UTF-16 range an {@code ACTION_SET_SELECTION} carries, or null.
+     *
+     * <p>The platform puts them under {@link AccessibilityNodeInfo#ACTION_ARGUMENT_SELECTION_START_INT}
+     * and {@code ..._END_INT}. Either being absent is "no request" rather than "zero": a caller that
+     * named only the start has asked for something this method will not invent an end for.
+     */
+    private static int[] selectionRange(Bundle arguments) {
+        if (arguments == null) {
+            return null;
+        }
+        if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
+                || !arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)) {
+            return null;
+        }
+        final int start =
+                arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, -1);
+        final int end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, -1);
+        if (start < 0 || end < 0) {
+            return null;
+        }
+        return new int[] {start, end};
     }
 
     @Override
