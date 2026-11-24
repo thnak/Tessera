@@ -256,9 +256,16 @@ void capture_paint_sample(PaintSamples& samples, const Node& scene_node,
 
 PaintSamples interpolate_paint_samples(const PaintSamples& previous, const PaintSamples& current,
                                        double alpha) {
+    PaintSamples result;
+    interpolate_paint_samples_into(result, previous, current, alpha);
+    return result;
+}
+
+void interpolate_paint_samples_into(PaintSamples& result, const PaintSamples& previous,
+                                    const PaintSamples& current, double alpha) {
+    result.clear();
     const float fraction =
         static_cast<float>(std::clamp(std::isfinite(alpha) ? alpha : 0.0, 0.0, 1.0));
-    PaintSamples result;
     for (const auto& [node, target] : current) {
         const PaintSample* source = nullptr;
         if (const auto found = previous.find(node); found != previous.end()) {
@@ -288,7 +295,6 @@ PaintSamples interpolate_paint_samples(const PaintSamples& previous, const Paint
         }
         result[node] = blended;
     }
-    return result;
 }
 
 } // namespace tessera::ui::frame

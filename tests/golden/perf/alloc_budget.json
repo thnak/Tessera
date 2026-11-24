@@ -68,11 +68,11 @@
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {
-          "budget": 11,
-          "measures": "A running CSS animation with nothing else dirty. NOT 0: each tick builds fresh sampled declarations, a paint-sample map node and an interpolation view map. 18 before #701 trimmed the keyframe sampler, transform parser and sample rotation."
+          "budget": 2,
+          "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick still returns its samples by value (the sample vector and each sample's declaration vector are built per tick); the paint samples, their blend and the view are reused buffers. 18 before #701."
         },
         "animated/paint-dirty": {
-          "budget": 11,
+          "budget": 2,
           "measures": "A running animation plus one paint-dirty node."
         }
       }

@@ -274,6 +274,7 @@ public:
         if (!enabled) {
             previous_samples_.clear();
             current_samples_.clear();
+            interpolated_valid_ = false;
         }
     }
     // Adaptive quality's effects position (#147): paint optional effects in their cheaper form.
@@ -328,6 +329,10 @@ private:
     mutable paint::BackgroundLayerCache background_layers_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
+    // The blend of the two for this tick, built once and borrowed by every paint view of the tick
+    // (a render builds up to three views), so a steady animation allocates nothing for it.
+    mutable PaintSamples interpolated_samples_;
+    mutable bool interpolated_valid_ = false;
     // Computed-style -> transitions/animations (issue #271). Mutable because `sync_style` is const
     // by contract (it resolves style, it does not change the frame decision) but the bridge has to
     // retain a per-node style snapshot between style stages.

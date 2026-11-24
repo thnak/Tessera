@@ -155,6 +155,7 @@ void FramePipeline::sample_started_animations(Node& root) {
             continue;
         }
         capture_paint_sample(current_samples_, *target, sample.declarations);
+        interpolated_valid_ = false;
         if (const auto captured = current_samples_.find(sample.target);
             captured != current_samples_.end() && !previous_samples_.contains(sample.target)) {
             previous_samples_[sample.target] = captured->second;

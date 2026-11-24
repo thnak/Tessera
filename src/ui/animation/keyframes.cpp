@@ -33,23 +33,28 @@ std::string trim(std::string_view value) {
 }
 
 NumericValue parse_numeric(std::string_view value) {
-    const std::string token = trim(value);
-    if (token.empty()) {
+    // strtod needs a terminated string; a stack copy keeps this off the heap for the usual short
+    // values (a heap string per sampled property per tick was an allocation each frame, #701).
+    value = tessera::detail::trim(value);
+    char token[64];
+    if (value.empty() || value.size() >= sizeof(token)) {
         return {};
     }
+    std::copy(value.begin(), value.end(), token);
+    token[value.size()] = '\0';
     char* end = nullptr;
-    const double number = std::strtod(token.c_str(), &end);
-    if (end == nullptr || end == token.c_str() || !std::isfinite(number)) {
+    const double number = std::strtod(token, &end);
+    if (end == nullptr || end == token || !std::isfinite(number)) {
         return {};
     }
 
-    const std::string unit = trim(std::string_view(end));
+    const std::string_view unit = tessera::detail::trim(std::string_view(end));
     for (const char c : unit) {
         if (std::isalpha(static_cast<unsigned char>(c)) == 0 && c != '%') {
             return {};
         }
     }
-    return NumericValue{number, unit, true};
+    return NumericValue{number, std::string(unit), true};
 }
 
 std::string format_number(double value) {
@@ -66,6 +71,33 @@ std::string format_number(double value) {
         result.pop_back();
     }
     return result.empty() ? "0" : result;
+}
+
+// Whether `value` can be a colour: a function other than the colour ones (a `translateX(...)`) is
+// not, and rejecting it here skips a parse that lowercases and copies the text twice per sampled
+// property per tick (#701).
+bool may_be_color(std::string_view value) {
+    value = tessera::detail::trim(value);
+    const std::size_t open = value.find('(');
+    if (open == std::string_view::npos) {
+        return true;
+    }
+    const std::string_view name = tessera::detail::trim(value.substr(0, open));
+    constexpr std::string_view kColorFunctions[] = {"rgb",  "rgba",       "hsl",
+                                                    "hsla", "light-dark", "color-mix"};
+    for (const std::string_view candidate : kColorFunctions) {
+        if (name.size() != candidate.size()) {
+            continue;
+        }
+        bool same = true;
+        for (std::size_t i = 0; i < name.size() && same; ++i) {
+            same = std::tolower(static_cast<unsigned char>(name[i])) == candidate[i];
+        }
+        if (same) {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::string interpolate_value(std::string_view property, std::string_view from, std::string_view to,
@@ -85,11 +117,13 @@ std::string interpolate_value(std::string_view property, std::string_view from, 
             return std::move(*gradient);
         }
     }
-    const style::ColorParseResult from_color = style::parse_color(from);
-    const style::ColorParseResult to_color = style::parse_color(to);
-    if (from_color.ok && to_color.ok) {
-        return style::format_color(
-            style::interpolate_color(from_color.color, to_color.color, static_cast<float>(t)));
+    if (may_be_color(from) && may_be_color(to)) {
+        const style::ColorParseResult from_color = style::parse_color(from);
+        const style::ColorParseResult to_color = style::parse_color(to);
+        if (from_color.ok && to_color.ok) {
+            return style::format_color(
+                style::interpolate_color(from_color.color, to_color.color, static_cast<float>(t)));
+        }
     }
 
     const NumericValue lhs = parse_numeric(from);

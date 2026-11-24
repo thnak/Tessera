@@ -31,9 +31,9 @@ Allocations per frame are gated separately by `tests/golden/perf/alloc_budget.js
 [ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)), per scene and scenario, with one table per compiler
 lane. MSVC Release today: idle frame 0 allocations (1 until an empty interpolation view stopped building a
 `std::map` each frame), paint-dirty 5-13 (32 before ASCII text skipped the bidi pass), layout-dirty 1 (203 until
-the layout input tree was retained and rewritten in place, #701), and a running animation 11 even when
-idle (18 before the keyframe sampler and transform parser stopped allocating maps and vectors; the rest is the
-per-tick sample strings and map nodes), against the spec's "no malloc in a steady-state frame" in
+the layout input tree was retained and rewritten in place, #701), and a running animation 2 even when
+idle (18 before the keyframe sampler, transform parser and paint-sample map stopped allocating; the two left are the
+per-tick sample vectors `AnimationRuntime::tick` returns by value), against the spec's "no malloc in a steady-state frame" in
 [`memory-model-v1.md`](../specs/memory-model-v1.md). The animation rows are the recorded gap to close, not a
 budget to relax.
 

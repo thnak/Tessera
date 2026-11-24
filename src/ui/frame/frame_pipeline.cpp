@@ -151,6 +151,8 @@ FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
 
 FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool interpolate) {
     alpha_ = std::isfinite(alpha) ? std::clamp(alpha, 0.0, 1.0) : 0.0;
+    interpolated_valid_ =
+        false; // the cached blend is per tick (samples and alpha both change here)
     interpolate_ = interpolate && config_.interpolation;
     damage_->clear();
     // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
@@ -258,8 +260,12 @@ InterpolationPaintView FramePipeline::interpolation_view() const {
     if (!interpolate_ || current_samples_.empty()) {
         return {};
     }
-    return InterpolationPaintView(
-        interpolate_paint_samples(previous_samples_, current_samples_, alpha_));
+    if (!interpolated_valid_) {
+        interpolate_paint_samples_into(interpolated_samples_, previous_samples_, current_samples_,
+                                       alpha_);
+        interpolated_valid_ = true;
+    }
+    return InterpolationPaintView(&interpolated_samples_);
 }
 
 void FramePipeline::invalidate_paint_cache() {
