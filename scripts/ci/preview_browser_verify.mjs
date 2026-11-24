@@ -24,7 +24,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { tab } from './studio_project.mjs';
+import { ensureProject, openPanel, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -115,6 +115,11 @@ const hasGpu = await page.evaluate(async () => {
   return adapter ? Boolean(await adapter.requestDevice()) : false;
 });
 check('WebGPU device is available', hasGpu);
+
+// The studio no longer boots with a project (#391), and Diagnostics' group starts collapsed (#431),
+// so both have to be opened before its status line exists to read (#849).
+await ensureProject(page);
+await openPanel(page, 'diagnostics');
 
 // 2. The diagnostics module compiles the sample, **with no click**: since issue #444 the first load
 //    applies itself once the module is ready, so the pane leaving "not run yet" is the acceptance

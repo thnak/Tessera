@@ -23,7 +23,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { editEntry, editSheet, ensureProject, tab } from './studio_project.mjs';
+import { editEntry, editSheet, ensureProject, openPanel, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -144,6 +144,9 @@ const hasGpu = await page.evaluate(async () => {
 check('WebGPU device is available', hasGpu);
 
 // The first load applies itself once the modules are ready (#444); wait for that before editing.
+// Diagnostics is not in the default layout - its group starts collapsed (#431) - so its status line
+// has to exist before it can be read (#849).
+await openPanel(page, 'diagnostics');
 await page.waitForFunction(
   () => {
     const text = document.querySelector('#diag-status')?.textContent ?? '';
