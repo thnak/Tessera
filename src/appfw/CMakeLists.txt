@@ -367,6 +367,22 @@ if (TESSERA_BUILD_TESTS)
     # opens a socket, reads a wall clock, sleeps or starts a thread. It links `tessera_runtime` for
     # `RuntimeLoop` (the "a pending request idles with zero presents" case drives the real loop) and
     # nothing else: there is no platform network library anywhere in this target.
+    # The loopback lane's server (issue #882, networking-v1 section 5). It is built always, not only
+    # in the opt-in lane: it depends on nothing but sockets, so building it costs a few milliseconds
+    # and its own tests run in normal CI. The lane gate is on the tests that drive a REAL back end,
+    # which is what needs a listening socket and a thread.
+    add_executable(appfw_loopback_server_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_loopback_server_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/support/loopback_server.cpp)
+    target_include_directories(appfw_loopback_server_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_compile_features(appfw_loopback_server_tests PRIVATE cxx_std_23)
+    if (WIN32)
+        # Winsock is the one platform library this helper needs; elsewhere the BSD sockets are in libc.
+        target_link_libraries(appfw_loopback_server_tests PRIVATE ws2_32)
+    endif ()
+    add_test(NAME appfw_loopback_server COMMAND appfw_loopback_server_tests)
+
     add_executable(appfw_net_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_main.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_state_tests.cpp
