@@ -15,6 +15,7 @@
 // not implemented. Transforms are not implemented either: an animated frame would change a
 // push-constant matrix, not an upload, which this tool does not exercise.
 
+#include "tessera/rendering/path/gpu_path_encoder.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/svg_loader.hpp"
@@ -102,16 +103,6 @@ struct LineStyle {
     float dash_offset = 0.0f;
 };
 
-[[nodiscard]] std::vector<float> normalized_dash(std::vector<float> pattern) {
-    if (pattern.size() % 2 == 1) {
-        const std::size_t count = pattern.size();
-        for (std::size_t i = 0; i < count; ++i) {
-            pattern.push_back(pattern[i]);
-        }
-    }
-    return pattern;
-}
-
 [[nodiscard]] path::PathShape stroked(path::Path geometry, path::Rgba8 color, float width,
                                       const LineStyle& style = {}) {
     path::PathShape shape;
@@ -126,32 +117,20 @@ struct LineStyle {
     return shape;
 }
 
-// The ThorVG-side scene description plus what the GPU needs to draw the same thing.
-struct GpuShape {
-    std::vector<float> contours; // x0 y0 x1 y1 per segment, closed contours back to back
-    std::uint32_t rgba = 0;
-    std::uint32_t rule = 0; // 0 non-zero, 1 even-odd
-    // > 0: `contours` is a stroke centerline (one segment per edge, in order) with this half width,
-    // expanded on the GPU; `open` puts a round cap at the end (the start has no previous vertex).
-    float half_width = 0.0f;
-    bool open = false;
-    // Several contours in one shape (an SVG path with subpaths): segments per contour, and whether
-    // each is open. Empty means one contour of every segment, open when `open` says so.
-    std::vector<std::uint32_t> contour_sizes;
-    std::vector<bool> contour_open;
-    std::vector<float> dash; // normalized on/off lengths (even count, at most 8); empty = solid
-    float dash_offset = 0.0f;
-    std::uint32_t join = 0; // 0 round, 1 bevel, 2 miter
-    std::uint32_t cap = 0;  // 0 round, 1 butt, 2 square
-    float miter_limit = 4.0f;
-};
+// The scene the GPU rasterizer draws: the production encoder's shape type, so the spike measures
+// the code the product runs.
+using GpuShape = path::GpuPathShape;
 
-[[nodiscard]] std::uint32_t join_code(path::LineJoin join) {
-    return join == path::LineJoin::round ? 0U : join == path::LineJoin::bevel ? 1U : 2U;
+[[nodiscard]] path::GpuJoin join_code(path::LineJoin join) {
+    return join == path::LineJoin::round   ? path::GpuJoin::round
+           : join == path::LineJoin::bevel ? path::GpuJoin::bevel
+                                           : path::GpuJoin::miter;
 }
 
-[[nodiscard]] std::uint32_t cap_code(path::LineCap cap) {
-    return cap == path::LineCap::round ? 0U : cap == path::LineCap::butt ? 1U : 2U;
+[[nodiscard]] path::GpuCap cap_code(path::LineCap cap) {
+    return cap == path::LineCap::round  ? path::GpuCap::round
+           : cap == path::LineCap::butt ? path::GpuCap::butt
+                                        : path::GpuCap::square;
 }
 
 // How the scene builders emit a stroke: false = ring contours on the CPU, true = GPU stroker.
@@ -159,12 +138,10 @@ bool g_gpu_stroke = true;
 // Drops the strokes from the sparse and dense scenes (for the affine comparison, see Motion).
 bool g_fills_only = false;
 
-struct Affine {
-    float a = 1.0f, b = 0.0f, c = 0.0f, d = 1.0f, e = 0.0f, f = 0.0f; // x' = a x + c y + e
-};
+using Affine = path::PathAffine;
 
 [[nodiscard]] path::PointF apply(const Affine& m, path::PointF p) {
-    return {m.a * p.x + m.c * p.y + m.e, m.b * p.x + m.d * p.y + m.f};
+    return m.apply(p);
 }
 
 struct SceneDescription {
@@ -173,8 +150,7 @@ struct SceneDescription {
 };
 
 [[nodiscard]] std::uint32_t pack(path::Rgba8 c) {
-    return static_cast<std::uint32_t>(c.r) | (static_cast<std::uint32_t>(c.g) << 8) |
-           (static_cast<std::uint32_t>(c.b) << 16) | (static_cast<std::uint32_t>(c.a) << 24);
+    return path::pack_rgba(c);
 }
 
 // Flattens the four-cubic blob into line segments; `reverse` flips the winding.
@@ -335,7 +311,7 @@ void add_polyline(SceneDescription& scene, const std::vector<Pt>& points, path::
     shape.join = join_code(style.join);
     shape.cap = cap_code(style.cap);
     shape.miter_limit = style.miter_limit;
-    shape.dash = normalized_dash(style.dash);
+    shape.dash = path::normalized_dash_pattern(style.dash);
     shape.dash_offset = style.dash_offset;
     if (!shape.dash.empty()) {
         geometry = dashed_path(shape, shape.dash_offset);
@@ -352,7 +328,7 @@ void add_dashed_blob(SceneDescription& scene, float cx, float cy, float r, path:
     flatten_blob(shape.contours, cx, cy, r, false);
     shape.half_width = width * 0.5f;
     shape.cap = cap_code(cap);
-    shape.dash = normalized_dash(std::move(dash));
+    shape.dash = path::normalized_dash_pattern(std::move(dash));
     shape.dash_offset = offset;
     LineStyle style;
     style.cap = cap;
@@ -468,386 +444,31 @@ void add_dashed_blob(SceneDescription& scene, float cx, float cy, float r, path:
 // ---- SVG route: the decoded document (ThorVG is the parser) -> the compute rasterizer's input
 // -------
 
-struct FlatContour {
-    std::vector<Pt> points;
-    bool closed = false;
-};
-
-// Flattens a path into polylines in device space. Curves split by Wang's bound for a chord error of
-// `tolerance` pixels; a repeated point is dropped (a zero-length segment has no direction, so it
-// could not carry a join).
-[[nodiscard]] std::vector<FlatContour> flatten_path(const path::Path& geometry, float tolerance) {
-    std::vector<FlatContour> result;
-    FlatContour current;
-    Pt at{0, 0}, start{0, 0};
-    const auto push = [&](Pt p) {
-        if (current.points.empty() ||
-            std::hypot(p.x - current.points.back().x, p.y - current.points.back().y) > 1e-4f) {
-            current.points.push_back(p);
-        }
-        at = p;
-    };
-    const auto begin_drawing = [&] {
-        if (current.points.empty()) {
-            current.points.push_back(at); // after a close, drawing resumes from the subpath start
-        }
-    };
-    const auto finish = [&] {
-        if (!current.points.empty()) {
-            result.push_back(std::move(current));
-        }
-        current = {};
-    };
-    const auto second_difference = [](Pt a, Pt b, Pt c) {
-        return std::hypot(a.x - 2 * b.x + c.x, a.y - 2 * b.y + c.y);
-    };
-    for (const path::PathSegment& segment : geometry.segments) {
-        switch (segment.kind) {
-        case path::SegmentKind::move_to:
-            finish();
-            at = start = {segment.p0.x, segment.p0.y};
-            current.points.push_back(at);
-            break;
-        case path::SegmentKind::line_to:
-            begin_drawing();
-            push({segment.p0.x, segment.p0.y});
-            break;
-        case path::SegmentKind::quad_to: {
-            begin_drawing();
-            const Pt p0 = at, c{segment.p0.x, segment.p0.y}, p1{segment.p1.x, segment.p1.y};
-            const int n = std::clamp(static_cast<int>(std::ceil(std::sqrt(
-                                         0.25f * second_difference(p0, c, p1) / tolerance))),
-                                     1, 64);
-            for (int i = 1; i <= n; ++i) {
-                const float t = static_cast<float>(i) / static_cast<float>(n), u = 1 - t;
-                push({u * u * p0.x + 2 * u * t * c.x + t * t * p1.x,
-                      u * u * p0.y + 2 * u * t * c.y + t * t * p1.y});
-            }
-            break;
-        }
-        case path::SegmentKind::cubic_to: {
-            begin_drawing();
-            const Pt p0 = at, c0{segment.p0.x, segment.p0.y}, c1{segment.p1.x, segment.p1.y},
-                     p1{segment.p2.x, segment.p2.y};
-            const float m = std::max(second_difference(p0, c0, c1), second_difference(c0, c1, p1));
-            const int n =
-                std::clamp(static_cast<int>(std::ceil(std::sqrt(0.75f * m / tolerance))), 1, 128);
-            for (int i = 1; i <= n; ++i) {
-                const float t = static_cast<float>(i) / static_cast<float>(n), u = 1 - t;
-                const float b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t;
-                push({b0 * p0.x + b1 * c0.x + b2 * c1.x + b3 * p1.x,
-                      b0 * p0.y + b1 * c0.y + b2 * c1.y + b3 * p1.y});
-            }
-            break;
-        }
-        case path::SegmentKind::close:
-            if (!current.points.empty()) {
-                current.closed = true;
-                finish();
-            }
-            at = start;
-            break;
-        }
-    }
-    finish();
-    return result;
-}
-
-// Appends the segments of `points` (closed back to the first point when `close`) to `out`.
-std::size_t add_segments(std::vector<float>& out, std::vector<Pt> points, bool close) {
-    if (close && points.size() > 1 &&
-        std::hypot(points.back().x - points[0].x, points.back().y - points[0].y) <= 1e-4f) {
-        points.pop_back(); // the closing segment would have no length
-    }
-    std::size_t count = 0;
-    for (std::size_t i = 0; i + 1 < points.size(); ++i) {
-        out.insert(out.end(), {points[i].x, points[i].y, points[i + 1].x, points[i + 1].y});
-        ++count;
-    }
-    if (close && points.size() > 1) {
-        out.insert(out.end(), {points.back().x, points.back().y, points[0].x, points[0].y});
-        ++count;
-    }
-    return count;
-}
-
-// One scene from decoded document shapes (already scaled to device pixels): a fill shape, then a
-// stroke shape, per source shape, in painter order, as the rasterizer composites them.
+// One scene from decoded document shapes (already scaled to device pixels), through the production
+// flattener, plus the shapes themselves as the ThorVG reference.
 [[nodiscard]] SceneDescription svg_scene(std::span<const path::PathShape> shapes) {
     SceneDescription scene;
     scene.reference.assign(shapes.begin(), shapes.end());
-    for (const path::PathShape& source : shapes) {
-        const std::vector<FlatContour> contours = flatten_path(source.path, 0.05f);
-        if (source.paint.fill) {
-            GpuShape fill;
-            fill.rgba = pack(*source.paint.fill);
-            fill.rule = source.path.fill_rule == path::FillRule::even_odd ? 1U : 0U;
-            for (const FlatContour& contour : contours) {
-                add_segments(fill.contours, contour.points, true); // a fill closes every subpath
-            }
-            if (!fill.contours.empty()) {
-                scene.gpu.push_back(std::move(fill));
-            }
-        }
-        if (source.paint.stroke) {
-            const path::StrokeStyle& style = *source.paint.stroke;
-            GpuShape stroke;
-            stroke.rgba = pack(style.color);
-            stroke.half_width = style.width * 0.5f;
-            stroke.join = join_code(style.join);
-            stroke.cap = cap_code(style.cap);
-            stroke.miter_limit = style.miter_limit;
-            for (const FlatContour& contour : contours) {
-                const std::size_t count =
-                    add_segments(stroke.contours, contour.points, contour.closed);
-                if (count > 0) {
-                    stroke.contour_sizes.push_back(static_cast<std::uint32_t>(count));
-                    stroke.contour_open.push_back(!contour.closed);
-                }
-            }
-            if (!stroke.contours.empty()) {
-                scene.gpu.push_back(std::move(stroke));
-            }
-        }
-    }
+    scene.gpu = path::gpu_scene_from_shapes(shapes, 0.05f).shapes;
     return scene;
 }
 
 // ---- GPU data
 // ------------------------------------------------------------------------------------
 
-struct Encoded {
-    std::vector<std::uint32_t> segs;    // fill edges
-    std::vector<std::uint32_t> strokes; // 16 words per stroke record (a segment, or a chunk of one)
-    std::vector<std::uint32_t> dashes;  // 12 words per path: count, offset, period, -, 8 lengths
-    std::vector<float> dash_base;       // each path's own offset, before any animation
-    std::vector<std::uint32_t> paths;   // 16 words per path, rewritten each animated frame
-    std::vector<std::array<float, 4>> local_boxes; // min x, min y, max x, max y in path space
-    std::vector<std::uint32_t> rules;
-    std::vector<std::uint32_t> colors;
-    std::uint32_t seg_count = 0; // fill edges + GPU-expanded stroke edges (bin threads)
-    std::uint32_t fill_count = 0;
-    std::uint32_t stroke_count = 0;
-    std::uint32_t stroke_edges = 0; // expanded edge slots over every record, pieces included
-    std::uint32_t arc_edges = 0;
-    std::uint32_t path_count = 0;
-    std::uint64_t row_nodes = 0; // upper bound on bin nodes: segment rows summed
-};
-
-[[nodiscard]] std::uint32_t bits(float value) {
-    std::uint32_t word = 0;
-    std::memcpy(&word, &value, sizeof(word));
-    return word;
-}
-
-// Arc edges per quarter-turn-ish rim: enough that the inscribed polygon stays within ~0.05 px of
-// the circle at the widest stroke of the scene.
-[[nodiscard]] std::uint32_t arc_edges_for(const SceneDescription& scene, float max_scale) {
-    float widest = 0.0f;
-    for (const GpuShape& shape : scene.gpu) {
-        widest =
-            std::max(widest, shape.half_width * max_scale); // a rim scaled up shows its corners
-    }
-    if (widest <= 0.0f) {
-        return 0;
-    }
-    const float step = std::acos(std::max(0.0f, 1.0f - 0.05f / widest)); // max angle per edge
-    const auto edges = static_cast<std::uint32_t>(std::ceil(3.14159265f / std::max(step, 0.01f)));
-    return std::clamp<std::uint32_t>(edges, 8, 64);
-}
-
-// Rewrites the per-path records for one frame: the affine, and the device-space box that bounds the
-// transformed local box (the fine pass skips a pixel outside it). An empty `matrices` is identity.
-void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uint32_t width,
-                 std::uint32_t height) {
-    encoded.paths.assign(static_cast<std::size_t>(encoded.path_count) * 16, 0);
-    for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
-        const Affine m = matrices.empty() ? Affine{} : matrices[p];
-        const auto& box = encoded.local_boxes[p];
-        float min_x = 1e30f, min_y = 1e30f, max_x = -1e30f, max_y = -1e30f;
-        for (const path::PointF corner :
-             {path::PointF{box[0], box[1]}, path::PointF{box[2], box[1]},
-              path::PointF{box[2], box[3]}, path::PointF{box[0], box[3]}}) {
-            const path::PointF q = apply(m, corner);
-            min_x = std::min(min_x, q.x);
-            max_x = std::max(max_x, q.x);
-            min_y = std::min(min_y, q.y);
-            max_y = std::max(max_y, q.y);
-        }
-        const auto clamp_to = [](float v, std::uint32_t limit) {
-            return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
-        };
-        std::uint32_t* record = &encoded.paths[static_cast<std::size_t>(p) * 16];
-        record[0] = bits(m.a);
-        record[1] = bits(m.b);
-        record[2] = bits(m.c);
-        record[3] = bits(m.d);
-        record[4] = bits(m.e);
-        record[5] = bits(m.f);
-        record[6] = encoded.rules[p];
-        record[7] = encoded.colors[p];
-        record[8] = clamp_to(std::floor(min_x) - 1, width);
-        record[9] = clamp_to(std::floor(min_y) - 1, height);
-        record[10] = clamp_to(std::ceil(max_x) + 1, width);
-        record[11] = clamp_to(std::ceil(max_y) + 1, height);
-        record[12] =
-            (m.a == 1.0f && m.b == 0.0f && m.c == 0.0f && m.d == 1.0f && m.e == 0.0f && m.f == 0.0f)
-                ? 1U
-                : 0U;
-    }
-}
+using Encoded = path::EncodedGpuScene;
 
 [[nodiscard]] Encoded encode(const SceneDescription& scene, std::uint32_t width,
                              std::uint32_t height, float max_scale) {
-    Encoded result;
-    result.arc_edges = arc_edges_for(scene, max_scale);
-    const std::uint32_t stride = 7 + 2 * (result.arc_edges + 2);
-    for (std::size_t p = 0; p < scene.gpu.size(); ++p) {
-        const GpuShape& shape = scene.gpu[p];
-        float min_x = 1e30f, min_y = 1e30f, max_x = -1e30f, max_y = -1e30f;
-        if (shape.half_width > 0.0f) {
-            const float hw = shape.half_width;
-            const std::size_t total = shape.contours.size() / 4;
-            struct Range {
-                std::size_t first, count;
-                bool open;
-            };
-            std::vector<Range> ranges;
-            if (shape.contour_sizes.empty()) {
-                ranges.push_back({0, total, shape.open});
-            } else {
-                std::size_t at = 0;
-                for (std::size_t k = 0; k < shape.contour_sizes.size(); ++k) {
-                    ranges.push_back({at, shape.contour_sizes[k], shape.contour_open[k]});
-                    at += shape.contour_sizes[k];
-                }
-            }
-            // Dashed: cut every segment into chunks no longer than one pattern period, so a chunk
-            // holds at most (on entries + 1) dashes and every record has a fixed number of piece
-            // slots. The cut does not depend on the offset, so animating the offset re-encodes
-            // nothing.
-            float period = 0.0f;
-            for (const float v : shape.dash) {
-                period += v;
-            }
-            const std::uint32_t pieces =
-                shape.dash.empty() ? 1U : static_cast<std::uint32_t>(shape.dash.size() / 2 + 1);
-            struct Chunk {
-                float x0, y0, x1, y1, start;
-            };
-            for (const Range& range : ranges) {
-                if (range.count == 0) {
-                    continue;
-                }
-                std::vector<Chunk> chunks;
-                float length_so_far = 0.0f;
-                for (std::size_t i = range.first; i < range.first + range.count; ++i) {
-                    const float* s = &shape.contours[i * 4];
-                    const float length = std::hypot(s[2] - s[0], s[3] - s[1]);
-                    const std::size_t parts =
-                        period > 0.0f ? std::max<std::size_t>(
-                                            1, static_cast<std::size_t>(std::ceil(length / period)))
-                                      : 1;
-                    for (std::size_t part = 0; part < parts; ++part) {
-                        const float t0 = static_cast<float>(part) / static_cast<float>(parts);
-                        const float t1 = static_cast<float>(part + 1) / static_cast<float>(parts);
-                        chunks.push_back({s[0] + (s[2] - s[0]) * t0, s[1] + (s[3] - s[1]) * t0,
-                                          s[0] + (s[2] - s[0]) * t1, s[1] + (s[3] - s[1]) * t1,
-                                          length_so_far + length * t0});
-                    }
-                    length_so_far += length;
-                }
-                for (std::size_t i = 0; i < chunks.size(); ++i) {
-                    const Chunk& c = chunks[i];
-                    const bool closed = !range.open;
-                    const bool has_prev = closed || i > 0;
-                    const Chunk& before = i > 0 ? chunks[i - 1] : chunks.back();
-                    const bool last = i + 1 == chunks.size();
-                    const std::uint32_t flags = (range.open && last ? 1U : 0U) |
-                                                (has_prev ? 2U : 0U) | (i == 0 ? 4U : 0U) |
-                                                (last ? 8U : 0U);
-                    result.strokes.insert(result.strokes.end(),
-                                          {bits(c.x0), bits(c.y0), bits(c.x1), bits(c.y1),
-                                           static_cast<std::uint32_t>(p), bits(hw), flags,
-                                           shape.join, bits(before.x0), bits(before.y0),
-                                           bits(shape.miter_limit), shape.cap, bits(c.start),
-                                           result.stroke_edges, pieces, 0});
-                    result.stroke_edges += pieces * stride;
-                    min_x = std::min({min_x, c.x0, c.x1});
-                    max_x = std::max({max_x, c.x0, c.x1});
-                    min_y = std::min({min_y, c.y0, c.y1});
-                    max_y = std::max({max_y, c.y0, c.y1});
-                    // Rows the expanded edges can cross: the two long body edges, the two short
-                    // ones, and two wedges each walking the rim up and down, for each dash piece.
-                    const float dy = std::abs(c.y1 - c.y0);
-                    const float rows =
-                        2 * (dy + 2) + 2 * (2 * hw + 2) +
-                        2 * (2 * (2 * hw + 2) + static_cast<float>(result.arc_edges) + 2);
-                    // A miter tip can reach hw * miter_limit past the vertex: widen the row bound.
-                    const float reach =
-                        shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f) : hw;
-                    result.row_nodes +=
-                        static_cast<std::uint64_t>((rows + 4 * reach) * static_cast<float>(pieces));
-                    ++result.stroke_count;
-                }
-            }
-            // A miter tip or a square cap reaches past hw: the box must hold it.
-            const float reach = shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f)
-                                                : (shape.cap == 2 ? hw * 1.4143f : hw);
-            min_x -= reach + 1;
-            min_y -= reach + 1;
-            max_x += reach + 1;
-            max_y += reach + 1;
-            result.local_boxes.push_back({min_x, min_y, max_x, max_y});
-            result.rules.push_back(shape.rule);
-            result.colors.push_back(shape.rgba);
-            ++result.path_count;
-            continue;
-        }
-        for (std::size_t i = 0; i + 3 < shape.contours.size(); i += 4) {
-            const float* s = &shape.contours[i];
-            result.segs.insert(result.segs.end(), {bits(s[0]), bits(s[1]), bits(s[2]), bits(s[3]),
-                                                   static_cast<std::uint32_t>(p), 0, 0, 0});
-            min_x = std::min({min_x, s[0], s[2]});
-            max_x = std::max({max_x, s[0], s[2]});
-            min_y = std::min({min_y, s[1], s[3]});
-            max_y = std::max({max_y, s[1], s[3]});
-            const float rows = std::ceil(std::max(s[1], s[3])) - std::floor(std::min(s[1], s[3]));
-            result.row_nodes += static_cast<std::uint64_t>(std::max(rows, 1.0f));
-            ++result.fill_count;
-        }
-        result.local_boxes.push_back({min_x, min_y, max_x, max_y});
-        result.rules.push_back(shape.rule);
-        result.colors.push_back(shape.rgba);
-        ++result.path_count;
-    }
-    result.seg_count = result.fill_count + result.stroke_edges;
-    result.dashes.assign(static_cast<std::size_t>(result.path_count) * 12, 0);
-    result.dash_base.assign(result.path_count, 0.0f);
-    for (std::size_t p = 0; p < scene.gpu.size(); ++p) {
-        const std::vector<float>& pattern = scene.gpu[p].dash;
-        if (pattern.empty()) {
-            continue;
-        }
-        float period = 0.0f;
-        std::uint32_t* record = &result.dashes[p * 12];
-        record[0] = static_cast<std::uint32_t>(pattern.size());
-        for (std::size_t i = 0; i < pattern.size() && i < 8; ++i) {
-            record[4 + i] = bits(pattern[i]);
-            period += pattern[i];
-        }
-        record[2] = bits(period);
-        result.dash_base[p] = scene.gpu[p].dash_offset;
-        record[1] = bits(scene.gpu[p].dash_offset);
-    }
-    write_paths(result, {}, width, height);
-    return result;
+    return path::encode_gpu_scene(path::GpuPathScene{scene.gpu}, width, height, max_scale);
 }
 
-struct PushBlock {
-    std::uint32_t width, height, path_count, seg_count, node_capacity, nodes_base, fill_count,
-        exp_base, stroke_count, arc_edges, pad0, pad1;
-};
+void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uint32_t width,
+                 std::uint32_t height) {
+    path::write_path_records(encoded, matrices, width, height);
+}
+
+using PushBlock = path::PathRasterPush;
 
 double percentile(std::vector<double> values, double q) {
     std::sort(values.begin(), values.end());
@@ -954,13 +575,13 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
         std::chrono::duration<double, std::milli>(Clock::now() - encode_begin).count();
     say("  CPU encode (flattened segments -> packed, full re-encode): %.3f ms\n", encode_ms);
 
-    const std::uint64_t node_capacity =
-        static_cast<std::uint64_t>(static_cast<double>(encoded.row_nodes) *
-                                   motion_max_scale(motion)) +
-        1024;
-    const std::uint32_t nodes_base = 1 + encoded.path_count * options.height;
-    const std::uint32_t exp_base = static_cast<std::uint32_t>(nodes_base + node_capacity * 2);
-    const std::size_t work_words = exp_base + static_cast<std::size_t>(encoded.stroke_edges) * 8;
+    const auto layout =
+        path::plan_path_raster(encoded, options.width, options.height, 0, motion_max_scale(motion));
+    if (!layout) {
+        throw std::runtime_error("the scene does not fit the rasterizer's 32-bit indices");
+    }
+    const std::uint32_t nodes_base = layout->push.nodes_base;
+    const std::size_t work_words = layout->work_words;
     say("\n[%s: %zu paths, %u fill + %u stroke segments (%u expanded edges), %llu row nodes]\n",
         name, scene.gpu.size(), encoded.fill_count, encoded.stroke_count, encoded.stroke_edges,
         static_cast<unsigned long long>(encoded.row_nodes));
@@ -1013,18 +634,7 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
     const auto bin = make_pipeline(kBinSpv, sizeof(kBinSpv));
     const auto fine = make_pipeline(kFineSpv, sizeof(kFineSpv));
 
-    const PushBlock push{options.width,
-                         options.height,
-                         encoded.path_count,
-                         encoded.seg_count,
-                         static_cast<std::uint32_t>(node_capacity),
-                         nodes_base,
-                         encoded.fill_count,
-                         exp_base,
-                         encoded.stroke_count,
-                         encoded.arc_edges,
-                         0,
-                         0};
+    const PushBlock push = layout->push;
     const auto record = [&](rhi::CommandList& list, bool with_copy) {
         const auto bind_all = [&](const rhi::ComputePipeline& pipeline) {
             list.bind_compute_pipeline(pipeline);
@@ -1103,8 +713,8 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
         std::uint32_t used = 0;
         counter_readback->read(&used, 4);
         say("  %sbin nodes used %u of %llu%s\n", label, used,
-            static_cast<unsigned long long>(node_capacity),
-            used > node_capacity ? "  OVERFLOW" : "");
+            static_cast<unsigned long long>(layout->push.node_capacity),
+            used > layout->push.node_capacity ? "  OVERFLOW" : "");
         if (!have_thorvg) {
             say("  ThorVG unavailable in this build: no pixel comparison\n");
             return;
@@ -1183,12 +793,8 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
     constexpr float kDashSpeed = 2.5f;
     const auto upload_frame = [&](int frame) {
         if (motion == Motion::dash) {
-            for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
-                if (encoded.dashes[static_cast<std::size_t>(p) * 12] != 0) {
-                    encoded.dashes[static_cast<std::size_t>(p) * 12 + 1] =
-                        bits(encoded.dash_base[p] + kDashSpeed * static_cast<float>(frame));
-                }
-            }
+            std::vector<float> phase(encoded.path_count, kDashSpeed * static_cast<float>(frame));
+            path::write_dash_offsets(encoded, phase);
             dash_buffer->write(encoded.dashes.data(),
                                encoded.dashes.size() * sizeof(std::uint32_t));
             return;

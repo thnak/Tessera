@@ -101,7 +101,7 @@ sampled-texture/sampler split at bindings 1 and 2 (section 3, section 8).
 | `manifestVersion` | yes | `1` |
 | `name` | yes | Unique logical shader name |
 | `kind` | no | `element` (default) or `view-transition-effect`; see section 3.1 |
-| `stages` | yes | `vertex`, `fragment`, `compute` (compute optional) |
+| `stages` | yes | `vertex`, `fragment`, or `compute` alone (a compute shader is its own entry; section 8) |
 | `entry` | no | Defaults to `main` per stage |
 | `sources.vulkan` | yes | GLSL stage files; compiled by `glslc` |
 | `sources.webgpu` | yes (see note) | WGSL file(s); required for WebGPU/designer, optional for Vulkan-only elements |
@@ -297,8 +297,11 @@ lane adds the artifact-level checks; it is not what proves parity.
 ## 8. Open questions
 
 - Single-source (Slang/Tint/naga) migration; see [ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md).
-- Compute shaders are not in V1: the `compute` stage value stays reserved and validation rejects
-  it with `compute_stage_unsupported` until a core compute consumer exists (section 9).
+- Compute shaders: accepted as of RHI 1.16 / [ADR-071](../../decisions/ADR-071-gpu-compute-tile-rasterizer.md),
+  because the GPU path rasterizer (`path_raster`) is a core consumer. A compute entry has the single
+  stage `compute`, no `vertexLayout`, `storage_buffer` bindings and push constants; combining it with a
+  graphics stage is `compute_stage_unsupported` (section 9). Pass variants selected by a define (the
+  rasterizer's four passes) stay a build rule, not a manifest field; WGSL twins are not authored yet.
 - Reflection for WGSL in the browser build.
 - Shader variant matrix (quality/power modes).
 - Per-backend entry names. The schema has one `entry` map per stage, but the batched2d WGSL twin
@@ -332,8 +335,9 @@ Rules:
   types, duplicate JSON keys, trailing content, malformed escapes, invalid UTF-8, and non-finite or
   out-of-range numbers are errors.
 - `manifestVersion` must be the integer `1`; anything else is `unsupported_version`.
-- `stages` accepts `vertex` and `fragment`. `compute` is reserved and rejected with
-  `compute_stage_unsupported` (section 8); unknown tokens and duplicate stages are errors.
+- `stages` accepts `vertex`, `fragment` and `compute`. `compute` must be the only stage; next to a
+  graphics stage it is rejected with `compute_stage_unsupported` at the compute element (section 8);
+  unknown tokens and duplicate stages are errors.
 - `entry` keys must name declared stages; omitted stages default to `main`.
 - Source names are bare file names (no `/`, `\`, drive letter, or `..`); `sources.vulkan` is
   required. Golden paths are project-relative.

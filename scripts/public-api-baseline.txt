@@ -1354,6 +1354,31 @@ header include/tessera/rendering/null/null_swapchain.hpp
 class include/tessera/rendering/null/null_swapchain.hpp tessera::rendering::null::NullSwapchain
 struct include/tessera/rendering/null/null_swapchain.hpp tessera::rendering::null::NullSwapchainStats
 
+header include/tessera/rendering/path/gpu_path_encoder.hpp
+struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::EncodedGpuScene
+struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::PathRasterLayout
+struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::PathRasterPush
+function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::encode_gpu_scene
+function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::plan_path_raster
+function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::write_dash_offsets
+function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::write_path_records
+constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuDashWords
+constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuPathWords
+constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuSegWords
+constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuStrokeWords
+
+header include/tessera/rendering/path/gpu_path_scene.hpp
+struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuPathScene
+struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuPathShape
+struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::PathAffine
+enum include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuCap
+enum include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuFillRule
+enum include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuJoin
+function include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::gpu_scene_from_shapes
+function include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::normalized_dash_pattern
+function include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::pack_rgba
+constant include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::kGpuMaxDashEntries
+
 header include/tessera/rendering/path/path_model.hpp
 struct include/tessera/rendering/path/path_model.hpp tessera::rendering::path::PaintStyle
 struct include/tessera/rendering/path/path_model.hpp tessera::rendering::path::Path
@@ -1506,6 +1531,12 @@ function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::render
 
 header include/tessera/rendering/vulkan/glass_blur_pipeline.hpp
 function include/tessera/rendering/vulkan/glass_blur_pipeline.hpp tessera::rendering::vulkan::glass_blur_pipeline_desc
+
+header include/tessera/rendering/vulkan/path_raster_pipeline.hpp
+enum include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::PathRasterPass
+function include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::path_raster_pipeline_desc
+constant include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::kPathRasterPushBytes
+constant include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::kPathRasterStorageBuffers
 
 header include/tessera/rendering/vulkan/storage_probe_pipeline.hpp
 function include/tessera/rendering/vulkan/storage_probe_pipeline.hpp tessera::rendering::vulkan::storage_probe_pipeline_desc

@@ -81,6 +81,26 @@ subgroups), and Metal and lavapipe both provide compute.
   (ADR-068, #673), conic gradients for dials (#617), glyph outlines.
 - Per-frame budget gates (frame time and bytes uploaded) keep the claim measured.
 
+## Production pieces (2026-11-24)
+
+The consumer-side groundwork is in the tree, behind `supports_compute()`, with no caller in the
+renderer yet:
+
+- `path_raster` in the shader manifest (compute stage, accepted alone; see
+  [shader-manifest-v1.md](../docs/specs/shader-manifest-v1.md) section 8) and
+  `src/rendering/backend/vulkan/shaders/path_raster.comp`, four passes selected by a define, exposed
+  by `vulkan::path_raster_pipeline_desc(PathRasterPass)`. The output row stride is a push constant
+  (`out_stride`), so the buffer can be laid out for `copy_buffer_to_texture` (ADR-072).
+- `path::gpu_scene_from_shapes`, `encode_gpu_scene`, `write_path_records`, `write_dash_offsets` and
+  `plan_path_raster` (`include/tessera/rendering/path/gpu_path_*.hpp`): the CPU half, pure data and
+  unit-tested without a device (`gpu_path_encoder`). The spike now links it, so its ThorVG
+  comparison measures the production encoder (same diffs as before the move).
+- `path_raster_gpu`: shapes -> encoder -> four passes -> `copy_buffer_to_texture` -> drawn texture,
+  on a real device, with a padded copy pitch.
+
+Still open: the renderer-side recorder that owns the buffers and dispatches the passes, the
+`PathTextureCache` GPU path and its CPU fallback policy, and the WebGPU port of the shader.
+
 ## Alternatives, to be measured on the same 4K scenes
 
 | option | expected problem | status |

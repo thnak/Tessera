@@ -36,6 +36,11 @@ void test_stage_rules(Checker& checker) {
                                                       R"("stages":["vertex","compute"])")),
         ValidationErrorCode::ComputeStageUnsupported, "$.shaders[0].stages[1]",
         "compute stage is rejected for an element");
+    expect_ok(
+        checker,
+        tessera::schema::parse_manifest(
+            R"json({"manifestVersion":1,"shaders":[{"name":"c","stages":["compute"],"entry":{"compute":"main"},"sources":{"vulkan":["c.comp"]},"bindings":[{"group":0,"binding":0,"type":"storage_buffer","name":"b"}],"tests":[{"name":"smoke"}]}]})json"),
+        "a compute-only shader with a storage binding");
     expect_error(
         checker,
         tessera::schema::parse_manifest(replace_first(kElement, R"("stages":["vertex","fragment"])",

@@ -1,5 +1,6 @@
 #version 450
-// GPU compute path rasterizer spike (ADR-071 evidence, issue #683). Fill only, scanline-binned.
+// GPU compute path rasterizer (ADR-071, issue #683): fills and GPU-expanded strokes, scanline-binned.
+// The CPU side is src/rendering/path/gpu_path_encoder.cpp, which defines every buffer layout below.
 //
 // One source, four passes selected by a define:
 //   PASS_CLEAR  work[0] = 0 (node counter), every row head = 0xFFFFFFFF.
@@ -48,7 +49,8 @@ layout(push_constant) uniform Push {
     uint exp_base;     // first word of the GPU-expanded stroke segments inside work
     uint stroke_count;
     uint arc_edges;    // J: arc edges per join wedge or cap (a full circle is 2 * J)
-    uint pad0;
+    uint out_stride;   // words between output rows: width, or the copy pitch / 4 for a texture handoff
+    uint spare;
 } pc;
 
 const uint kNil = 0xFFFFFFFFu;
@@ -473,6 +475,6 @@ void main() {
     }
     vec3 rgb = dst.a > 0.0 ? dst.rgb / dst.a : vec3(0.0);
     uvec4 q = uvec4(clamp(vec4(rgb, dst.a) * 255.0 + 0.5, 0.0, 255.0));
-    pixels[y * pc.width + x] = q.r | (q.g << 8) | (q.b << 16) | (q.a << 24);
+    pixels[y * pc.out_stride + x] = q.r | (q.g << 8) | (q.b << 16) | (q.a << 24);
 }
 #endif

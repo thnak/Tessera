@@ -9,6 +9,9 @@ if (NOT Vulkan_GLSLC_EXECUTABLE)
     message(FATAL_ERROR "compute_raster spike needs glslc (Vulkan SDK)")
 endif()
 
+# The production shader (it moved to the Vulkan backend with the manifest entry `path_raster`); the
+# spike keeps compiling its own copies of the four passes into this directory.
+set(SPIKE_SHADER ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders/path_raster.comp)
 set(SPIKE_GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${SPIKE_GEN})
 set(SPIKE_HEADERS)
@@ -18,8 +21,8 @@ foreach (pass IN ITEMS CLEAR STROKE BIN FINE)
     add_custom_command(
         OUTPUT ${header}
         COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3 -DPASS_${pass}=1
-                ${CMAKE_CURRENT_SOURCE_DIR}/raster.comp -o ${header}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/raster.comp
+                ${SPIKE_SHADER} -o ${header}
+        DEPENDS ${SPIKE_SHADER}
         COMMENT "glslc raster.comp (${pass})"
         VERBATIM)
     list(APPEND SPIKE_HEADERS ${header})

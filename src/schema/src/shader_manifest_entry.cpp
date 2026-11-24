@@ -61,11 +61,17 @@ std::expected<void, ValidationError> parse_stages(const JsonValue& value, std::s
         if (!stage) {
             return fail(ValidationErrorCode::UnknownStage, item_path, "unknown stage");
         }
-        if (*stage == ShaderStage::Compute) {
-            return fail(ValidationErrorCode::ComputeStageUnsupported, item_path,
-                        "compute stages are not in V1");
-        }
         entry.stages.push_back(*stage);
+    }
+    // A compute shader is its own entry (ADR-072, the GPU path rasterizer): it has no vertex layout
+    // or render pass, so it cannot share an entry with a graphics stage.
+    if (entry.stages.size() > 1) {
+        for (std::size_t index = 0; index < entry.stages.size(); ++index) {
+            if (entry.stages[index] == ShaderStage::Compute) {
+                return fail(ValidationErrorCode::ComputeStageUnsupported, element_path(path, index),
+                            "a compute stage cannot be combined with graphics stages");
+            }
+        }
     }
     return {};
 }
@@ -80,9 +86,8 @@ std::expected<void, ValidationError> parse_entry_points(const JsonValue& value,
     for (const auto& member : *members) {
         const std::string item_path = member_path(path, member.first);
         const auto stage = stage_from_token(member.first);
-        const bool declared =
-            stage && *stage != ShaderStage::Compute &&
-            std::find(entry.stages.begin(), entry.stages.end(), *stage) != entry.stages.end();
+        const bool declared = stage && std::find(entry.stages.begin(), entry.stages.end(),
+                                                 *stage) != entry.stages.end();
         if (!declared) {
             return fail(ValidationErrorCode::EntryStageNotDeclared, item_path,
                         "entry key is not a declared stage");
