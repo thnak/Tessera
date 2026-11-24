@@ -30,17 +30,28 @@ using tessera::runtime::TimerQueue;
 using tessera::task_test::CompletionPriority;
 using tessera::task_test::CompletionQueue;
 using tessera::task_test::context;
+using tessera::task_test::expect;
+using tessera::task_test::pump;
 using tessera::task_test::Task;
 using tessera::task_test::TaskCancelled;
 using tessera::task_test::TaskContext;
 
-int failures = 0;
+// True when the queue has nothing pending: no continuation, no completion. Every test block
+// asserts this at the end, so a combinator can never leave work behind.
+bool drained(CompletionQueue& queue) {
+    return queue.empty() && queue.stats().pending_continuations == 0;
+}
 
-void expect(bool condition, std::string_view message) {
-    if (!condition) {
-        std::cerr << "FAIL: " << message << "\n";
-        ++failures;
-    }
+// Parks on a far deadline: the ManualClock never reaches it here, so only a cancellation can end
+// the wait. The context needs the clock and the timer queue.
+Task<void> park_on_delay(TaskContext ctx) {
+    (void)co_await delay(ctx, 1000.0);
+}
+
+// A parent suspended on a parked child: the shape the eager-cancellation wakeup exists for. The
+// parent's own context is unnamed, because the body only reads the child's.
+Task<void> root_parked_child(TaskContext, TaskContext child_ctx) {
+    co_await park_on_delay(child_ctx);
 }
 
 Task<int> number(TaskContext, int value) {
@@ -60,16 +71,8 @@ Task<void> marking(TaskContext, bool& flag) {
     co_return;
 }
 
-Task<void> park_on_delay(TaskContext ctx) {
-    (void)co_await delay(ctx, 1000.0);
-}
-
 TaskContext time_context(CompletionQueue& queue, ManualClock& clock, TimerQueue& timers) {
     return TaskContext{&queue, CompletionPriority::Visible, {}, &clock, &timers};
-}
-
-bool drained(const CompletionQueue& queue) {
-    return queue.empty() && queue.stats().pending_continuations == 0;
 }
 
 Task<void> root_delay_deadline(TaskContext ctx) {
@@ -97,12 +100,6 @@ Task<void> root_timeout_deadline_wins(TaskContext ctx, Task<void> child,
 Task<void> root_timeout_child_fails(TaskContext ctx, Task<int> child,
                                     CancellationSource& child_source) {
     (void)co_await timeout(ctx, std::move(child), child_source, 5.0);
-}
-
-// A parent suspended on a parked child: the shape the eager-cancellation wakeup exists for. The
-
-Task<void> root_parked_child(TaskContext, TaskContext child_ctx) {
-    co_await park_on_delay(child_ctx);
 }
 
 void rethrow_root_exception(const Task<void>& task) {

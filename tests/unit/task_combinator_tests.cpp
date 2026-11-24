@@ -66,12 +66,6 @@ Task<int> slow_double(TaskContext ctx, int value, bool& done) {
     co_return second;
 }
 
-// Parks on a far deadline: the ManualClock never reaches it here, so only a cancellation can end
-// the wait. The context needs the clock and the timer queue.
-Task<void> park_on_delay(TaskContext ctx) {
-    (void)co_await delay(ctx, 1000.0);
-}
-
 // The "no task left live" assertion every test block ends with.
 bool drained(const CompletionQueue& queue) {
     return queue.empty() && queue.stats().pending_continuations == 0;
