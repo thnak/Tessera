@@ -69,7 +69,12 @@ if (TESSERA_BUILD_TESTS)
     # unknown name is refused by both lists, and only the form page claims a CSS module. It needs no
     # GPU, so it runs on every lane - which matters because it is the test that catches the drift a
     # second list would introduce.
-    add_executable(gallery_page_table_tests page_table_tests.cpp)
+    # `page_table.hpp` includes the generated page headers, so this target must not start
+    # compiling before they exist. Listing the outputs in `add_executable` is what tells CMake
+    # that - the `gallery` target above does exactly that, and omitting it here left the test
+    # compiling against a directory the custom command had not written yet (#900). The include
+    # directory alone is not a dependency: it names where to look, not when the files appear.
+    add_executable(gallery_page_table_tests page_table_tests.cpp ${_gallery_outputs})
     # The page types are generated components: a Form page pulls in the text-input runtime even
     # though the test never types, because the table instantiates every page's Scene.
     target_link_libraries(gallery_page_table_tests PRIVATE tessera_scene tessera_text_edit
