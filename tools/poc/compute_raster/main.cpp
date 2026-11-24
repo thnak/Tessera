@@ -20,6 +20,7 @@
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -133,6 +134,16 @@ struct GpuShape {
 
 // How the scene builders emit a stroke: false = ring contours on the CPU, true = GPU stroker.
 bool g_gpu_stroke = true;
+// Drops the strokes from the sparse and dense scenes (for the affine comparison, see Motion).
+bool g_fills_only = false;
+
+struct Affine {
+    float a = 1.0f, b = 0.0f, c = 0.0f, d = 1.0f, e = 0.0f, f = 0.0f; // x' = a x + c y + e
+};
+
+[[nodiscard]] path::PointF apply(const Affine& m, path::PointF p) {
+    return {m.a * p.x + m.c * p.y + m.e, m.b * p.x + m.d * p.y + m.f};
+}
 
 struct SceneDescription {
     std::vector<path::PathShape> reference;
@@ -188,6 +199,9 @@ void add_fill_blob(SceneDescription& scene, float cx, float cy, float r, path::R
 
 void add_stroke_ring(SceneDescription& scene, float cx, float cy, float r, path::Rgba8 color,
                      float width) {
+    if (g_fills_only) {
+        return;
+    }
     scene.reference.push_back(stroked(blob_path(cx, cy, r), color, width));
     GpuShape shape;
     shape.rgba = pack(color);
@@ -318,7 +332,10 @@ void add_polyline(SceneDescription& scene, const std::vector<Pt>& points, path::
 struct Encoded {
     std::vector<std::uint32_t> segs;    // fill edges
     std::vector<std::uint32_t> strokes; // 12 words per stroke segment
-    std::vector<std::uint32_t> paths;
+    std::vector<std::uint32_t> paths;   // 16 words per path, rewritten each animated frame
+    std::vector<std::array<float, 4>> local_boxes; // min x, min y, max x, max y in path space
+    std::vector<std::uint32_t> rules;
+    std::vector<std::uint32_t> colors;
     std::uint32_t seg_count = 0; // fill edges + GPU-expanded stroke edges (bin threads)
     std::uint32_t fill_count = 0;
     std::uint32_t stroke_count = 0;
@@ -335,10 +352,11 @@ struct Encoded {
 
 // Arc edges per quarter-turn-ish rim: enough that the inscribed polygon stays within ~0.05 px of
 // the circle at the widest stroke of the scene.
-[[nodiscard]] std::uint32_t arc_edges_for(const SceneDescription& scene) {
+[[nodiscard]] std::uint32_t arc_edges_for(const SceneDescription& scene, float max_scale) {
     float widest = 0.0f;
     for (const GpuShape& shape : scene.gpu) {
-        widest = std::max(widest, shape.half_width);
+        widest =
+            std::max(widest, shape.half_width * max_scale); // a rim scaled up shows its corners
     }
     if (widest <= 0.0f) {
         return 0;
@@ -348,10 +366,47 @@ struct Encoded {
     return std::clamp<std::uint32_t>(edges, 8, 64);
 }
 
+// Rewrites the per-path records for one frame: the affine, and the device-space box that bounds the
+// transformed local box (the fine pass skips a pixel outside it). An empty `matrices` is identity.
+void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uint32_t width,
+                 std::uint32_t height) {
+    encoded.paths.assign(static_cast<std::size_t>(encoded.path_count) * 16, 0);
+    for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
+        const Affine m = matrices.empty() ? Affine{} : matrices[p];
+        const auto& box = encoded.local_boxes[p];
+        float min_x = 1e30f, min_y = 1e30f, max_x = -1e30f, max_y = -1e30f;
+        for (const path::PointF corner :
+             {path::PointF{box[0], box[1]}, path::PointF{box[2], box[1]},
+              path::PointF{box[2], box[3]}, path::PointF{box[0], box[3]}}) {
+            const path::PointF q = apply(m, corner);
+            min_x = std::min(min_x, q.x);
+            max_x = std::max(max_x, q.x);
+            min_y = std::min(min_y, q.y);
+            max_y = std::max(max_y, q.y);
+        }
+        const auto clamp_to = [](float v, std::uint32_t limit) {
+            return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
+        };
+        std::uint32_t* record = &encoded.paths[static_cast<std::size_t>(p) * 16];
+        record[0] = bits(m.a);
+        record[1] = bits(m.b);
+        record[2] = bits(m.c);
+        record[3] = bits(m.d);
+        record[4] = bits(m.e);
+        record[5] = bits(m.f);
+        record[6] = encoded.rules[p];
+        record[7] = encoded.colors[p];
+        record[8] = clamp_to(std::floor(min_x) - 1, width);
+        record[9] = clamp_to(std::floor(min_y) - 1, height);
+        record[10] = clamp_to(std::ceil(max_x) + 1, width);
+        record[11] = clamp_to(std::ceil(max_y) + 1, height);
+    }
+}
+
 [[nodiscard]] Encoded encode(const SceneDescription& scene, std::uint32_t width,
-                             std::uint32_t height) {
+                             std::uint32_t height, float max_scale) {
     Encoded result;
-    result.arc_edges = arc_edges_for(scene);
+    result.arc_edges = arc_edges_for(scene, max_scale);
     const std::uint32_t stride = 4 + 2 * (result.arc_edges + 2);
     for (std::size_t p = 0; p < scene.gpu.size(); ++p) {
         const GpuShape& shape = scene.gpu[p];
@@ -394,14 +449,9 @@ struct Encoded {
             min_y -= reach + 1;
             max_x += reach + 1;
             max_y += reach + 1;
-            const auto clamp_to = [](float v, std::uint32_t limit) {
-                return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
-            };
-            result.paths.insert(result.paths.end(),
-                                {0, 0, clamp_to(std::floor(min_x), width),
-                                 clamp_to(std::floor(min_y), height),
-                                 clamp_to(std::ceil(max_x), width),
-                                 clamp_to(std::ceil(max_y), height), shape.rule, shape.rgba});
+            result.local_boxes.push_back({min_x, min_y, max_x, max_y});
+            result.rules.push_back(shape.rule);
+            result.colors.push_back(shape.rgba);
             ++result.path_count;
             continue;
         }
@@ -417,16 +467,13 @@ struct Encoded {
             result.row_nodes += static_cast<std::uint64_t>(std::max(rows, 1.0f));
             ++result.fill_count;
         }
-        const auto clamp_to = [](float v, std::uint32_t limit) {
-            return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
-        };
-        result.paths.insert(result.paths.end(),
-                            {0, 0, clamp_to(std::floor(min_x), width),
-                             clamp_to(std::floor(min_y), height), clamp_to(std::ceil(max_x), width),
-                             clamp_to(std::ceil(max_y), height), shape.rule, shape.rgba});
+        result.local_boxes.push_back({min_x, min_y, max_x, max_y});
+        result.rules.push_back(shape.rule);
+        result.colors.push_back(shape.rgba);
         ++result.path_count;
     }
     result.seg_count = result.fill_count + result.stroke_count * stride;
+    write_paths(result, {}, width, height);
     return result;
 }
 
@@ -448,16 +495,72 @@ struct Options {
     bool validate = false;
 };
 
+// How a scene is animated after the static frame: every path gets its own transform per frame, and
+// the only per-frame upload is the path records. `similarity` (rotate + uniform scale + shift) can
+// be compared with ThorVG for strokes too, because the pen scales with it; `affine` (non-uniform
+// scale and shear) only for fills, since ThorVG's stroker has no non-uniform pen to compare
+// against.
+enum class Motion { none, similarity, affine };
+
+[[nodiscard]] Affine motion_matrix(Motion motion, std::uint32_t path_index,
+                                   const std::array<float, 4>& box, int frame) {
+    const float t = static_cast<float>(frame);
+    const float p = static_cast<float>(path_index);
+    const float theta = 0.12f * t + 0.4f * p;
+    const float cs = std::cos(theta), sn = std::sin(theta);
+    Affine m;
+    if (motion == Motion::similarity) {
+        const float s = 1.0f + 0.25f * std::sin(0.3f * t + p);
+        m = {s * cs, s * sn, -s * sn, s * cs, 0.0f, 0.0f};
+    } else {
+        const float sx = 1.2f, sy = 0.8f, k = 0.25f; // R(theta) * [[sx, k], [0, sy]]
+        m = {cs * sx, sn * sx, cs * k - sn * sy, sn * k + cs * sy, 0.0f, 0.0f};
+    }
+    // About the path's own centre, plus a drift, so paths move rather than only turn in place.
+    const float cx = (box[0] + box[2]) * 0.5f, cy = (box[1] + box[3]) * 0.5f;
+    m.e = cx + 6.0f * std::sin(0.2f * t + p) - (m.a * cx + m.c * cy);
+    m.f = cy + 6.0f * std::cos(0.2f * t + p) - (m.b * cx + m.d * cy);
+    return m;
+}
+
+[[nodiscard]] float motion_max_scale(Motion motion) {
+    return motion == Motion::none ? 1.0f : 1.6f; // the Frobenius norm of the matrices above
+}
+
+// The ThorVG-side scene under the same transforms: points are transformed, and a stroke's width
+// scales with the (similarity) transform.
+[[nodiscard]] std::vector<path::PathShape>
+transformed_reference(const std::vector<path::PathShape>& shapes,
+                      const std::vector<Affine>& matrices) {
+    std::vector<path::PathShape> result = shapes;
+    for (std::size_t i = 0; i < result.size(); ++i) {
+        for (path::PathSegment& segment : result[i].path.segments) {
+            segment.p0 = apply(matrices[i], segment.p0);
+            segment.p1 = apply(matrices[i], segment.p1);
+            segment.p2 = apply(matrices[i], segment.p2);
+        }
+        if (result[i].paint.stroke) {
+            const float det =
+                std::abs(matrices[i].a * matrices[i].d - matrices[i].b * matrices[i].c);
+            result[i].paint.stroke->width *= std::sqrt(det);
+        }
+    }
+    return result;
+}
+
 void run_scene(rhi::Device& device, const char* name, const SceneDescription& scene,
-               const Options& options) {
+               const Options& options, Motion motion = Motion::none) {
     using std::printf;
     const auto encode_begin = Clock::now();
-    const Encoded encoded = encode(scene, options.width, options.height);
+    Encoded encoded = encode(scene, options.width, options.height, motion_max_scale(motion));
     const double encode_ms =
         std::chrono::duration<double, std::milli>(Clock::now() - encode_begin).count();
     printf("  CPU encode (flattened segments -> packed, full re-encode): %.3f ms\n", encode_ms);
 
-    const std::uint64_t node_capacity = encoded.row_nodes + 1024;
+    const std::uint64_t node_capacity =
+        static_cast<std::uint64_t>(static_cast<double>(encoded.row_nodes) *
+                                   motion_max_scale(motion)) +
+        1024;
     const std::uint32_t nodes_base = 1 + encoded.path_count * options.height;
     const std::uint32_t stroke_stride = 4 + 2 * (encoded.arc_edges + 2);
     const std::uint32_t exp_base = static_cast<std::uint32_t>(nodes_base + node_capacity * 2);
@@ -585,57 +688,117 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
     }
     printf("  CPU record + submit per frame: p50 %.3f ms\n", percentile(cpu_ms, 0.5));
 
-    // One more frame with the readback copies, for the overflow check and the pixel comparison.
-    const auto list = device.create_command_list();
-    record(*list, true);
-    list->submit();
-    std::uint32_t used = 0;
-    counter_readback->read(&used, 4);
-    printf("  bin nodes used %u of %llu%s\n", used, static_cast<unsigned long long>(node_capacity),
-           used > node_capacity ? "  OVERFLOW" : "");
-    std::vector<std::uint8_t> gpu_pixels(pixel_bytes);
-    readback->read(gpu_pixels.data(), pixel_bytes);
-
     const auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
-    if (rasterizer == nullptr || rasterizer->backend_name() != "thorvg-cpu") {
-        printf("  ThorVG unavailable in this build: no pixel comparison\n");
-        return;
-    }
-    std::vector<std::uint8_t> reference(pixel_bytes, 0);
-    const path::RasterTarget target{std::span<std::uint8_t>(reference), options.width,
-                                    options.height, options.width * 4U};
-    const auto thor_begin = Clock::now();
-    if (!rasterizer->rasterize(scene.reference, target).has_value()) {
-        printf("  ThorVG rasterize failed\n");
-        return;
-    }
-    printf("  ThorVG CPU raster of the same scene: %.2f ms\n",
-           std::chrono::duration<double, std::milli>(Clock::now() - thor_begin).count());
-    std::uint64_t over4 = 0, over16 = 0;
-    std::uint64_t sum = 0;
-    int max_diff = 0;
+    const bool have_thorvg = rasterizer != nullptr && rasterizer->backend_name() == "thorvg-cpu";
     const std::size_t pixel_count = pixel_bytes / 4;
-    for (std::size_t i = 0; i < pixel_count; ++i) {
-        int worst = 0;
-        // Straight RGBA is meaningless where alpha is ~0, so compare premultiplied channels.
-        const int ga = static_cast<int>(gpu_pixels[i * 4 + 3]);
-        const int ra = static_cast<int>(reference[i * 4 + 3]);
-        for (int c = 0; c < 4; ++c) {
-            const int g = c == 3 ? ga : (static_cast<int>(gpu_pixels[i * 4 + c]) * ga + 127) / 255;
-            const int rv = c == 3 ? ra : (static_cast<int>(reference[i * 4 + c]) * ra + 127) / 255;
-            const int d = std::abs(g - rv);
-            worst = std::max(worst, d);
-            sum += static_cast<std::uint64_t>(d);
+
+    // One frame with the readback copies, for the overflow check and the pixel comparison.
+    const auto frame_and_compare = [&](const char* label,
+                                       const std::vector<path::PathShape>& reference_shapes) {
+        const auto list = device.create_command_list();
+        record(*list, true);
+        list->submit();
+        std::uint32_t used = 0;
+        counter_readback->read(&used, 4);
+        printf("  %sbin nodes used %u of %llu%s\n", label, used,
+               static_cast<unsigned long long>(node_capacity),
+               used > node_capacity ? "  OVERFLOW" : "");
+        if (!have_thorvg) {
+            printf("  ThorVG unavailable in this build: no pixel comparison\n");
+            return;
         }
-        max_diff = std::max(max_diff, worst);
-        over4 += worst > 4 ? 1 : 0;
-        over16 += worst > 16 ? 1 : 0;
+        std::vector<std::uint8_t> gpu_pixels(pixel_bytes);
+        readback->read(gpu_pixels.data(), pixel_bytes);
+        std::vector<std::uint8_t> reference(pixel_bytes, 0);
+        const path::RasterTarget target{std::span<std::uint8_t>(reference), options.width,
+                                        options.height, options.width * 4U};
+        const auto thor_begin = Clock::now();
+        if (!rasterizer->rasterize(reference_shapes, target).has_value()) {
+            printf("  ThorVG rasterize failed\n");
+            return;
+        }
+        printf("  %sThorVG CPU raster of the same scene: %.2f ms\n", label,
+               std::chrono::duration<double, std::milli>(Clock::now() - thor_begin).count());
+        std::uint64_t over4 = 0, over16 = 0;
+        std::uint64_t sum = 0;
+        int max_diff = 0;
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+            int worst = 0;
+            // Straight RGBA is meaningless where alpha is ~0, so compare premultiplied channels.
+            const int ga = static_cast<int>(gpu_pixels[i * 4 + 3]);
+            const int ra = static_cast<int>(reference[i * 4 + 3]);
+            for (int c = 0; c < 4; ++c) {
+                const int g =
+                    c == 3 ? ga : (static_cast<int>(gpu_pixels[i * 4 + c]) * ga + 127) / 255;
+                const int rv =
+                    c == 3 ? ra : (static_cast<int>(reference[i * 4 + c]) * ra + 127) / 255;
+                const int d = std::abs(g - rv);
+                worst = std::max(worst, d);
+                sum += static_cast<std::uint64_t>(d);
+            }
+            max_diff = std::max(max_diff, worst);
+            over4 += worst > 4 ? 1 : 0;
+            over16 += worst > 16 ? 1 : 0;
+        }
+        printf("  %svs ThorVG: mean abs diff %.4f per channel, max %d, pixels off by >4: %.4f%%, "
+               ">16: %.4f%%\n",
+               label, static_cast<double>(sum) / static_cast<double>(pixel_count * 4), max_diff,
+               100.0 * static_cast<double>(over4) / static_cast<double>(pixel_count),
+               100.0 * static_cast<double>(over16) / static_cast<double>(pixel_count));
+    };
+    frame_and_compare("", scene.reference);
+    if (motion == Motion::none) {
+        return;
     }
-    printf("  vs ThorVG: mean abs diff %.4f per channel, max %d, pixels off by >4: %.4f%%, >16: "
-           "%.4f%%\n",
-           static_cast<double>(sum) / static_cast<double>(pixel_count * 4), max_diff,
-           100.0 * static_cast<double>(over4) / static_cast<double>(pixel_count),
-           100.0 * static_cast<double>(over16) / static_cast<double>(pixel_count));
+
+    // Animated frames: only the path records change (CPU rewrite + upload), the segments and the
+    // stroke centerlines stay where they are.
+    const auto matrices_at = [&](int frame) {
+        std::vector<Affine> matrices(encoded.path_count);
+        for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
+            matrices[p] = motion_matrix(motion, p, encoded.local_boxes[p], frame);
+        }
+        return matrices;
+    };
+    const auto upload_frame = [&](int frame) {
+        write_paths(encoded, matrices_at(frame), options.width, options.height);
+        path_buffer->write(encoded.paths.data(), encoded.paths.size() * sizeof(std::uint32_t));
+    };
+    constexpr int kCheckFrame = 7;
+    upload_frame(kCheckFrame);
+    frame_and_compare("[animated, frame 7] ",
+                      transformed_reference(scene.reference, matrices_at(kCheckFrame)));
+
+    std::vector<double> update_ms, animated_gpu_ms;
+    for (int i = 0; i < options.warmup + options.iterations; ++i) {
+        const auto update_begin = Clock::now();
+        upload_frame(10 + i);
+        const double update =
+            std::chrono::duration<double, std::milli>(Clock::now() - update_begin).count();
+        const auto list = device.create_command_list();
+        const bool timed = list->begin_gpu_timestamps(0);
+        record(*list, false);
+        list->submit_async();
+        if (!list->wait(10000)) {
+            throw std::runtime_error("the compute submission did not finish");
+        }
+        double ms = 0.0;
+        if (i >= options.warmup) {
+            update_ms.push_back(update);
+            if (timed && list->gpu_frame_time_ms(ms)) {
+                animated_gpu_ms.push_back(ms);
+            }
+        }
+    }
+    printf(
+        "  animated frame: CPU matrix + box rewrite + upload p50 %.3f ms for %zu bytes (%u paths x "
+        "64 B), versus %.3f ms for a full re-encode; GPU p50 %.2f ms (min %.2f)\n",
+        percentile(update_ms, 0.5), encoded.paths.size() * sizeof(std::uint32_t),
+        encoded.path_count, encode_ms,
+        animated_gpu_ms.empty() ? 0.0 : percentile(animated_gpu_ms, 0.5),
+        animated_gpu_ms.empty()
+            ? 0.0
+            : *std::min_element(animated_gpu_ms.begin(), animated_gpu_ms.end()));
 }
 
 } // namespace
@@ -678,6 +841,16 @@ int main(int argc, char** argv) {
                   options);
         run_scene(*device, "miter and bevel joins, butt and square caps, closed polygons",
                   join_scene(), options);
+        run_scene(*device, "animated: dense scene, per-path rotate + scale + drift",
+                  dense_scene(width, height), options, Motion::similarity);
+        run_scene(*device, "animated: sparse scene, per-path rotate + scale + drift",
+                  sparse_scene(), options, Motion::similarity);
+        run_scene(*device, "animated: joins and caps, per-path rotate + scale + drift",
+                  join_scene(), options, Motion::similarity);
+        g_fills_only = true;
+        run_scene(*device, "animated: sparse fills, non-uniform scale + shear", sparse_scene(),
+                  options, Motion::affine);
+        g_fills_only = false;
     } catch (const std::exception& error) {
         std::fprintf(stderr, "compute_raster: %s\n", error.what());
         return 1;

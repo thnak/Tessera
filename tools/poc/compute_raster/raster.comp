@@ -25,7 +25,7 @@ layout(local_size_x = 256) in;
 #endif
 
 layout(std430, binding = 0) readonly buffer Segs { uint segs[]; };   // 8 words: x0 y0 x1 y1 (f32), path, pad
-layout(std430, binding = 1) readonly buffer Paths { uint paths[]; }; // 8 words: -, -, bx0 by0 bx1 by1, rule, rgba8
+layout(std430, binding = 1) readonly buffer Paths { uint paths[]; }; // 16 words: affine a b c d e f (f32), rule, rgba8, bx0 by0 bx1 by1 (device pixels), 4 spare
 layout(std430, binding = 2) buffer Work { uint work[]; };            // counter, row heads, nodes
 layout(std430, binding = 3) buffer Out { uint pixels[]; };           // straight RGBA8
 #ifdef PASS_STROKE
@@ -52,6 +52,26 @@ layout(push_constant) uniform Push {
 const uint kNil = 0xFFFFFFFFu;
 
 #if defined(PASS_BIN) || defined(PASS_FINE)
+// A path's transform: x' = a x + c y + e, y' = b x + d y + f. Strokes are expanded in the path's own
+// space and transformed here, so an animated frame rewrites 6 words per path and nothing else.
+struct Xf {
+    vec4 abcd;
+    vec2 ef;
+};
+
+Xf path_xf(uint path) {
+    uint b = path * 16u;
+    Xf m;
+    m.abcd = vec4(uintBitsToFloat(paths[b]), uintBitsToFloat(paths[b + 1u]),
+                  uintBitsToFloat(paths[b + 2u]), uintBitsToFloat(paths[b + 3u]));
+    m.ef = vec2(uintBitsToFloat(paths[b + 4u]), uintBitsToFloat(paths[b + 5u]));
+    return m;
+}
+
+vec2 xf_apply(Xf m, vec2 p) {
+    return vec2(m.abcd.x * p.x + m.abcd.z * p.y + m.ef.x, m.abcd.y * p.x + m.abcd.w * p.y + m.ef.y);
+}
+
 // A segment id below fill_count is a fill edge from the CPU; the rest were expanded from strokes.
 uint seg_word(uint s, uint k) {
     return s < pc.fill_count ? segs[s * 8u + k] : work[pc.exp_base + (s - pc.fill_count) * 8u + k];
@@ -232,9 +252,10 @@ void main() {
     if (i >= pc.seg_count) {
         return;
     }
-    float y0 = uintBitsToFloat(seg_word(i, 1u));
-    float y1 = uintBitsToFloat(seg_word(i, 3u));
     uint path = seg_word(i, 4u);
+    Xf m = path_xf(path);
+    float y0 = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 0u)), uintBitsToFloat(seg_word(i, 1u)))).y;
+    float y1 = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 2u)), uintBitsToFloat(seg_word(i, 3u)))).y;
     if (y0 == y1) {
         return;
     }
@@ -314,17 +335,18 @@ void main() {
     float py = float(y);
     vec4 dst = vec4(0.0);
     for (uint p = 0u; p < pc.path_count; ++p) {
-        uint base = p * 8u;
-        if (int(x) < int(paths[base + 2u]) || int(x) >= int(paths[base + 4u]) ||
-            int(y) < int(paths[base + 3u]) || int(y) >= int(paths[base + 5u])) {
+        uint base = p * 16u;
+        if (int(x) < int(paths[base + 8u]) || int(x) >= int(paths[base + 10u]) ||
+            int(y) < int(paths[base + 9u]) || int(y) >= int(paths[base + 11u])) {
             continue;
         }
+        Xf m = path_xf(p);
         float w = 0.0;
         uint node = work[1u + p * pc.height + y];
         while (node != kNil) {
             uint s = work[pc.nodes_base + node * 2u];
-            vec2 a = vec2(uintBitsToFloat(seg_word(s, 0u)), uintBitsToFloat(seg_word(s, 1u)));
-            vec2 b = vec2(uintBitsToFloat(seg_word(s, 2u)), uintBitsToFloat(seg_word(s, 3u)));
+            vec2 a = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 0u)), uintBitsToFloat(seg_word(s, 1u))));
+            vec2 b = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 2u)), uintBitsToFloat(seg_word(s, 3u))));
             w += segment_area(a, b, px, py);
             node = work[pc.nodes_base + node * 2u + 1u];
         }
