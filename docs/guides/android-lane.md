@@ -262,9 +262,9 @@ stays unit-tested on every lane.
 ### 3.7 What is still missing
 
 - **Accessibility's long tail.** The role/action mapping, the pull-side provider, the Java
-  `AccessibilityNodeProvider` and `SetText` (3.9) are done. Not wired: live regions, collection
-  set-size/position, and `SetSelection` - the engine's `Action` has no caret member, so that request
-  is delegated to the platform rather than accepted and ignored.
+  `AccessibilityNodeProvider`, `SetText` and collection set-size/position (3.9) are done. Not wired:
+  live regions, the coalesced announcements, and `SetSelection` - the engine's `Action` has no caret
+  member, so that request is delegated rather than accepted and ignored.
 - **The IME's long tail.** `requestCursorUpdates` answers once (3.18); only the async cursor stream,
   which the engine has no notion of, remains.
 - **A generated component.** The shell's scene is hand-built: the codegen CLI runs on the host and
