@@ -93,6 +93,7 @@ private:
     ui::style::SceneStyleTree style_tree_;
     std::unordered_map<ui::NodeId, ui::style::ComputedStyle> styles_;
     std::unique_ptr<CachedStyles> provider_;
+    ui::layout::LayoutInput layout_input_;
     runtime::ManualClock clock_;
     runtime::RuntimeLoop loop_;
     ui::animation::AnimationRuntime animations_;

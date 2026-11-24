@@ -45,6 +45,14 @@ struct BenchmarkDriver::CachedStyles final : ui::paint::StyleProvider {
         return found == table->end() ? style::ComputedStyle{} : found->second;
     }
 
+    // The table never reallocates after the first frame, so a reference into it stays valid; this
+    // is what lets the layout input fill without copying through `compute`, like the host does.
+    [[nodiscard]] const style::ComputedStyle& resolve(const ui::Node& node) override {
+        static const style::ComputedStyle empty;
+        const auto found = table->find(node.id());
+        return found == table->end() ? empty : found->second;
+    }
+
     std::unordered_map<ui::NodeId, style::ComputedStyle>* table = nullptr;
 };
 
@@ -128,20 +136,32 @@ void BenchmarkDriver::resolve_dirty_styles() {
 
 namespace {
 
-ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles) {
-    ui::layout::LayoutInput input;
+// Rewrites `input` in place, as AppHost does (issue #701): the tree is retained between passes so a
+// pass reuses the elements and their children vectors instead of reallocating every one.
+void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
+                       ui::layout::LayoutInput& input) {
     input.id = node.id();
-    input.style = styles.compute(node);
+    input.text.clear();
+    input.text_wrap = false;
+    input.style = styles.resolve(node);
     const auto& paint = node.paint_data();
     if (paint && paint->kind == ui::PaintKind::Text) {
         input.text = paint->text;
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
         input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
     }
-    for (const auto& child : node.children()) {
-        input.children.push_back(build_layout_input(*child, styles));
+    if (input.children.capacity() < node.children().size()) {
+        input.children.reserve(node.children().size());
     }
-    return input;
+    std::size_t used = 0;
+    for (const auto& child : node.children()) {
+        if (used == input.children.size()) {
+            input.children.emplace_back();
+        }
+        fill_layout_input(*child, styles, input.children[used]);
+        ++used;
+    }
+    input.children.resize(used);
 }
 
 } // namespace
@@ -158,7 +178,8 @@ double phase_ms(PhaseClock::time_point begin, PhaseClock::time_point end) {
 
 void BenchmarkDriver::run_layout_pass() {
     const PhaseClock::time_point input_begin = PhaseClock::now();
-    const ui::layout::LayoutInput input = build_layout_input(*root_, *provider_);
+    fill_layout_input(*root_, *provider_, layout_input_);
+    const ui::layout::LayoutInput& input = layout_input_;
     const PhaseClock::time_point input_end = PhaseClock::now();
     phases_.layout_input_ms = phase_ms(input_begin, input_end);
     // The scheduler reuses the last result while the layout-input signature is unchanged, exactly
