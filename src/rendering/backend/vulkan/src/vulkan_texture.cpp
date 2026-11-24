@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
 #include "vulkan_scope_guard.hpp"
-
-#include "tessera/rendering/vulkan/vulkan_device.hpp"
 
 #include <chrono>
 #include <stdexcept>

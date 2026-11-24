@@ -2494,6 +2494,17 @@ target_link_libraries(paint_pass_tests PRIVATE
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
 
+# Retained draw list per clean subtree (issue #476 slice 1): a clean subtree replays as one flat list
+# byte-identically, a change under it or another cull rect never replays a stale one, and budget 0
+# turns it off. Pure CPU.
+add_executable(subtree_paint_cache_tests
+    subtree_paint_cache_tests.cpp)
+
+target_link_libraries(subtree_paint_cache_tests PRIVATE
+    tessera_paint)
+
+add_test(NAME subtree_paint_cache COMMAND subtree_paint_cache_tests)
+
 # Paint-pass culling (issue #487): a node whose painted reach misses PaintContext::cull skips its
 # style read and emission, a clip-bounded subtree is skipped whole, and the pixels inside the rect
 # (deterministic CPU canvas) and the emitted commands are identical to an unculled paint. Text that

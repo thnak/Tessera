@@ -246,9 +246,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // children are expressed relative to the matrix it would push). A dirty node with a cache
     // record is painted too, so its record is refreshed rather than going stale for a later clean
     // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
-    // Only a dirty node that actually has a record can leave a stale one behind (a node with none is
-    // simply painted fresh whenever it is next visited), so the first frame of a scene, whose cache
-    // is empty, culls as freely as a clean one (issue #257).
+    // Only a dirty node that actually has a record can leave a stale one behind (a node with none
+    // is simply painted fresh whenever it is next visited), so the first frame of a scene, whose
+    // cache is empty, culls as freely as a clean one (issue #257).
     const bool records_dirty =
         pass.cacheable && node.dirty() != Dirty::Clean && pass.cache->contains(node.id());
     // A skipped subtree must not hide a dirty descendant's record either; an empty cache has none.
@@ -324,6 +324,33 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         signature = detail::make_paint_cache_signature(
             node, painted_world, painted_frame.inverse, open_frame, rect, interpolated,
             sink.supports_transform(), clip_scope, pass, scope.opacity);
+        // Retained draw list (issue #476): a clean subtree is replayed as one flat list, or
+        // recorded as one when it has none yet. The recording pass re-enters this node with
+        // `in_subtree`.
+        if (pass.subtree != nullptr && !pass.in_subtree && node.subtree_dirty() != Dirty::Clean) {
+            pass.subtree->erase(node.id()); // a list that predates this change must not come back
+        }
+        if (pass.subtree != nullptr && pass.subtree_replay && !pass.in_subtree &&
+            node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean &&
+            !node.children().empty()) {
+            const std::optional<rhi::Rect> cull = detail::cull_key(pass);
+            const SubtreeRecord* list = pass.subtree->find(*signature, cull, node.paint_data());
+            if (list != nullptr && !list->tombstone) {
+                replay_paint_ops(list->ops, list->gradients, sink);
+                detail::add_subtree_stats(stats, list->stats);
+                return;
+            }
+            if (list == nullptr) {
+                PaintCache::Recorder recorder(sink, true);
+                const PaintStats before = stats;
+                pass.in_subtree = true;
+                paint_node(node, styles, recorder, stats, context, frame, scope, clip_scope, pass);
+                pass.in_subtree = false;
+                pass.subtree->insert(*signature, cull, node.paint_data(),
+                                     detail::make_subtree_record(recorder, stats, before));
+                return;
+            }
+        }
         if (node.dirty() != Dirty::Clean) {
             pass.cache->note_miss();
         } else if (const PaintRecord* record = pass.cache->find(*signature, node.paint_data())) {
@@ -501,6 +528,11 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
     pass.cull = context.cull.has_value() ? &*context.cull : nullptr;
+    pass.subtree_replay = context.retain_draw_list;
+    pass.subtree =
+        pass.cacheable && context.subtree_cache != nullptr && context.subtree_cache->enabled()
+            ? context.subtree_cache
+            : nullptr;
     paint_node(root, styles, sink, stats, effective_context, Frame{}, PaintScope{},
                detail::ClipScope{}, pass);
     return stats;

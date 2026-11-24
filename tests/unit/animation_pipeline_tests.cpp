@@ -163,8 +163,9 @@ int main() {
     if (!expect(end.finished.size() == 1 && end.finished[0] == ids[1], "grow finishes") ||
         !expect(end.samples.size() == 1, "retained fade fill sample") ||
         !expect(!end.keep_awake, "wake released") ||
-        // Issue #200: the fill was reported by the tick that finished it (`middle`); a later tick still
-        // delivers its sample, because the style overlay is rebuilt from it, but marks nothing dirty.
+        // Issue #200: the fill was reported by the tick that finished it (`middle`); a later tick
+        // still delivers its sample, because the style overlay is rebuilt from it, but marks
+        // nothing dirty.
         !expect(end.samples[0].held, "a repeat sample of a held fill is flagged held") ||
         !expect(!has_flag(end.dirty, Dirty::Paint), "a held fill does not mark paint dirty") ||
         !expect(!has_flag(end.dirty, Dirty::Layout), "fill not layout") ||

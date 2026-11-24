@@ -210,7 +210,8 @@ int main() {
     start = tessera::hal::steady_now_seconds();
     has_event = wake_window->wait_for_events(0.05);
     elapsed = tessera::hal::steady_now_seconds() - start;
-    if (!expect(!has_event && elapsed >= 0.03, "a burst of wakes is one wake: the next park blocks")) {
+    if (!expect(!has_event && elapsed >= 0.03,
+                "a burst of wakes is one wake: the next park blocks")) {
         return 15;
     }
     wake_window->set_wake_source(nullptr);

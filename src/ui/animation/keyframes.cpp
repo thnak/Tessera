@@ -163,8 +163,8 @@ std::vector<style::Declaration> sample_at(const style::KeyframeBlock& keyframes,
         }
         style::Declaration sampled = declaration;
         if (const style::Declaration* target = last_of(to.declarations, declaration.property)) {
-            sampled.value = interpolate_value(declaration.property, declaration.value,
-                                              target->value, t);
+            sampled.value =
+                interpolate_value(declaration.property, declaration.value, target->value, t);
         }
         result.push_back(std::move(sampled));
     }

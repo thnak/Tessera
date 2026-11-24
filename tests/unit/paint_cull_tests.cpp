@@ -513,7 +513,8 @@ int main() {
     ok = paint_cull_test::test_text_that_leaves_its_box_is_never_culled() && ok;
     ok = paint_cull_test::test_transformed_node_is_never_culled() && ok;
     ok = paint_cull_test::test_dirty_node_with_a_cache_record_is_not_culled() && ok;
-    ok = paint_cull_test::test_cold_dirty_node_is_culled_and_a_dirty_descendant_blocks_the_subtree_skip() &&
+    ok = paint_cull_test::
+             test_cold_dirty_node_is_culled_and_a_dirty_descendant_blocks_the_subtree_skip() &&
          ok;
     ok = paint_cull_test::test_covering_rect_is_byte_identical() && ok;
     if (!ok) {

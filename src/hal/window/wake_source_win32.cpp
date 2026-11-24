@@ -32,7 +32,8 @@ namespace {
 
 class Win32WakeSource final : public WakeSource {
 public:
-    explicit Win32WakeSource(HANDLE event) noexcept : event_(event) {}
+    explicit Win32WakeSource(HANDLE event) noexcept
+        : event_(event) {}
     Win32WakeSource(const Win32WakeSource&) = delete;
     Win32WakeSource& operator=(const Win32WakeSource&) = delete;
     ~Win32WakeSource() override {
@@ -52,8 +53,9 @@ public:
         // A past or non-finite deadline is a poll: report whether the wake is already signalled.
         double wait_milliseconds = 0.0;
         if (std::isfinite(remaining) && remaining > 0.0) {
-            wait_milliseconds = std::min(std::ceil(remaining * 1000.0),
-                                         static_cast<double>(std::numeric_limits<DWORD>::max() - 1));
+            wait_milliseconds =
+                std::min(std::ceil(remaining * 1000.0),
+                         static_cast<double>(std::numeric_limits<DWORD>::max() - 1));
         }
         return WaitForSingleObject(event_, static_cast<DWORD>(wait_milliseconds)) == WAIT_OBJECT_0;
     }

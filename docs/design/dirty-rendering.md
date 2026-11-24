@@ -150,7 +150,7 @@ added after `tick` and before `finish_frame`.
 
 ### 5.1 Retained draw lists
 
-- A stable subtree can be cached as an ordered draw list (vertices/indices + batch metadata).
+Implemented per clean subtree for full repaints: [retained-draw-list.md](retained-draw-list.md) (#476).- A stable subtree can be cached as an ordered draw list (vertices/indices + batch metadata).
 - Cache key: node id + style revision + layout revision + theme revision + clip/transform version.
 - Reuse when the key and all descendant revisions are unchanged.
 - Evict under memory pressure; prefer layers with low reuse.

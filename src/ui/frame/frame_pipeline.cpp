@@ -115,6 +115,7 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
       damage_(&damage),
       dirty_(&dirty),
       config_(config) {
+    subtree_cache_.set_config({512, config_.draw_list_cache_bytes});
     if (!std::isfinite(config_.dpi_scale) || config_.dpi_scale <= 0.0f) {
         throw std::invalid_argument("frame pipeline dpi scale must be finite and positive");
     }
@@ -267,9 +268,14 @@ void FramePipeline::invalidate_paint_cache() {
     // deliberately cannot see a computed style, so the whole generation goes; re-recording is the
     // only way to guarantee the next frame is byte-identical to an uncached paint.
     paint_cache_.invalidate();
+    subtree_cache_.clear();
     // `background_layers_` is deliberately NOT reset here: it is keyed by style identity, and a
     // restyle hands the node a new entries block, so it can never serve a pre-restyle parse. The
     // entries it still holds for retired identities are bounded by the cache's own LRU budget.
+}
+
+paint::SubtreePaintCacheStats FramePipeline::subtree_cache_stats() const {
+    return subtree_cache_.stats();
 }
 
 const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
@@ -384,6 +390,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
+        context.subtree_cache = &subtree_cache_;
     }
     if (!view.empty()) {
         context.view = &view;
@@ -408,6 +415,11 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
+        context.subtree_cache = &subtree_cache_;
+        // Only a full repaint records and replays lists: a partial one culls to the damage box,
+        // which differs every frame, so a list keyed on it would never hit (issue #476). It still
+        // drops the lists of the dirty subtrees it visits.
+        context.retain_draw_list = plan.full_redraw;
     }
     if (!view.empty()) {
         context.view = &view;

@@ -375,7 +375,8 @@ int main() {
         wake_desc.title = "Tessera X11 wake test " + suffix;
         auto wake_window = tessera::hal::create_window(wake_desc);
         const auto wake = tessera::hal::create_wake_source();
-        if (!expect(wake_window != nullptr && wake != nullptr, "the wake window and source exist")) {
+        if (!expect(wake_window != nullptr && wake != nullptr,
+                    "the wake window and source exist")) {
             XCloseDisplay(display);
             return 30;
         }
@@ -420,9 +421,9 @@ int main() {
             }
         }
         std::sort(latency.begin(), latency.end());
-        std::cout << "window_x11: wake-to-return latency median "
-                  << latency[kTrials / 2] * 1000.0 << " ms, max " << latency.back() * 1000.0
-                  << " ms over " << kTrials << " trials\n";
+        std::cout << "window_x11: wake-to-return latency median " << latency[kTrials / 2] * 1000.0
+                  << " ms, max " << latency.back() * 1000.0 << " ms over " << kTrials
+                  << " trials\n";
         // A generous bound: the point is "milliseconds, not the 250 ms clamp", and a loaded CI box
         // must not make it flaky.
         if (!expect(latency.back() < 0.1, "every wake lands within 100 ms")) {

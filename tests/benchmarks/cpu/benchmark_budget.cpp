@@ -88,8 +88,8 @@ bool load_budget(const char* path, Budget& out) {
            out.max_glass_paint_ms != 0 && out.glass_backdrops != 0 &&
            out.max_damaged_paint_ms != 0 && out.max_damaged_quads != 0 &&
            out.max_damaged_paint_nodes != 0 && out.max_full_paint_nodes != 0 &&
-           out.max_damage_rects != 0 &&
-           out.max_draw_calls != 0 && out.max_quads != 0 && out.max_primitives != 0;
+           out.max_damage_rects != 0 && out.max_draw_calls != 0 && out.max_quads != 0 &&
+           out.max_primitives != 0;
 }
 
 Percentiles summarize(std::vector<double> samples) {

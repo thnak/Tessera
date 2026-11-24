@@ -144,9 +144,10 @@ int main(int argc, char** argv) {
     std::vector<double> layout_paint_text;
     std::vector<double> layout_paint_container;
     std::vector<double> glass_paint;
+    std::vector<double> repeat_paint;
     std::vector<double> damaged_paint;
-    std::vector<double> phase_tick, phase_styles, phase_input, phase_engine, phase_apply, phase_sync,
-        phase_finish;
+    std::vector<double> phase_tick, phase_styles, phase_input, phase_engine, phase_apply,
+        phase_sync, phase_finish;
     benchmark::Totals totals;
     for (std::uint64_t run = 0; run < budget.runs; ++run) {
         benchmark::Fixture fixture;
@@ -161,6 +162,7 @@ int main(int argc, char** argv) {
         layout_paint_text.push_back(sample.layout_paint_text_ms);
         layout_paint_container.push_back(sample.layout_paint_container_ms);
         glass_paint.push_back(sample.glass_paint_ms);
+        repeat_paint.push_back(sample.repeat_paint_ms);
         damaged_paint.push_back(sample.damaged_paint_ms);
         phase_tick.push_back(sample.text_phases.tick_ms);
         phase_styles.push_back(sample.text_phases.styles_ms);
@@ -184,6 +186,7 @@ int main(int argc, char** argv) {
     const benchmark::Percentiles container =
         benchmark::summarize(std::move(layout_paint_container));
     const benchmark::Percentiles glass = benchmark::summarize(std::move(glass_paint));
+    const benchmark::Percentiles repeated = benchmark::summarize(std::move(repeat_paint));
     const benchmark::Percentiles damaged = benchmark::summarize(std::move(damaged_paint));
 
     std::printf("cpu_benchmark: metric                              median      p95    budget\n");
@@ -196,6 +199,8 @@ int main(int argc, char** argv) {
     std::printf("cpu_benchmark: layout+paint, one size (ms)   %10.2f %8.2f %8llu\n",
                 container.median, container.p95,
                 static_cast<unsigned long long>(budget.max_layout_paint_container_ms));
+    std::printf("cpu_benchmark: full paint, clean repeat (ms)  %10.2f %8.2f %8s\n", repeated.median,
+                repeated.p95, "-");
     std::printf("cpu_benchmark: full paint, glass bar (ms)    %10.2f %8.2f %8llu\n", glass.median,
                 glass.p95, static_cast<unsigned long long>(budget.max_glass_paint_ms));
     std::printf("cpu_benchmark: paint of one damaged frame (ms) %10.2f %8.2f %8llu\n",
@@ -222,9 +227,10 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(budget.max_damaged_paint_nodes),
                 totals.damaged_culled_nodes, totals.damaged_culled_subtrees);
     // Where the one-text-change frame goes (a breakdown, not a gate), medians in ms.
-    std::printf("cpu_benchmark: text-change frame phases (ms): tick %.2f, styles %.2f, layout input "
-                "%.2f, layout engine %.2f, apply layout %.2f, sync style %.2f, finish %.2f\n",
-                ph_tick, ph_styles, ph_input, ph_engine, ph_apply, ph_sync, ph_finish);
+    std::printf(
+        "cpu_benchmark: text-change frame phases (ms): tick %.2f, styles %.2f, layout input "
+        "%.2f, layout engine %.2f, apply layout %.2f, sync style %.2f, finish %.2f\n",
+        ph_tick, ph_styles, ph_input, ph_engine, ph_apply, ph_sync, ph_finish);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu (budget %llu)\n",

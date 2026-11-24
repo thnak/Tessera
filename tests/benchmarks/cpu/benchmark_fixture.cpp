@@ -177,6 +177,22 @@ Measurement Fixture::measure() {
     result.damaged_culled_subtrees = damaged.culled_subtrees;
     driver_->end_frame();
 
+    // Repeated full repaint of a clean tree (issue #476): the first one records the retained draw
+    // lists, the second replays them. This is the frame a resize-free expose, a forced repaint or a
+    // swapchain recreate pays when nothing in the scene changed.
+    for (int repeat = 0; repeat < 2; ++repeat) {
+        driver_->request_full_repaint();
+        (void)driver_->begin_frame();
+        (void)paint(false);
+        driver_->end_frame();
+    }
+    driver_->request_full_repaint();
+    (void)driver_->begin_frame();
+    const PaintOutcome repeated = paint(false);
+    result.repeat_paint_ms = repeated.ms;
+    result.repeat_paint_nodes = repeated.paint_nodes;
+    driver_->end_frame();
+
     // Glass (issue #244): the same full paint with the fixed bar blurred. The first glass frame
     // also creates the two pooled blur targets, which is a frame-boundary cost, not a per-frame
     // one; the measured frame is the steady state a scrolling screen under the bar pays, and it

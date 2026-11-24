@@ -48,6 +48,9 @@ struct Measurement {
     // The phases of the one-text-change frame (the incremental frame this scene is measured for).
     FramePhases text_phases;
     // Glass scenario (issue #244): a full paint of the reference scene with the glass bar active.
+    // Full repaint of an unchanged tree after the retained draw lists exist (issue #476).
+    double repeat_paint_ms = 0.0;
+    std::size_t repeat_paint_nodes = 0;
     double glass_paint_ms = 0.0;
     std::size_t glass_backdrops = 0;
     // Damaged scenario (issue #474): paint only, after a one-node edit, through `begin_damaged`.

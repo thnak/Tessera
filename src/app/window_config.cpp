@@ -17,6 +17,10 @@ ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runti
     // `cullDraws` is the one "CPU culling" switch: it also gates the paint pass's subtree cull
     // (issue #487), so `false` measures the frame with every node painted and every quad staged.
     config.cull_paint = runtime.cull_draws;
+    // `drawListCacheBudgetMb` sizes the retained draw list per clean subtree (issue #476); 0 is
+    // off.
+    config.draw_list_cache_bytes =
+        static_cast<std::size_t>(runtime.draw_list_cache_budget_mb) * 1024u * 1024u;
     return config;
 }
 

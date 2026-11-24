@@ -96,8 +96,8 @@ inline void record_site(std::size_t size) {
     }
 #elif TESSERA_PROBE_HAVE_WIN_STACK
     void* raw[kSiteDepth + kSkipFrames] = {};
-    const USHORT found = CaptureStackBackTrace(0, static_cast<DWORD>(kSiteDepth) + kSkipFrames, raw,
-                                               nullptr);
+    const USHORT found =
+        CaptureStackBackTrace(0, static_cast<DWORD>(kSiteDepth) + kSkipFrames, raw, nullptr);
     for (int i = kSkipFrames; i < static_cast<int>(found); ++i) {
         chain[i - kSkipFrames] = raw[i];
     }
@@ -135,15 +135,16 @@ inline void print_sites() {
             }
 #if TESSERA_PROBE_HAVE_WIN_STACK
             {
-                static const bool initialised = SymInitialize(GetCurrentProcess(), nullptr, TRUE) != 0;
+                static const bool initialised =
+                    SymInitialize(GetCurrentProcess(), nullptr, TRUE) != 0;
                 alignas(SYMBOL_INFO) char storage[sizeof(SYMBOL_INFO) + 256] = {};
                 auto* symbol = reinterpret_cast<SYMBOL_INFO*>(storage);
                 symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
                 symbol->MaxNameLen = 255;
                 DWORD64 displacement = 0;
                 if (initialised &&
-                    SymFromAddr(GetCurrentProcess(), reinterpret_cast<DWORD64>(frame), &displacement,
-                                symbol) != 0) {
+                    SymFromAddr(GetCurrentProcess(), reinterpret_cast<DWORD64>(frame),
+                                &displacement, symbol) != 0) {
                     std::printf(" %.80s", symbol->Name);
                     continue;
                 }
@@ -153,7 +154,7 @@ inline void print_sites() {
             Dl_info info{};
             if (dladdr(frame, &info) != 0 && info.dli_fbase != nullptr) {
                 std::printf(" 0x%zx", static_cast<std::size_t>(static_cast<char*>(frame) -
-                                                                static_cast<char*>(info.dli_fbase)));
+                                                               static_cast<char*>(info.dli_fbase)));
                 continue;
             }
 #endif

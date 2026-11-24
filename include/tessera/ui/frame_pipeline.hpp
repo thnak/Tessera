@@ -49,6 +49,9 @@ struct FramePipelineConfig {
     // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
     // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
     bool paint_cache = true;
+    // Retained draw list per clean subtree (issue #476), sized by the runtime config key
+    // `drawListCacheBudgetMb`; 0 turns it off and the output is unchanged (byte-identical).
+    std::size_t draw_list_cache_bytes = 32u * 1024u * 1024u;
     // Glass cost limits (docs/specs/glass-v1.md sections 5 and 8), from the runtime config keys
     // `glassMaxBlurRadius` and `glassMaxBackdropArea`. They are carried into both the style sync
     // (the 3 sigma damage dependency) and the paint context (the emitted sigma / half-resolution
@@ -59,9 +62,10 @@ struct FramePipelineConfig {
     // key turns both stages off for a full-work comparison. On by default. When the redraw plan is
     // partial, the damage-clipped `paint_frame` overload hands the paint pass the bounding box of
     // the plan's scissors as `PaintContext::cull`, so nodes that cannot reach any painted pixel
-    // skip style resolution and emission. A full-redraw plan culls to the whole target (issue #257):
-    // its sink stays unclipped, and what it drops cannot reach a pixel of the target, so the output
-    // inside the viewport is unchanged. The full `paint_frame` overload (no plan) never culls.
+    // skip style resolution and emission. A full-redraw plan culls to the whole target (issue
+    // #257): its sink stays unclipped, and what it drops cannot reach a pixel of the target, so the
+    // output inside the viewport is unchanged. The full `paint_frame` overload (no plan) never
+    // culls.
     bool cull_paint = true;
 };
 
@@ -231,6 +235,7 @@ public:
     // `hits` equals the visible node count and the `recorded_draws` delta is zero. The returned
     // reference is owned by the pipeline and refreshed by every call; read it after paint_frame().
     [[nodiscard]] const paint::PaintCacheStats& paint_cache_stats() const;
+    [[nodiscard]] paint::SubtreePaintCacheStats subtree_cache_stats() const;
 
     // True when the most recent finish_frame() reported should_render and tick() has not run since.
     [[nodiscard]] bool frame_due() const {
@@ -314,6 +319,7 @@ private:
     bool frame_due_ = false;
     // Paint records for the tree this pipeline paints; mutable because painting is const.
     mutable paint::PaintCache paint_cache_;
+    mutable paint::SubtreePaintCache subtree_cache_;
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     // Parsed `background-image` layer lists, keyed by style identity (issue #733 item 2). Mutable
     // and owned here for the same reason as the paint cache: it must outlive one frame for a

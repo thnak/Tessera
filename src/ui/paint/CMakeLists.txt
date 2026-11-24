@@ -18,6 +18,7 @@ add_library(tessera_paint STATIC
     paint_text_spans.cpp
     scene_style_provider.cpp
     scene_style_sync.cpp
+    subtree_paint_cache.cpp
     paint_gradient.cpp
     paint_vector.cpp
     text_layout_cache.cpp)

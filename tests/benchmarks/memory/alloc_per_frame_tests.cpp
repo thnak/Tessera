@@ -284,8 +284,9 @@ bool expect(bool condition, const char* scene, const char* action, std::size_t a
 } // namespace
 
 int main(int argc, char** argv) {
-    // `alloc_per_frame_tests --sites <card-grid|scrolling-list|animated> <idle|paint-dirty|layout-dirty>`
-    // prints the top allocation call chains of one row instead of running the gate (issue #701).
+    // `alloc_per_frame_tests --sites <card-grid|scrolling-list|animated>
+    // <idle|paint-dirty|layout-dirty>` prints the top allocation call chains of one row instead of
+    // running the gate (issue #701).
     if (argc == 4 && std::strcmp(argv[1], "--sites") == 0) {
         SceneKind kind = SceneKind::CardGrid;
         for (SceneKind candidate :

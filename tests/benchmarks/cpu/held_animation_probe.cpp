@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 //
 // Measurement and regression guard for issue #200 ("skip the dirty-driven present for held
-// animations"), which asked for a measurement before any code: does an animation that holds a steady
-// value keep repainting its node every tick while another animation keeps the loop awake? It did:
-// 100 held fills turned a 2-node, 1 627-pixel frame into a 102-node, 921 600-pixel (full redraw)
-// frame on every tick. Held fills no longer mark their node dirty, and this fails if they do again.
+// animations"), which asked for a measurement before any code: does an animation that holds a
+// steady value keep repainting its node every tick while another animation keeps the loop awake? It
+// did: 100 held fills turned a 2-node, 1 627-pixel frame into a 102-node, 921 600-pixel (full
+// redraw) frame on every tick. Held fills no longer mark their node dirty, and this fails if they
+// do again.
 //
-// Scene: one mover (an infinite transform animation, so the loop never sleeps) and N holders, each a
-// short opacity animation with `animation-fill-mode: forwards`. After the holders finish, their
-// final value is held by the runtime's fill list and sampled every tick. The probe prints, per frame
-// after the holds are reached, how many nodes the paint resolved and how many device pixels the
-// redraw plan covered, for N = 0 (the mover alone) and N holders. The difference is the cost of the
-// held animations. Deterministic: ManualClock, no GPU, no font, no wall clock.
+// Scene: one mover (an infinite transform animation, so the loop never sleeps) and N holders, each
+// a short opacity animation with `animation-fill-mode: forwards`. After the holders finish, their
+// final value is held by the runtime's fill list and sampled every tick. The probe prints, per
+// frame after the holds are reached, how many nodes the paint resolved and how many device pixels
+// the redraw plan covered, for N = 0 (the mover alone) and N holders. The difference is the cost of
+// the held animations. Deterministic: ManualClock, no GPU, no font, no wall clock.
 
 #include "tessera/app/host.hpp"
 #include "tessera/runtime/clock.hpp"
@@ -33,9 +34,10 @@ using tessera::ui::Node;
 
 class NullSink final : public tessera::ui::paint::PaintSink {
 public:
-    void fill_rect(const tessera::rendering::rhi::Rect&, const tessera::rendering::rhi::Color&) override {}
-    void fill_rounded_rect(const tessera::rendering::rhi::Rect&, const tessera::rendering::rhi::Color&,
-                           float) override {}
+    void fill_rect(const tessera::rendering::rhi::Rect&,
+                   const tessera::rendering::rhi::Color&) override {}
+    void fill_rounded_rect(const tessera::rendering::rhi::Rect&,
+                           const tessera::rendering::rhi::Color&, float) override {}
     void draw_text(const tessera::ui::paint::TextDraw&) override {}
 };
 
@@ -103,9 +105,11 @@ int main(int argc, char** argv) {
     const int holders = argc > 1 ? std::atoi(argv[1]) : 100;
     const Result alone = measure(0);
     const Result held = measure(holders);
-    std::printf("held_animation_probe: mover alone      nodes/frame=%8.1f damage_px/frame=%10.0f presented=%.2f\n",
+    std::printf("held_animation_probe: mover alone      nodes/frame=%8.1f damage_px/frame=%10.0f "
+                "presented=%.2f\n",
                 alone.mean_nodes, alone.mean_damage_pixels, alone.presented_fraction);
-    std::printf("held_animation_probe: + %-4d held      nodes/frame=%8.1f damage_px/frame=%10.0f presented=%.2f\n",
+    std::printf("held_animation_probe: + %-4d held      nodes/frame=%8.1f damage_px/frame=%10.0f "
+                "presented=%.2f\n",
                 holders, held.mean_nodes, held.mean_damage_pixels, held.presented_fraction);
     // The held nodes must cost nothing: the same nodes painted per frame as the mover alone.
     if (held.mean_nodes > alone.mean_nodes + 0.5) {

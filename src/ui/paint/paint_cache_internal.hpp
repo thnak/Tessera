@@ -5,6 +5,7 @@
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
+#include "tessera/ui/paint/subtree_paint_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
@@ -38,6 +39,11 @@ struct PassState {
     std::uint64_t glass_max_backdrop_area = 0;
     // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
     const rhi::Rect* cull = nullptr;
+    // Retained draw list per clean subtree (issue #476); null when the store is off. `in_subtree`
+    // is set while a subtree is being recorded, so the recursion under it records nothing nested.
+    SubtreePaintCache* subtree = nullptr;
+    bool subtree_replay = false; // PaintContext::retain_draw_list
+    mutable bool in_subtree = false;
 };
 
 inline std::uint32_t float_bits(float value) {
@@ -117,6 +123,39 @@ inline void add_paint_counts(PaintStats& stats, const PaintCounts& counts) {
     stats.text_shadows += counts.text_shadows;
     stats.transforms += counts.transforms;
     stats.backdrops += counts.backdrops;
+}
+
+// Retained draw list helpers (issue #476). A subtree list shorter than this loses to walking it, so
+// it is stored as a tombstone instead.
+inline constexpr std::size_t kMinSubtreeOps = 8;
+
+inline std::optional<rhi::Rect> cull_key(const PassState& pass) {
+    return pass.cull != nullptr ? std::optional<rhi::Rect>(*pass.cull) : std::nullopt;
+}
+
+inline void add_subtree_stats(PaintStats& stats, const SubtreeStatsDelta& delta) {
+    add_paint_counts(stats, delta.counts);
+    stats.hidden_subtrees += delta.hidden_subtrees;
+    stats.culled_nodes += delta.culled_nodes;
+    stats.culled_subtrees += delta.culled_subtrees;
+}
+
+// Turns what a recording pass captured into the stored value; `nodes` is left out on purpose.
+inline SubtreeRecord make_subtree_record(PaintCache::Recorder& recorder, const PaintStats& current,
+                                         const PaintStats& before) {
+    SubtreeRecord record;
+    PaintRecord captured = recorder.finish();
+    record.stats.counts = paint_counts_since(current, before);
+    record.stats.hidden_subtrees = current.hidden_subtrees - before.hidden_subtrees;
+    record.stats.culled_nodes = current.culled_nodes - before.culled_nodes;
+    record.stats.culled_subtrees = current.culled_subtrees - before.culled_subtrees;
+    if (captured.ops.size() < kMinSubtreeOps) {
+        record.tombstone = true;
+        return record;
+    }
+    record.ops = std::move(captured.ops);
+    record.gradients = std::move(captured.gradients);
+    return record;
 }
 
 inline ClipScope pushed_clip_scope(const ClipScope& parent, const RoundedClip& clip) {

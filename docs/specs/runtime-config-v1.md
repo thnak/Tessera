@@ -122,7 +122,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `maxDamageRects` | integer | `16` | `1..64` | Exceeding this falls back to full redraw. |
 | `fullRedrawThreshold` | number | `0.6` | `0.0..1.0` | Damage area ratio above which to full-redraw. |
 | `layerCacheBudgetMb` | integer | `64` | `0..4096` | Retained layer cache budget. `0` disables layers. **Reserved:** parsed and range-checked, but no layer cache exists yet, so the value has no effect (#476). |
-| `drawListCacheBudgetMb` | integer | `32` | `0..4096` | Draw-list cache budget. `0` disables caching. **Reserved:** parsed and range-checked, but no retained draw list exists yet (the per-node `PaintCache` has its own limits), so the value has no effect (#476). |
+| `drawListCacheBudgetMb` | integer | `32` | `0..4096` | Retained draw-list budget in MB (one list per clean subtree, [retained-draw-list.md](../design/retained-draw-list.md)). `0` disables it and the output is byte-identical. The per-node `PaintCache` keeps its own limits. |
 | `viewTransitionMaxMb` | integer | `64` | `0..4096` | Memory limit in MiB for the two window-sized textures of a view transition ([`view-transitions-v1.md`](view-transitions-v1.md) section 9). A transition that would exceed it is skipped, not an error. `0` skips every transition. |
 | `viewTransitionMaxSharedElements` | integer | `8` | `0..64` | Shared elements (named groups) per view transition; `0` disables sharing ([`element-transitions-v1.md`](element-transitions-v1.md) section 9). |
 | `presenceExitTimeoutMs` | integer | `1000` | `0..10000` | Longest exit animation of an `AnimatePresence` node before forced removal; `0` removes exiting nodes at once. |
