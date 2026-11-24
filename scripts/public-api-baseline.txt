@@ -1761,12 +1761,15 @@ enum include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::EventK
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_detail
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_signal_member
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_value
+function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_announcement_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_bounds_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_focus_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_property_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_state_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_visible_data_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::set_event_text
+constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kAnnouncementAssertive
+constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kAnnouncementPolite
 constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kMaxEventTextBytes
 constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kMaxQueuedEvents
 

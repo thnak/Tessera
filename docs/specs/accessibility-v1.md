@@ -139,7 +139,7 @@ announce(message, priority);   // polite/assertive
 ## 10. Performance and security
 
 - Semantics snapshots are bounded and updated on dirty flags ([`dirty-rendering.md`](../design/dirty-rendering.md)), not per frame.
-- Platform bridge payloads are size-limited; no unbounded trees.
+- Platform bridge payloads are size-limited; no unbounded trees. `Announcement` (1 polite, 2 assertive) uses the application's path.
 - Redact values for secure fields; no secrets/PII in snapshots/diagnostics.
 - Accessibility actions validate node ids/permissions; no arbitrary action execution.
 
