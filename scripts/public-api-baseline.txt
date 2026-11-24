@@ -1704,10 +1704,12 @@ struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::A11yNod
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::A11ySnapshot
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildOptions
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildStats
+struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::CollectionPosition
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Action
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Role
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::State
 alias include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::A11yIndex
+alias include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::CollectionPositionSource
 function include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::build_a11y_tree
 function include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::description_of
 function include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::find_by_automation_id
@@ -3360,8 +3362,10 @@ struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtuali
 struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::AnnouncementStats
 struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::CollectionItemIdentity
 struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::CollectionItemView
+struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::CollectionPositions
 struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::SelectionEntry
 enum include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::AnnouncementKind
+function include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::snapshot_positions
 constant include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::kMaxPendingAnnouncements
 constant include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::kPosInSetBase
 

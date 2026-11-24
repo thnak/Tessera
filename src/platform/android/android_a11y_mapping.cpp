@@ -172,6 +172,11 @@ A11yNodeInfo describe(const ui::a11y::A11yNode& node) noexcept {
     A11yNodeInfo out;
     out.class_name = class_name_for(node.role);
     out.text = ui::a11y::name_of(node);
+    // A node in a collection reports its item position; every other node keeps the default, which
+    // the Java side reads as "no CollectionItemInfo" rather than "an item of an empty list".
+    out.is_collection_item = node.collection.set_size > 0;
+    out.pos_in_set = node.collection.pos_in_set;
+    out.set_size = node.collection.set_size;
     out.description = ui::a11y::description_of(node);
     out.focusable = tessera::ui::a11y::has_state(node.states, State::Focusable) ||
                     tessera::ui::a11y::has_state(node.states, State::Focused);

@@ -108,5 +108,7 @@ bool preorder_and_children();
 bool capacity_and_truncated_children();
 bool determinism_and_automation_ids();
 bool combined_scroll_focus_metadata();
+// A collection item's position reaches the snapshot; a node outside one keeps the default.
+bool collection_position_from_source();
 
 } // namespace a11y_test

@@ -12,6 +12,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tessera::ui::virtualization {
@@ -196,5 +197,34 @@ private:
 
     AnnouncementStats stats_{};
 };
+
+// The bridge from a collection to the accessibility snapshot (docs/specs/accessibility-v1.md
+// section 5, which recorded this integration as the remaining work).
+//
+// **Why it lives here.** The question the builder asks is "for this node, what are its set size and
+// position", and only the collection can answer it. Putting the walk in this header keeps the
+// collection's own knowledge - that a realized item's automation id is the template's `UiId`, that
+// positions come from the key index and not from the realized window - inside the type that owns
+// it, so the two cannot drift.
+//
+// `snapshot_positions` fills a caller-owned table so the per-build cost is one walk over the
+// realized window and no allocation after the first call. A node that is not a realized item is
+// simply absent, and the builder's default ("not a collection item") stands.
+struct CollectionPositions {
+    // `NodeId` to position, keyed for the builder's per-node question. Sorted, so a lookup is a
+    // binary search and two builds of the same tree produce the same table.
+    std::vector<std::pair<std::uint64_t, std::size_t>> by_node; // (pos_in_set, ...) ->
+    std::size_t set_size = 0;
+
+    void clear() noexcept {
+        by_node.clear();
+    }
+    // The 1-based position of the item realized as `node_id`, or nullopt when that node is not one.
+    [[nodiscard]] std::optional<std::size_t> pos_in_set_of(std::uint64_t node_id) const noexcept;
+};
+
+// Fills `out` from one collection. The node key is the realized item's automation id (its
+// template's `UiId`, automation-ids section 1), which is what a snapshot node carries.
+void snapshot_positions(const CollectionSemantics& semantics, CollectionPositions& out);
 
 } // namespace tessera::ui::virtualization
