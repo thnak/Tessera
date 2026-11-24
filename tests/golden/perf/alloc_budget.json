@@ -36,7 +36,7 @@
         },
         "animated/idle": {
           "budget": 14,
-          "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick returns an AnimationTickResult by value, so its samples/finished vectors allocate every tick. Pinned at the measured number so it cannot grow; the fix is a caller-owned result, tracked on #701."
+          "measures": "A running CSS animation with nothing else dirty. NOT 0: each tick builds fresh sampled declarations (property/value strings), the paint-sample map node and the interpolation view map, which are per-tick values rather than reused buffers."
         },
         "animated/paint-dirty": {
           "budget": 14,
@@ -68,11 +68,11 @@
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {
-          "budget": 18,
+          "budget": 11,
           "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick returns its result by value, so its vectors allocate every tick. 18 on MSVC against 14 on GCC, the same standard-library difference."
         },
         "animated/paint-dirty": {
-          "budget": 18,
+          "budget": 11,
           "measures": "A running animation plus one paint-dirty node."
         }
       }

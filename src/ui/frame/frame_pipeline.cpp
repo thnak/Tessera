@@ -196,7 +196,9 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     // Rotate the paint-only tick samples. Only declarations paint reads are captured (transform,
     // opacity, colors); layout and text properties stay discrete in the style/layout path, so this
     // never requests layout work and never moves a box.
-    previous_samples_ = std::move(current_samples_);
+    // swap, not move-assign: the moved-from map would drop its bucket array and the next capture
+    // would allocate a fresh one every frame (#701).
+    previous_samples_.swap(current_samples_);
     current_samples_.clear();
     if (interpolate_) {
         for (const animation::AnimationSample& sample : result.animation.samples) {

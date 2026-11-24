@@ -142,30 +142,42 @@ std::vector<style::Declaration> sample_at(const style::KeyframeBlock& keyframes,
     const double span = to.offset - from.offset;
     const double t = span <= 0.0 ? 0.0 : (clamped - from.offset) / span;
 
-    std::map<std::string, const style::Declaration*> from_values;
-    std::map<std::string, const style::Declaration*> to_values;
-    for (const style::Declaration& declaration : from.declarations) {
-        from_values[declaration.property] = &declaration;
-    }
-    for (const style::Declaration& declaration : to.declarations) {
-        to_values[declaration.property] = &declaration;
-    }
+    // Linear scans over the (tiny) steps instead of two std::maps: the maps cost a node per
+    // declaration per sampled frame (#701). Later duplicates win, as with the map assignment;
+    // output keeps the map's property-sorted order.
+    const auto last_of = [](const std::vector<style::Declaration>& list,
+                            std::string_view property) -> const style::Declaration* {
+        for (std::size_t i = list.size(); i-- > 0;) {
+            if (list[i].property == property) {
+                return &list[i];
+            }
+        }
+        return nullptr;
+    };
 
     std::vector<style::Declaration> result;
-    for (const auto& [property, declaration] : from_values) {
-        style::Declaration sampled = *declaration;
-        const auto found = to_values.find(property);
-        if (found != to_values.end()) {
-            sampled.value =
-                interpolate_value(property, declaration->value, found->second->value, t);
+    result.reserve(from.declarations.size() + to.declarations.size());
+    for (const style::Declaration& declaration : from.declarations) {
+        if (last_of(from.declarations, declaration.property) != &declaration) {
+            continue;
+        }
+        style::Declaration sampled = declaration;
+        if (const style::Declaration* target = last_of(to.declarations, declaration.property)) {
+            sampled.value = interpolate_value(declaration.property, declaration.value,
+                                              target->value, t);
         }
         result.push_back(std::move(sampled));
     }
-    for (const auto& [property, declaration] : to_values) {
-        if (from_values.find(property) == from_values.end()) {
-            result.push_back(*declaration);
+    for (const style::Declaration& declaration : to.declarations) {
+        if (last_of(to.declarations, declaration.property) == &declaration &&
+            last_of(from.declarations, declaration.property) == nullptr) {
+            result.push_back(declaration);
         }
     }
+    std::sort(result.begin(), result.end(),
+              [](const style::Declaration& l, const style::Declaration& r) {
+                  return l.property < r.property;
+              });
     return result;
 }
 

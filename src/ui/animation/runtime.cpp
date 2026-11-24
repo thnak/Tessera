@@ -157,6 +157,7 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
         entry.callback(entry.id);
     }
 
+    result.samples.reserve(entries_.size() + fills_.size());
     for (const AnimationEntry& entry : entries_) {
         AnimationSample sample = sample_entry(entry, entry.elapsed);
         result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
