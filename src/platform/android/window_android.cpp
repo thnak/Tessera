@@ -2,30 +2,18 @@
 //
 // Android window backend (issue #189).
 //
-// Android has no window manager a native process can create a window in: the OS owns the surface,
-// and the app receives an `ANativeWindow*` from the platform (a `SurfaceView`/`TextureView` holder,
-// or `NativeActivity`'s `ANativeWindow`). This backend therefore does NOT create a window; it
-// *adopts* one. `create_android_window` takes the `ANativeWindow*` the host already owns and wraps
-// it in the HAL contract, so the rest of the engine keeps seeing `WindowMetrics` and never a
-// platform handle (ADR-020 rule 1).
+// The OS owns the surface, so this backend does NOT create a window; it *adopts* the `ANativeWindow*`
+// the host already owns and wraps it in the HAL contract, so the engine keeps seeing
+// `WindowMetrics` and never a platform handle (ADR-020 rule 1).
 //
-// What this slice does and does not do:
-//
-//   - It reports the surface extent, the device scale and the window family, which is what the
-//     renderer needs to size a swapchain and what layout needs to resolve a viewport.
-//   - It translates input through `AndroidInputTranslator` (android_input.cpp): the host calls
-//     `translate_input` from its `onInputEvent` callback, and the translator pushes normalized
-//     events into the queue `set_input_queue` installed. Historical/coalesced samples, tilt and
-//     orientation are not carried yet (see the translator's header).
-//   - It does NOT report insets, cutouts or fold state. Those come from `WindowInsets` and
-//     `WindowMetricsCalculator` through JNI, which is a separate bridge
-//     (docs/design/mobile-integration.md sections 3.5 and 3.6). The metrics carry the documented
-//     zero-inset fallback, which is what every platform without a source reports.
+// It reports the surface extent, device scale and window family, and translates input through
+// `AndroidInputTranslator`. Insets, cutouts and fold state come from the Java bridge
+// (docs/design/mobile-integration.md sections 3.5 and 3.6), not from here.
 //
 // The surface lifetime rule is the important one: `ANativeWindow_acquire`/`release` are reference
 // counted, and the platform may destroy the window while the app is backgrounded. The backend holds
-// one reference for its own lifetime and revokes the borrowed `NativeSurface` when the host reports
-// the surface is gone, so a renderer can never present into a dead window.
+// one reference and revokes the borrowed `NativeSurface` when the host reports the surface is gone,
+// so a renderer can never present into a dead window.
 
 #include "android_input.hpp"
 #include "android_metrics_translation.hpp"
@@ -129,10 +117,23 @@ public:
             event.sequence = ++sequence_;
             events[written++] = event;
         };
+        // The loop ends on `Close` and nothing else: a close that only set `closed_` left a paused
+        // loop running forever, and a caller's join waited for a frame that never came.
+        if (closed_ && written < events.size()) {
+            WindowEvent event;
+            event.type = WindowEventType::Close;
+            event.metrics = metrics_;
+            event.reason = EventReason::Unspecified;
+            event.sequence = ++sequence_;
+            events[written++] = event;
+        }
         emit(WindowEventType::Resize, pending_resize_);
         emit(WindowEventType::SafeAreaChanged, pending_safe_area_);
         emit(WindowEventType::FoldChanged, pending_fold_);
         emit(WindowEventType::HingeAngleChanged, pending_hinge_angle_);
+        // The host pauses on `Minimized` and repaints on `Restored`: it acts on the EVENT.
+        emit(visible_ ? WindowEventType::Restored : WindowEventType::Minimized,
+             pending_visibility_);
         return written;
     }
 
@@ -153,7 +154,8 @@ public:
             wake_requested_ = false;
         }
         const std::lock_guard lock(metrics_mutex_);
-        return pending_resize_ || pending_safe_area_ || pending_fold_ || pending_hinge_angle_;
+        return pending_resize_ || pending_safe_area_ || pending_fold_ || pending_hinge_angle_ ||
+               pending_visibility_;
     }
 
     void set_input_queue(ui::InputQueue* queue) override {
@@ -174,15 +176,27 @@ public:
     }
 
     void show() override {
-        const std::lock_guard lock(metrics_mutex_);
-        visible_ = true;
-        metrics_.minimized = false;
+        {
+            const std::lock_guard lock(metrics_mutex_);
+            visible_ = true;
+            metrics_.minimized = false;
+            pending_visibility_ = true;
+        }
+        request_redraw();
     }
 
     void hide() override {
-        const std::lock_guard lock(metrics_mutex_);
-        visible_ = false;
-        metrics_.minimized = true;
+        {
+            const std::lock_guard lock(metrics_mutex_);
+            visible_ = false;
+            metrics_.minimized = true;
+            pending_visibility_ = true;
+        }
+        // Wake the loop so it can observe the event and settle into the paused state. Without the
+        // wake a parked loop would not read the flag until its next timeout, and the app would keep
+        // presenting into a queue the compositor stopped consuming - which is exactly the wedge
+        // this seam exists to avoid.
+        request_redraw();
     }
 
     void request_redraw() override {
@@ -203,10 +217,8 @@ public:
         }
         closed_ = true;
         lifetime_.revoke();
-        // Wake the parked loop. `close()` used to set the flag and return, which left the loop
-        // sleeping until the next timeout: a caller that then joined the render thread waited for
-        // a frame that was already refused, and on the UI thread (the app going to the background)
-        // that is a deadlock and an ANR. The wake is what makes the stop prompt.
+        // Wake the parked loop: a caller that then joins the render thread would otherwise wait a
+        // whole timeout for a frame already refused, which on the UI thread is a deadlock.
         {
             const std::lock_guard lock(wake_mutex_);
             wake_requested_ = true;
@@ -445,6 +457,9 @@ private:
     bool pending_safe_area_ = false;
     bool pending_fold_ = false;
     bool pending_hinge_angle_ = false;
+    // `hide`/`show` queue a lifecycle event; the host pauses on `Minimized` and repaints on
+    // `Restored`.
+    bool pending_visibility_ = false;
 };
 
 } // namespace

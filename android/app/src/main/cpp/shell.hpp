@@ -100,16 +100,19 @@ struct Shell {
     return reinterpret_cast<Shell*>(static_cast<std::intptr_t>(handle));
 }
 
-// Starts the frame loop and stops it without touching the scene.
+// The frame-loop lifecycle.
 //
-// `start_host` is idempotent and needs the borrowed surface. `stop_host` closes the window and
-// joins the render thread, which is what releases the swapchain: a render thread left presenting
-// into a buffer queue the compositor stopped consuming wedges the queue, and the app comes back
-// from the background with no input focus and an ANR.
+// `pause_host` marks the window minimized, which makes the loop idle with zero presents: nothing is
+// torn down, so nothing has to be joined. `resume_host` shows it again and requests a full repaint.
+// Those two are what the app going to the background uses.
 //
-// Defined in `jni_bridge.cpp` (which owns the host) and declared here so the lifecycle bridge can
-// reach them.
+// `start_host` builds the host and starts the thread (idempotent, needs the borrowed surface);
+// `stop_host` is for teardown only, where the surface is already gone and a bounded join is safe.
+//
+// Defined in `host_lifecycle.cpp` and declared here so the JNI entry points can reach them.
 void start_host(Shell& shell);
+void pause_host(Shell& shell);
+void resume_host(Shell& shell);
 void stop_host(Shell& shell);
 
 } // namespace tessera::android_shell

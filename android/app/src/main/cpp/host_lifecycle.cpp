@@ -124,50 +124,67 @@ void start_host(Shell& shell) {
     });
 }
 
-// Stops the frame loop and destroys the host. Called from `surfaceDestroyed`, `onPause` and
-// `nativeDestroy`.
+// Pauses the frame loop WITHOUT tearing it down.
 //
-// The join is BOUNDED. `run(0)` returns when the window closes, but a render thread already inside
-// a present cannot abandon it: SurfaceFlinger stops consuming when the app goes to the background,
-// so the driver blocks until the buffer queue is released, which does not happen while this thread
-// waits. Waiting forever there is a deadlock on the UI thread and an ANR for every touch.
+// This is the whole fix for going to the background, and the teardown path below is why it took two
+// attempts. Stopping the host means closing the window and joining the render thread, and neither
+// is safe from the UI thread once the app is leaving: the loop may be parked on a pace deadline (so
+// it only sees the close at its next wake) or inside a present (so the driver blocks until the
+// buffer queue is released, which needs the compositor this app no longer has). Joining deadlocked
+// the UI thread; detaching left a live renderer holding its own swapchain, so the next cycle had
+// two renderers competing for one buffer queue and the app came back black.
 //
-// So: ask the loop to stop, give it a moment, and if it is still inside a present, detach it. The
-// thread owns nothing that outlives the process - it holds `shell` by reference and the host by
-// pointer, and the host is only destroyed after the thread is done or detached, which is why the
-// host is moved out here rather than reset in place.
+// The engine already models this: `Window::hide()` sets `WindowMetrics::minimized`, and a paused
+// window makes the loop idle with zero presents (`window.hpp`, the occlusion/minimize note).
+// Nothing has to stop, so nothing has to be joined.
+void pause_host(Shell& shell) {
+    if (shell.window == nullptr) {
+        return;
+    }
+    shell.window->hide();
+    log_info("window hidden");
+}
+
+// Destroys the host. Only for teardown (`surfaceDestroyed`, `nativeDestroy`), where the surface is
+// already gone and the caller can afford to wait for the render thread.
 void stop_host(Shell& shell) {
     if (shell.host == nullptr) {
         return;
     }
-    // `run(0)` returns when the window closes, so closing it is how the loop is asked to stop. The
-    // close also wakes a parked loop (window_android.cpp), which is what makes the common case
-    // immediate.
     if (shell.window != nullptr) {
         shell.window->close();
     }
     if (shell.render_thread.joinable()) {
-        // Wait for the loop to leave `run(0)`. A thread that is parked wakes on the close; one that
-        // is inside a present does not, and is left detached rather than deadlocking the caller.
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+        // Generous: a thread parked on a pace deadline only notices the close at its next wake, and
+        // one inside a present has to drain first - measured at ~1.5 s on the emulator.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         while (shell.running.load() && std::chrono::steady_clock::now() < deadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-        if (shell.running.load()) {
-            log_info("render thread is inside a present; detaching instead of blocking");
-            shell.render_thread.detach();
-            // The host is leaked on purpose: the detached thread is still using it, and the process
-            // is on its way out of the foreground. The scene survives; only the swapchain is lost.
-            (void)shell.host.release();
-        } else {
+        if (!shell.running.load()) {
             shell.render_thread.join();
             shell.host.reset();
+        } else {
+            log_info("render thread did not stop; detaching (leaked host)");
+            shell.render_thread.detach();
+            (void)shell.host.release();
         }
     } else {
         shell.host.reset();
     }
     shell.window = nullptr;
     log_info("window host stopped");
+}
+
+// Resumes a paused host. The window and the thread were never torn down, so this is a show plus a
+// redraw request: the resume edge repaints fully, which is what the minimize path promises.
+void resume_host(Shell& shell) {
+    if (shell.window == nullptr) {
+        return;
+    }
+    shell.window->show();
+    shell.window->request_redraw();
+    log_info("window shown");
 }
 
 } // namespace tessera::android_shell

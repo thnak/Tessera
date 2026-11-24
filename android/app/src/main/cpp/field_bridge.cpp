@@ -11,7 +11,6 @@
 #include "caret_bridge.hpp"
 #include "shell.hpp"
 
-#include <android/native_window.h>
 #include <jni.h>
 
 using tessera::android_shell::Shell;
@@ -123,43 +122,35 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeCaretGeometry(
     return JNI_TRUE;
 }
 
-// Stops the render loop without destroying the scene, for the app going to the background.
+// Pauses the render loop for the app going to the background.
 //
-// `surfaceDestroyed` does not fire when an app is backgrounded on current Android, so the render
-// thread kept presenting into a buffer queue SurfaceFlinger had stopped consuming; that wedges the
-// queue and the app comes back with no input focus and an ANR for every touch. This is the seam
-// that stops it, and `nativeResumeRendering` rebuilds the host.
+// This does NOT tear the host down. `surfaceDestroyed` does not fire for a backgrounded app on
+// current Android, so the loop kept presenting into a buffer queue SurfaceFlinger had stopped
+// consuming, which wedges the queue and ANRs every touch on return. Stopping the host instead means
+// joining the render thread from the UI thread, and that deadlocks (the loop is inside a present)
+// or leaks a live renderer when detached (the next cycle then has two renderers on one queue, which
+// is the black window).
+//
+// `pause_host` marks the window minimized: the loop idles with zero presents, the thread stays put,
+// and the surface stays valid for `resume_host` to show again.
 JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativePauseRendering(JNIEnv*, jclass,
                                                                              jlong handle) {
     Shell* shell = shell_from(handle);
     if (shell == nullptr) {
         return;
     }
-    tessera::android_shell::stop_host(*shell);
-    // Release the borrowed window with the host. The view hands us a fresh one in
-    // `surfaceCreated`, and holding a released surface is what made `resumeRendering` believe it
-    // could start against a dead window.
-    if (shell->native_window != nullptr) {
-        ANativeWindow_release(shell->native_window);
-        shell->native_window = nullptr;
-    }
+    tessera::android_shell::pause_host(*shell);
 }
 
+// Resumes after `nativePauseRendering`. The window and thread were never torn down, so this is a
+// show plus a full repaint - no dependency on `surfaceCreated` ordering.
 JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeResumeRendering(JNIEnv*, jclass,
                                                                               jlong handle) {
     Shell* shell = shell_from(handle);
     if (shell == nullptr) {
         return;
     }
-    // Do NOT start here. On the way back from the background the platform delivers `onResume`
-    // BEFORE `surfaceCreated`, and the borrowed window is either released or stale at that point:
-    // starting then builds a host against a dead surface and reports "the window host is
-    // unavailable". `nativeSurfaceCreated` is the callback that owns the start, and it runs a
-    // moment later with a valid window. This entry point stays for symmetry and for the case where
-    // the surface was never destroyed (start_host is idempotent).
-    if (shell->native_window != nullptr) {
-        tessera::android_shell::start_host(*shell);
-    }
+    tessera::android_shell::resume_host(*shell);
 }
 
 } // extern "C"

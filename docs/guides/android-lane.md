@@ -122,26 +122,20 @@ and `hal::create_window` returns `nullptr` when it is null — the documented "n
 
 | Path | What it is |
 |---|---|
-| `android/app/src/main/AndroidManifest.xml` | `NativeActivity`, the Vulkan feature requirements, and the `configChanges` contract |
-| `android/app/src/main/cpp/android_main.cpp` | `android_main`: waits for the OS to hand over an `ANativeWindow`, then creates the host |
+| `android/app/src/main/AndroidManifest.xml` | the activity, the Vulkan feature requirements, and the `configChanges` contract |
 | `android/app/src/main/cpp/scene.hpp` | the shell's scene and stylesheet: a card, a tap counter and a text field |
 | `android/app/src/main/cpp/CMakeLists.txt` | the `tessera_android_app` shared library, linking `tessera_app_window` |
 | `android/app/build.gradle.kts` | compiles the engine through the same CMake project and packages the APK |
 
-The scene outlives the host: `android_main` creates it once and creates/destroys the host around it
-as surfaces come and go, so a backgrounded app keeps its state (the tap counter survives a
-background/foreground cycle). The host borrows the root and owns the compiled stylesheet, which is
-why the scene is a `unique_ptr` the shell holds rather than a local.
+The scene outlives the host: the shell creates it once and creates/destroys the host around it as
+surfaces come and go, so a backgrounded app keeps its state (the tap counter survives a
+background/foreground cycle). The host borrows the root and owns the compiled stylesheet, which is why
+the scene is a `unique_ptr` the shell holds rather than a local.
 
 The manifest declares only what the engine can honour. `localeConfig`, `networkSecurityConfig`,
-`enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a
-capability the app cannot honour routes platform events to a handler that does not exist.
+`enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a capability
+the app cannot honour routes platform events to a handler that does not exist.
 
-`android_main` creates the host on `APP_CMD_INIT_WINDOW` and destroys it on `APP_CMD_TERM_WINDOW`,
-so the host is gone before the window can be reused — the surface-lifecycle rule from
-`docs/design/mobile-integration.md` section 3.1. It does not run the frame loop on the glue thread:
-`WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
-window.
 
 ### 3.4 Input translation
 
@@ -215,10 +209,9 @@ an `ANativeWindow` (`ANativeWindow_fromSurface`). A `TextureView` would give a `
 which needs a different Vulkan path.
 
 **The render thread.** `WindowHost` is single-threaded and must be created, run and destroyed on the
-thread that owns the window, so the bridge starts a dedicated render thread that calls
-`host->run(0)`. The Java thread only signals it: `surfaceDestroyed` closes the window, which makes
-`run(0)` return, and then joins. `pump_once` on the Java thread would need a spin, and a spin on a
-phone burns battery for nothing.
+thread that owns the window, so the bridge starts a dedicated render thread that calls `host->run(0)`
+(see 3.19 for the pause/teardown rules). `pump_once` on the Java thread would need a spin, and a spin
+on a phone burns battery for nothing.
 
 **The input seam.** The shell is a Java activity, so touch arrives as an `android.view.MotionEvent`,
 not as the NDK's `AInputEvent`. The bridge reads the getters once into a `MotionSample` and the pure
@@ -330,9 +323,8 @@ So the Android column is a different shape, not a branch in an existing one:
 Three details that are easy to get wrong, and that the tests pin:
 
 **Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers on every
-rebuild and a screen reader focused on virtual view 3 would point at a different control.
-`SnapshotProvider` keeps a slot table: a node keeps its id while it stays in the tree, and a node
-that leaves frees its slot. Id `0` is the host view, so a real node is always `1..kMaxNodes`.
+rebuild and a screen reader focused on view 3 would point at a different control. `SnapshotProvider`
+keeps a slot table: a node keeps its id while it stays in the tree. Id `0` is the host view.
 
 **The action ids are the platform's.** They are *not* consecutive powers of two: `ACTION_FOCUS` is
 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is 2097152. Numbering them
@@ -409,10 +401,10 @@ layout on every degree. The angle coalesces into the newest, so a burst between 
 event.
 
 **The sentinel is negative.** `kUnknownHingeAngle` is `-1`, not `0`, because `0` is a real
-measurement - a fully closed hinge. The decode also turns a non-finite reading into the sentinel
-rather than clamping, because a broken HAL reporting `NaN` must not look closed. The upper clamp is
-360, not 180: a display that folds all the way around is real. And `fold_info` sets the angle before
-the posture switch, so a device with a sensor but no `FoldingFeature` still reports it.
+measurement - a fully closed hinge. A non-finite reading becomes the sentinel rather than a clamp, so
+a broken HAL reporting `NaN` cannot look closed, and the upper clamp is 360 because a display that
+folds all the way around is real. `fold_info` sets the angle before the posture switch, so a device
+with a sensor but no `FoldingFeature` still reports it.
 
 **Registration follows the lifecycle.** The sensor is registered on resume and released on pause: a
 non-wake-up sensor left registered while backgrounded stays powered for a value no frame can show.
@@ -571,27 +563,35 @@ finishes the mode, because each one collapses or changes the selection.
 Verified on the emulator: long-press and drag over `hello` raises the toolbar above the field; Copy
 writes `hello` (the platform's clipboard chip confirms it); Select all highlights the whole buffer.
 
-### 3.19 Going to the background: pause the loop
+### 3.19 Going to the background: pause the loop, do not tear it down
 
 Home does **not** destroy the surface on current Android. Only `onPause`/`onStop` run, so
 `surfaceDestroyed` never fires and the render thread kept presenting into a buffer queue the
 compositor stopped consuming. That wedged the queue, the task's snapshot never completed, and coming
 back showed a starting window over an app with no input focus that ANR'd on every touch (`dumpsys
-input` reported an empty `FocusedWindows`). Three things had to be true:
+input` reported an empty `FocusedWindows`).
 
-1. **Stop rendering in `onPause`, not `onStop`.** An app can sit paused indefinitely without ever
-   being stopped, so only `onPause` is guaranteed.
-2. **`close()` must wake the parked loop.** It set the flag and returned, so a caller joining the
-   render thread waited for the next timeout - a deadlock on the UI thread. It now notifies the same
-   condition variable `request_redraw` does, and `closed_` is atomic.
-3. **The join is bounded.** A thread inside a present cannot abandon it, so `stop_host` gives the
-   loop 250 ms then detaches, leaking the host on purpose.
+**The first fix was wrong, and how it was wrong is the useful part.** It stopped the host on pause:
+close the window, join the render thread. That deadlocked the UI thread, because a loop inside a
+present cannot return until the buffer queue is released, which needs the compositor the app no
+longer has. Joining with a timeout and detaching instead leaked a live renderer still holding its
+swapchain, so the next cycle had two renderers on one queue and the app came back **black**.
 
-`onResume` runs **before** `surfaceCreated` and the borrowed window is stale then, so starting there
-reported "the window host is unavailable". `nativeSurfaceCreated` owns the start; `resumeRendering`
-only starts on an already-valid window. Verified: type `abc`, Home, return, tap and type `xyz` - the
-field reads `abcxyz`.
+The engine already models this: `Window::hide()` sets `WindowMetrics::minimized` and the loop idles
+with zero presents, so nothing has to be joined. Three things had to follow:
 
+1. **`hide()`/`show()` must queue a lifecycle event.** They only mutated the metrics, so the host -
+   which acts on the `Minimized`/`Restored` EVENT - never paused.
+2. **`close()` must reach the loop as an event too.** The loop ends on `Close` and nothing else, so a
+   close that only set `closed_` left a paused loop running forever.
+3. **`stop_host` is teardown only** (`surfaceDestroyed`/`nativeDestroy`); `onPause` calls `pause_host`.
+
+`onResume` runs **before** `surfaceCreated` and the borrowed window is stale then, so `resume_host`
+does not depend on the surface callback: it shows the window and requests a full repaint on the host
+that was never destroyed.
+
+Verified: type `abc`, Home, return, tap, type `xyz` - the field reads `abcxyz`. Repeated four times,
+the log shows `window hidden` then a clean `render thread exited`, with no detach and no leak.
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.
