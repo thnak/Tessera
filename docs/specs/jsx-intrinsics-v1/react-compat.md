@@ -17,6 +17,30 @@ subset; it is not browser behavior ([ADR-036](../../../decisions/ADR-036-own-jsx
 | `useMemo`, `useCallback` | Safe subset can be lowered as plain locals (section 4.2); no change now |
 | Not accepted | Listed in section 4 with the reason |
 
+### 1.1 Port classes (ADR-058), and the checker that reports them
+
+A port of an existing React project is graded per dependency by how much of it survives
+([ADR-058](../../../decisions/ADR-058-react-vite-port-compatibility-tiers.md)). The classes are
+the vocabulary of that grade, and `tessera port-check <dir>` (issue #546) prints them:
+
+| Class | Meaning | Examples |
+|---|---|---|
+| A | Source-compatible: the same source compiles | `react` (an alias of `tessera`, section 4.1) |
+| B | Shim: a Tessera module provides the API under the same import | `react-router-dom` |
+| C | Build-time: the build rewrites it | `vite`, `react-dom`, `*.module.css` |
+| D | Not ported: no equivalent, and the row names what to write instead | `@mui/material`, `styled-components`, `@tanstack/react-query` |
+
+Two rules make the report usable rather than decorative. **A class-D dependency is never a bare
+refusal**: ADR-058 section 1 forbids a silent drop, so every D row names its replacement, and a
+test walks the table to keep that true. **An unclassified package is class D**, not an optimistic
+guess (ADR-058 section 4), so a dependency nobody has ruled on shows up as a blocker rather than
+disappearing from the totals.
+
+The checker reads only `package.json`: it never reads `node_modules` (ADR-058 section 4), costs no
+build, and therefore runs on a fresh checkout. Construct-level grading - which `localStorage` or
+`dangerouslySetInnerHTML` a file uses - belongs to the front end and arrives with typing rules 1-3
+of ADR-058 section 3, which are steps 2 and later of its order of work.
+
 ## 2. Event props and payloads (decided: Q1, option C)
 
 Options for the payload of `onChange` on `TextInput`/`TextArea` (the other events have only one
