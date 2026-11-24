@@ -16,31 +16,28 @@ A test is a `main()` returning nonzero, as everywhere else in the repo. There is
 framework: [`design/testing.md`](../design/testing.md) section 12 records that the decision to adopt one
 has not been made, and a testing target is the wrong place to make it.
 
+`TestApp` owns the update scheduler and installs it on the host, so the two calls every fixture once
+had to repeat - `host().set_update_scheduler(&scheduler_)` in the constructor and
+`component.attach_scheduler(...)` in `build_scene()` - collapse into one `mount(component)`. Forgetting
+either half left a setter marking a ticket nothing ever flushes, with no hint why; the helper makes the
+mistake unreachable. A test that wants its own scheduler still can: construct one, call
+`host().set_update_scheduler(&scheduler)` before `build()`, and pass it to `attach_scheduler` yourself.
+
 ```cpp
 #include "CounterCard.hpp"
 #include "tessera/testing/expect.hpp"
 #include "tessera/testing/test_app.hpp"
 
 namespace testing = tessera::testing;
-namespace ui = tessera::ui;
 
-// Your app: the generated component plus the wiring a real mount does.
+// Your app: the generated component plus the wiring a real mount does - which `mount` now is.
 class CounterApp final : public testing::TestApp {
 public:
-    CounterApp() {
-        // Without this a setter marks the component dirty and nothing ever flushes it. It is the one
-        // piece of wiring a test reproduces from the app's own mount.
-        host().set_update_scheduler(&scheduler_);
-    }
-
     void build_scene() override {
-        card_.build(root());
-        card_.mount();
-        card_.attach_scheduler(scheduler_);
+        mount(card_);                 // build(root()), mount(), attach_scheduler(scheduler())
     }
 
 private:
-    ui::UpdateScheduler scheduler_;
     card::CounterCard card_;
 };
 
@@ -48,16 +45,16 @@ int main() {
     CounterApp app;
     app.build();                      // build_scene(), then one settled frame
 
-    testing::expect_text(app, 1002, "Count: 0", "initial count");
+    app.expect_text(1002, "Count: 0", "initial count");
     testing::expect(app.tap(1004), "tapped Add");
-    testing::expect_text(app, 1002, "Count: 1", "count after one tap");
+    app.expect_text(1002, "Count: 1", "count after one tap");
 
     return testing::failures();  // 0 when nothing failed
 }
 ```
 
-`expect_text(app, ...)` and friends are the free-function form; `app.expect_text(...)` is the same
-assertion with the app as the receiver. Both are in the acceptance test.
+`app.expect_text(...)` asserts through the app; `testing::expect` is the plain assertion of
+[`expect.hpp`](../../include/tessera/testing/expect.hpp). Both appear in the acceptance test.
 
 ## 2. Where the ids come from
 
@@ -98,7 +95,8 @@ loop, loop before the host, host before the pump:
 
 Network and shell fakes are **not** duplicated here: `appfw::FakeNet` and `appfw::FakeShell` ship with
 their modules and need the completion queue and the clock, so you construct one from `completions()` and
-`clock()` and register it. Section 5 is the worked example.
+`clock()` and hand it to `attach(fake)` - which is what lets `settle()` deliver its due work. Section 5
+is the worked example.
 
 ## 4. Driving time
 
@@ -106,6 +104,7 @@ their modules and need the completion queue and the clock, so you construct one 
 app.advance(0.1);       // cover 100 ms in whole fixed ticks, painting when a frame is due
 app.pump_ticks(6);      // exactly six iterations
 app.pump_once();        // one iteration; true when it painted
+app.settle();           // run I/O, completions, fakes and ticks until nothing is pending (section 5)
 ```
 
 A tick is `1/60 s` by default (`AdvanceConfig::tick_seconds`). `advance` rounds to a whole number of
@@ -122,11 +121,14 @@ by waiting.
 ## 5. A failed network request
 
 The acceptance criterion in issue #454, and the shape most app tests want: a service, a scripted failure,
-a state the test can see.
+a state the test can see. `app.attach(net)` registers the fake with the app, and `settle()` drives the
+whole exchange - I/O bodies, completions, what the fake owes, due timers, one frame - until nothing is
+pending, so the test never writes a pump loop.
 
 ```cpp
 appfw::FakeNet net(app.completions(), app.clock());
 net.push_error(appfw::NetErrorKind::Dns, "no such host");
+app.attach(net);                      // settle() delivers the fake's due work
 
 appfw::NetClient client(appfw::NetClientConfig{}, net, app.executor(), app.completions(),
                         app.timers(), app.clock());
@@ -137,17 +139,20 @@ if (!registered) { /* report registered.error().code */ }
 app.prepare();
 app.runner()->begin_start();
 
-// The fake delivers on the clock, so you drive the exchange instead of waiting for it.
-for (int attempt = 0; attempt < 8 && app.text_of(9001) == std::nullopt; ++attempt) {
-    (void)app.executor().run(4);          // the I/O body
-    (void)app.executor().run_completions(4);  // its UI-thread half
-    net.deliver_due();                     // the scripted answer becomes due
-    app.advance(1.0 / 60.0);               // the loop drains the completion queue
-    (void)app.completions().run(16);
-}
+const testing::SettleResult settled = app.settle();
+testing::expect(settled.outcome == testing::SettleOutcome::Settled,
+                "the exchange settled instead of hitting the bound");
 
-testing::expect_text(app, 9001, "error: dns", "the failure reached the scene");
+app.expect_text(9001, "error: dns", "the failure reached the scene");
 ```
+
+`settle()` returns `SettleResult`: `Settled` when nothing is pending (the executor holds no work, the
+completion queue is empty and every timer's deadline is after `now`), or `BoundReached` with the step
+and completion counts when `SettleConfig::max_ticks` ran out first. The bound is what keeps a service
+that never answers a *named failure* instead of a test that passes on a timeout - assert on the outcome
+whenever the exchange must complete. `run_until(predicate)` is the "until node 9001 has text" form,
+built on the same step: it settles until the predicate holds or the bound is hit, and returns the same
+result. Both take a `SettleConfig` when the default bound (64 steps of 1/60 s) does not fit.
 
 A service must be written in the context-first free-body shape (ADR-050 section 4): a member coroutine
 cannot carry `TaskContext` as its first argument. `tests/unit/appfw_test_services.hpp` has the working
@@ -157,6 +162,22 @@ form, and the acceptance test copies it.
 The real API keeps those separate because a service can be resolvable without being lifecycle-managed;
 here the common case is both, and getting them out of step is exactly the mistake a test-support target
 exists to prevent.
+
+The explicit steps stay public, and they are what `settle()` runs in the same fixed order every
+iteration - I/O body, its UI-thread completion, what the fake owes, one advance, the completion drain.
+Use them when a test wants to observe a single stage (that a body ran before its completion, that the
+scene is unchanged until the drain). The fake delivers on the clock, so the test drives the exchange
+instead of waiting for it:
+
+```cpp
+for (int attempt = 0; attempt < 8 && app.text_of(9001) == std::nullopt; ++attempt) {
+    (void)app.executor().run(4);              // the I/O body
+    (void)app.executor().run_completions(4);  // its UI-thread half
+    net.deliver_due();                        // the scripted answer becomes due
+    app.advance(1.0 / 60.0);                  // the loop drains the completion queue
+    (void)app.completions().run(16);
+}
+```
 
 ## 6. Back, Escape and the overlays
 
