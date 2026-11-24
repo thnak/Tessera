@@ -148,6 +148,21 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     // The size class the first frame starts at (issue #692): a component that reads
     // `useBreakpoint()` renders the class the window actually has, not the field's initial value.
     pushed_size_class = ui::responsive::size_class_for(media_context);
+    // A host that has never painted anything owes a full-target frame, whatever the tree's dirty
+    // flags say. The damage plan is derived from dirty nodes (`FramePipeline::tick` clears the
+    // accumulator, then `should_render` comes from the resulting scissors), so a host built around
+    // an ALREADY SETTLED tree plans nothing and paints nothing.
+    //
+    // That is not hypothetical: it is the Android fold defect. Destroying and recreating the
+    // surface rebuilds the host around the shell's live scene, whose nodes are already laid out and
+    // clean, so the first tick produced an empty plan and the window stayed black until a tap
+    // dirtied a node. App launch hid it because a fresh scene is dirty once. Latching here makes
+    // the invariant explicit instead of leaving every caller to remember it.
+    //
+    // `request_full_repaint()` is the public half of these two lines; it is not called because this
+    // constructor runs before the `AppHost` that owns it exists.
+    full_repaint_pending = true;
+    this->loop.mark_render_dirty();
 }
 
 void AppHost::Impl::apply_root_size() {

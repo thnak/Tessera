@@ -177,12 +177,27 @@ void stop_host(Shell& shell) {
 }
 
 // Resumes a paused host. The window and the thread were never torn down, so this is a show plus a
-// redraw request: the resume edge repaints fully, which is what the minimize path promises.
+// full-repaint latch.
+//
+// `show()` alone is NOT enough, and that is this function's whole reason for existing. The host
+// pauses on the `Minimized`/`Restored` events and resumes on the latter, but a resume edge only
+// clears the pause: `FramePipeline::tick` clears the damage accumulator every tick and derives
+// `should_render` from the damage plan, so a scene with no dirty node produces an empty scissor
+// list and the loop parks without painting. On a fresh window the first layout's dirty flags hide
+// that (every node is dirty once), which is why the bug only showed after a surface was recreated:
+// the host was rebuilt around an already-settled tree, so nothing was dirty and nothing painted -
+// a black window that only a tap (which dirties a node) could fix.
+//
+// `request_full_repaint()` is the documented lever for exactly this: it latches a full-target plan
+// and marks the loop dirty. `WindowHost::set_visible(true)` already calls it for the same reason on
+// desktop (src/app/window.cpp), so this is the Android path catching up with that rule rather than
+// a new one.
 void resume_host(Shell& shell) {
-    if (shell.window == nullptr) {
+    if (shell.window == nullptr || shell.host == nullptr) {
         return;
     }
     shell.window->show();
+    shell.host->host().request_full_repaint();
     shell.window->request_redraw();
     log_info("window shown");
 }
