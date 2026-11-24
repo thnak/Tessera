@@ -1,8 +1,13 @@
 #version 450
 // GPU compute path rasterizer spike (ADR-071 evidence, issue #683). Fill only, scanline-binned.
 //
-// One source, three passes selected by a define:
+// One source, four passes selected by a define:
 //   PASS_CLEAR  work[0] = 0 (node counter), every row head = 0xFFFFFFFF.
+//   PASS_STROKE one thread per stroke segment (the flattened centerline): expands it on the GPU into
+//               edges written after the fill segments - a quad for the body, a wedge for the round
+//               join at its start, a half disc for a round cap. Every piece is wound the same way and
+//               abuts its neighbours along shared radii, so signed areas cancel there exactly and the
+//               union is the stroke; only the self-overlap inside a sharp turn is clamped.
 //   PASS_BIN    one thread per segment: for each pixel row the segment crosses, push a node
 //               {segment, next} onto that (path, row) list (atomic counter + atomic exchange).
 //   PASS_FINE   one thread per pixel: for each path whose box holds the pixel, walk the (path, row)
@@ -23,6 +28,11 @@ layout(std430, binding = 0) readonly buffer Segs { uint segs[]; };   // 8 words:
 layout(std430, binding = 1) readonly buffer Paths { uint paths[]; }; // 8 words: -, -, bx0 by0 bx1 by1, rule, rgba8
 layout(std430, binding = 2) buffer Work { uint work[]; };            // counter, row heads, nodes
 layout(std430, binding = 3) buffer Out { uint pixels[]; };           // straight RGBA8
+#ifdef PASS_STROKE
+// 12 words: x0 y0 x1 y1 (f32), path, half width (f32), flags (1 end cap, 2 has previous vertex), -,
+// previous vertex x y (f32), -, -
+layout(std430, binding = 4) readonly buffer Strokes { uint strokes[]; };
+#endif
 
 layout(push_constant) uniform Push {
     uint width;
@@ -31,11 +41,21 @@ layout(push_constant) uniform Push {
     uint seg_count;
     uint node_capacity;
     uint nodes_base;
+    uint fill_count;   // segments in the segs buffer; ids past it live in work at exp_base
+    uint exp_base;     // first word of the GPU-expanded stroke segments inside work
+    uint stroke_count;
+    uint arc_edges;    // J: arc edges per join wedge or cap (a full circle is 2 * J)
     uint pad0;
-    uint pad1;
 } pc;
 
 const uint kNil = 0xFFFFFFFFu;
+
+#if defined(PASS_BIN) || defined(PASS_FINE)
+// A segment id below fill_count is a fill edge from the CPU; the rest were expanded from strokes.
+uint seg_word(uint s, uint k) {
+    return s < pc.fill_count ? segs[s * 8u + k] : work[pc.exp_base + (s - pc.fill_count) * 8u + k];
+}
+#endif
 
 #ifdef PASS_CLEAR
 void main() {
@@ -49,15 +69,112 @@ void main() {
 }
 #endif
 
+#ifdef PASS_STROKE
+void put_edge(uint slot, vec2 a, vec2 b, uint path) {
+    uint o = pc.exp_base + slot * 8u;
+    work[o] = floatBitsToUint(a.x);
+    work[o + 1u] = floatBitsToUint(a.y);
+    work[o + 2u] = floatBitsToUint(b.x);
+    work[o + 3u] = floatBitsToUint(b.y);
+    work[o + 4u] = path;
+}
+
+// Apex p, first rim point p + a, then the rim arc turning counter-clockwise by sweep, then back to p.
+// sweep <= 0 writes nothing (zero-length edges are skipped by the bin pass).
+void put_wedge(uint slot, vec2 p, vec2 a, float sweep, uint path) {
+    uint arc = pc.arc_edges;
+    // The rim needs one edge per step of the full-circle tessellation (a half turn is `arc` edges),
+    // so a join that barely turns writes one edge instead of the whole fan; the rest of the slots stay
+    // zero-length and cost the bin pass a thread each, nothing else.
+    uint used = sweep <= 0.0 ? 0u : clamp(uint(ceil(sweep / 3.14159265358979 * float(arc))), 1u, arc);
+    if (used == 0u) {
+        for (uint k = 0u; k < arc + 2u; ++k) {
+            put_edge(slot + k, vec2(0.0), vec2(0.0), path);
+        }
+        return;
+    }
+    // Each rim point is rotated from `a` by its own angle rather than stepped, so no error accumulates.
+    vec2 prev = a;
+    put_edge(slot, p, p + a, path);
+    for (uint k = 0u; k < used; ++k) {
+        float angle = sweep * float(k + 1u) / float(used);
+        float c = cos(angle);
+        float s = sin(angle);
+        vec2 next = vec2(c * a.x - s * a.y, s * a.x + c * a.y);
+        put_edge(slot + 1u + k, p + prev, p + next, path);
+        prev = next;
+    }
+    put_edge(slot + 1u + used, p + prev, p, path);
+    for (uint k = used + 2u; k < arc + 2u; ++k) {
+        put_edge(slot + k, vec2(0.0), vec2(0.0), path);
+    }
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.stroke_count) {
+        return;
+    }
+    uint r = i * 12u;
+    vec2 p0 = vec2(uintBitsToFloat(strokes[r]), uintBitsToFloat(strokes[r + 1u]));
+    vec2 p1 = vec2(uintBitsToFloat(strokes[r + 2u]), uintBitsToFloat(strokes[r + 3u]));
+    uint path = strokes[r + 4u];
+    float hw = uintBitsToFloat(strokes[r + 5u]);
+    uint flags = strokes[r + 6u];
+    vec2 prev_point = vec2(uintBitsToFloat(strokes[r + 8u]), uintBitsToFloat(strokes[r + 9u]));
+    uint stride = 4u + 2u * (pc.arc_edges + 2u);
+    uint slot = i * stride;
+    vec2 d = p1 - p0;
+    float len = length(d);
+    if (len <= 0.0) {
+        for (uint k = 0u; k < stride; ++k) {
+            put_edge(slot + k, vec2(0.0), vec2(0.0), path);
+        }
+        return;
+    }
+    vec2 d1 = d / len;
+    vec2 n1 = vec2(-d1.y, d1.x) * hw;
+    // body: wound so successive edges turn the same way as the wedges below
+    put_edge(slot, p0 + n1, p0 - n1, path);
+    put_edge(slot + 1u, p0 - n1, p1 - n1, path);
+    put_edge(slot + 2u, p1 - n1, p1 + n1, path);
+    put_edge(slot + 3u, p1 + n1, p0 + n1, path);
+    // start: a join against the previous vertex, or a round cap when there is none
+    vec2 a = n1;
+    float sweep = 3.14159265358979;
+    if ((flags & 2u) != 0u) {
+        vec2 dv = p0 - prev_point;
+        float dl = length(dv);
+        if (dl > 0.0) {
+            vec2 d0 = dv / dl;
+            float cr = d0.x * d1.y - d0.y * d1.x;
+            float dt = dot(d0, d1);
+            sweep = atan(abs(cr), dt);
+            vec2 n0 = vec2(-d0.y, d0.x) * hw;
+            a = cr > 0.0 ? -n0 : n1;
+            if (sweep < 1e-4) {
+                sweep = 0.0;
+            }
+        } else {
+            sweep = 0.0;
+        }
+    }
+    put_wedge(slot + 4u, p0, a, sweep, path);
+    // end cap of an open contour
+    put_wedge(slot + 4u + pc.arc_edges + 2u, p1, -n1, (flags & 1u) != 0u ? 3.14159265358979 : 0.0,
+              path);
+}
+#endif
+
 #ifdef PASS_BIN
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.seg_count) {
         return;
     }
-    float y0 = uintBitsToFloat(segs[i * 8u + 1u]);
-    float y1 = uintBitsToFloat(segs[i * 8u + 3u]);
-    uint path = segs[i * 8u + 4u];
+    float y0 = uintBitsToFloat(seg_word(i, 1u));
+    float y1 = uintBitsToFloat(seg_word(i, 3u));
+    uint path = seg_word(i, 4u);
     if (y0 == y1) {
         return;
     }
@@ -146,8 +263,8 @@ void main() {
         uint node = work[1u + p * pc.height + y];
         while (node != kNil) {
             uint s = work[pc.nodes_base + node * 2u];
-            vec2 a = vec2(uintBitsToFloat(segs[s * 8u]), uintBitsToFloat(segs[s * 8u + 1u]));
-            vec2 b = vec2(uintBitsToFloat(segs[s * 8u + 2u]), uintBitsToFloat(segs[s * 8u + 3u]));
+            vec2 a = vec2(uintBitsToFloat(seg_word(s, 0u)), uintBitsToFloat(seg_word(s, 1u)));
+            vec2 b = vec2(uintBitsToFloat(seg_word(s, 2u)), uintBitsToFloat(seg_word(s, 3u)));
             w += segment_area(a, b, px, py);
             node = work[pc.nodes_base + node * 2u + 1u];
         }

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-# ADR-071 spike (issue #683): a GPU compute path rasterizer, fill only, measured at 4K against the
+# ADR-071 spike (issue #683): a GPU compute path rasterizer (fills, plus round-join/cap strokes expanded on the GPU), measured at 4K against the
 # ThorVG CPU raster. Off by default (TESSERA_BUILD_COMPUTE_RASTER_SPIKE); it changes no default and
 # is not registered with ctest. The shaders are compiled by this rule alone, so they are outside the
 # shader manifest (they are evidence, not production shaders).
@@ -12,7 +12,7 @@ endif()
 set(SPIKE_GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${SPIKE_GEN})
 set(SPIKE_HEADERS)
-foreach (pass IN ITEMS CLEAR BIN FINE)
+foreach (pass IN ITEMS CLEAR STROKE BIN FINE)
     string(TOLOWER ${pass} lower)
     set(header ${SPIKE_GEN}/raster_${lower}_spv.h)
     add_custom_command(

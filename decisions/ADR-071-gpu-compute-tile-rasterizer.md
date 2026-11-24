@@ -96,17 +96,18 @@ force is not enough on a low-end dGPU, so the binned design is required, not opt
 
 ## Evidence required before Accepted
 
-The spike prototypes fill only, under a CMake option that is off by default and changes no default,
-and renders the `sparse` and `dense` scenes of `cpu_to_gpu_4k_measure` at 4K.
+The spike prototypes fills and round-join/round-cap strokes, under a CMake option that is off by
+default and changes no default, and renders the `sparse` and `dense` scenes of
+`cpu_to_gpu_4k_measure` at 4K, plus an open-polyline scene for the strokes a ring cannot express.
 
 | target (to be confirmed by the owner) | RX 5300M | iGPU | RTX 4060 | browser WebGPU |
 |---|---|---|---|---|
-| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | open | open | **dense 2.53 / 2.56 ms, sparse 0.92 / 0.92 ms (min / p50, 20 runs)** | open |
+| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | open | open | **ring strokes: dense 2.53 / 2.56 ms, sparse 0.92 / 0.92 ms; GPU strokes: dense 3.55 / 3.57 ms, sparse 1.12 / 1.12 ms (min / p50, 20 runs)** | open |
 | CPU time per frame <= 0.5 ms and zero bytes uploaded per frame after the first | open | open | **record+submit 0.01 / 0.03 ms; full re-encode 0.09 / 0.11 ms; 0 B per frame after 93 / 149 KB once** | open |
-| ThorVG comparison within the defined tolerance on the lavapipe golden | open (RTX 4060 only so far: premultiplied diff max 57 sparse / 28 dense, 0.49% / 0.37% of pixels off by >4, 0.28% / 0.013% by >16; lavapipe not run) | - | - | - |
+| ThorVG comparison within the defined tolerance on the lavapipe golden | **lavapipe run (llvmpipe, LLVM 21.1.8): the pixels are identical to the RTX 4060's** (premultiplied diff max 57 sparse / 28 dense with ring strokes, 71 / 28 with GPU strokes; 0.49% / 0.37% of pixels off by >4, 0.28% / 0.013% by >16). The "defined tolerance" itself is still undefined; the golden image is not committed | - | - | - |
 | the alternatives above measured on the same scenes | open | open | open | open |
 
-Spike caveats (issue #683, `tools/poc/compute_raster`, RHI 1.16): the measured variant is a **scanline-binned exact-area** rasterizer (clear, bin per segment, fine per pixel), not the tile design above, and it is fill-only: strokes are expanded to rings on the CPU, and no transform, dash or animation path was exercised, so the "animation changes a factor, not an encode" claim is untested. Only the RTX 4060 is measured (no other GPU is available); AMD, iGPU and browser WebGPU stay open. The ThorVG diff is dominated by stroke edge geometry. Status stays Proposed: the owner decides.
+Spike caveats (issue #683, `tools/poc/compute_raster`, RHI 1.16): the measured variant is a **scanline-binned exact-area** rasterizer (clear, bin per segment, fine per pixel), not the tile design above, and strokes are expanded on the GPU by a fourth pass (the CPU still flattens the curve to a centerline and uploads it once): each segment becomes a body quad plus a join wedge at its start and, on an open contour, a half-disc cap at its end, all wound the same way so signed areas cancel along the shared radii. Only **round** joins and caps exist: miter, bevel, butt and square caps and dashes are not done, and neither are transforms, so the "animation changes a factor, not an encode" claim is untested. The expansion costs the dense scene +0.7 ms over CPU rings (3.57 vs 2.89 ms with the wedge's arc edges proportional to the turn angle; with a fixed-size fan it was 5.2 ms, over the 4.7 ms line) and the sparse one +0.2 ms, in exchange for open polylines, which match ThorVG to max 28, 0.010% of pixels off by >4 (4 polylines, 9 to 40 px wide, acute and reversing turns). A known flaw: on the inside of a join the two body quads overlap and their partial-coverage pixels add, so a few edge pixels come out too dark (max diff 71 against 57 for rings on the sparse scene; 0.50% vs 0.49% of pixels off by >4). Only the RTX 4060 is measured (no other GPU is available); AMD, iGPU and browser WebGPU stay open. The ThorVG diff is dominated by stroke edge geometry. Status stays Proposed: the owner decides.
 
 The proof that a compute rasterizer beats the CPU raster at 4K at all is the spike's own deliverable
 and is unproven today. If the spike contradicts the proxy, this ADR is rejected with the numbers.
