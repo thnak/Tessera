@@ -2745,6 +2745,8 @@ struct include/tessera/ui/scene/node.hpp tessera::ui::Event
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event_to
 constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeBudget
+constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeExpected
+constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeWithoutChildren
 
 header include/tessera/ui/scene/node_fwd.hpp
 class include/tessera/ui/scene/node_fwd.hpp tessera::ui::Node
