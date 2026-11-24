@@ -188,8 +188,7 @@ public:
 // child to completion - a cancelled driver would never record the outcome and `timeout` would
 // hang instead of draining.
 template<typename T>
-Task<void> drive_timeout_child(TaskContext, std::shared_ptr<TimeoutRace<T>> race,
-                               Task<T> child) {
+Task<void> drive_timeout_child(TaskContext, std::shared_ptr<TimeoutRace<T>> race, Task<T> child) {
     try {
         if constexpr (std::is_void_v<T>) {
             co_await std::move(child);

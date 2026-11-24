@@ -103,8 +103,8 @@ DriverTask make_all_driver(TaskContext, std::shared_ptr<State> state, Task<T> ch
 
 // The same for a `when_all_range` child, whose slot is addressed at run time.
 template<typename State, typename T>
-DriverTask make_all_range_driver(TaskContext, std::shared_ptr<State> state,
-                                 std::size_t index, Task<T> child) {
+DriverTask make_all_range_driver(TaskContext, std::shared_ptr<State> state, std::size_t index,
+                                 Task<T> child) {
     try {
         state->store_value(index, co_await std::move(child));
     } catch (...) {
@@ -130,8 +130,8 @@ DriverTask make_any_driver(TaskContext, std::shared_ptr<State> state, std::size_
 
 // The value-recording variant used by `when_any_value`, which must hand back the winner's result.
 template<typename State, typename T>
-DriverTask make_any_value_driver(TaskContext, std::shared_ptr<State> state,
-                                 std::size_t index, Task<T> child) {
+DriverTask make_any_value_driver(TaskContext, std::shared_ptr<State> state, std::size_t index,
+                                 Task<T> child) {
     try {
         if constexpr (std::is_void_v<T>) {
             co_await std::move(child);
