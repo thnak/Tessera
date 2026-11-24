@@ -223,6 +223,11 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           }
         },
       });
+      // The automation seam for the browser checks (issue #849), like `__tesseraEditor` and
+      // `__tesseraProblems`. It exposes the canvas session's **queries**, not the canvas: a check asks
+      // what the engine resolved and painted with, because headless Chromium does not composite a
+      // presented WebGPU frame and a screenshot of the element comes back black.
+      (globalThis as { __tesseraCanvas?: unknown }).__tesseraCanvas = sessions.current.canvas;
     }
     // One creation pass per settle: the deps are refs-and-callbacks, not values a render changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps

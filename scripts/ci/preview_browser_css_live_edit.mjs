@@ -23,7 +23,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { ENTRY, editEntry, editSheet, selectFile } from './studio_project.mjs';
+import { ENTRY, editEntry, editSheet, selectFile, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -157,7 +157,7 @@ const RED_CSS = `.page { display: flex; flex-direction: column; background-color
 Button { width: 300px; height: 200px; background-color: rgb(240, 20, 20); }
 `;
 
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(600);
 
 // --- 1. Apply author CSS through the cold start, and confirm it paints -------------------------------

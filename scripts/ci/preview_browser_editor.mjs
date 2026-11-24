@@ -13,7 +13,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { ENTRY, SHEET, selectFile } from './studio_project.mjs';
+import { ENTRY, SHEET, ensureProject, openPanel, selectFile, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -54,7 +54,10 @@ page.on('console', (message) => {
 });
 page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error)}`));
 await page.goto(base, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__tesseraEditor?.text().length > 0);
+// The studio no longer boots with a project open (issue #391), so the probes open one through the
+// page's own Open Zip route first (issue #849).
+await ensureProject(page);
+await page.waitForFunction(() => (window.__tesseraEditor?.text() ?? '').length > 0);
 
 let failures = 0;
 function check(name, ok, detail) {
@@ -120,7 +123,8 @@ await page.keyboard.press('Control+z');
 check('undo still works after a tab switch', !(await text()).includes('typed after load'), (await text()).slice(-40));
 
 // --- 4. a compiler diagnostic is underlined at its span ----------------------------------------------
-await page.locator('#tab-diagnostics').click();
+await openPanel(page, 'diagnostics');
+await tab(page, 'diagnostics');
 await type(`export function Screen(): Node {
   const x = ;
   return <View/>;

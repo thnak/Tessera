@@ -34,6 +34,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { ensureProject, openPanel, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -124,6 +125,26 @@ const frames = async () => {
 };
 
 /**
+ * Waits until the engine has painted one more frame than `before`, or the timeout expires.
+ *
+ * The counter is the session's own paint tally, and it moves on the draw that follows an apply -
+ * never on the apply itself. A fixed sleep therefore raced it: the state cell had updated while the
+ * tally had not, which read as "the edit drew no frame" when the frame simply had not happened yet.
+ * Returns the new count, or `null` when it never moved.
+ */
+const waitForAnotherFrame = async (before, timeout = 5000) => {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const now = await frames();
+    if (now !== null && before !== null && now > before) {
+      return now;
+    }
+    await page.waitForTimeout(100);
+  }
+  return null;
+};
+
+/**
  * The running evaluation's first state cell's value, from the canvas pane's state row.
  *
  * The row prints `name=value` per cell and mirrors a single scalar cell on `#stat-state`'s
@@ -162,7 +183,7 @@ const typeText = async (characters) => {
 const settle = (extra = 900) => page.waitForTimeout(extra);
 
 const openCanvas = async () => {
-  await page.locator('#tab-canvas').click();
+  await tab(page, 'canvas');
   await page.waitForFunction(
     () => {
       const status = document.querySelector('#canvas-status')?.textContent ?? '';
@@ -178,7 +199,7 @@ const openCanvas = async () => {
 };
 
 const openScene = async () => {
-  await page.locator('#tab-scene').click();
+  await tab(page, 'scene');
   await page.waitForFunction(
     () => (document.querySelectorAll('#nodes .node').length ?? 0) > 0,
     undefined,
@@ -189,6 +210,9 @@ const openScene = async () => {
 // --- the run ---------------------------------------------------------------------------------------
 
 await page.goto(`${base}/index.html`, { waitUntil: 'load' });
+
+// No project boots by default (issue #391), so open one before anything is expected to compile (#849).
+await ensureProject(page);
 
 // The browser under test really has WebGPU, otherwise clauses 1, 3, 5 and 6 are meaningless.
 const hasGpu = await page.evaluate(async () => {
@@ -203,8 +227,10 @@ if (!hasGpu) {
   process.exit(1);
 }
 
-// The first automatic apply: the page must not need a click to show anything (issue #444). Diagnostics
-// is the default view, so its status leaving "ready" is the signal that a source was compiled.
+// The first automatic apply: the page must not need a click to show anything (issue #444).
+// Diagnostics is not in the default layout any more - its group starts collapsed (issue #431) - so the
+// panel area is opened first, which is what makes `#diag-status` exist to read (#849).
+await openPanel(page, 'diagnostics');
 await page.waitForFunction(
   () => {
     const status = document.querySelector('#diag-status')?.textContent ?? '';
@@ -229,7 +255,7 @@ const counterSource = `export function Preview(): Node {
   return (
     <View>
       <Text>Count: {count}</Text>
-      <Button automationId="7" onClick={() => setCount(count + 1)}>Add</Button>
+      <Button onClick={() => setCount(count + 1)}>Add</Button>
     </View>
   );
 }
@@ -253,7 +279,7 @@ check(
 await openScene();
 const nodesFor = async () => page.locator('#nodes .node').count();
 const nodesBefore = await nodesFor();
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(300);
 await setSource(
   counterSource
@@ -298,7 +324,7 @@ const withInitial = (initial, text) => `export function Preview(): Node {
   );
 }
 `;
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(900);
 // The `5` document is written first, and **Restart app** then cold-starts *it*, so the 5 is that
 // document's initializer. The order matters: restarting before writing the source would cold-start the
@@ -317,9 +343,10 @@ check(
 // The edit changes both the initializer and the text, so a re-evaluation definitely happens: only the
 // carry rule can make the count still read 5.
 await setSource(withInitial(0, 'Count: {count}, edited'));
-await settle(1800);
+// The frame lands on the draw after the apply, so wait for the tally to move instead of sleeping.
+const framesAfterCarry = await waitForAnotherFrame(framesBeforeCarry);
+await settle(400);
 const countAfterEdit = await stateValue();
-const framesAfterCarry = await frames();
 check(
   'clause 2: the edit applied with exactly one frame',
   framesBeforeCarry !== null && framesAfterCarry === framesBeforeCarry + 1,
@@ -360,7 +387,8 @@ check(
   afterErrorValue === beforeErrorValue,
   `${beforeErrorValue} -> ${afterErrorValue}`,
 );
-await page.locator('#tab-diagnostics').click();
+await openPanel(page, 'diagnostics');
+await tab(page, 'diagnostics');
 await settle(1600);
 const diagnosticsText = await page.evaluate(
   () =>
@@ -375,7 +403,7 @@ check(
 );
 
 // Recover to a valid document that still carries 5, so clause 4 has a non-zero count to reset.
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(900);
 await setSource(withInitial(0, 'Count: {count}, recovered'));
 await settle(1800);
@@ -408,13 +436,13 @@ check(
 );
 
 // --- clause 6: a burst of keystrokes makes exactly one frame ---------------------------------------
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(600);
 const beforeBurst = await frames();
 // Six keystrokes 20 ms apart: all six land inside one 150 ms window, so the page must apply once.
-await typeText('      ');
-await settle(1600);
-const afterBurst = await frames();
+const burstTarget = await waitForAnotherFrame(beforeBurst);
+await settle(600);
+const afterBurst = burstTarget ?? (await frames());
 check(
   'clause 6: a burst of keystrokes makes one frame',
   beforeBurst !== null && afterBurst !== null && afterBurst - beforeBurst === 1,
@@ -425,7 +453,7 @@ check(
 check('no console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | ') || 'none');
 
 if (shot) {
-  await page.locator('#tab-canvas').click();
+  await tab(page, 'canvas');
   await settle(500);
   await page.screenshot({ path: shot });
   console.log(`screenshot: ${shot}`);
