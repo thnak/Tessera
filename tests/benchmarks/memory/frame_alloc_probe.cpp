@@ -409,14 +409,16 @@ int main(int argc, char** argv) {
     const char* only = nullptr;
     int only_cards = 200;
     bool sites = false;
-    for (int i = 1; i + 1 < argc; i += 2) {
-        if (std::strcmp(argv[i], "--only") == 0) {
+    for (int i = 1; i < argc; i += 2) {
+        if (std::strcmp(argv[i], "--sites") == 0) {
+            sites = true;
+            --i; // a flag, not a key/value pair
+        } else if (i + 1 >= argc) {
+            break;
+        } else if (std::strcmp(argv[i], "--only") == 0) {
             only = argv[i + 1];
         } else if (std::strcmp(argv[i], "--cards") == 0) {
             only_cards = std::atoi(argv[i + 1]);
-        } else if (std::strcmp(argv[i], "--sites") == 0) {
-            sites = true;
-            --i; // a flag, not a key/value pair
         }
     }
     if (sites) {

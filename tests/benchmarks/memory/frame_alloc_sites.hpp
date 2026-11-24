@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 // `--sites` symbolises a return address with `dladdr`, which is POSIX. On Windows the address is
@@ -21,8 +22,15 @@
 #if defined(__unix__) || defined(__APPLE__)
 #include <dlfcn.h>
 #define TESSERA_PROBE_HAVE_DLADDR 1
+#if defined(__linux__)
+#include <execinfo.h>
+#define TESSERA_PROBE_HAVE_BACKTRACE 1
+#endif
 #else
 #define TESSERA_PROBE_HAVE_DLADDR 0
+#endif
+#ifndef TESSERA_PROBE_HAVE_BACKTRACE
+#define TESSERA_PROBE_HAVE_BACKTRACE 0
 #endif
 
 #if defined(_MSC_VER)
@@ -43,9 +51,14 @@ namespace tessera::probe {
 // Attribution is off by default: recording a site is far more expensive than the counter itself, so
 // the plain measurement path stays allocation-counting only and its numbers are not perturbed.
 inline constexpr std::size_t kMaxSites = 512;
+// A site is the call chain above `operator new`, not one return address: the immediate caller of
+// `operator new` is almost always a library template (`std::vector::push_back`, `std::string`),
+// which names nothing the engine owns. Four frames reach the engine function that asked.
+inline constexpr std::size_t kSiteDepth = 5;
+inline constexpr int kSkipFrames = 3; // record_site, count, operator new
 
 struct Site {
-    void* address = nullptr;
+    void* frames[kSiteDepth] = {};
     std::size_t count = 0;
     std::size_t bytes = 0;
 };
@@ -55,36 +68,56 @@ inline std::size_t g_site_count = 0;
 inline bool g_track_sites = false;
 
 inline void record_site(std::size_t size) {
-    void* const address = TESSERA_PROBE_RETURN_ADDRESS();
+    void* chain[kSiteDepth] = {};
+#if TESSERA_PROBE_HAVE_BACKTRACE
+    void* raw[kSiteDepth + kSkipFrames] = {};
+    const int found = backtrace(raw, static_cast<int>(kSiteDepth) + kSkipFrames);
+    for (int i = kSkipFrames; i < found; ++i) {
+        chain[i - kSkipFrames] = raw[i];
+    }
+#else
+    chain[0] = TESSERA_PROBE_RETURN_ADDRESS();
+#endif
     for (std::size_t i = 0; i < g_site_count; ++i) {
-        if (g_sites[i].address == address) {
+        if (std::memcmp(g_sites[i].frames, chain, sizeof(chain)) == 0) {
             ++g_sites[i].count;
             g_sites[i].bytes += size;
             return;
         }
     }
     if (g_site_count < kMaxSites) {
-        g_sites[g_site_count++] = Site{address, 1, size};
+        Site& site = g_sites[g_site_count++];
+        std::memcpy(site.frames, chain, sizeof(chain));
+        site.count = 1;
+        site.bytes = size;
     }
 }
 
-// The top sites, by count. `dladdr` resolves the return address to a symbol; without `-rdynamic` it
-// resolves to nothing and the address is printed instead, which is still enough to tell two sites
-// apart.
+// The top sites, by count. Each is printed as the symbol (when `dladdr` finds one) and the offset
+// from the module base, so `addr2line -f -C -e <binary> <offset>...` names every frame of the chain
+// even in a binary linked without `-rdynamic`.
 inline void print_sites() {
     std::vector<Site> sorted(g_sites, g_sites + g_site_count);
     std::sort(sorted.begin(), sorted.end(),
               [](const Site& a, const Site& b) { return a.count > b.count; });
-    std::printf("\n# top allocation sites (count, bytes, symbol)\n");
+    std::printf("\n# top allocation sites (count, bytes, frame offsets from the module base)\n");
     for (const Site& site : sorted) {
-        const char* symbol = "?";
+        std::printf("%8zu %10zu ", site.count, site.bytes);
+        for (void* frame : site.frames) {
+            if (frame == nullptr) {
+                break;
+            }
 #if TESSERA_PROBE_HAVE_DLADDR
-        Dl_info info{};
-        if (dladdr(site.address, &info) != 0 && info.dli_sname != nullptr) {
-            symbol = info.dli_sname;
-        }
+            Dl_info info{};
+            if (dladdr(frame, &info) != 0 && info.dli_fbase != nullptr) {
+                std::printf(" 0x%zx", static_cast<std::size_t>(static_cast<char*>(frame) -
+                                                                static_cast<char*>(info.dli_fbase)));
+                continue;
+            }
 #endif
-        std::printf("%8zu %10zu  %s\n", site.count, site.bytes, symbol);
+            std::printf(" %p", frame);
+        }
+        std::printf("\n");
     }
     std::printf("# %zu distinct site(s)\n", g_site_count);
 }

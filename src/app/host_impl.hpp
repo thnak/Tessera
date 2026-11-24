@@ -193,6 +193,9 @@ struct AppHost::Impl {
     std::size_t rejected_theme_count = 0;
 
     ui::layout::LayoutResult last_layout;
+    // The layout input tree, retained so a pass rewrites it in place instead of reallocating every
+    // container's children vector (issue #701); see `fill_layout_input`.
+    ui::layout::LayoutInput layout_input;
     ui::layout::LayoutApplyResult last_applied;
     // The ADR-041 settle loop (issue #693): the layout read model, the container-query tracker and
     // the app observations, in one shared component the Studio canvas session also uses. It costs

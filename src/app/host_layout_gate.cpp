@@ -28,11 +28,17 @@ namespace tessera::app {
 
 namespace {
 
-// One layout tree of computed styles (the paint pass resolves the same provider, so both agree).
-ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
-                                           const SafeAreaState& safe_area) {
-    ui::layout::LayoutInput input;
+// One layout tree of computed styles (the paint pass resolves the same provider, so both agree),
+// written into `input` in place. The tree is retained between passes (issue #701): clearing a
+// `std::vector<LayoutInput>` would free every nested children vector, so a pass reuses the elements
+// it finds and only resizes at the end. On a stable tree that makes the pass allocation-free for
+// the structure (one 176-byte block per container per pass before), and it is also what keeps the
+// MSVC `std::map` move from running at all.
+void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
+                       const SafeAreaState& safe_area, ui::layout::LayoutInput& input) {
     input.id = node.id();
+    input.text.clear();
+    input.text_wrap = false;
     input.style = styles.resolve(node);
     // A SafeArea node's padding or margin is host-owned, and the resolution is the SAME function
     // the design-time preview calls (issue #408): the app's metrics come from the OS and the
@@ -48,16 +54,24 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     }
     // Growing the vector would move each LayoutInput, and the MSVC `std::map` move constructor is
     // not `noexcept`: the vector then copies every element, subtree and 101-entry style included.
-    // Measured at ~330 allocations per node (issue #711).
-    input.children.reserve(node.children().size());
+    // Measured at ~330 allocations per node (issue #711). Reserving up front means a grow never
+    // happens mid-walk; an existing element is reused, a missing one is appended.
+    if (input.children.capacity() < node.children().size()) {
+        input.children.reserve(node.children().size());
+    }
+    std::size_t used = 0;
     for (const auto& child : node.children()) {
         // Inline spans are runs of this text, not boxes (issue #229, elements-basic.md 2.1).
         if (text_payload && paint->has_span(child->id())) {
             continue;
         }
-        input.children.push_back(build_layout_input(*child, styles, safe_area));
+        if (used == input.children.size()) {
+            input.children.emplace_back();
+        }
+        fill_layout_input(*child, styles, safe_area, input.children[used]);
+        ++used;
     }
-    return input;
+    input.children.resize(used);
 }
 
 // True when the safe-area snapshot the last layout pass resolved is still the one in force. The
@@ -107,7 +121,8 @@ bool same_safe_area(const hal::WindowMetrics& before, bool before_valid, const S
 } // namespace
 
 void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
-    const ui::layout::LayoutInput input = build_layout_input(root, styles, safe_area);
+    fill_layout_input(root, styles, safe_area, layout_input);
+    const ui::layout::LayoutInput& input = layout_input;
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
     // The scheduler reuses the cached result when the layout input signature (tree shape,
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
