@@ -257,10 +257,10 @@ This page is the map and reading order for the framework.
 - [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR (variable refresh rate)
 - [`design/app-host.md`](design/app-host.md) — the production frame loop that wires style, layout, sync, damage, paint and present (steps 3-8 implemented by `tessera_app`; input/present are the driver)
 - [`design/multi-window.md`](design/multi-window.md) — one device, one loop, many windows: the ownership split, the renderer frame ring, device-loss fan-out, resize isolation (#228); [`design/tray-apps.md`](design/tray-apps.md) is the window-less case: hiding stops presenting, and the group loop parks with no window (#181)
-- [`design/shell-design-preview.md`](design/shell-design-preview.md) — mock captures of the startup P0/P2/P4 frames and the system vs framework window chrome, rendered through the real style/layout/paint path- [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage, multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
+- [`design/shell-design-preview.md`](design/shell-design-preview.md) — mock captures of the startup P0/P2/P4 frames and the system vs framework window chrome, rendered through the real style/layout/paint path
+- [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage, multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
-  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing and the `ui::Node` locality layout;
-  [`perf-735-baseline.md`](design/perf-735-baseline.md) has the measured probe rows
+  quality, hardware utilization; [`performance-cpu-benchmark.md`](design/performance-cpu-benchmark.md) holds the 12k-node CPU benchmark, its current numbers and the allocation ratchet (section 9.1); [`cache-lines.md`](design/cache-lines.md) covers false sharing and the `ui::Node` locality layout; [`perf-735-baseline.md`](design/perf-735-baseline.md) has the measured probe rows
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
   infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`);
   [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction;

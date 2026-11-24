@@ -218,14 +218,25 @@ private:
 // removed all 8 bytes of padding, so the budget goes back down with no behavior change. The four
 // role bases are empty and add nothing.
 inline constexpr std::size_t kNodeSizeBudget = 320;
+// The size and cache-line claims are facts about the shipping layout. MSVC's Debug STL
+// (_ITERATOR_DEBUG_LEVEL 2) grows every container (std::vector becomes 32 bytes, not 24), so a
+// Debug build of this header is larger by design and cannot satisfy them; the Release lanes (MSVC
+// Release, GCC, Clang) still pin them, and CI would catch a real regression there.
+#if defined(_ITERATOR_DEBUG_LEVEL) && _ITERATOR_DEBUG_LEVEL != 0
+#define TESSERA_NODE_LAYOUT_PINNED 0
+#else
+#define TESSERA_NODE_LAYOUT_PINNED 1
+#endif
+#if TESSERA_NODE_LAYOUT_PINNED
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
+#endif
 // The split is the obvious place to leave 8 bytes of padding behind (a byte block immediately
 // followed by an 8-aligned member), so on the 64-bit lanes the absence of padding is pinned as an
 // exact size, which is a tighter claim than the budget. It is guarded on the pointer width because
 // the number is a 64-bit layout fact: wasm32 has 4-byte pointers and therefore a smaller `Node`,
 // where the budget assert above is the guard. MSVC measures 320 too, so both 64-bit lanes agree on
 // this one number.
-#if INTPTR_MAX == INT64_MAX
+#if TESSERA_NODE_LAYOUT_PINNED && INTPTR_MAX == INT64_MAX
 static_assert(sizeof(Node) == 320, "a padded Node is a regression even inside the budget");
 #endif
 

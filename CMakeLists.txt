@@ -58,6 +58,10 @@ if (MSVC)
     # (issue #805). `scripts/check_switch_exhaustive.py` catches the same class without a compiler;
     # this flag is the compiler's own answer, so the two agree.
     add_compile_options(/w14062)
+    # C4324 is "structure was padded due to alignment specifier". The cache-line aligned style records
+    # (Rule, MediaQuery, ThemeToken, ThemePin) are exactly 64 bytes in Release and are padded only by
+    # MSVC's larger Debug STL, where the padding is the intended effect of alignas, not a mistake.
+    add_compile_options(/wd4324)
     # The Visual Studio generator compiles the files of one project serially unless /MP is set.
     # Ninja already parallelizes per file, so /MP there would only oversubscribe the CPU.
     if (CMAKE_GENERATOR MATCHES "Visual Studio")

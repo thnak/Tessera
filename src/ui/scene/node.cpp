@@ -33,8 +33,9 @@ std::uint64_t scene_structure_epoch() noexcept {
 // on-demand field starts exactly at the second line. A new member placed on line 0 by mistake, or
 // a reorder that pushes a hot field across the boundary, fails here instead of silently costing a
 // cache miss per visited node. 64-bit only: the offsets are a layout fact of 8-byte pointers and a
-// 24-byte vector, and the size assert in node.hpp already pins the same lanes.
-#if INTPTR_MAX == INT64_MAX
+// 24-byte vector, and the size assert in node.hpp already pins the same lanes (and is skipped on
+// MSVC Debug for the same reason: TESSERA_NODE_LAYOUT_PINNED).
+#if TESSERA_NODE_LAYOUT_PINNED && INTPTR_MAX == INT64_MAX
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
