@@ -413,15 +413,18 @@ export function Carry(): Node {
   );
 }
 )";
-    auto project_of = [&](std::string_view entry_text) {
-        const std::array<cli::ProjectFile, 1> sources{{{"ui/App.tsx", entry_text}}};
-        const std::array<cli::ProjectFile, 1> sheets{{{"styles/theme.css", kSheet}}};
-        return cli::ProjectInput{sources, sheets, "ui/App.tsx"};
-    };
+    // **The arrays outlive the spans.** `ProjectInput` holds `std::span`s, so the file arrays have
+    // to live as long as the `ProjectInput` that points at them. Returning one from a lambda whose
+    // local arrays die on return left dangling spans: it passed on the lane I first ran it on and
+    // segfaulted under the CI preset.
+    const std::array<cli::ProjectFile, 1> five_sources{{{"ui/App.tsx", kFive}}};
+    const std::array<cli::ProjectFile, 1> zero_sources{{{"ui/App.tsx", kZero}}};
+    const std::array<cli::ProjectFile, 1> sheets{{{"styles/theme.css", kSheet}}};
 
     cli::CanvasSceneSession session;
     cli::CanvasSessionSource source = source_for(kFive, "ui/App.tsx");
-    const std::string first_error = session.start(project_of(kFive), source);
+    const cli::ProjectInput five_project{five_sources, sheets, "ui/App.tsx"};
+    const std::string first_error = session.start(five_project, source);
     expect(first_error.empty(), "the project starts: " + first_error);
     if (!first_error.empty()) {
         return;
@@ -432,7 +435,8 @@ export function Carry(): Node {
 
     // An edit that changes the initializer and the text but keeps the component and the cell.
     cli::CanvasSessionSource edited = source_for(kZero, "ui/App.tsx");
-    const std::string edit_error = session.start(project_of(kZero), edited);
+    const cli::ProjectInput zero_project{zero_sources, sheets, "ui/App.tsx"};
+    const std::string edit_error = session.start(zero_project, edited);
     expect(edit_error.empty(), "the edited project starts: " + edit_error);
     if (!edit_error.empty()) {
         return;
