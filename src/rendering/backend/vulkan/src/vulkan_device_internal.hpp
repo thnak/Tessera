@@ -6,6 +6,7 @@
 // RHI wrapper classes, CommandResources, and InjectedDeviceFault). Do not include it directly.
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -122,6 +123,25 @@ public:
     create_swapchain(const rhi::SwapchainDesc& desc) override;
     void wait_idle() override;
     [[nodiscard]] rhi::DeviceMemoryStats memory_statistics() const override;
+
+    // Per-step `create_texture` timers (issue #697); see TextureCreateTimings.
+    struct TextureTimer {
+        std::atomic<std::uint64_t> calls{0};
+        std::atomic<std::uint64_t> image_ns{0};
+        std::atomic<std::uint64_t> image_ns_max{0};
+        std::atomic<std::uint64_t> staging_write_ns{0};
+        std::atomic<std::uint64_t> staging_write_ns_max{0};
+        std::atomic<std::uint64_t> submit_ns{0};
+        std::atomic<std::uint64_t> submit_ns_max{0};
+        static void add(std::atomic<std::uint64_t>& total, std::atomic<std::uint64_t>& max,
+                        std::uint64_t ns) noexcept {
+            total.fetch_add(ns, std::memory_order_relaxed);
+            std::uint64_t seen = max.load(std::memory_order_relaxed);
+            while (ns > seen && !max.compare_exchange_weak(seen, ns, std::memory_order_relaxed)) {
+            }
+        }
+    };
+    mutable TextureTimer texture_timer_;
 
     // ---- D7 device-loss state -------------------------------------------------------------
     // Losses detected by submit/wait/acquire/present are recorded here; they never throw across

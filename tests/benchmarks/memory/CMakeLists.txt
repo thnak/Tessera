@@ -149,6 +149,14 @@ tessera_allow_allocator_override(alloc_per_frame_tests)
 
 add_test(NAME alloc_per_frame COMMAND alloc_per_frame_tests)
 
+# `alloc_per_frame_tests --sites <scene> <action>` names the call chains of one row; see the probe's
+# note above for why each platform needs what it needs.
+if (UNIX AND NOT APPLE)
+    target_link_options(alloc_per_frame_tests PRIVATE -rdynamic)
+elseif (MSVC)
+    target_link_options(alloc_per_frame_tests PRIVATE /DEBUG /OPT:REF /OPT:ICF)
+endif()
+
 # The ratchet over those numbers (issue #701 step 4). Registered here rather than in
 # `scripts/gates.py` for the same reason `memory_budget` is: the aggregator's release-gates job has
 # no build tree, so a gate that needs a compiled binary cannot live there. A lane that builds also

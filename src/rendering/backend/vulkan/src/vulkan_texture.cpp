@@ -3,10 +3,41 @@
 #include "vulkan_internal.hpp"
 #include "vulkan_scope_guard.hpp"
 
+#include "tessera/rendering/vulkan/vulkan_device.hpp"
+
+#include <chrono>
 #include <stdexcept>
 #include <utility>
 
 namespace tessera::rendering::vulkan {
+
+namespace {
+
+using TimerClock = std::chrono::steady_clock;
+
+std::uint64_t nanoseconds_since(TimerClock::time_point begin) {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(TimerClock::now() - begin).count());
+}
+
+} // namespace
+
+std::optional<TextureCreateTimings> texture_create_timings(const rhi::Device& device) {
+    if (device.backend() != rhi::Backend::Vulkan) {
+        return std::nullopt;
+    }
+    const auto& vulkan = static_cast<const VulkanDevice&>(device);
+    const VulkanDevice::TextureTimer& timer = vulkan.texture_timer_;
+    TextureCreateTimings timings;
+    timings.calls = timer.calls.load(std::memory_order_relaxed);
+    timings.image_ns = timer.image_ns.load(std::memory_order_relaxed);
+    timings.image_ns_max = timer.image_ns_max.load(std::memory_order_relaxed);
+    timings.staging_write_ns = timer.staging_write_ns.load(std::memory_order_relaxed);
+    timings.staging_write_ns_max = timer.staging_write_ns_max.load(std::memory_order_relaxed);
+    timings.submit_ns = timer.submit_ns.load(std::memory_order_relaxed);
+    timings.submit_ns_max = timer.submit_ns_max.load(std::memory_order_relaxed);
+    return timings;
+}
 
 std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDesc& desc) {
     require_ready("create_texture");
@@ -65,9 +96,13 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
                                  std::to_string(static_cast<int>(VK_ERROR_OUT_OF_DEVICE_MEMORY)) +
                                  ")");
     }
+    const TimerClock::time_point image_begin = TimerClock::now();
     check_vk(
         vmaCreateImage(allocator_, &image_info, &allocation_info, &image, &allocation, nullptr),
         "vmaCreateImage(texture)");
+    texture_timer_.calls.fetch_add(1, std::memory_order_relaxed);
+    TextureTimer::add(texture_timer_.image_ns, texture_timer_.image_ns_max,
+                      nanoseconds_since(image_begin));
     ScopeGuard image_guard([&] { vmaDestroyImage(allocator_, image, allocation); });
 
     VkImageViewCreateInfo view_info{};
@@ -138,10 +173,14 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
 
     if (desc.pixels != nullptr && staging_size > 0) {
         auto staging = create_buffer({staging_size, rhi::BufferUsage::Staging});
+        const TimerClock::time_point write_begin = TimerClock::now();
         staging->write(desc.pixels, staging_size);
+        TextureTimer::add(texture_timer_.staging_write_ns, texture_timer_.staging_write_ns_max,
+                          nanoseconds_since(write_begin));
         auto* staging_buffer = &vulkan_cast<VulkanBuffer>(*staging);
 
         // Queued without waiting; the device keeps the staging buffer until the copy finishes.
+        const TimerClock::time_point submit_begin = TimerClock::now();
         submit_upload(
             [&](VkCommandBuffer command_buffer) {
                 if (levels > 1) {
@@ -174,6 +213,8 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
                                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
             },
             std::move(staging));
+        TextureTimer::add(texture_timer_.submit_ns, texture_timer_.submit_ns_max,
+                          nanoseconds_since(submit_begin));
     } else {
         submit_upload(
             [&](VkCommandBuffer command_buffer) {

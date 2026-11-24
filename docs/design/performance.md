@@ -162,8 +162,12 @@ The **VMA category split is ratcheted on lavapipe**: the null backend reports ze
 design, so `gpu_memory_probe` runs the Vulkan backend on lavapipe and the `enforce` rows
 `gpu_vma_category_bytes` and `gpu_category_peak_after_free_bytes` pin it (2 195 456 bytes each when
 recorded); `rhi_memory` asserts the per-resource costs. The swapchain category is driver-owned and not
-counted at all. Real-GPU block growth is not measured by this: block growth spikes of 60-93 ms in
-`create_texture` are tracked on #697.
+counted at all. Real-GPU block growth is not measured by this (spikes of 60-93 ms in `create_texture` on two AMD GPUs are
+tracked on #697). The Vulkan device now times the three slow steps of every `create_texture`
+(`vulkan::texture_create_timings`: `vmaCreateImage`, the staging memcpy, `submit_upload`), and
+`cpu_to_gpu_4k_measure` prints them. On an RTX 4060 (Windows, Release) there is no spike at all:
+4K `vmaCreateImage` averages 0.12 ms (max 2.4 ms) and the staging write 0.7 ms, so the tail is an AMD
+behaviour and the policy of #697 cannot be validated on this vendor.
 
 A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
 screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
