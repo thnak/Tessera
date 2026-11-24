@@ -19,7 +19,7 @@
           "measures": "A 601-node card grid with nothing dirty: the steady-state frame the spec's rule is about."
         },
         "card-grid/paint-dirty": {
-          "budget": 29,
+          "budget": 13,
           "measures": "One label marked paint-dirty. The paint pass culls most of the tree but resolves each culled node's style to decide the clip, which is the remaining per-scene term tracked on #789."
         },
         "card-grid/layout-dirty": {
@@ -31,7 +31,7 @@
           "measures": "A 200-row list inside a clipped scrollport, nothing dirty."
         },
         "scrolling-list/paint-dirty": {
-          "budget": 15,
+          "budget": 5,
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {
