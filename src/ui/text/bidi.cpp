@@ -102,7 +102,22 @@ struct Algorithm {
 
 } // namespace
 
+namespace {
+
+// Pure ASCII holds no strong right-to-left character, so its base direction is left-to-right and
+// every run sits at level 0: SheenBidi and the UTF-16 copy would only confirm that, and cost a
+// handful of heap allocations per laid-out text on every frame (#701).
+bool is_ascii(std::string_view utf8) {
+    return std::all_of(utf8.begin(), utf8.end(),
+                       [](char c) { return static_cast<unsigned char>(c) < 0x80U; });
+}
+
+} // namespace
+
 TextDirection bidi_paragraph_direction(std::string_view utf8) {
+    if (is_ascii(utf8)) {
+        return TextDirection::LeftToRight;
+    }
     const Utf16Text text = to_utf16(utf8);
     if (text.units.empty()) {
         return TextDirection::LeftToRight;
@@ -189,7 +204,7 @@ void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direc
     for (TextLine& line : lines) {
         line.visual_runs.clear();
     }
-    if (lines.empty()) {
+    if (lines.empty() || (paragraph_direction == TextDirection::LeftToRight && is_ascii(utf8))) {
         return;
     }
     // Each newline-separated paragraph is resolved on its own, so a Hebrew line after a Latin one

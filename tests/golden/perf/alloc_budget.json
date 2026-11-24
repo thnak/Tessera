@@ -52,7 +52,7 @@
           "measures": "A 601-node card grid with nothing dirty: 0, the spec's steady-state rule. It was 1 on MSVC until an empty `InterpolationPaintView` stopped default-constructing a `std::map` (MSVC allocates the sentinel node in the constructor) every frame (#701)."
         },
         "card-grid/paint-dirty": {
-          "budget": 32,
+          "budget": 13,
           "measures": "One label marked paint-dirty; the same per-scene term as the GCC row, 8 higher for the standard library's block count."
         },
         "card-grid/layout-dirty": {
@@ -64,12 +64,12 @@
           "measures": "A 200-row list inside a clipped scrollport, nothing dirty. 0 for the same reason as card-grid/idle."
         },
         "scrolling-list/paint-dirty": {
-          "budget": 16,
+          "budget": 5,
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {
           "budget": 11,
-          "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick returns its result by value, so its vectors allocate every tick. 18 on MSVC against 14 on GCC, the same standard-library difference."
+          "measures": "A running CSS animation with nothing else dirty. NOT 0: each tick builds fresh sampled declarations, a paint-sample map node and an interpolation view map. 18 before #701 trimmed the keyframe sampler, transform parser and sample rotation."
         },
         "animated/paint-dirty": {
           "budget": 11,

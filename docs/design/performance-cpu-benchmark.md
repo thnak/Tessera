@@ -29,12 +29,13 @@ visible nodes in 5.7 ms, 15x faster, and 1.4x the 4 ms trigger instead of 22x. T
 order-of-magnitude detector; the full-paint row is now tightened to 40 ms plus a node-count guard.
 Allocations per frame are gated separately by `tests/golden/perf/alloc_budget.json` (issue #701,
 [ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)), per scene and scenario, with one table per compiler
-lane. MSVC Release today: idle frame 0 allocations (1 until an empty interpolation view stopped building a `std::map` each frame), paint-dirty 16-32, layout-dirty 1 (203 until
-the layout input tree was retained and rewritten in place, #701), and a
-running animation 18 even when idle (`AnimationRuntime::tick` returns its result by value), against the
-spec's "no malloc in a steady-state frame" in
-[`memory-model-v1.md`](../specs/memory-model-v1.md). The 1 on MSVC and the animation rows are the
-recorded gap to close, not a budget to relax.
+lane. MSVC Release today: idle frame 0 allocations (1 until an empty interpolation view stopped building a
+`std::map` each frame), paint-dirty 5-13 (32 before ASCII text skipped the bidi pass), layout-dirty 1 (203 until
+the layout input tree was retained and rewritten in place, #701), and a running animation 11 even when
+idle (18 before the keyframe sampler and transform parser stopped allocating maps and vectors; the rest is the
+per-tick sample strings and map nodes), against the spec's "no malloc in a steady-state frame" in
+[`memory-model-v1.md`](../specs/memory-model-v1.md). The animation rows are the recorded gap to close, not a
+budget to relax.
 
 **Where the one-text-change frame goes (17 ms at 12 000 nodes).** `cpu_benchmark` prints a phase
 breakdown of that frame (medians, ms): layout input 1.7, **layout engine 8.0** (retained-tree sync 1.2,
