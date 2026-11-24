@@ -117,7 +117,18 @@ const check = (name, ok, detail = '') => {
 const text = async (selector) =>
   page.evaluate((id) => document.querySelector(id)?.textContent?.trim() ?? null, selector);
 
-/** The canvas pane's own frame counter: `#stat-frame` reads "<w>x<h> (#N)". */
+/**
+ * The canvas pane's own frame counter: `#stat-frame` reads "<w>x<h> (#N)".
+ *
+ * **It is not a lifetime counter, and a probe must not read it as one.** `frames` is
+ * `CanvasSceneSession::frames_painted()` - the tally of the session that is currently painting - and a
+ * source edit replaces that session (`reused:false` in the apply report). The number therefore returns
+ * to `1` after every edit, so comparing it across an edit can never show a change, and issue #865's
+ * first diagnosis ("the canvas does not repaint") was exactly that misreading: the tree does repaint
+ * (a source that adds a node grows the painted node count) while this counter restarts.
+ *
+ * Kept because the session IS reused for a repaint of the same source, where the tally does advance.
+ */
 const frames = async () => {
   const raw = await text('#stat-frame');
   const match = /#(\d+)/.exec(raw ?? '');
