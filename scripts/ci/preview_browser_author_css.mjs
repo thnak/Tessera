@@ -13,7 +13,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { computedStyle, editEntry, editSheet, rgbOf, tab } from './studio_project.mjs';
+import { computedStyle, editEntry, editSheet, rgbOf, tab, uiIdAt } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -76,7 +76,13 @@ async function status() {
 // `drew N draw call(s)` - the colour assertion could only ever compare `rgb(0, 0, 0)` with itself.
 // `tessera_canvas_style` answers the question the assertion actually means: which colour did the
 // cascade resolve for this node.
-async function canvasColour(node, property = 'background-color') {
+async function canvasColour(property = 'background-color') {
+  // The scene must have evaluated for a node to exist to ask about.
+  const node = await uiIdAt(page);
+  if (node === null) {
+    check('the evaluated scene has a View node with an id', false, 'no uiId in the snapshot');
+    return { r: 0, g: 0, b: 0 };
+  }
   const value = await computedStyle(page, node, property);
   const colour = rgbOf(value);
   if (colour === null) {
@@ -92,13 +98,14 @@ function describe(colour) {
   return `rgb(${colour.r}, ${colour.g}, ${colour.b})`;
 }
 
-// The ids are what make the tree addressable (automation-ids-v1.md section 2): without one a node
-// reports `"0"` from the picker and `tessera_canvas_style` refuses it.
+// No `automationId`: the compiler rejects one that does not equal the node's computed `uiId`
+// (`TESSER_IR_AUTOMATION_ID`), and that hash cannot be predicted. The probe reads the real `uiId`
+// from the scene snapshot (issue #849).
 const SOURCE = `export function App() {
   return (
-    <View className="page" automationId="1">
-      <Text className="title" automationId="2">Author CSS</Text>
-      <Button automationId="3">Go</Button>
+    <View className="page">
+      <Text className="title">Author CSS</Text>
+      <Button>Go</Button>
     </View>
   );
 }
@@ -117,7 +124,7 @@ await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('empty sheet: canvas draws', /draw call/.test((await status()) ?? ''), await status());
-const fallback = await canvasColour(1);
+const fallback = await canvasColour();
 check(
   'empty sheet: paints the built-in dark surface (blue-dominant)',
   fallback.b > fallback.r + 8,
@@ -133,7 +140,7 @@ await editSheet(page, RED_CSS);
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('author CSS: canvas draws', /draw call/.test((await status()) ?? ''), await status());
-const authored = await canvasColour(1);
+const authored = await canvasColour();
 check(
   'author CSS: the frame is visibly red, not the built-in blue',
   authored.r > authored.b + 60,
@@ -154,7 +161,7 @@ await editSheet(
 );
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
-const tokened = await canvasColour(1);
+const tokened = await canvasColour();
 check(
   'a :root token through var() changes the drawn colour to green',
   tokened.g > tokened.r + 30 && tokened.g > tokened.b + 20,
@@ -176,7 +183,7 @@ check(
   /styles\/theme\.css:2:\d+: TESSERA_CSS_UNKNOWN_PROPERTY/.test(failedBody),
   failedBody.split('\n')[0] ?? failedBody,
 );
-const broken = await canvasColour(1);
+const broken = await canvasColour();
 check(
   'a bad rule does NOT blank the frame (it still paints red)',
   broken.r > broken.b + 60,
@@ -187,7 +194,7 @@ check(
 await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
-const restored = await canvasColour(1);
+const restored = await canvasColour();
 check(
   'emptying the sheet restores the built-in look',
   restored.b > restored.r + 8,

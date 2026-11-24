@@ -23,15 +23,17 @@ export const SHEET_IMPORT = 'import "../styles/theme.css";\n\n';
 export const PANELS = { project: 'project', editor: 'editor', canvas: 'canvas', scene: 'scene' };
 
 /** A minimal project the studio can open when the page booted without one. */
-// The explicit `automationId` is what makes the tree addressable (automation-ids-v1.md): a node with
-// no id reports `"0"` from `tessera_canvas_pick` and `tessera_canvas_style` refuses it, so a check that
-// wants to ask "what did this node resolve to" needs one.
+// **No `automationId` here, deliberately.** The compiler rejects one unless it equals the computed
+// `uiId` (`TESSER_IR_AUTOMATION_ID`, page-defaults.ts makes the same point), and a `uiId` is a salted
+// hash of the node's path and the manifest namespace - a check cannot predict it, and hard-coding one
+// produces a compile error instead of a scene. Every node already HAS a `uiId`, so the probes read it
+// from the scene snapshot through `uiIdOf()` below and address the node with that.
 const SEED_ENTRY = `import "../styles/theme.css";
 
 export function App() {
   return (
-    <View automationId="1">
-      <Text automationId="2">Probe</Text>
+    <View>
+      <Text>Probe</Text>
     </View>
   );
 }
@@ -206,6 +208,46 @@ export function rgbOf(value) {
     return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
   }
   return null;
+}
+
+/**
+ * The `uiId` of a node in the current canvas evaluation, found by asking the engine what is under a
+ * grid of points.
+ *
+ * A node's addressable id is its computed `uiId`, and a check may not invent one: the compiler rejects
+ * an `automationId` that does not equal it (`TESSER_IR_AUTOMATION_ID`), and that hash cannot be
+ * predicted. `tessera_canvas_pick` answers with the id under a point, so this samples the canvas.
+ *
+ * **Not the Scene view.** Reading the ids from the Scene pane's rows would mean switching tabs, and
+ * switching away from Canvas disposes that session - which releases its GPU device, so the style query
+ * this id is for would then answer `null`. Sampling stays on the canvas the whole time.
+ *
+ * The root host node reports id `"0"` and is skipped. Returns `null` when nothing is under any sampled
+ * point, so a caller reports that rather than guessing.
+ */
+export async function uiIdAt(page) {
+  return page.evaluate(() => {
+    const canvas = globalThis.__tesseraCanvas;
+    if (!canvas || typeof canvas.pickAt !== "function") {
+      return null;
+    }
+    const element = document.getElementById('canvas');
+    const width = element?.clientWidth ?? 320;
+    const height = element?.clientHeight ?? 240;
+    // A grid rather than one point: a single sample can land on the host root (id "0") or on empty
+    // canvas, and the node a probe wants is usually the styled container rather than its parent.
+    for (let fy = 1; fy <= 8; fy += 1) {
+      for (let fx = 1; fx <= 8; fx += 1) {
+        const x = Math.round((width * fx) / 9);
+        const y = Math.round((height * fy) / 9);
+        const picked = canvas.pickAt(x, y);
+        if (picked && picked.found && picked.automationId && picked.automationId !== "0") {
+          return picked.automationId;
+        }
+      }
+    }
+    return null;
+  });
 }
 
 /** Selects `path` in the project tree, so the editor shows it. */

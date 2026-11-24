@@ -37,7 +37,7 @@
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { computedStyle, editEntry, editSheet, rgbOf, tab } from './studio_project.mjs';
+import { computedStyle, editEntry, editSheet, rgbOf, tab, uiIdAt } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -146,7 +146,13 @@ const stateValue = async () =>
 // reports `drew N draw call(s)` - every colour assertion compared `rgb(0, 0, 0)` with itself. The
 // style report answers what the assertion means: which colour the cascade resolved (issue #849).
 async function canvasColour() {
-  const value = await computedStyle(page, PAGE_ID, 'background-color');
+  // Resolved per call: the node the sheet styles is whatever the current evaluation produced.
+  const node = await uiIdAt(page);
+  if (node === null) {
+    check('the evaluated scene has a View node with an id', false, 'no uiId in the snapshot');
+    return { r: 0, g: 0, b: 0 };
+  }
+  const value = await computedStyle(page, node, 'background-color');
   const colour = rgbOf(value);
   if (colour === null) {
     check('the sheet resolves a readable background-color', false, String(value));
@@ -175,14 +181,13 @@ async function settle(before, timeoutMs = 4000) {
 
 // The page under test: a `page` class whose background a width breakpoint changes, and a state cell
 // so "the preview did not re-run" has something to keep.
-// The id is what makes the `.page` node addressable (automation-ids-v1.md section 2): without one
-// `tessera_canvas_style` cannot be asked about it.
-const PAGE_ID = '1';
+// The `.page` node is addressed by its computed `uiId`, read from the scene snapshot at run time:
+// an `automationId` would have to equal that hash and cannot be predicted (issue #849).
 
 const SOURCE = `export function Screen(): Node {
   const [count, setCount] = useState<int>(7);
   return (
-    <View className="page" automationId="1">
+    <View className="page">
       <Text className="title">Viewport</Text>
       <Button>Go</Button>
     </View>
