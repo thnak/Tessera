@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "benchmark_driver.hpp"
+#include "tessera/ui/layout/layout_signature.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <chrono>
@@ -139,7 +140,8 @@ namespace {
 // Rewrites `input` in place, as AppHost does (issue #701): the tree is retained between passes so a
 // pass reuses the elements and their children vectors instead of reallocating every one.
 void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
-                       ui::layout::LayoutInput& input) {
+                       ui::layout::LayoutInput& input,
+                       ui::layout::LayoutSignatureBuilder& signature) {
     input.id = node.id();
     input.text.clear();
     input.text_wrap = false;
@@ -150,6 +152,7 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
         input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
     }
+    signature.enter(input); // folded while the node is hot, as AppHost does
     if (input.children.capacity() < node.children().size()) {
         input.children.reserve(node.children().size());
     }
@@ -158,10 +161,11 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         if (used == input.children.size()) {
             input.children.emplace_back();
         }
-        fill_layout_input(*child, styles, input.children[used]);
+        fill_layout_input(*child, styles, input.children[used], signature);
         ++used;
     }
     input.children.resize(used);
+    signature.leave(used);
 }
 
 } // namespace
@@ -178,13 +182,14 @@ double phase_ms(PhaseClock::time_point begin, PhaseClock::time_point end) {
 
 void BenchmarkDriver::run_layout_pass() {
     const PhaseClock::time_point input_begin = PhaseClock::now();
-    fill_layout_input(*root_, *provider_, layout_input_);
+    ui::layout::LayoutSignatureBuilder signature(viewport_);
+    fill_layout_input(*root_, *provider_, layout_input_, signature);
     const ui::layout::LayoutInput& input = layout_input_;
     const PhaseClock::time_point input_end = PhaseClock::now();
     phases_.layout_input_ms = phase_ms(input_begin, input_end);
     // The scheduler reuses the last result while the layout-input signature is unchanged, exactly
     // like AppHost: a style-only edit that cannot move boxes skips Yoga but still re-syncs styles.
-    last_layout_ = scheduler_.update(input, viewport_, true);
+    last_layout_ = scheduler_.update(input, viewport_, true, signature.value());
     const PhaseClock::time_point engine_end = PhaseClock::now();
     phases_.layout_engine_ms = phase_ms(input_end, engine_end);
     last_applied_ = ui::layout::apply_layout(last_layout_, *root_, resized_nodes_);

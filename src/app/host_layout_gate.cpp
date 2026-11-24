@@ -20,6 +20,7 @@
 // construction: the gate only ever answers "unchanged" when every input is known to be equal.
 
 #include "host_impl.hpp"
+#include "tessera/ui/layout/layout_signature.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/scene/text_wrap.hpp"
@@ -35,7 +36,8 @@ namespace {
 // the structure (one 176-byte block per container per pass before), and it is also what keeps the
 // MSVC `std::map` move from running at all.
 void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
-                       const SafeAreaState& safe_area, ui::layout::LayoutInput& input) {
+                       const SafeAreaState& safe_area, ui::layout::LayoutInput& input,
+                       ui::layout::LayoutSignatureBuilder& signature) {
     input.id = node.id();
     input.text.clear();
     input.text_wrap = false;
@@ -52,6 +54,9 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
         input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
     }
+    // The layout signature is folded in here, while the node is hot, rather than by a second walk
+    // over the finished tree: that walk was a cache miss per node.
+    signature.enter(input);
     // Growing the vector would move each LayoutInput, and the MSVC `std::map` move constructor is
     // not `noexcept`: the vector then copies every element, subtree and 101-entry style included.
     // Measured at ~330 allocations per node (issue #711). Reserving up front means a grow never
@@ -68,10 +73,11 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         if (used == input.children.size()) {
             input.children.emplace_back();
         }
-        fill_layout_input(*child, styles, safe_area, input.children[used]);
+        fill_layout_input(*child, styles, safe_area, input.children[used], signature);
         ++used;
     }
     input.children.resize(used);
+    signature.leave(used);
 }
 
 // True when the safe-area snapshot the last layout pass resolved is still the one in force. The
@@ -121,13 +127,14 @@ bool same_safe_area(const hal::WindowMetrics& before, bool before_valid, const S
 } // namespace
 
 void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
-    fill_layout_input(root, styles, safe_area, layout_input);
-    const ui::layout::LayoutInput& input = layout_input;
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
+    ui::layout::LayoutSignatureBuilder signature(viewport);
+    fill_layout_input(root, styles, safe_area, layout_input, signature);
+    const ui::layout::LayoutInput& input = layout_input;
     // The scheduler reuses the cached result when the layout input signature (tree shape,
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
     // cannot move boxes skips Yoga and only re-syncs the scene style.
-    last_layout = layout_scheduler.update(input, viewport, true);
+    last_layout = layout_scheduler.update(input, viewport, true, signature.value());
     last_applied = ui::layout::apply_layout(last_layout, root, resized_nodes);
     // Remember the inputs the gate compares against next frame. `apply_layout` is what writes the
     // boxes, so a reused result still has to be applied once - the gate skips building the input

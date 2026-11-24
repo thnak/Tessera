@@ -10,62 +10,85 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string_view>
 
 namespace tessera::ui::layout {
 namespace {
 
-constexpr std::uint64_t kFnvOffset = 14695981039346656037ULL;
-constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
+// Word-at-a-time multiply-xorshift mixing. The first version folded one byte per multiply (FNV-1a),
+// which made the hash walk about a fifth of an incremental frame at 12k nodes: eight multiplies for
+// each 64-bit id and one for every character of text. Each word below is one xor, two multiplies
+// and a shift, and text goes in eight bytes at a time. The signature is only ever compared with
+// another one computed by the same function in the same process, so the exact values are free to
+// change.
+constexpr std::uint64_t kSeed = 0x243F6A8885A308D3ULL; // pi, so an empty tree is not zero
+constexpr std::uint64_t kMulA = 0x9E3779B97F4A7C15ULL;
+constexpr std::uint64_t kMulB = 0xBF58476D1CE4E5B9ULL;
 
-// Framing bytes keep the hash unambiguous: ids, property values and text are all length-prefixed
+// Framing words keep the hash unambiguous: ids, property values and text are all length-prefixed
 // and every node is delimited, so shifting bytes between fields changes the signature.
-constexpr std::uint8_t kNodeBegin = 0x4E;
-constexpr std::uint8_t kText = 0x54;
-constexpr std::uint8_t kTextWrap = 0x57;
-constexpr std::uint8_t kNodeEnd = 0x45;
+constexpr std::uint64_t kNodeBegin = 0x4E;
+constexpr std::uint64_t kText = 0x54;
+constexpr std::uint64_t kTextWrap = 0x57;
+constexpr std::uint64_t kNodeEnd = 0x45;
 
 class Hasher {
 public:
-    void u8(std::uint8_t value) noexcept {
-        state_ = (state_ ^ value) * kFnvPrime;
-    }
-
-    void u32(std::uint32_t value) noexcept {
-        for (unsigned shift = 0; shift < 32; shift += 8) {
-            u8(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
-    }
-
-    void u64(std::uint64_t value) noexcept {
-        for (unsigned shift = 0; shift < 64; shift += 8) {
-            u8(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
+    void word(std::uint64_t value) noexcept {
+        state_ = (state_ ^ value) * kMulA;
+        state_ ^= state_ >> 29;
+        state_ *= kMulB;
+        state_ ^= state_ >> 32;
     }
 
     void f32(float value) noexcept {
-        u32(std::bit_cast<std::uint32_t>(value));
+        word(std::bit_cast<std::uint32_t>(value));
     }
 
     void bytes(std::string_view value) noexcept {
-        u32(static_cast<std::uint32_t>(value.size()));
-        for (const char c : value) {
-            u8(static_cast<std::uint8_t>(c));
+        word(value.size());
+        const char* data = value.data();
+        std::size_t left = value.size();
+        while (left >= sizeof(std::uint64_t)) {
+            std::uint64_t chunk = 0;
+            std::memcpy(&chunk, data, sizeof(chunk));
+            word(chunk);
+            data += sizeof(chunk);
+            left -= sizeof(chunk);
+        }
+        if (left > 0) {
+            std::uint64_t tail = 0; // zero padding is unambiguous: the length went in first
+            std::memcpy(&tail, data, left);
+            word(tail);
         }
     }
+
+    explicit Hasher(std::uint64_t state = kSeed) noexcept
+        : state_(state) {}
 
     [[nodiscard]] std::uint64_t value() const noexcept {
         return state_;
     }
 
 private:
-    std::uint64_t state_ = kFnvOffset;
+    std::uint64_t state_;
 };
 
-void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
-    hasher.u8(kNodeBegin);
-    hasher.u64(input.id);
-    hasher.u32(static_cast<std::uint32_t>(input.children.size()));
+} // namespace
+
+LayoutSignatureBuilder::LayoutSignatureBuilder(const LayoutViewport& viewport) noexcept {
+    Hasher hasher;
+    hasher.f32(viewport.width);
+    hasher.f32(viewport.height);
+    hasher.f32(viewport.dpi_scale);
+    state_ = hasher.value();
+}
+
+void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
+    Hasher hasher(state_);
+    hasher.word(kNodeBegin);
+    hasher.word(input.id);
 
     // `ComputedStyle` owns a sorted map, so this walk is deterministic regardless of insertion
     // order. Only the layout set is folded in; a paint-only change leaves the signature intact.
@@ -74,34 +97,37 @@ void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
     // names (issue #711). The property set and the hash live in the style module
     // (`style::layout_digest`), because `tessera_layout` depends on `tessera_style` and not the
     // other way round; the layout-unchanged gate reads the same digest (issue #735).
-    hasher.u64(style::layout_digest(input.style));
+    hasher.word(style::layout_digest(input.style));
 
     // Text drives Yoga's measure callback, so it is a layout input even when the surrounding box
     // has fixed dimensions. Including it can only cost a redundant reflow, never a wrong reuse.
-    hasher.u8(kText);
+    hasher.word(kText);
     hasher.bytes(input.text);
 
     // Paint's wrap opt-in changes no box, but it decides `LayoutBox::text_fit`, which is part of
     // the result the scheduler reuses (issue #490). Folding it in means a wrap flip re-measures
     // instead of reusing a stale fit fact.
-    hasher.u8(kTextWrap);
-    hasher.u8(input.text_wrap ? 1u : 0u);
-
-    for (const LayoutInput& child : input.children) {
-        hash_node(child, hasher);
-    }
-    hasher.u8(kNodeEnd);
+    hasher.word(kTextWrap | (input.text_wrap ? 0x100U : 0U));
+    state_ = hasher.value();
 }
 
-} // namespace
+void LayoutSignatureBuilder::leave(std::size_t child_count) noexcept {
+    Hasher hasher(state_);
+    hasher.word(kNodeEnd | (static_cast<std::uint64_t>(child_count) << 8));
+    state_ = hasher.value();
+}
 
 std::uint64_t layout_signature(const LayoutInput& root, const LayoutViewport& viewport) noexcept {
-    Hasher hasher;
-    hasher.f32(viewport.width);
-    hasher.f32(viewport.height);
-    hasher.f32(viewport.dpi_scale);
-    hash_node(root, hasher);
-    return hasher.value();
+    LayoutSignatureBuilder builder(viewport);
+    const auto fold = [&builder](auto&& self, const LayoutInput& node) -> void {
+        builder.enter(node);
+        for (const LayoutInput& child : node.children) {
+            self(self, child);
+        }
+        builder.leave(node.children.size());
+    };
+    fold(fold, root);
+    return builder.value();
 }
 
 } // namespace tessera::ui::layout

@@ -4,6 +4,7 @@
 
 #include "tessera/ui/layout/layout_engine.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 namespace tessera::ui::layout {
@@ -28,6 +29,29 @@ namespace tessera::ui::layout {
 // inputs; the only gap is the 64-bit hash collision probability (2^-64 for distinct inputs).
 [[nodiscard]] std::uint64_t layout_signature(const LayoutInput& root,
                                              const LayoutViewport& viewport) noexcept;
+
+// The same signature, built while the caller walks the tree. A caller that is already visiting
+// every node to build the `LayoutInput` (the host's `fill_layout_input`) gets the signature without
+// a second pass over nodes that are no longer in cache, which is what the separate walk cost at 12k
+// nodes. `layout_signature` is defined through this class, so the two cannot disagree.
+//
+// Call `enter` once the node's own fields (id, style, text, wrap) are final and before its
+// children, then `leave` with the number of children actually kept after the last one. Nodes are
+// visited in pre-order, exactly the order `layout_signature` walks `children`.
+class LayoutSignatureBuilder {
+public:
+    explicit LayoutSignatureBuilder(const LayoutViewport& viewport) noexcept;
+
+    void enter(const LayoutInput& node) noexcept;
+    void leave(std::size_t child_count) noexcept;
+
+    [[nodiscard]] std::uint64_t value() const noexcept {
+        return state_;
+    }
+
+private:
+    std::uint64_t state_ = 0;
+};
 
 // The layout half of one computed style, as a digest: exactly the `kLayoutProperties` entries
 // `layout_signature` folds in, and nothing else. Computed once and cached on the style's shared

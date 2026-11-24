@@ -20,6 +20,20 @@ using tessera::ui::layout::LayoutScheduler;
 using tessera::ui::layout::LayoutViewport;
 using tessera::ui::style::ComputedStyle;
 
+// The signature built while visiting the tree, the way a caller that fills the input does.
+std::uint64_t built_signature(const LayoutInput& root, const LayoutViewport& viewport) {
+    tessera::ui::layout::LayoutSignatureBuilder builder(viewport);
+    const auto visit = [&builder](auto&& self, const LayoutInput& input) -> void {
+        builder.enter(input);
+        for (const LayoutInput& child : input.children) {
+            self(self, child);
+        }
+        builder.leave(input.children.size());
+    };
+    visit(visit, root);
+    return builder.value();
+}
+
 bool expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "layout_signature: " << message << "\n";
@@ -292,6 +306,36 @@ int main() {
     check(tessera::ui::layout::layout_signature(order_a, probe_viewport) ==
               tessera::ui::layout::layout_signature(order_b, probe_viewport),
           "signature ignores declaration insertion order");
+
+    // The builder a caller runs while it fills the tree is the same signature, and it is as
+    // sensitive: it moves for a text change, a style change, a reorder and a dropped child.
+    check(built_signature(scene, viewport) ==
+              tessera::ui::layout::layout_signature(scene, viewport),
+          "the builder equals the walking signature");
+    LayoutInput fused = make_scene();
+    const std::uint64_t fused_before = built_signature(fused, viewport);
+    fused.children.pop_back();
+    check(built_signature(fused, viewport) != fused_before, "the builder sees a dropped child");
+    check(built_signature(order_a, probe_viewport) == built_signature(order_b, probe_viewport),
+          "the builder ignores declaration insertion order");
+    LayoutInput text_a = node(9, {});
+    text_a.text = "abcdefghij";
+    LayoutInput text_b = node(9, {});
+    text_b.text = "abcdefghik";
+    check(built_signature(text_a, probe_viewport) != built_signature(text_b, probe_viewport),
+          "the builder sees a change in the last byte of a text that is not a multiple of 8");
+    {
+        // A precomputed signature drives the scheduler exactly like the walking overload.
+        LayoutEngine local_engine;
+        LayoutScheduler local(local_engine);
+        const std::uint64_t built = built_signature(scene, viewport);
+        (void)local.update(scene, viewport, true, built);
+        (void)local.update(scene, viewport, true, built);
+        check(local.layout_runs() == 1 && local.cache_hits() == 1,
+              "a precomputed signature hits the cache on the second update");
+        check(local.signature() == tessera::ui::layout::layout_signature(scene, viewport),
+              "and it is the walking signature");
+    }
 
     if (failures != 0) {
         std::cerr << "layout_signature: " << failures << " failure(s)\n";

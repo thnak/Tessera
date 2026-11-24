@@ -2434,6 +2434,7 @@ class include/tessera/ui/layout/layout_settle.hpp tessera::ui::layout::LayoutSet
 struct include/tessera/ui/layout/layout_settle.hpp tessera::ui::layout::LayoutSettleResult
 
 header include/tessera/ui/layout/layout_signature.hpp
+class include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::LayoutSignatureBuilder
 function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::layout_signature
 function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::style_layout_digest
 

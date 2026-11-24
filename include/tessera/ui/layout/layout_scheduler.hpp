@@ -23,6 +23,12 @@ public:
     // an equal signature.
     [[nodiscard]] const LayoutResult& update(const LayoutInput& root,
                                              const LayoutViewport& viewport, bool needs_layout);
+    // The same, for a caller that already built the signature while it filled `root`
+    // (`LayoutSignatureBuilder`). `signature` must equal `layout_signature(root, viewport)`; the
+    // scheduler cannot check it without the walk this overload exists to skip.
+    [[nodiscard]] const LayoutResult& update(const LayoutInput& root,
+                                             const LayoutViewport& viewport, bool needs_layout,
+                                             std::uint64_t signature);
     [[nodiscard]] const LayoutResult& current() const {
         return last_;
     }
