@@ -19,8 +19,12 @@ using tessera::ui::a11y::event_signal_member;
 using tessera::ui::a11y::event_value;
 using tessera::ui::a11y::EventKind;
 using tessera::ui::a11y::EventQueue;
+using tessera::ui::a11y::kAnnouncementAssertive;
+using tessera::ui::a11y::kAnnouncementPolite;
+using tessera::ui::a11y::kInvalidIndex;
 using tessera::ui::a11y::kMaxEventTextBytes;
 using tessera::ui::a11y::kMaxQueuedEvents;
+using tessera::ui::a11y::make_announcement_event;
 using tessera::ui::a11y::make_bounds_event;
 using tessera::ui::a11y::make_focus_event;
 using tessera::ui::a11y::make_property_event;
@@ -155,6 +159,45 @@ bool empty_take() {
            expect(queue.take({}) == 0, "empty destination takes nothing");
 }
 
+// A live region speaking (accessibility-v1 section 8).
+//
+// Three things matter and each is a way to get it wrong: the signal member is the one AT-SPI2
+// defines (`Announcement`), the node is invalid because an announcement outlives its component, and
+// the priority rides in `detail1` as the D-Bus argument at-spi expects.
+bool announcement_event() {
+    const A11yEvent polite = make_announcement_event("Saved", false);
+    if (!expect(polite.kind == EventKind::Announcement, "the kind is Announcement")) {
+        return false;
+    }
+    if (!expect(event_signal_member(polite.kind) == "Announcement",
+                "the signal member is the platform's own name")) {
+        return false;
+    }
+    if (!expect(polite.node == kInvalidIndex,
+                "an announcement names no node: it must outlive the component that queued it")) {
+        return false;
+    }
+    if (!expect(event_detail(polite) == "Saved", "the message rides in the detail field")) {
+        return false;
+    }
+    if (!expect(polite.detail1 == kAnnouncementPolite, "polite is the platform's priority 1")) {
+        return false;
+    }
+
+    const A11yEvent assertive = make_announcement_event("Connection lost", true);
+    if (!expect(assertive.detail1 == kAnnouncementAssertive,
+                "assertive is the platform's priority 2")) {
+        return false;
+    }
+
+    // A message longer than the field is truncated, not refused: the start of a long message is
+    // still worth hearing, and the fixed buffer is what bounds the crossing.
+    const std::string long_text(kMaxEventTextBytes + 40, 'x');
+    const A11yEvent truncated = make_announcement_event(long_text, false);
+    return expect(std::string_view(truncated.detail.data()).size() == kMaxEventTextBytes - 1,
+                  "an over-long message is truncated to the field, not refused");
+}
+
 } // namespace
 
 int main() {
@@ -181,6 +224,9 @@ int main() {
     }
     if (!empty_take()) {
         return 8;
+    }
+    if (!announcement_event()) {
+        return 9;
     }
     std::cout << "a11y_atspi_events: ok\n";
     return 0;

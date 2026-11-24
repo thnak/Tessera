@@ -63,6 +63,22 @@ A11yEvent make_visible_data_event(A11yIndex node) {
     return event;
 }
 
+A11yEvent make_announcement_event(std::string_view text, bool assertive) {
+    A11yEvent event;
+    event.kind = EventKind::Announcement;
+    // No node: an announcement belongs to the window, not to a box (see `EventKind::Announcement`).
+    // `kInvalidIndex` is what the bridge reads as "no accessible ancestor".
+    event.node = kInvalidIndex;
+    event.detail1 = assertive ? kAnnouncementAssertive : kAnnouncementPolite;
+    // Truncated rather than refused: a long message is still worth hearing the start of, and the
+    // queue's fixed text buffer is what bounds the crossing (accessibility-v1 section 8's rate
+    // limit is the queue's dedupe, not this).
+    const std::size_t length = std::min(text.size(), kMaxEventTextBytes - 1);
+    std::memcpy(event.detail.data(), text.data(), length);
+    event.detail[length] = '\0';
+    return event;
+}
+
 std::string_view event_signal_member(EventKind kind) {
     switch (kind) {
     case EventKind::StateChanged:
@@ -73,6 +89,8 @@ std::string_view event_signal_member(EventKind kind) {
         return "BoundsChanged";
     case EventKind::VisibleDataChanged:
         return "VisibleDataChanged";
+    case EventKind::Announcement:
+        return "Announcement";
     }
     return "StateChanged";
 }

@@ -14,6 +14,13 @@ constexpr std::string_view kUnknownMethod = "org.freedesktop.DBus.Error.UnknownM
 constexpr std::string_view kEventInterface = "org.a11y.atspi.Event.Object";
 
 std::string path_for(A11yIndex index) {
+    // `kInvalidIndex` names no node: an announcement belongs to the application, not to a box
+    // (accessibility-v1 section 8). Emitting `/org/tessera/accessible/4294967295` for it would be a
+    // path no client can resolve, so the root path is the answer - which is also what AT-SPI2 means
+    // by an event with no accessible ancestor.
+    if (index == kInvalidIndex) {
+        return std::string(kAccessiblePathPrefix);
+    }
     std::string path(kAccessiblePathPrefix);
     path.append(std::to_string(index));
     return path;
@@ -36,6 +43,29 @@ void AtspiBridge::publish(const A11ySnapshot& snapshot) {
 
 bool AtspiBridge::post_event(const A11yEvent& event) {
     return events_.push(event);
+}
+
+std::size_t AtspiBridge::post_announcements(accessibility::AnnouncementQueue& announcements) {
+    // Drained without the bridge mutex: `AnnouncementQueue` has its own, and taking both here would
+    // order them for no benefit - the bridge thread never touches the announcement queue.
+    std::size_t posted = 0;
+    accessibility::Announcement announcement;
+    while (announcements.take_next(announcement)) {
+        if (announcement.text.empty()) {
+            continue; // an empty message is not something to speak
+        }
+        // `Off` never reaches the queue (the announcer refuses it), but a queue written by a future
+        // caller could carry one; skipping it here keeps `post_event` from emitting a signal whose
+        // priority would be meaningless.
+        if (announcement.channel == accessibility::LiveChannel::Off) {
+            continue;
+        }
+        const bool assertive = announcement.channel == accessibility::LiveChannel::Assertive;
+        if (post_event(make_announcement_event(announcement.text, assertive))) {
+            ++posted;
+        }
+    }
+    return posted;
 }
 
 std::size_t AtspiBridge::take_actions(std::span<ActionRequest> out) {
@@ -228,8 +258,12 @@ bool AtspiBridge::queue_action(const ActionRequest& request) {
 }
 
 void AtspiBridge::write_event_signal(const A11yEvent& event, std::vector<std::uint8_t>& out) {
-    if (event.node == kInvalidIndex ||
-        static_cast<std::size_t>(event.node) >= snapshot_.nodes.size()) {
+    // An announcement has no node on purpose (accessibility-v1 section 8): it is the one event that
+    // outlives the component that produced it, so it must not be dropped by the node check that
+    // guards every other kind. It is addressed to the application's own path instead.
+    const bool announcement = event.kind == EventKind::Announcement;
+    if (!announcement && (event.node == kInvalidIndex ||
+                          static_cast<std::size_t>(event.node) >= snapshot_.nodes.size())) {
         return;
     }
     writer_.reset();

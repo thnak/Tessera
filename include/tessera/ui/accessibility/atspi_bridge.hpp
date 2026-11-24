@@ -4,6 +4,7 @@
 
 #include "tessera/dbus/wire.hpp"
 #include "tessera/ui/accessibility/a11y_tree.hpp"
+#include "tessera/ui/accessibility/announcement_queue.hpp"
 #include "tessera/ui/accessibility/atspi_events.hpp"
 #include "tessera/ui/accessibility/atspi_mapping.hpp"
 
@@ -80,6 +81,17 @@ public:
     void publish(const A11ySnapshot& snapshot);
     // UI thread: queue a semantic event (bounded, coalescing).
     [[nodiscard]] bool post_event(const A11yEvent& event);
+
+    // Drains every queued live-region announcement into the event queue (accessibility-v1 section
+    // 8). Call it on the UI thread after the tick that could have produced one, and before the
+    // bridge thread's next `emit_events`.
+    //
+    // **Why one direction.** An announcement is the only accessibility fact with no node behind it,
+    // so it cannot arrive through `publish`. Draining here keeps the queue the producer's and the
+    // event queue the bridge's, which is the split `post_event` already documents.
+    //
+    // Returns how many were posted, so a caller can skip its own bookkeeping when nothing spoke.
+    std::size_t post_announcements(accessibility::AnnouncementQueue& announcements);
     // UI thread: drain action requests that arrived from assistive technology.
     [[nodiscard]] std::size_t take_actions(std::span<ActionRequest> out);
 

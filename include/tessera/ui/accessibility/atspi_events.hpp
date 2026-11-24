@@ -26,7 +26,18 @@ enum class EventKind : std::uint8_t {
     PropertyChanged = 1, // AT-SPI2 Event.Object.PropertyChange
     BoundsChanged = 2,   // AT-SPI2 Event.Object.BoundsChanged
     VisibleDataChanged = 3,
+    // AT-SPI2 `Event.Object.Announcement` (accessibility-v1 section 8): a live region speaking, not
+    // a property of the tree. It carries the message in `detail` and the priority in `detail1`, and
+    // it is the one event whose node may be `kInvalidIndex` - a toast that announces "Saved" after
+    // its own node unmounted still has to be heard.
+    Announcement = 4,
 };
+
+// The announcement's urgency, in the platform's own vocabulary (AT-SPI2 `Announcement` priority).
+// `kAnnouncementPolite` waits for the user to be idle; `kAnnouncementAssertive` interrupts. The
+// numbers are the D-Bus signal's argument values, so the bridge writes them through unchanged.
+inline constexpr std::int32_t kAnnouncementPolite = 1;
+inline constexpr std::int32_t kAnnouncementAssertive = 2;
 
 inline constexpr std::size_t kMaxEventTextBytes = 64;
 inline constexpr std::size_t kMaxQueuedEvents = 64;
@@ -52,6 +63,13 @@ void set_event_text(std::array<char, kMaxEventTextBytes>& target, std::string_vi
                                             std::string_view value);
 [[nodiscard]] A11yEvent make_bounds_event(A11yIndex node);
 [[nodiscard]] A11yEvent make_visible_data_event(A11yIndex node);
+
+// A live region speaking (accessibility-v1 section 8). `assertive` interrupts; polite waits.
+//
+// The node is `kInvalidIndex` by design: an announcement outlives the component that produced it,
+// so there is no box to name. A bridge that needs an accessible ancestor uses the application
+// object.
+[[nodiscard]] A11yEvent make_announcement_event(std::string_view text, bool assertive);
 
 // D-Bus signal member for `EventKind` on the `org.a11y.atspi.Event.Object` interface.
 [[nodiscard]] std::string_view event_signal_member(EventKind kind);
