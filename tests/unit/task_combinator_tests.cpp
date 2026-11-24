@@ -136,7 +136,7 @@ Task<void> root_any_index(TaskContext ctx, Task<int> loser, Task<int> winner, bo
     (void)loser_done;
 }
 
-Task<void> root_any_failing_winner(TaskContext ctx, Task<int> loser, bool& loser_done) {
+Task<void> root_any_failing_winner(TaskContext ctx, Task<int> loser, bool&) {
     (void)co_await when_any(ctx, std::move(loser), failing(ctx, "won"));
 }
 
