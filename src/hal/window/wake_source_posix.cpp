@@ -97,8 +97,15 @@ private:
 
 } // namespace
 
+#if defined(_WIN32)
+// Defined in wake_source_win32.cpp, which is only part of the Windows build.
+std::unique_ptr<WakeSource> create_win32_wake_source();
+#endif
+
 std::unique_ptr<WakeSource> create_wake_source() {
-#if defined(__linux__)
+#if defined(_WIN32)
+    return create_win32_wake_source();
+#elif defined(__linux__)
     const int descriptor = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (descriptor < 0) {
         return nullptr;

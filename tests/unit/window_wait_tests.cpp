@@ -8,6 +8,7 @@
 #endif
 
 #include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/hal/wake_source.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/hal/window_wait.hpp"
 
@@ -174,6 +175,46 @@ int main() {
         return 11;
     }
     deadline_window.reset();
+
+    // 6. The completion wake (issue #842). A worker's wake ends an idle park in milliseconds, not
+    // at the timeout; a burst is one wake; and with no wake an idle window still times out, so a
+    // static app does not spin.
+    desc.title = "Tessera wait wake " + suffix;
+    auto wake_window = tessera::hal::create_window(desc);
+    const auto wake = tessera::hal::create_wake_source();
+    if (!expect(wake_window != nullptr && wake != nullptr, "the wake window and source exist")) {
+        return 12;
+    }
+    wake_window->set_wake_source(wake.get());
+    start = tessera::hal::steady_now_seconds();
+    has_event = wake_window->wait_for_events(0.05);
+    elapsed = tessera::hal::steady_now_seconds() - start;
+    if (!expect(!has_event, "an installed wake does not end an idle wait by itself") ||
+        !expect(elapsed >= 0.03, "an idle wait with a wake still blocks for the timeout")) {
+        return 13;
+    }
+    std::thread waker([&wake]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        wake->wake();
+        wake->wake();
+        wake->wake();
+    });
+    start = tessera::hal::steady_now_seconds();
+    has_event = wake_window->wait_for_events(5.0);
+    elapsed = tessera::hal::steady_now_seconds() - start;
+    waker.join();
+    if (!expect(has_event, "a worker wake ends the park with a wake-up") ||
+        !expect(elapsed < 1.0, "the wake lands long before the 5 s timeout")) {
+        return 14;
+    }
+    start = tessera::hal::steady_now_seconds();
+    has_event = wake_window->wait_for_events(0.05);
+    elapsed = tessera::hal::steady_now_seconds() - start;
+    if (!expect(!has_event && elapsed >= 0.03, "a burst of wakes is one wake: the next park blocks")) {
+        return 15;
+    }
+    wake_window->set_wake_source(nullptr);
+    wake_window.reset();
 
     std::cout << "window_wait: ok\n";
     return 0;

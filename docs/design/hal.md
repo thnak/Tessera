@@ -59,7 +59,7 @@ here; `src/hal/` never depends on `src/runtime/`.
 early, or every async result in a settled app arrives at the idle clamp (`kMaxIdleWaitSeconds`,
 up to 250 ms) rather than when it is ready. `hal::WakeSource` (`include/tessera/hal/wake_source.hpp`)
 is the primitive the host installs: Linux joins an `eventfd` beside the display fd in `poll()`,
-Windows adds an auto-reset event to the `MsgWaitForMultipleObjectsEx` handle list, and a window-less
+Windows adds a manual-reset event (`wake_source_win32.cpp`; `drain()` clears it, so a wait observes the signal without consuming it) to the `MsgWaitForMultipleObjectsEx` handle list, and a window-less
 group waits on it directly. `CompletionQueue::set_wake` fires it once per empty -> non-empty edge,
 so a burst is one wake. The wake only ends the park; the next tick still drains the queue on the UI
 thread, and the clamp stays as the safety net rather than the latency path. A platform with no
