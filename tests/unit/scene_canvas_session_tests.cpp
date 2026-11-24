@@ -21,6 +21,7 @@
 
 #include "scene_canvas_test_support.hpp"
 
+#include <array>
 #include <string>
 
 namespace {
@@ -377,6 +378,77 @@ export function Settings(): Node {
            "the apply report names the previewed component");
 }
 
+// Carrying a state cell across an edit of a **whole project**, not a single file.
+//
+// The page never uses the one-file `start(text, file)` overload: it stages a project (the entry
+// plus every stylesheet it reaches) and calls `start(ProjectInput, ...)`. The one-file test above
+// passes, and so did the page's own behaviour look correct until a browser check compared a counter
+// across an edit: same component, same cell, same IR type, and the new evaluation started at its
+// initializer instead of carrying the running value (issue #865).
+//
+// The difference this pins is what the entry is: with a project, the component that owns the cells
+// is looked up through `evaluate_project`'s selected component, and the carry has to match against
+// THAT component's id - not against whatever the one-file path happened to select.
+void test_state_carries_across_a_project_edit() {
+    constexpr std::string_view kSheet = ".page { display: flex; flex-direction: column; }\n";
+    constexpr std::string_view kFive = R"(import "../styles/theme.css";
+
+export function Carry(): Node {
+  const [count, setCount] = useState<int>(5);
+  return (
+    <View className="page">
+      <Text>Running</Text>
+    </View>
+  );
+}
+)";
+    constexpr std::string_view kZero = R"(import "../styles/theme.css";
+
+export function Carry(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View className="page">
+      <Text>Edited</Text>
+    </View>
+  );
+}
+)";
+    // **The arrays outlive the spans.** `ProjectInput` holds `std::span`s, so the file arrays have
+    // to live as long as the `ProjectInput` that points at them. Returning one from a lambda whose
+    // local arrays die on return left dangling spans: it passed on the lane I first ran it on and
+    // segfaulted under the CI preset.
+    const std::array<cli::ProjectFile, 1> five_sources{{{"ui/App.tsx", kFive}}};
+    const std::array<cli::ProjectFile, 1> zero_sources{{{"ui/App.tsx", kZero}}};
+    const std::array<cli::ProjectFile, 1> sheets{{{"styles/theme.css", kSheet}}};
+
+    cli::CanvasSceneSession session;
+    cli::CanvasSessionSource source = source_for(kFive, "ui/App.tsx");
+    const cli::ProjectInput five_project{five_sources, sheets, "ui/App.tsx"};
+    const std::string first_error = session.start(five_project, source);
+    expect(first_error.empty(), "the project starts: " + first_error);
+    if (!first_error.empty()) {
+        return;
+    }
+    expect(session.started(), "the project's session started");
+    // The initializer is what the first evaluation shows.
+    expect(counter_value(session) == 5, "the project's first evaluation starts at its initializer");
+
+    // An edit that changes the initializer and the text but keeps the component and the cell.
+    cli::CanvasSessionSource edited = source_for(kZero, "ui/App.tsx");
+    const cli::ProjectInput zero_project{zero_sources, sheets, "ui/App.tsx"};
+    const std::string edit_error = session.start(zero_project, edited);
+    expect(edit_error.empty(), "the edited project starts: " + edit_error);
+    if (!edit_error.empty()) {
+        return;
+    }
+    expect(!session.reused(), "an edited project re-evaluates");
+    expect(counter_value(session) == 5,
+           "the cell is carried across a project edit, not re-initialized (issue #865)");
+    const cli::StateCarryReport carried = session.carry_report();
+    expect(carried.carried == 1, "the apply report counts the carried cell");
+    expect(carried.added == 0, "and counts nothing as newly added");
+}
+
 } // namespace
 
 int main() {
@@ -389,6 +461,7 @@ int main() {
     test_pointer_report_json();
     test_module_sheet_is_scoped();
     test_entry_components_feed_the_dropdown();
+    test_state_carries_across_a_project_edit();
     if (failures() != 0) {
         std::cerr << "scene_canvas_session: " << failures() << " failure(s)\n";
         return 1;
