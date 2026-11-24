@@ -36,6 +36,16 @@ spec's "no malloc in a steady-state frame" in
 [`memory-model-v1.md`](../specs/memory-model-v1.md). The 1 on MSVC and the animation rows are the
 recorded gap to close, not a budget to relax.
 
+**Where the one-text-change frame goes (17 ms at 12 000 nodes).** `cpu_benchmark` prints a phase
+breakdown of that frame (medians, ms): layout input 1.7, **layout engine 8.0** (retained-tree sync 1.2,
+Yoga `calculateLayout` 4.0, box collection 2.1, signature hash 0.4), apply layout 0.9, **scene style
+sync 5.0**, damage 0.01, paint 0.2. Nothing in it is a single hot spot: the engine and the style sync
+each visit all 12 000 nodes at roughly 0.4-0.7 microseconds per node on a one-node change, and Yoga's
+4 ms is the dirty ancestor chain re-flowing wide containers. A scene of a typical app (a few thousand
+nodes) therefore pays about 3 ms for the same edit, inside a 60 Hz frame with room; only a
+12 000-node scene sits at the budget. Making the walks incremental (collect and sync only the dirty
+subtrees) is the lever if that scene size ever matters; it is not scheduled.
+
 **Full paint and #257 (decided: cull to the viewport, on by default).** A full-redraw plan now culls to
 the whole target, using the one full-target scissor every plan producer stores
 (`src/ui/frame/redraw_cull.hpp`), so `FramePipelineConfig::cull_paint` (default on, runtime key

@@ -145,6 +145,8 @@ int main(int argc, char** argv) {
     std::vector<double> layout_paint_container;
     std::vector<double> glass_paint;
     std::vector<double> damaged_paint;
+    std::vector<double> phase_tick, phase_styles, phase_input, phase_engine, phase_apply, phase_sync,
+        phase_finish;
     benchmark::Totals totals;
     for (std::uint64_t run = 0; run < budget.runs; ++run) {
         benchmark::Fixture fixture;
@@ -160,11 +162,25 @@ int main(int argc, char** argv) {
         layout_paint_container.push_back(sample.layout_paint_container_ms);
         glass_paint.push_back(sample.glass_paint_ms);
         damaged_paint.push_back(sample.damaged_paint_ms);
+        phase_tick.push_back(sample.text_phases.tick_ms);
+        phase_styles.push_back(sample.text_phases.styles_ms);
+        phase_input.push_back(sample.text_phases.layout_input_ms);
+        phase_engine.push_back(sample.text_phases.layout_engine_ms);
+        phase_apply.push_back(sample.text_phases.apply_layout_ms);
+        phase_sync.push_back(sample.text_phases.sync_style_ms);
+        phase_finish.push_back(sample.text_phases.finish_ms);
         accumulate(totals, sample);
     }
     const benchmark::Percentiles first = benchmark::summarize(std::move(first_style_layout));
     const benchmark::Percentiles paint = benchmark::summarize(std::move(full_paint));
     const benchmark::Percentiles text = benchmark::summarize(std::move(layout_paint_text));
+    const auto median_of = [](std::vector<double> values) {
+        return benchmark::summarize(std::move(values)).median;
+    };
+    const double ph_tick = median_of(phase_tick), ph_styles = median_of(phase_styles),
+                 ph_input = median_of(phase_input), ph_engine = median_of(phase_engine),
+                 ph_apply = median_of(phase_apply), ph_sync = median_of(phase_sync),
+                 ph_finish = median_of(phase_finish);
     const benchmark::Percentiles container =
         benchmark::summarize(std::move(layout_paint_container));
     const benchmark::Percentiles glass = benchmark::summarize(std::move(glass_paint));
@@ -205,6 +221,10 @@ int main(int argc, char** argv) {
                 totals.damaged_paint_nodes,
                 static_cast<unsigned long long>(budget.max_damaged_paint_nodes),
                 totals.damaged_culled_nodes, totals.damaged_culled_subtrees);
+    // Where the one-text-change frame goes (a breakdown, not a gate), medians in ms.
+    std::printf("cpu_benchmark: text-change frame phases (ms): tick %.2f, styles %.2f, layout input "
+                "%.2f, layout engine %.2f, apply layout %.2f, sync style %.2f, finish %.2f\n",
+                ph_tick, ph_styles, ph_input, ph_engine, ph_apply, ph_sync, ph_finish);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu (budget %llu)\n",

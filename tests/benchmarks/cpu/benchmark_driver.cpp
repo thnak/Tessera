@@ -3,6 +3,7 @@
 #include "benchmark_driver.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
+#include <chrono>
 #include <string>
 #include <utility>
 
@@ -145,12 +146,28 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
 
 } // namespace
 
+namespace {
+
+using PhaseClock = std::chrono::steady_clock;
+
+double phase_ms(PhaseClock::time_point begin, PhaseClock::time_point end) {
+    return std::chrono::duration<double, std::milli>(end - begin).count();
+}
+
+} // namespace
+
 void BenchmarkDriver::run_layout_pass() {
+    const PhaseClock::time_point input_begin = PhaseClock::now();
     const ui::layout::LayoutInput input = build_layout_input(*root_, *provider_);
+    const PhaseClock::time_point input_end = PhaseClock::now();
+    phases_.layout_input_ms = phase_ms(input_begin, input_end);
     // The scheduler reuses the last result while the layout-input signature is unchanged, exactly
     // like AppHost: a style-only edit that cannot move boxes skips Yoga but still re-syncs styles.
     last_layout_ = scheduler_.update(input, viewport_, true);
+    const PhaseClock::time_point engine_end = PhaseClock::now();
+    phases_.layout_engine_ms = phase_ms(input_end, engine_end);
     last_applied_ = ui::layout::apply_layout(last_layout_, *root_);
+    phases_.apply_layout_ms = phase_ms(engine_end, PhaseClock::now());
 }
 
 void BenchmarkDriver::request_full_repaint() {
@@ -159,7 +176,11 @@ void BenchmarkDriver::request_full_repaint() {
 
 FrameWork BenchmarkDriver::begin_frame() {
     FrameWork frame;
+    phases_ = FramePhases{};
+    const PhaseClock::time_point tick_begin = PhaseClock::now();
     frame.tick = pipeline_.tick(*root_, 0.0);
+    const PhaseClock::time_point tick_end = PhaseClock::now();
+    phases_.tick_ms = phase_ms(tick_begin, tick_end);
     if (full_repaint_pending_) {
         damage_.force_full_redraw();
         full_repaint_pending_ = false;
@@ -172,12 +193,18 @@ FrameWork BenchmarkDriver::begin_frame() {
         resolve_dirty_styles();
         frame.geometry = true;
     }
+    const PhaseClock::time_point styles_end = PhaseClock::now();
+    phases_.styles_ms = phase_ms(tick_end, styles_end);
     if (frame.geometry || frame.tick.needs_layout) {
         run_layout_pass();
         frame.layout = last_applied_;
+        const PhaseClock::time_point sync_begin = PhaseClock::now();
         frame.sync = pipeline_.sync_style(*root_, *provider_, frame.tick, true);
+        phases_.sync_style_ms = phase_ms(sync_begin, PhaseClock::now());
     }
+    const PhaseClock::time_point finish_begin = PhaseClock::now();
     frame.render = pipeline_.finish_frame(*root_);
+    phases_.finish_ms = phase_ms(finish_begin, PhaseClock::now());
     last_render_ = frame.render;
     return frame;
 }

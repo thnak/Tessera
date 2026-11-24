@@ -143,6 +143,7 @@ Measurement Fixture::measure() {
     edit_text();
     begin = Clock::now();
     const FrameWork text_frame = driver_->begin_frame();
+    result.text_phases = driver_->phases();
     (void)paint(false);
     result.layout_paint_text_ms = milliseconds(begin, Clock::now());
     result.damage_rects_text = text_frame.render.redraw_plan.scissors.size();

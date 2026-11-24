@@ -45,6 +45,8 @@ struct Measurement {
     double full_paint_ms = 0.0;
     double layout_paint_text_ms = 0.0;
     double layout_paint_container_ms = 0.0;
+    // The phases of the one-text-change frame (the incremental frame this scene is measured for).
+    FramePhases text_phases;
     // Glass scenario (issue #244): a full paint of the reference scene with the glass bar active.
     double glass_paint_ms = 0.0;
     std::size_t glass_backdrops = 0;

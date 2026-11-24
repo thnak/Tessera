@@ -46,6 +46,18 @@ struct FrameWork {
     bool geometry = false;
 };
 
+// Wall time of each phase of the last begin_frame(), in milliseconds (the layout phases are zero
+// when the frame did no layout). A breakdown, not a gate: it says where an incremental frame goes.
+struct FramePhases {
+    double tick_ms = 0.0;
+    double styles_ms = 0.0;
+    double layout_input_ms = 0.0;
+    double layout_engine_ms = 0.0;
+    double apply_layout_ms = 0.0;
+    double sync_style_ms = 0.0;
+    double finish_ms = 0.0;
+};
+
 class BenchmarkDriver final {
 public:
     // `root` is borrowed and must outlive the driver. `viewport` is the logical content size.
@@ -59,6 +71,10 @@ public:
     // One-shot full-target repaint latch, like AppHost::request_full_repaint().
     void request_full_repaint();
     [[nodiscard]] FrameWork begin_frame();
+    // Where the last begin_frame() spent its time.
+    [[nodiscard]] const FramePhases& phases() const {
+        return phases_;
+    }
     [[nodiscard]] ui::frame::FramePaint paint(ui::paint::PaintSink& sink, bool force);
     void end_frame();
 
@@ -90,6 +106,7 @@ private:
     ui::layout::LayoutResult last_layout_;
     ui::layout::LayoutApplyResult last_applied_;
     ui::frame::FrameRender last_render_;
+    FramePhases phases_;
     bool styles_resolved_ = false;
     bool full_repaint_pending_ = false;
 };
