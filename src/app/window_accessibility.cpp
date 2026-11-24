@@ -100,8 +100,8 @@ void WindowHost::Impl::tick_accessibility(const ui::frame::FrameTick* frame) {
 // This mirrors `TextInputRuntime::emit_change` (the app's own path for a committed edit): the event
 // borrows the caller's storage for the duration of the dispatch, and `text` outlives this call
 // because it lives in the drained action, so no copy is needed. The scene does not own the buffer,
-// so the runtime that DOES own it adopts the value through its bound `TextChange` handler - which is
-// exactly how a screen reader's `SetText` reaches the same edit path the keyboard uses.
+// so the runtime that DOES own it adopts the value through its bound `TextChange` handler - which
+// is exactly how a screen reader's `SetText` reaches the same edit path the keyboard uses.
 void WindowHost::Impl::dispatch_text_value(ui::Node& target, std::string_view text) {
     ui::Event event;
     event.type = ui::EventType::TextChange;
@@ -128,9 +128,9 @@ void WindowHost::Impl::apply_accessibility_action(const AccessibilityAction& act
     // state.
     //
     // `SetValue` is the "replace this field's text" path (Android `ACTION_SET_TEXT`, UIA
-    // `ValuePattern.SetValue`, AT-SPI `SetValue`). The scene does not own the buffer - the app's edit
-    // runtime does - so this dispatches one `TextChange` carrying the requested text and lets the
-    // runtime adopt it, exactly as a committed edit would. `Scroll` stays unwired.
+    // `ValuePattern.SetValue`, AT-SPI `SetValue`). The scene does not own the buffer - the app's
+    // edit runtime does - so this dispatches one `TextChange` carrying the requested text and lets
+    // the runtime adopt it, exactly as a committed edit would. `Scroll` stays unwired.
     if (a11y::has_action(action.action, a11y::Action::SetValue)) {
         dispatch_text_value(*target, action.text);
         return;

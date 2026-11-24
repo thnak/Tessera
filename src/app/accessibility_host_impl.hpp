@@ -51,7 +51,8 @@ struct AccessibilityHost::Impl {
     // stops and drops the backend. Safe twice.
     void teardown();
     // Turns one backend node index into the scene-side action the window driver executes.
-    // `text` is the payload a value-setting action carries; every other action passes an empty view.
+    // `text` is the payload a value-setting action carries; every other action passes an empty
+    // view.
     void map_action(ui::a11y::A11yIndex index, ui::a11y::Action action, std::string_view text,
                     AccessibilityAction& out);
     // Runs a drained batch on the UI thread; a throwing handler ends the batch.

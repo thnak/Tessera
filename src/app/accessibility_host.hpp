@@ -61,8 +61,8 @@ enum class AccessibilityBackend : std::uint8_t {
 struct AccessibilityAction {
     ui::NodeId node = 0;
     ui::a11y::Action action = ui::a11y::Action::None;
-    // The payload a value-setting action carries (`SetValue`, `SetSelection`), empty otherwise. It is
-    // the platform's own text, bounded by the provider's queue entry, so a handler can act on it
+    // The payload a value-setting action carries (`SetValue`, `SetSelection`), empty otherwise. It
+    // is the platform's own text, bounded by the provider's queue entry, so a handler can act on it
     // without the provider having to survive the drain.
     std::string text;
 };

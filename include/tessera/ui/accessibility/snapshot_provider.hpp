@@ -62,8 +62,8 @@ struct ProviderAnswer {
 // uses for `ValuePattern.SetValue`, so both platforms carry the same information rather than each
 // inventing a subset.
 //
-// There is deliberately no selection payload: the engine's `Action` has no `SetSelection` member, so
-// a caret request is not something this bridge can express. Android's `ACTION_SET_SELECTION` is
+// There is deliberately no selection payload: the engine's `Action` has no `SetSelection` member,
+// so a caret request is not something this bridge can express. Android's `ACTION_SET_SELECTION` is
 // therefore refused rather than accepted and ignored.
 inline constexpr std::size_t kMaxProviderActionTextBytes = 1024;
 
@@ -73,8 +73,8 @@ struct ProviderAction {
     // The text a `SetValue` request carries; empty for every other action.
     std::array<char, kMaxProviderActionTextBytes> text{};
 
-    // The payload as a view, which is how a consumer reads it: the array is fixed-size, so the string
-    // ends at the first NUL rather than at the array's end.
+    // The payload as a view, which is how a consumer reads it: the array is fixed-size, so the
+    // string ends at the first NUL rather than at the array's end.
     [[nodiscard]] std::string_view text_of() const noexcept {
         return std::string_view(text.data(), ::strnlen(text.data(), text.size()));
     }
@@ -127,8 +127,8 @@ public:
     // Any thread (the platform thread): queues one action for the UI thread to execute. Bounded and
     // overflow-dropping: a flooding client cannot grow the queue. `text` is the `SetValue` payload;
     // passing one for another action is refused, as is a payload at or over
-    // `kMaxProviderActionTextBytes` - a truncated field text would leave the screen reader holding a
-    // buffer the engine does not.
+    // `kMaxProviderActionTextBytes` - a truncated field text would leave the screen reader holding
+    // a buffer the engine does not.
     [[nodiscard]] bool post_action(int virtual_id, Action action, std::string_view text = {});
     // UI thread, tick boundary: drains the queue in arrival order.
     [[nodiscard]] std::size_t take_actions(std::span<ProviderAction> out);

@@ -314,8 +314,7 @@ int main() {
         check(provider.post_action(1, a11y::Action::SetValue, at_limit),
               "a payload one byte under the bound is accepted");
         const std::size_t after = provider.take_actions(drained);
-        check(after == 1 && drained[0].text_of() == at_limit,
-              "and keeps every byte it was given");
+        check(after == 1 && drained[0].text_of() == at_limit, "and keeps every byte it was given");
     }
 
     if (failures != 0) {

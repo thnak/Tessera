@@ -204,12 +204,14 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraAccessibilityProvider_nat
     if (action == tessera::ui::a11y::Action::None) {
         return JNI_FALSE;
     }
-    // The payload is read only for an action that carries one; a `null` string is the empty payload.
+    // The payload is read only for an action that carries one; a `null` string is the empty
+    // payload.
     std::string payload;
     if (text != nullptr) {
         const char* utf = env->GetStringUTFChars(text, nullptr);
         if (utf == nullptr) {
-            // An OOM while copying: refuse the request rather than queue it with a truncated payload.
+            // An OOM while copying: refuse the request rather than queue it with a truncated
+            // payload.
             return JNI_FALSE;
         }
         payload.assign(utf);
