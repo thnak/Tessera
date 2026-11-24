@@ -95,6 +95,27 @@ void WindowHost::Impl::tick_accessibility(const ui::frame::FrameTick* frame) {
     (void)accessibility->tick();
 }
 
+// One `TextChange` carrying `text`, dispatched into `target`.
+//
+// This mirrors `TextInputRuntime::emit_change` (the app's own path for a committed edit): the event
+// borrows the caller's storage for the duration of the dispatch, and `text` outlives this call
+// because it lives in the drained action, so no copy is needed. The scene does not own the buffer,
+// so the runtime that DOES own it adopts the value through its bound `TextChange` handler - which is
+// exactly how a screen reader's `SetText` reaches the same edit path the keyboard uses.
+void WindowHost::Impl::dispatch_text_value(ui::Node& target, std::string_view text) {
+    ui::Event event;
+    event.type = ui::EventType::TextChange;
+    event.text_view = text.data();
+    event.text_view_size = static_cast<std::uint32_t>(text.size());
+    event.set_text(text);
+    // A whole-buffer replacement leaves the caret at the end, which is where a screen reader that
+    // just typed into the field expects it.
+    event.selection_start = static_cast<std::uint32_t>(text.size());
+    event.selection_end = event.selection_start;
+    (void)ui::dispatch_event_to(target, event);
+    loop->mark_render_dirty();
+}
+
 void WindowHost::Impl::apply_accessibility_action(const AccessibilityAction& action) {
     ui::Node* target = find_node_by_id(root, action.node);
     if (target == nullptr) {
@@ -105,8 +126,15 @@ void WindowHost::Impl::apply_accessibility_action(const AccessibilityAction& act
     // the
     // ordinary programmatic focus request, so screen-reader focus and keyboard focus stay one
     // state.
-    // SetValue/Scroll requests are not wired in this slice (the spec's known-limits list); they are
-    // dropped rather than faked.
+    //
+    // `SetValue` is the "replace this field's text" path (Android `ACTION_SET_TEXT`, UIA
+    // `ValuePattern.SetValue`, AT-SPI `SetValue`). The scene does not own the buffer - the app's edit
+    // runtime does - so this dispatches one `TextChange` carrying the requested text and lets the
+    // runtime adopt it, exactly as a committed edit would. `Scroll` stays unwired.
+    if (a11y::has_action(action.action, a11y::Action::SetValue)) {
+        dispatch_text_value(*target, action.text);
+        return;
+    }
     if (a11y::has_action(action.action, a11y::Action::Press)) {
         (void)pump.router().invoke(root, *target);
         loop->mark_render_dirty();
