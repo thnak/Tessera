@@ -32,8 +32,10 @@
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace tessera::benchmark {
 
@@ -91,7 +93,35 @@ private:
     ui::Node* root_ = nullptr;
     ui::style::CompiledStyleSheet sheet_;
     ui::style::SceneStyleTree style_tree_;
-    std::unordered_map<ui::NodeId, ui::style::ComputedStyle> styles_;
+    // Resolved styles indexed by node id. The reference scene hands out ids 1..N, so the table is a
+    // plain array and a lookup is an index, not a hash; an id past the end or never stored reads as
+    // "no style". It never shrinks and is reserved before the first frame, so a reference stays
+    // valid.
+    class StyleTable {
+    public:
+        void reserve(std::size_t count) {
+            slots_.reserve(count);
+            present_.reserve(count);
+        }
+        void put(ui::NodeId id, const ui::style::ComputedStyle& style) {
+            const auto index = static_cast<std::size_t>(id);
+            if (index >= slots_.size()) {
+                slots_.resize(index + 1);
+                present_.resize(index + 1, 0);
+            }
+            slots_[index] = style;
+            present_[index] = 1;
+        }
+        [[nodiscard]] const ui::style::ComputedStyle* get(ui::NodeId id) const {
+            const auto index = static_cast<std::size_t>(id);
+            return index < slots_.size() && present_[index] != 0 ? &slots_[index] : nullptr;
+        }
+
+    private:
+        std::vector<ui::style::ComputedStyle> slots_;
+        std::vector<std::uint8_t> present_;
+    };
+    StyleTable styles_;
     std::unique_ptr<CachedStyles> provider_;
     ui::layout::LayoutInput layout_input_;
     runtime::ManualClock clock_;

@@ -339,6 +339,68 @@ int main() {
         }
     }
 
+    // The retained tree matches the i-th input child to the node it synced to last pass before it
+    // asks the id map, so every way the child list can move under that guess has to still equal a
+    // from-scratch layout: a rotation, a removal in the middle, the container turning into a text
+    // leaf (its children destroyed) and back into a container with the very same child ids, and a
+    // reversal.
+    {
+        const auto box = [](std::uint64_t id, const char* width) {
+            return node(id, style({{"width", width}, {"height", "20px"}}));
+        };
+        const auto page = [&](std::vector<LayoutInput> kids, const char* text) {
+            LayoutInput container = node(5,
+                                         style({{"display", "flex"},
+                                                {"flex-direction", "row"},
+                                                {"width", "300px"},
+                                                {"height", "40px"}}),
+                                         std::move(kids));
+            container.text = text;
+            return node(1,
+                        style({{"display", "flex"},
+                               {"flex-direction", "column"},
+                               {"width", "600px"},
+                               {"height", "200px"}}),
+                        {std::move(container)});
+        };
+        RetainedTree moving;
+        const auto check_step = [&](const LayoutInput& scene_input, std::uint32_t step) {
+            const LayoutResult warm = moving.layout(scene_input, viewport, cache);
+            const LayoutResult cold =
+                layout_cold(scene_input, viewport, viewport.width, viewport.height, cache,
+                            /*as_grid_item=*/false);
+            return same_boxes(warm, cold, 10000 + step);
+        };
+        const auto kids = [&](std::initializer_list<std::pair<std::uint64_t, const char*>> list) {
+            std::vector<LayoutInput> out;
+            for (const auto& [id, width] : list) {
+                out.push_back(box(id, width));
+            }
+            return out;
+        };
+        const std::vector<LayoutInput> steps[] = {
+            kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), // base
+            kids({{7, "50px"}, {8, "60px"}, {6, "40px"}}), // rotated
+            kids({{7, "50px"}, {6, "40px"}}),              // one removed from the middle
+            kids({}),                                      // emptied
+            kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), // back, same ids, new nodes
+            kids({{8, "60px"}, {7, "50px"}, {6, "40px"}}), // reversed
+        };
+        std::uint32_t step = 0;
+        for (const std::vector<LayoutInput>& children : steps) {
+            if (!check_step(page(children, ""), step++)) {
+                return 1;
+            }
+        }
+        // The container becomes a text leaf: its children are destroyed with the guess list, then
+        // the same ids come back under a container again.
+        if (!check_step(page({}, "label"), step++) ||
+            !check_step(page(kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), ""), step++) ||
+            !check_step(page(kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), ""), step++)) {
+            return 1;
+        }
+    }
+
     std::cout << "retained: " << kFrames << " frames, " << retained.node_count() << " nodes, "
               << retained.style_applications() << " style applications, " << retained.rebuilds()
               << " rebuilds\n";

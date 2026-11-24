@@ -30,6 +30,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -234,9 +235,50 @@ void test_container_source_bypasses_memo() {
     tree.end_memo();
 }
 
+// `resolve` answers a node of a pre-order walk from a cursor (the next slot) before it asks the
+// node-keyed index. Whatever order the nodes are asked in, the answer must be the one an in-order
+// walk gives: backwards, skipping, repeating, and mixed with a node outside the captured tree.
+void test_resolve_order_does_not_change_the_answer() {
+    const auto sheet = compile_stylesheet(kSheet);
+    const auto snapshot = [&](Scene& scene, const std::vector<Node*>& order) {
+        SceneStyleTree tree(*scene.root);
+        tree.begin_memo();
+        std::vector<std::string> out;
+        for (Node* node : order) {
+            const ComputedStyle& style = tree.resolve(sheet, *node);
+            out.push_back(std::string(value_of(style, "color")) + "|" +
+                          std::string(value_of(style, "width")) + "|" +
+                          std::string(value_of(style, "font-size")));
+        }
+        tree.end_memo();
+        return out;
+    };
+    Scene scene;
+    Node outside(99);
+    const std::vector<std::string> in_order =
+        snapshot(scene, {scene.root.get(), scene.card, scene.label});
+    // Backwards: the label's parents resolve first through the recursion, then each is a memo hit.
+    const std::vector<std::string> backwards =
+        snapshot(scene, {scene.label, scene.card, scene.root.get()});
+    check(backwards.size() == 3 && backwards[0] == in_order[2] && backwards[1] == in_order[1] &&
+              backwards[2] == in_order[0],
+          "resolving in reverse gives the in-order answers");
+    // Skipping a node, repeating one, and a node that is not in the tree in the middle.
+    const std::vector<std::string> mixed =
+        snapshot(scene, {scene.root.get(), scene.label, scene.label, &outside, scene.card,
+                         scene.root.get(), scene.card});
+    check(mixed.size() == 7 && mixed[0] == in_order[0] && mixed[1] == in_order[2] &&
+              mixed[2] == in_order[2] && mixed[4] == in_order[1] && mixed[5] == in_order[0] &&
+              mixed[6] == in_order[1],
+          "skipping, repeating and an outside node do not disturb the answers");
+    check(mixed[3] != in_order[0] && mixed[3] != in_order[1] && mixed[3] != in_order[2],
+          "a node outside the tree still gets the initial style, not a neighbour's slot");
+}
+
 } // namespace
 
 int main() {
+    test_resolve_order_does_not_change_the_answer();
     test_reference_stability();
     test_keep_entries();
     test_restyled_layout_changed();

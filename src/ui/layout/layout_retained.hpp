@@ -110,6 +110,13 @@ struct RetainedNode {
     // a steady frame allocates nothing.
     std::vector<RetainedNode*> children;
     std::vector<RetainedNode*> desired;
+    // The node each input child synced to last pass, in input order (`children` is in layout order,
+    // which `order` permutes). A steady frame hands the same children in the same order, so the
+    // i-th input child is checked against `source[i]` by id before the id-keyed map is asked: an
+    // integer compare instead of a hash lookup per node. Every entry is a live node - it was in the
+    // last pass's `desired`, which reconcile keeps - and the list is emptied wherever children are
+    // destroyed wholesale (`set_measure`).
+    std::vector<RetainedNode*> source;
 
     // The layout pass that last reached this node; anything older has left the input tree.
     std::uint64_t visited = 0;

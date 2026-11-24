@@ -36,25 +36,25 @@ style::ComputedStyle apply_inline(style::ComputedStyle style, const ui::Node& no
 
 // The paint/layout provider over the resolved-style table. The table is built before the first
 // frame and never reallocates after that (`resolve_all_styles` reserves the final size), so a
-// lookup is a hash lookup plus the documented ComputedStyle copy.
+// lookup is an array index.
 struct BenchmarkDriver::CachedStyles final : ui::paint::StyleProvider {
-    explicit CachedStyles(std::unordered_map<ui::NodeId, style::ComputedStyle>& table)
+    explicit CachedStyles(const StyleTable& table)
         : table(&table) {}
 
     [[nodiscard]] style::ComputedStyle compute(const ui::Node& node) override {
-        const auto found = table->find(node.id());
-        return found == table->end() ? style::ComputedStyle{} : found->second;
+        const style::ComputedStyle* found = table->get(node.id());
+        return found == nullptr ? style::ComputedStyle{} : *found;
     }
 
     // The table never reallocates after the first frame, so a reference into it stays valid; this
     // is what lets the layout input fill without copying through `compute`, like the host does.
     [[nodiscard]] const style::ComputedStyle& resolve(const ui::Node& node) override {
         static const style::ComputedStyle empty;
-        const auto found = table->find(node.id());
-        return found == table->end() ? empty : found->second;
+        const style::ComputedStyle* found = table->get(node.id());
+        return found == nullptr ? empty : *found;
     }
 
-    std::unordered_map<ui::NodeId, style::ComputedStyle>* table = nullptr;
+    const StyleTable* table = nullptr;
 };
 
 BenchmarkDriver::BenchmarkDriver(ui::Node& root, style::CompiledStyleSheet sheet,
@@ -99,7 +99,7 @@ void BenchmarkDriver::resolve_all_styles() {
         for (const auto& child : node.children()) {
             self(self, *child, &style);
         }
-        styles_.emplace(node.id(), style);
+        styles_.put(node.id(), style);
     };
     visit(visit, *root_, nullptr);
 }
@@ -108,9 +108,8 @@ void BenchmarkDriver::resolve_subtree(ui::Node& node) {
     const style::ComputedStyle* parent = nullptr;
     style::ComputedStyle parent_style;
     if (const ui::Node* parent_node = node.parent(); parent_node != nullptr) {
-        const auto found = styles_.find(parent_node->id());
-        if (found != styles_.end()) {
-            parent_style = found->second;
+        if (const style::ComputedStyle* found = styles_.get(parent_node->id()); found != nullptr) {
+            parent_style = *found;
             parent = &parent_style;
         }
     }
@@ -120,7 +119,7 @@ void BenchmarkDriver::resolve_subtree(ui::Node& node) {
         for (const auto& child : current.children()) {
             self(self, *child, &style);
         }
-        styles_.insert_or_assign(current.id(), style);
+        styles_.put(current.id(), style);
     };
     visit(visit, node, parent);
 }

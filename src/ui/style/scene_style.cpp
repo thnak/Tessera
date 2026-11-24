@@ -94,6 +94,7 @@ void SceneStyleTree::build_node(const Node& node, StyleNode* parent) {
     entries_.emplace_back();
     Entry& stored = entries_.back();
     index_.emplace(&node, entries_.size() - 1);
+    slot_nodes_.push_back(&node);
     fill_view(stored, node, parent);
     for (const auto& child : node.children()) {
         build_node(*child, &stored.view);
@@ -333,16 +334,24 @@ void SceneStyleTree::append_container(std::vector<ContainerRef>& chain, const No
                                  name != nullptr && *name != "none" ? *name : std::string{}});
 }
 
-const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
+std::size_t SceneStyleTree::slot_of(const Node& node) const {
+    if (cursor_ < slot_nodes_.size() && slot_nodes_[cursor_] == &node) {
+        return cursor_;
+    }
     const auto found = index_.find(&node);
-    if (found == index_.end()) {
+    return found == index_.end() ? kNoSlot : found->second;
+}
+
+const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
+    const std::size_t slot = slot_of(node);
+    if (slot == kNoSlot) {
         // Outside the captured tree: the registry's initial style, computed once per generation.
         if (!outside_style_.has_value()) {
             outside_style_.emplace(sheet.registry().initial_style());
         }
         return *outside_style_;
     }
-    const std::size_t slot = found->second;
+    cursor_ = slot + 1; // the next node of a pre-order walk
     if (memoised_[slot] != 0) {
         return memo_[slot];
     }
@@ -377,6 +386,7 @@ const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, co
     // reallocates and the reference below stays valid for the generation.
     memo_[slot] = std::move(computed);
     memoised_[slot] = 1;
+    cursor_ = slot + 1; // resolving the parent above moved it
     if (use_containers) {
         // This node's chain is its parent's plus this node when this node is a query container, so
         // a child's `@container` lookup is a scan of a short vector instead of an ancestor walk.

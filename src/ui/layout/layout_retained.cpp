@@ -153,6 +153,7 @@ void set_measure(RetainedTreeState& state, RetainedNode& retained, RetainedMeasu
             destroy_subtree(state, child);
         }
         retained.children.clear();
+        retained.source.clear(); // its entries were just destroyed
         YGNodeSetContext(retained.node, &retained);
         YGNodeSetMeasureFunc(retained.node,
                              next == RetainedMeasure::Grid ? measure_grid : measure_text);
@@ -188,19 +189,29 @@ void apply_node_style(RetainedTreeState& state, RetainedNode& retained, const La
     ++state.style_applications;
 }
 
-RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent);
+RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent,
+                        RetainedNode* hint = nullptr);
 
 // The container half of `sync_node`: sync every child, order them by CSS `order`, and reconcile.
 void sync_children(RetainedTreeState& state, RetainedNode& retained, const LayoutInput& input) {
     retained.desired.clear();
+    std::size_t index = 0;
     for (const LayoutInput& child : input.children) {
-        if (RetainedNode* synced = sync_node(state, child, retained.block)) {
-            retained.desired.push_back(synced);
-        }
+        RetainedNode* const hint =
+            index < retained.source.size() ? retained.source[index] : nullptr;
+        RetainedNode* const synced = sync_node(state, child, retained.block, hint);
         if (state.restart) {
             return;
         }
+        if (index < retained.source.size()) {
+            retained.source[index] = synced;
+        } else {
+            retained.source.push_back(synced);
+        }
+        ++index;
+        retained.desired.push_back(synced);
     }
+    retained.source.resize(index);
     // CSS `order` (stylesheet-v1 section 11, issue #213): ascending `order`, ties keeping source
     // order. A stable insertion sort, in place: `std::stable_sort` would allocate a scratch buffer
     // on the frame path, and a container's child count is small.
@@ -216,14 +227,20 @@ void sync_children(RetainedTreeState& state, RetainedNode& retained, const Layou
     reconcile_children(state, retained);
 }
 
-RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent) {
+RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent,
+                        RetainedNode* hint) {
     if (state.restart) {
         return nullptr;
     }
     RetainedNode* retained = nullptr;
-    const auto found = state.nodes.find(input.id);
-    if (found != state.nodes.end()) {
+    // Ids are unique in `state.nodes`, so a hint carrying the input's id is the very node the map
+    // would return.
+    if (hint != nullptr && hint->id == input.id) {
+        retained = hint;
+    } else if (const auto found = state.nodes.find(input.id); found != state.nodes.end()) {
         retained = found->second.get();
+    }
+    if (retained != nullptr) {
         if (retained->visited == state.pass) {
             // Two input nodes share an id, so the id -> node map cannot represent this tree. The
             // pass is discarded rather than producing boxes for the wrong node.
