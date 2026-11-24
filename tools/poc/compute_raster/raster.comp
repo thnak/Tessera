@@ -29,8 +29,9 @@ layout(std430, binding = 1) readonly buffer Paths { uint paths[]; }; // 8 words:
 layout(std430, binding = 2) buffer Work { uint work[]; };            // counter, row heads, nodes
 layout(std430, binding = 3) buffer Out { uint pixels[]; };           // straight RGBA8
 #ifdef PASS_STROKE
-// 12 words: x0 y0 x1 y1 (f32), path, half width (f32), flags (1 end cap, 2 has previous vertex), -,
-// previous vertex x y (f32), -, -
+// 12 words: x0 y0 x1 y1 (f32), path, half width (f32), flags (1 end cap, 2 has previous vertex),
+// join (0 round, 1 bevel, 2 miter), previous vertex x y (f32), miter limit (f32), cap (0 round, 1 butt,
+// 2 square)
 layout(std430, binding = 4) readonly buffer Strokes { uint strokes[]; };
 #endif
 
@@ -110,6 +111,40 @@ void put_wedge(uint slot, vec2 p, vec2 a, float sweep, uint path) {
     }
 }
 
+// Zero-length edges: the bin pass skips them, so an unused slot costs one thread and nothing else.
+void put_zero(uint slot, uint count, uint path) {
+    for (uint k = 0u; k < count; ++k) {
+        put_edge(slot + k, vec2(0.0), vec2(0.0), path);
+    }
+}
+
+// A bevel (tip_valid false) or miter join: apex p, the two outer offsets a and b, the miter tip when
+// valid. Wound like the wedges, so the edges p->a and b->p cancel against the neighbouring bodies.
+void put_corner(uint slot, vec2 p, vec2 a, vec2 b, vec2 tip, bool tip_valid, uint path) {
+    uint size = pc.arc_edges + 2u;
+    put_edge(slot, p, p + a, path);
+    if (tip_valid) {
+        put_edge(slot + 1u, p + a, p + tip, path);
+        put_edge(slot + 2u, p + tip, p + b, path);
+        put_edge(slot + 3u, p + b, p, path);
+        put_zero(slot + 4u, size - 4u, path);
+    } else {
+        put_edge(slot + 1u, p + a, p + b, path);
+        put_edge(slot + 2u, p + b, p, path);
+        put_zero(slot + 3u, size - 3u, path);
+    }
+}
+
+// A square cap: the body's end edge reversed (so it cancels), then out by hw along `extend`.
+// `side` is the offset to the first corner (p + side first), `extend` is the extension.
+void put_square(uint slot, vec2 p, vec2 side, vec2 extend, uint path) {
+    put_edge(slot, p + side, p - side, path);
+    put_edge(slot + 1u, p - side, p - side + extend, path);
+    put_edge(slot + 2u, p - side + extend, p + side + extend, path);
+    put_edge(slot + 3u, p + side + extend, p + side, path);
+    put_zero(slot + 4u, pc.arc_edges + 2u - 4u, path);
+}
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.stroke_count) {
@@ -121,15 +156,17 @@ void main() {
     uint path = strokes[r + 4u];
     float hw = uintBitsToFloat(strokes[r + 5u]);
     uint flags = strokes[r + 6u];
+    uint join_kind = strokes[r + 7u]; // 0 round, 1 bevel, 2 miter
     vec2 prev_point = vec2(uintBitsToFloat(strokes[r + 8u]), uintBitsToFloat(strokes[r + 9u]));
-    uint stride = 4u + 2u * (pc.arc_edges + 2u);
+    float miter_limit = uintBitsToFloat(strokes[r + 10u]);
+    uint cap_kind = strokes[r + 11u]; // 0 round, 1 butt, 2 square
+    uint wedge = pc.arc_edges + 2u;
+    uint stride = 4u + 2u * wedge;
     uint slot = i * stride;
     vec2 d = p1 - p0;
     float len = length(d);
     if (len <= 0.0) {
-        for (uint k = 0u; k < stride; ++k) {
-            put_edge(slot + k, vec2(0.0), vec2(0.0), path);
-        }
+        put_zero(slot, stride, path);
         return;
     }
     vec2 d1 = d / len;
@@ -139,30 +176,53 @@ void main() {
     put_edge(slot + 1u, p0 - n1, p1 - n1, path);
     put_edge(slot + 2u, p1 - n1, p1 + n1, path);
     put_edge(slot + 3u, p1 + n1, p0 + n1, path);
-    // start: a join against the previous vertex, or a round cap when there is none
-    vec2 a = n1;
-    float sweep = 3.14159265358979;
+    // start: a join against the previous vertex, or a cap when there is none
+    bool joined = false;
     if ((flags & 2u) != 0u) {
+        joined = true;
         vec2 dv = p0 - prev_point;
         float dl = length(dv);
+        float sweep = 0.0;
+        vec2 a = n1;
+        vec2 b = n1;
         if (dl > 0.0) {
             vec2 d0 = dv / dl;
             float cr = d0.x * d1.y - d0.y * d1.x;
-            float dt = dot(d0, d1);
-            sweep = atan(abs(cr), dt);
+            sweep = atan(abs(cr), dot(d0, d1));
             vec2 n0 = vec2(-d0.y, d0.x) * hw;
             a = cr > 0.0 ? -n0 : n1;
-            if (sweep < 1e-4) {
-                sweep = 0.0;
-            }
+            b = cr > 0.0 ? -n1 : n0;
+        }
+        if (sweep < 1e-4) {
+            put_zero(slot + 4u, wedge, path);
+        } else if (join_kind == 0u) {
+            put_wedge(slot + 4u, p0, a, sweep, path);
         } else {
-            sweep = 0.0;
+            // 1 / cos(sweep / 2) is the miter length over the stroke width: past the limit (or a
+            // reversal, where it is unbounded) the join falls back to a bevel, as SVG specifies.
+            bool miter = join_kind == 2u && cos(sweep * 0.5) * miter_limit >= 1.0;
+            vec2 tip = (a + b) / (1.0 + cos(sweep));
+            put_corner(slot + 4u, p0, a, b, tip, miter, path);
         }
     }
-    put_wedge(slot + 4u, p0, a, sweep, path);
+    if (!joined) {
+        if (cap_kind == 0u) {
+            put_wedge(slot + 4u, p0, n1, 3.14159265358979, path);
+        } else if (cap_kind == 2u) {
+            put_square(slot + 4u, p0, -n1, -d1 * hw, path);
+        } else {
+            put_zero(slot + 4u, wedge, path);
+        }
+    }
     // end cap of an open contour
-    put_wedge(slot + 4u + pc.arc_edges + 2u, p1, -n1, (flags & 1u) != 0u ? 3.14159265358979 : 0.0,
-              path);
+    uint end_slot = slot + 4u + wedge;
+    if ((flags & 1u) == 0u || cap_kind == 1u) {
+        put_zero(end_slot, wedge, path);
+    } else if (cap_kind == 0u) {
+        put_wedge(end_slot, p1, -n1, 3.14159265358979, path);
+    } else {
+        put_square(end_slot, p1, n1, d1 * hw, path);
+    }
 }
 #endif
 

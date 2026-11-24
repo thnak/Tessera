@@ -88,14 +88,23 @@ alignas(4) const std::uint32_t kFineSpv[] =
     return shape;
 }
 
-[[nodiscard]] path::PathShape stroked(path::Path geometry, path::Rgba8 color, float width) {
+struct LineStyle {
+    path::LineJoin join = path::LineJoin::round;
+    path::LineCap cap = path::LineCap::round;
+    float miter_limit = 4.0f;
+    bool closed = false;
+};
+
+[[nodiscard]] path::PathShape stroked(path::Path geometry, path::Rgba8 color, float width,
+                                      const LineStyle& style = {}) {
     path::PathShape shape;
     shape.path = std::move(geometry);
     path::StrokeStyle stroke;
     stroke.color = color;
     stroke.width = width;
-    stroke.cap = path::LineCap::round;
-    stroke.join = path::LineJoin::round;
+    stroke.cap = style.cap;
+    stroke.join = style.join;
+    stroke.miter_limit = style.miter_limit;
     shape.paint.stroke = stroke;
     return shape;
 }
@@ -109,7 +118,18 @@ struct GpuShape {
     // expanded on the GPU; `open` puts a round cap at the end (the start has no previous vertex).
     float half_width = 0.0f;
     bool open = false;
+    std::uint32_t join = 0; // 0 round, 1 bevel, 2 miter
+    std::uint32_t cap = 0;  // 0 round, 1 butt, 2 square
+    float miter_limit = 4.0f;
 };
+
+[[nodiscard]] std::uint32_t join_code(path::LineJoin join) {
+    return join == path::LineJoin::round ? 0U : join == path::LineJoin::bevel ? 1U : 2U;
+}
+
+[[nodiscard]] std::uint32_t cap_code(path::LineCap cap) {
+    return cap == path::LineCap::round ? 0U : cap == path::LineCap::butt ? 1U : 2U;
+}
 
 // How the scene builders emit a stroke: false = ring contours on the CPU, true = GPU stroker.
 bool g_gpu_stroke = true;
@@ -181,41 +201,84 @@ void add_stroke_ring(SceneDescription& scene, float cx, float cy, float r, path:
     scene.gpu.push_back(std::move(shape));
 }
 
-// An open polyline with round joins and caps: the shape a ring cannot express.
 struct Pt {
     float x, y;
 };
 
-void add_open_polyline(SceneDescription& scene, const std::vector<Pt>& points, path::Rgba8 color,
-                       float width) {
+// A polyline (open, or closed back to its first point) with any join and cap: the shapes a ring
+// cannot express.
+void add_polyline(SceneDescription& scene, const std::vector<Pt>& points, path::Rgba8 color,
+                  float width, const LineStyle& style = {}) {
     path::Path geometry;
     geometry.segments.push_back({path::SegmentKind::move_to, {points[0].x, points[0].y}, {}, {}});
     for (std::size_t i = 1; i < points.size(); ++i) {
         geometry.segments.push_back(
             {path::SegmentKind::line_to, {points[i].x, points[i].y}, {}, {}});
     }
-    scene.reference.push_back(stroked(std::move(geometry), color, width));
+    if (style.closed) {
+        geometry.segments.push_back({path::SegmentKind::close, {}, {}, {}});
+    }
+    scene.reference.push_back(stroked(std::move(geometry), color, width, style));
     GpuShape shape;
     shape.rgba = pack(color);
-    for (std::size_t i = 0; i + 1 < points.size(); ++i) {
-        shape.contours.insert(shape.contours.end(),
-                              {points[i].x, points[i].y, points[i + 1].x, points[i + 1].y});
+    const std::size_t edges = style.closed ? points.size() : points.size() - 1;
+    for (std::size_t i = 0; i < edges; ++i) {
+        const Pt& from = points[i];
+        const Pt& to = points[(i + 1) % points.size()];
+        shape.contours.insert(shape.contours.end(), {from.x, from.y, to.x, to.y});
     }
     shape.half_width = width * 0.5f;
-    shape.open = true;
+    shape.open = !style.closed;
+    shape.join = join_code(style.join);
+    shape.cap = cap_code(style.cap);
+    shape.miter_limit = style.miter_limit;
     scene.gpu.push_back(std::move(shape));
 }
 
 [[nodiscard]] SceneDescription polyline_scene() {
     SceneDescription scene;
     // Sharp turns of every kind (acute, right angle, obtuse, a reversal), thick and thin.
-    add_open_polyline(scene, {{300, 300}, {900, 380}, {500, 700}, {1200, 760}, {1250, 400}},
-                      {40, 160, 220, 255}, 24.0f);
-    add_open_polyline(scene, {{1700, 300}, {2400, 300}, {2400, 900}, {1800, 900}, {1800, 320}},
-                      {220, 80, 60, 230}, 40.0f);
-    add_open_polyline(scene, {{3000, 300}, {3600, 700}, {3000, 1100}, {3500, 1500}, {3100, 1900}},
-                      {240, 200, 60, 255}, 9.0f);
-    add_open_polyline(scene, {{600, 1300}, {1500, 1300}, {700, 1320}}, {120, 220, 120, 255}, 18.0f);
+    add_polyline(scene, {{300, 300}, {900, 380}, {500, 700}, {1200, 760}, {1250, 400}},
+                 {40, 160, 220, 255}, 24.0f);
+    add_polyline(scene, {{1700, 300}, {2400, 300}, {2400, 900}, {1800, 900}, {1800, 320}},
+                 {220, 80, 60, 230}, 40.0f);
+    add_polyline(scene, {{3000, 300}, {3600, 700}, {3000, 1100}, {3500, 1500}, {3100, 1900}},
+                 {240, 200, 60, 255}, 9.0f);
+    add_polyline(scene, {{600, 1300}, {1500, 1300}, {700, 1320}}, {120, 220, 120, 255}, 18.0f);
+    return scene;
+}
+
+// The same kind of geometry with miter and bevel joins and butt and square caps, including a closed
+// polygon (whose first vertex also needs a join) and turns sharp enough to hit the miter limit.
+[[nodiscard]] SceneDescription join_scene() {
+    SceneDescription scene;
+    const std::vector<Pt> zigzag = {{0, 0}, {300, 40}, {90, 260}, {520, 300}, {560, 20}};
+    const auto shifted = [&](float dx, float dy) {
+        std::vector<Pt> out;
+        for (const Pt& p : zigzag) {
+            out.push_back({p.x + dx, p.y + dy});
+        }
+        return out;
+    };
+    const LineStyle miter{path::LineJoin::miter, path::LineCap::butt, 4.0f, false};
+    const LineStyle miter_low{path::LineJoin::miter, path::LineCap::square, 1.2f, false};
+    const LineStyle bevel{path::LineJoin::bevel, path::LineCap::butt, 4.0f, false};
+    const LineStyle bevel_sq{path::LineJoin::bevel, path::LineCap::square, 4.0f, false};
+    add_polyline(scene, shifted(200, 200), {40, 160, 220, 255}, 28.0f, miter);
+    add_polyline(scene, shifted(1000, 200), {220, 80, 60, 255}, 28.0f, miter_low);
+    add_polyline(scene, shifted(1800, 200), {240, 200, 60, 255}, 28.0f, bevel);
+    add_polyline(scene, shifted(2600, 200), {120, 220, 120, 255}, 28.0f, bevel_sq);
+    add_polyline(scene, shifted(200, 800), {200, 120, 220, 255}, 10.0f, miter);
+    add_polyline(scene, shifted(1000, 800), {200, 120, 220, 255}, 10.0f, bevel);
+    // Closed: a triangle and a thin spike, miter and bevel.
+    const LineStyle closed_miter{path::LineJoin::miter, path::LineCap::butt, 4.0f, true};
+    const LineStyle closed_bevel{path::LineJoin::bevel, path::LineCap::butt, 4.0f, true};
+    add_polyline(scene, {{1900, 900}, {2500, 960}, {2100, 1500}}, {40, 160, 220, 255}, 30.0f,
+                 closed_miter);
+    add_polyline(scene, {{2800, 900}, {3500, 960}, {3100, 1500}}, {220, 80, 60, 255}, 30.0f,
+                 closed_bevel);
+    add_polyline(scene, {{300, 1500}, {1500, 1560}, {320, 1640}}, {240, 200, 60, 255}, 16.0f,
+                 closed_miter);
     return scene;
 }
 
@@ -306,8 +369,9 @@ struct Encoded {
                     (shape.open && i + 1 == count ? 1U : 0U) | (has_prev ? 2U : 0U);
                 result.strokes.insert(result.strokes.end(),
                                       {bits(s[0]), bits(s[1]), bits(s[2]), bits(s[3]),
-                                       static_cast<std::uint32_t>(p), bits(hw), flags, 0,
-                                       bits(before[0]), bits(before[1]), 0, 0});
+                                       static_cast<std::uint32_t>(p), bits(hw), flags, shape.join,
+                                       bits(before[0]), bits(before[1]), bits(shape.miter_limit),
+                                       shape.cap});
                 min_x = std::min({min_x, s[0], s[2]});
                 max_x = std::max({max_x, s[0], s[2]});
                 min_y = std::min({min_y, s[1], s[3]});
@@ -318,13 +382,18 @@ struct Encoded {
                 const float rows =
                     2 * (dy + 2) + 2 * (2 * hw + 2) +
                     2 * (2 * (2 * hw + 2) + static_cast<float>(result.arc_edges) + 2);
-                result.row_nodes += static_cast<std::uint64_t>(rows);
+                // A miter tip can reach hw * miter_limit past the vertex: widen the row bound.
+                const float reach = shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f) : hw;
+                result.row_nodes += static_cast<std::uint64_t>(rows + 4 * reach);
                 ++result.stroke_count;
             }
-            min_x -= hw + 1;
-            min_y -= hw + 1;
-            max_x += hw + 1;
-            max_y += hw + 1;
+            // A miter tip or a square cap reaches past hw: the box must hold it.
+            const float reach = shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f)
+                                                : (shape.cap == 2 ? hw * 1.4143f : hw);
+            min_x -= reach + 1;
+            min_y -= reach + 1;
+            max_x += reach + 1;
+            max_y += reach + 1;
             const auto clamp_to = [](float v, std::uint32_t limit) {
                 return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
             };
@@ -607,6 +676,8 @@ int main(int argc, char** argv) {
         run_scene(*device, "dense, GPU strokes", dense_scene(width, height), options);
         run_scene(*device, "open polylines, GPU strokes (round joins and caps)", polyline_scene(),
                   options);
+        run_scene(*device, "miter and bevel joins, butt and square caps, closed polygons",
+                  join_scene(), options);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "compute_raster: %s\n", error.what());
         return 1;
