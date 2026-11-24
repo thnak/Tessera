@@ -35,11 +35,11 @@
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {
-          "budget": 9,
+          "budget": 2,
           "measures": "A running CSS animation with nothing else dirty. NOT 0: each tick builds fresh sampled declarations (property/value strings), the paint-sample map node and the interpolation view map, which are per-tick values rather than reused buffers."
         },
         "animated/paint-dirty": {
-          "budget": 9,
+          "budget": 2,
           "measures": "A running animation plus one paint-dirty node."
         }
       }
