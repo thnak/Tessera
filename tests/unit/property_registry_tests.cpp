@@ -315,7 +315,9 @@ int main() {
             !expect(result.diagnostics[0].offset == 9, "unsupported pointer-events offset")) {
             return 35;
         }
-        result = registry.expand(Declaration{"user-select", "all", false, 0});
+        // `contain` is the remaining unsupported keyword (issue #279 made `all` supported, so it
+        // moved from here into the accepted list below).
+        result = registry.expand(Declaration{"user-select", "contain", false, 0});
         if (!expect(result.declarations.size() == 1 && result.diagnostics.size() == 1,
                     "unsupported user-select is reported and kept")) {
             return 36;
@@ -332,7 +334,7 @@ int main() {
                 return 38;
             }
         }
-        for (const char* value : {"auto", "none", "text"}) {
+        for (const char* value : {"auto", "none", "text", "all"}) {
             result = registry.expand(Declaration{"user-select", value, false, 0});
             if (!expect(result.diagnostics.empty() && decl_is(result, "user-select", value),
                         "user-select keyword accepted")) {
