@@ -69,24 +69,31 @@ void capture_paint_sample(PaintSamples& samples, const Node& scene_node,
 class InterpolationPaintView final : public paint::PaintView {
 public:
     InterpolationPaintView() = default;
-    explicit InterpolationPaintView(PaintSamples samples)
-        : samples_(std::move(samples)) {}
+    // The samples sit in an optional because MSVC's `std::map` allocates its sentinel node in the
+    // default constructor: an empty view (every frame that interpolates nothing, which is nearly
+    // every frame) would otherwise cost one allocation each time one is built (issue #701).
+    explicit InterpolationPaintView(PaintSamples samples) {
+        if (!samples.empty()) {
+            samples_.emplace(std::move(samples)); // in place: a temporary optional costs a sentinel
+        }
+    }
 
     [[nodiscard]] bool empty() const {
-        return samples_.empty();
+        return !samples_.has_value();
     }
     [[nodiscard]] const PaintSamples& samples() const {
-        return samples_;
+        static const PaintSamples kNone;
+        return samples_.has_value() ? *samples_ : kNone;
     }
 
     [[nodiscard]] std::optional<rendering::rhi::Mat3> local_transform(NodeId node) const override;
     void overlay_style(NodeId node, style::ComputedStyle& style) const override;
     [[nodiscard]] bool overlays(NodeId node) const override {
-        return samples_.contains(node);
+        return samples_.has_value() && samples_->contains(node);
     }
 
 private:
-    PaintSamples samples_;
+    std::optional<PaintSamples> samples_;
 };
 
 } // namespace tessera::ui::frame

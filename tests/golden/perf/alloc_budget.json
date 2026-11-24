@@ -48,23 +48,23 @@
       "recorded_on": "Windows x64, MSVC 19.4x (vs2026-release), Release, 16 cores",
       "rows": {
         "card-grid/idle": {
-          "budget": 1,
-          "measures": "A 601-node card grid with nothing dirty. 1, not 0: MSVC's std::string and container growth allocate one block a GCC build does not. Recorded rather than asserted to zero, because the spec's rule is about the engine's own allocations and this one is the standard library's."
+          "budget": 0,
+          "measures": "A 601-node card grid with nothing dirty: 0, the spec's steady-state rule. It was 1 on MSVC until an empty `InterpolationPaintView` stopped default-constructing a `std::map` (MSVC allocates the sentinel node in the constructor) every frame (#701)."
         },
         "card-grid/paint-dirty": {
-          "budget": 34,
+          "budget": 32,
           "measures": "One label marked paint-dirty; the same per-scene term as the GCC row, 8 higher for the standard library's block count."
         },
         "card-grid/layout-dirty": {
-          "budget": 2,
+          "budget": 1,
           "measures": "One card marked layout-dirty: the restyle-and-layout path. 203 before the layout input tree was retained and rewritten in place (#701): one children-vector block per container per pass."
         },
         "scrolling-list/idle": {
-          "budget": 1,
-          "measures": "A 200-row list inside a clipped scrollport, nothing dirty. 1 for the same reason as card-grid/idle."
+          "budget": 0,
+          "measures": "A 200-row list inside a clipped scrollport, nothing dirty. 0 for the same reason as card-grid/idle."
         },
         "scrolling-list/paint-dirty": {
-          "budget": 18,
+          "budget": 16,
           "measures": "One row marked paint-dirty inside the scrollport."
         },
         "animated/idle": {

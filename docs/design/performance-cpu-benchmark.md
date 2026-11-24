@@ -29,7 +29,7 @@ visible nodes in 5.7 ms, 15x faster, and 1.4x the 4 ms trigger instead of 22x. T
 order-of-magnitude detector; the full-paint row is now tightened to 40 ms plus a node-count guard.
 Allocations per frame are gated separately by `tests/golden/perf/alloc_budget.json` (issue #701,
 [ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)), per scene and scenario, with one table per compiler
-lane. MSVC Release today: idle frame 1 allocation (0 on GCC), paint-dirty 18-34, layout-dirty 2 (203 until
+lane. MSVC Release today: idle frame 0 allocations (1 until an empty interpolation view stopped building a `std::map` each frame), paint-dirty 16-32, layout-dirty 1 (203 until
 the layout input tree was retained and rewritten in place, #701), and a
 running animation 18 even when idle (`AnimationRuntime::tick` returns its result by value), against the
 spec's "no malloc in a steady-state frame" in

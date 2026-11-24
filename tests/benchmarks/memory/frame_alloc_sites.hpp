@@ -37,6 +37,25 @@
 #include <intrin.h>
 #endif
 
+// Windows: CaptureStackBackTrace for the chain and DbgHelp for the names (the PDB sits beside the
+// executable). `<windows.h>` must come first.
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+// clang-format off
+#include <dbghelp.h>
+// clang-format on
+#pragma comment(lib, "dbghelp.lib")
+#define TESSERA_PROBE_HAVE_WIN_STACK 1
+#else
+#define TESSERA_PROBE_HAVE_WIN_STACK 0
+#endif
+
 // The caller's return address, which is the one frame that identifies an allocation site without a
 // full unwind. GCC/Clang spell it `__builtin_return_address`, MSVC `_ReturnAddress`; both are the
 // same fact, and neither is standard C++, so this is the one place that has to know.
@@ -75,6 +94,13 @@ inline void record_site(std::size_t size) {
     for (int i = kSkipFrames; i < found; ++i) {
         chain[i - kSkipFrames] = raw[i];
     }
+#elif TESSERA_PROBE_HAVE_WIN_STACK
+    void* raw[kSiteDepth + kSkipFrames] = {};
+    const USHORT found = CaptureStackBackTrace(0, static_cast<DWORD>(kSiteDepth) + kSkipFrames, raw,
+                                               nullptr);
+    for (int i = kSkipFrames; i < static_cast<int>(found); ++i) {
+        chain[i - kSkipFrames] = raw[i];
+    }
 #else
     chain[0] = TESSERA_PROBE_RETURN_ADDRESS();
 #endif
@@ -107,6 +133,22 @@ inline void print_sites() {
             if (frame == nullptr) {
                 break;
             }
+#if TESSERA_PROBE_HAVE_WIN_STACK
+            {
+                static const bool initialised = SymInitialize(GetCurrentProcess(), nullptr, TRUE) != 0;
+                alignas(SYMBOL_INFO) char storage[sizeof(SYMBOL_INFO) + 256] = {};
+                auto* symbol = reinterpret_cast<SYMBOL_INFO*>(storage);
+                symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+                symbol->MaxNameLen = 255;
+                DWORD64 displacement = 0;
+                if (initialised &&
+                    SymFromAddr(GetCurrentProcess(), reinterpret_cast<DWORD64>(frame), &displacement,
+                                symbol) != 0) {
+                    std::printf(" %.80s", symbol->Name);
+                    continue;
+                }
+            }
+#endif
 #if TESSERA_PROBE_HAVE_DLADDR
             Dl_info info{};
             if (dladdr(frame, &info) != 0 && info.dli_fbase != nullptr) {

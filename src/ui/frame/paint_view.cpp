@@ -27,16 +27,22 @@ constexpr const char* kBorderColorProperties[4] = {"border-top-color", "border-r
 } // namespace
 
 std::optional<rendering::rhi::Mat3> InterpolationPaintView::local_transform(NodeId node) const {
-    const auto found = samples_.find(node);
-    if (found == samples_.end()) {
+    if (!samples_.has_value()) {
+        return std::nullopt;
+    }
+    const auto found = samples_->find(node);
+    if (found == samples_->end()) {
         return std::nullopt;
     }
     return found->second.transform;
 }
 
 void InterpolationPaintView::overlay_style(NodeId node, style::ComputedStyle& style) const {
-    const auto found = samples_.find(node);
-    if (found == samples_.end()) {
+    if (!samples_.has_value()) {
+        return;
+    }
+    const auto found = samples_->find(node);
+    if (found == samples_->end()) {
         return;
     }
     const PaintSample& sample = found->second;

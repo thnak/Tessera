@@ -120,12 +120,15 @@ target_compile_features(frame_alloc_probe PRIVATE cxx_std_23)
 tessera_allow_allocator_override(frame_alloc_probe)
 
 # `--sites` resolves an allocation's return address to a symbol with `dladdr`, which needs the
-# executable's own symbols in the dynamic table. POSIX only; on Windows the address is printed
-# unresolved, which still distinguishes sites.
+# executable's own symbols in the dynamic table. On Windows DbgHelp reads the PDB instead.
 if (UNIX AND NOT APPLE)
     target_link_options(frame_alloc_probe PRIVATE -rdynamic)
 elseif (APPLE)
     target_link_options(frame_alloc_probe PRIVATE -Wl,-export_dynamic)
+elseif (MSVC)
+    # DbgHelp names a frame from the PDB; a Release link has none unless asked. Public symbols are
+    # enough for function names, and the probe is a tool, so the PDB costs nothing that matters.
+    target_link_options(frame_alloc_probe PRIVATE /DEBUG /OPT:REF /OPT:ICF)
 endif()
 
 # alloc_per_frame (issue #701, step 4): the same measurement as the probe, with a bound attached.
