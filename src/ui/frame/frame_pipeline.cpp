@@ -409,8 +409,8 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     if (config_.cull_paint) {
         // The painted region is the plan's scissors; anything that cannot touch it is skipped
-        // (issue #487). A full-redraw plan yields nullopt here, so its paint is unclipped and
-        // unculled, byte-identical to the full paint overload above.
+        // (issue #487). A full-redraw plan culls to the whole target (issue #257), so off-screen
+        // nodes are skipped on a full repaint too; its sink stays unclipped.
         context.cull = detail::plan_cull_rect(plan, config_.dpi_scale);
     }
     if (plan.full_redraw) {

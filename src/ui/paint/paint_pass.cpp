@@ -246,10 +246,19 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // children are expressed relative to the matrix it would push). A dirty node with a cache
     // record is painted too, so its record is refreshed rather than going stale for a later clean
     // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
-    const bool records_dirty = pass.cacheable && node.dirty() != Dirty::Clean;
+    // Only a dirty node that actually has a record can leave a stale one behind (a node with none is
+    // simply painted fresh whenever it is next visited), so the first frame of a scene, whose cache
+    // is empty, culls as freely as a clean one (issue #257).
+    const bool records_dirty =
+        pass.cacheable && node.dirty() != Dirty::Clean && pass.cache->contains(node.id());
+    // A skipped subtree must not hide a dirty descendant's record either; an empty cache has none.
+    const bool subtree_records_dirty =
+        records_dirty ||
+        (pass.cacheable && node.subtree_dirty() != Dirty::Clean && !pass.cache->empty());
     // Subtree cull (issue #735, slice C): one test at the root rejects every node in the subtree.
-    if (pass.cull != nullptr && detail::may_skip_subtree(node, painted_world, *pass.cull,
-                                                         interpolated, open_frame, records_dirty)) {
+    if (pass.cull != nullptr &&
+        detail::may_skip_subtree(node, painted_world, *pass.cull, interpolated, open_frame,
+                                 subtree_records_dirty)) {
         ++stats.culled_nodes;
         ++stats.culled_subtrees;
         return;

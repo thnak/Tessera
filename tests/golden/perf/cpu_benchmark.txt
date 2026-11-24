@@ -12,12 +12,16 @@ nodes = 12000
 runs = 7
 warmup_runs = 2
 
+# Full paint (issue #257): a full repaint culls to the viewport, so it measures the visible part of
+# the tree (5.7 ms, 232 nodes, against 87 ms and 12 000 before); 40 ms is about 7x, and
+# `max_full_paint_nodes` below is the deterministic guard.
+#
 # Wall-clock budgets in integer milliseconds; see the table the test prints on every run. They are
 # about six times the reference machine's median, which leaves roughly a factor of two on top of a
 # presumed 3x-slower two-core gating runner: a real order-of-magnitude regression still fails, while
 # CI noise and a loaded shared machine cannot.
 max_first_style_layout_ms = 4500
-max_full_paint_ms = 500
+max_full_paint_ms = 40
 max_layout_paint_text_ms = 1800
 max_layout_paint_container_ms = 1800
 # Glass scenario (issue #244, glass-v1 section 9): one full paint of the reference scene with the
@@ -42,6 +46,10 @@ max_damaged_quads = 8
 # paint. The budget is 6 - the smallest integer with headroom above 5 - so a platform difference in
 # the culled-node set cannot fail the gate while a trip back to the whole tree still does.
 max_damaged_paint_nodes = 6
+# Nodes that resolve a style in the full paint (issue #257): 232 of 12000 on the reference scene,
+# the visible part. 400 leaves headroom for a platform difference in the culled set, and a trip back
+# to the whole tree (12000) still fails.
+max_full_paint_nodes = 400
 
 # Redraw and batching counters from the full paint. These are deterministic on every run, so they
 # are compared with a small headroom rather than a factor; a changed count means the draw-list or

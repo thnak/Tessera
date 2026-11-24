@@ -440,10 +440,11 @@ allocations per frame in `tests/golden/perf/alloc_budget.json` (#701). The full 
 numbers and the history of each cull and style optimization are in
 [`performance-cpu-benchmark.md`](performance-cpu-benchmark.md). Summary of the 2026-11-24 run (MSVC
 Release, 12 000 nodes, median): first style + layout 222.6 ms, layout + paint after one change 15-19 ms,
-damaged-frame paint 0.17 ms (6 nodes), **full paint 89.6 ms**. The render-thread trigger (`paint_time_ms`
-above about 4 ms or 30% of `frameBudgetMs` at 10k nodes) is therefore still exceeded on a full paint,
-which paints every node; the viewport cull that would change that (#257) is undecided. The V1 design
-(single UI thread, no worker recording) is unchanged.
+damaged-frame paint 0.17 ms (6 nodes), **full paint 5.7 ms** (232 visible nodes; it was 89.6 ms until
+#257 made a full repaint cull to the viewport, on by default). The render-thread trigger
+(`paint_time_ms` above about 4 ms or 30% of `frameBudgetMs` at 10k nodes) is marginally exceeded, and
+only for a scene whose 12 000 nodes are all visible would a full paint still cost the whole tree. The V1
+design (single UI thread, no worker recording) is unchanged.
 
 
 ## 10. Open questions
@@ -460,9 +461,10 @@ which paints every node; the viewport cull that would change that (#257) is unde
   (animated, scrolling, text-heavy) exist only for allocations so far.
 - ~~Should `SceneStyleTree::compute` memoize per style generation?~~ Decided and implemented (#711,
   `SceneStyleTree::begin_memo`/`end_memo`): one cascade per node per generation.
-- Should a full paint cull against the viewport by default (#257)? A prototype took the reference
-  full paint from 34.75 to 3 ms; it is not in `main`, and the full paint is the one number above the
-  render-thread trigger.
+- ~~Should a full paint cull against the viewport by default (#257)?~~ Decided: yes, on by default
+  (`cull_paint`), full paint 89.6 -> 5.7 ms on the reference scene. Open remainder: a screen where all
+  12 000 nodes are visible still paints the whole tree, which is where ADR-021's worker recording
+  would have to be re-opened.
 - Which of the open V1 performance items are release blockers: #842 (a worker completion wakes the parked UI thread on Linux and Windows; the Android advisory
   lane still waits out the clamp), #697, #476 (retained draw
   list and layer cache; `layerCacheBudgetMb` is parsed but unused) and #683 (GPU vector rasterizer, a

@@ -207,7 +207,8 @@ int main(int argc, char** argv) {
                 totals.damaged_culled_nodes, totals.damaged_culled_subtrees);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
-    std::printf("cpu_benchmark: nodes painted by the full pass %zu\n", totals.paint_nodes);
+    std::printf("cpu_benchmark: nodes painted by the full pass %zu (budget %llu)\n",
+                totals.paint_nodes, static_cast<unsigned long long>(budget.max_full_paint_nodes));
 
     const double trigger_ms = std::min(kPaintTriggerMs, kFrameBudgetMs * 0.30);
     std::printf("cpu_benchmark: paint trigger: median %.2f ms vs %.2f ms -> %s\n", paint.median,
@@ -235,6 +236,9 @@ int main(int argc, char** argv) {
         within("damaged paint nodes", totals.damaged_paint_nodes, budget.max_damaged_paint_nodes) &&
         ok;
     ok = within("damaged quads", totals.damaged_quads, budget.max_damaged_quads) && ok;
+    // Issue #257: a full repaint culls to the viewport, so only the visible part of the tree
+    // resolves a style. A regression to the whole 12 000-node walk fails here, not only on time.
+    ok = within("full paint nodes", totals.paint_nodes, budget.max_full_paint_nodes) && ok;
     // The counter is exact: the glass scenario has one glass node, and a frame that stops
     // compositing it (a fallback silently taking over) is a regression, not noise.
     if (totals.glass_backdrops != budget.glass_backdrops) {

@@ -12,21 +12,21 @@ Windows 11, 12 logical cores, MSVC Release (`vs2026-release`), 12 000 nodes, 7 m
 | Metric at 12 000 nodes | Median (p95) | Committed budget | #241 reference |
 |---|---|---|---|
 | First style + layout | 222.6 ms (240.6 ms) | 4500 ms | 739 ms |
-| Full paint into draw lists | 89.6 ms (99.3 ms) | 500 ms | 75 ms |
+| Full paint into draw lists | **5.7 ms** (6.4 ms), was 89.6 ms before #257 | 40 ms | 75 ms |
 | Layout + paint after changing one text node | 19.2 ms (22.5 ms) | 1800 ms | 296 ms |
 | Layout + paint after changing one container's size | 15.3 ms (19.6 ms) | 1800 ms | 296 ms |
-| Full paint with one glass bar | 90.1 ms | 500 ms | - |
+| Full paint with one glass bar | 0.07 ms (warm cache, all clean) | 500 ms | - |
 | Damaged-frame paint (one node) | 0.17 ms | 500 ms | 3.3-7.2 ms |
-| Draw calls / quads emitted (of produced) / primitives | 19 / 40 (65) / 10 104 | 64 / 128 / 12 000 | 19 / 33 (65) / 9596 |
+| Draw calls / quads emitted (of produced) / primitives | 19 / 40 (40) / 689 | 64 / 128 / 12 000 | 19 / 33 (65) / 9596 |
+| Nodes painted by the full paint | 232 of 12 000 | 400 | 12 000 |
 | Nodes painted by the damaged frame | 6 | 6 | 12 000 -> 5 |
 
 What changed since the #241 reference: the incremental frames (one change, then layout and paint) went
 from about 296 ms to 15-19 ms because the style memo, the delta style and the retained Yoga tree stopped
-re-doing work for the unchanged tree, and the first frame is 3.3x faster. **The full paint did not
-improve** (75 -> 90 ms): it still paints all 12 000 nodes, because the paint-pass cull applies to a
-damaged plan only. That is the open item of #257 (below). The budgets are unchanged; they are an
-order-of-magnitude detector, so every time row has at least 5x headroom today (the full paint is the tightest).
-
+re-doing work for the unchanged tree, and the first frame is 3.3x faster. The full paint was 90 ms
+(all 12 000 nodes) until #257, which made a full repaint cull to the viewport: it now paints the 232
+visible nodes in 5.7 ms, 15x faster, and 1.4x the 4 ms trigger instead of 22x. The budgets are an
+order-of-magnitude detector; the full-paint row is now tightened to 40 ms plus a node-count guard.
 Allocations per frame are gated separately by `tests/golden/perf/alloc_budget.json` (issue #701,
 [ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)), per scene and scenario, with one table per compiler
 lane. MSVC Release today: idle frame 1 allocation (0 on GCC), paint-dirty 25-65, layout-dirty 203, and a
@@ -35,10 +35,16 @@ spec's "no malloc in a steady-state frame" in
 [`memory-model-v1.md`](../specs/memory-model-v1.md). The 1 on MSVC and the animation rows are the
 recorded gap to close, not a budget to relax.
 
-**Full paint and #257.** A prototype that culls a full paint against the viewport
-(`cull_offscreen_paint`, branch `perf/offscreen-paint-culling`) measured 34.75 -> 3 ms, but it is not
-in `main` and the default for V1 is not decided; the issue is still open. Until it lands, the paint
-trigger below is exceeded by a wide margin on a 12 000-node scene.
+**Full paint and #257 (decided: cull to the viewport, on by default).** A full-redraw plan now culls to
+the whole target, using the one full-target scissor every plan producer stores
+(`src/ui/frame/redraw_cull.hpp`), so `FramePipelineConfig::cull_paint` (default on, runtime key
+`cullDraws`) covers full repaints as well as damaged ones. The prototype branch
+(`perf/offscreen-paint-culling`, 34.75 -> 3 ms) predates #487 and #490 and is superseded by it: the
+mechanism it added is already in `main`. Two details made the first measurement miss it. A dirty node
+used to be painted whenever it was dirty, so the first frame of a scene (every node dirty, an empty
+paint cache) culled nothing; it is now painted only while it has a cache record that could go stale,
+and a subtree skip is refused while a dirty descendant has one. Limits: it does not help a genuinely
+fully visible 12 000-node screen, so the render-thread question of ADR-021 stays open for that case.
 
 ## Reference measurement, issue #241 (historical)
 
@@ -191,7 +197,7 @@ unchanged within the run-to-run spread (0.7-1.2 ms for the whole frame on both p
 draw calls and the per-draw descriptor bind, not CPU recording. `max_draw_calls` (64) in the committed
 budget still gates the reference scene, which does not interleave textures.
 
-**Trigger (2026-11-24: still exceeded; full paint 89.6 ms vs the 4 ms line, see #257 above).** Revisit the V1 decision of no render thread and no worker recording when
+**Trigger (2026-11-24: full paint 5.7 ms vs the 4 ms line, down from 89.6 ms by #257; still marginally exceeded).** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
 recorded paint is 75 ms in the #241 measurement (43-46 ms for a full paint on the same machine in the
 #474/#487 runs), about eleven to nineteen times the 4 ms trigger and 2.6-4.5x the 60 Hz frame budget

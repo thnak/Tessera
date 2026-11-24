@@ -412,7 +412,7 @@ container), since then the clip is inside the reach; a non-clipping parent keeps
 advance past the content box), which is only culled inside a clipped subtree - until #490, where
 `LayoutBox::text_fit` lets layout prove a plain payload fits (`performance.md` section 9.1).
 Invariants: paint never mutates the scene, so dirty flags, damage, animation and hit testing are
-untouched; a full redraw sets no rect; a dirty cached node is painted, not culled; no pixel inside the
+untouched; a full redraw culls to the whole target (issue #257: the plan's one full-target scissor, so a 12 000-node scene paints its visible 232 nodes); a dirty node is painted, not culled, only while it has a cache record that would go stale (a cold cache, such as the first frame, culls freely); no pixel inside the
 plan's regions changes (`paint_cull_tests.cpp`, `layout_text_fit_tests.cpp`); and the reach uses what
 `sync_style` already stores for damage, so a paint without a prior sync paints more, never less.
 `cullDraws` (default on, also gating the renderer's quad cull) turns both stages off via

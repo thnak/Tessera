@@ -437,6 +437,59 @@ bool test_dirty_node_with_a_cache_record_is_not_culled() {
            expect(clean_stats.culled_nodes == 1, "the clean node is counted as culled");
 }
 
+bool test_cold_dirty_node_is_culled_and_a_dirty_descendant_blocks_the_subtree_skip() {
+    // Issue #257: a full repaint culls to the viewport, and the first frame of a scene has every
+    // node dirty with an empty cache. A dirty node with no record cannot leave a stale one behind,
+    // so it is culled like a clean one; a dirty descendant that does have a record keeps its
+    // ancestors' subtree skip off, because skipping would hide it.
+    {
+        Node root(kRoot);
+        CountingStyles styles;
+        root.set_bounds({0.0f, 0.0f, 400.0f, 400.0f});
+        styles.set(kRoot, styled({{"background-color", "#0b1220"}}));
+        Node& far_leaf = add(root, 2, {250.0f, 250.0f, 30.0f, 30.0f});
+        styles.set(2, styled({{"background-color", "#00ff00"}}));
+        far_leaf.mark_dirty(Dirty::Paint);
+        paint_cache_test::PaintCache cache;
+        PaintContext context;
+        context.paint_cache = &cache;
+        context.cull = kView;
+        RecordingSink sink;
+        const PaintStats stats = paint_scene(root, styles, sink, context);
+        if (!expect(!has_rect(sink.calls, 250.0f, 250.0f) && stats.culled_nodes == 1,
+                    "a dirty node with no cache record is culled")) {
+            return false;
+        }
+    }
+    {
+        Node root(kRoot);
+        CountingStyles styles;
+        root.set_bounds({0.0f, 0.0f, 400.0f, 400.0f});
+        styles.set(kRoot, styled({{"background-color", "#0b1220"}}));
+        Node& group = add(root, 2, {240.0f, 240.0f, 100.0f, 100.0f});
+        styles.set(2, styled({{"background-color", "#223344"}}));
+        Node& far_leaf = add(group, 3, {10.0f, 10.0f, 30.0f, 30.0f}); // world 250, 250
+        styles.set(3, styled({{"background-color", "#00ff00"}}));
+        paint_cache_test::PaintCache cache;
+        PaintContext context;
+        context.paint_cache = &cache;
+        {
+            RecordingSink sink;
+            (void)paint_scene(root, styles, sink, context); // records every node
+        }
+        clear_all(root);
+        far_leaf.mark_dirty(Dirty::Paint);
+        context.cull = kView;
+        RecordingSink sink;
+        (void)paint_scene(root, styles, sink, context);
+        if (!expect(has_rect(sink.calls, 250.0f, 250.0f),
+                    "a dirty descendant with a record is painted, not hidden by a subtree skip")) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool test_covering_rect_is_byte_identical() {
     const Painted full = painted(true, std::nullopt);
     const Painted covered = painted(true, Rect{-10.0f, -10.0f, 500.0f, 500.0f});
@@ -460,6 +513,8 @@ int main() {
     ok = paint_cull_test::test_text_that_leaves_its_box_is_never_culled() && ok;
     ok = paint_cull_test::test_transformed_node_is_never_culled() && ok;
     ok = paint_cull_test::test_dirty_node_with_a_cache_record_is_not_culled() && ok;
+    ok = paint_cull_test::test_cold_dirty_node_is_culled_and_a_dirty_descendant_blocks_the_subtree_skip() &&
+         ok;
     ok = paint_cull_test::test_covering_rect_is_byte_identical() && ok;
     if (!ok) {
         std::cerr << "paint_cull: failed\n";

@@ -59,8 +59,9 @@ struct FramePipelineConfig {
     // key turns both stages off for a full-work comparison. On by default. When the redraw plan is
     // partial, the damage-clipped `paint_frame` overload hands the paint pass the bounding box of
     // the plan's scissors as `PaintContext::cull`, so nodes that cannot reach any painted pixel
-    // skip style resolution and emission. A full-redraw plan never culls (its paint is unclipped),
-    // which is why a full repaint stays byte-identical.
+    // skip style resolution and emission. A full-redraw plan culls to the whole target (issue #257):
+    // its sink stays unclipped, and what it drops cannot reach a pixel of the target, so the output
+    // inside the viewport is unchanged. The full `paint_frame` overload (no plan) never culls.
     bool cull_paint = true;
 };
 
@@ -193,8 +194,9 @@ public:
                            bool force = false) const;
 
     // Damage-clipped variant: paints only the parts of the scene inside `plan`'s scissor regions.
-    // A full-redraw plan forwards to the unclipped sink, so its commands are byte-identical to the
-    // full paint above (its scissor list is ignored). An empty partial plan paints nothing, even
+    // A full-redraw plan forwards to the unclipped sink, so inside the target its commands are the
+    // full paint above (its scissor list is ignored); with `cull_paint` the nodes that cannot reach
+    // the target are skipped first (issue #257). An empty partial plan paints nothing, even
     // with `force`. A partial plan clips every command per region, in region order: a command fully
     // inside a region is unchanged, a partially covered one is trimmed to the intersection, and one
     // outside every region is dropped, so paint order is preserved. `FramePaint::stats` are the

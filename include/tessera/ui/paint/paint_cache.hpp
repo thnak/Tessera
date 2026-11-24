@@ -312,6 +312,16 @@ public:
     // Drops one node's entry without a lookup (a caller that knows the style changed).
     void erase(NodeId node);
 
+    // Whether the cache holds an entry for `node`, and whether it holds none at all. The paint
+    // pass uses them to tell a dirty node whose record could go stale (it has one) from a dirty node
+    // that can be culled freely (it has none, which is every node of a cold first frame).
+    [[nodiscard]] bool contains(NodeId node) const {
+        return entries_.find(node) != entries_.end();
+    }
+    [[nodiscard]] bool empty() const {
+        return entries_.empty();
+    }
+
     // Drops every entry and counts one invalidation (style/tree generation change).
     void invalidate();
     // Drops every entry without counting an invalidation.
