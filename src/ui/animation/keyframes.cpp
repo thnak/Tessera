@@ -28,10 +28,6 @@ struct NumericValue {
     bool ok = false;
 };
 
-std::string trim(std::string_view value) {
-    return std::string(tessera::detail::trim(value));
-}
-
 NumericValue parse_numeric(std::string_view value) {
     // strtod needs a terminated string; a stack copy keeps this off the heap for the usual short
     // values (a heap string per sampled property per tick was an allocation each frame, #701).
