@@ -421,14 +421,22 @@ export function Carry(): Node {
 
     cli::CanvasSceneSession session;
     cli::CanvasSessionSource source = source_for(kFive, "ui/App.tsx");
-    expect(session.start(project_of(kFive), source).empty(), "the project starts");
+    const std::string first_error = session.start(project_of(kFive), source);
+    expect(first_error.empty(), "the project starts: " + first_error);
+    if (!first_error.empty()) {
+        return;
+    }
     expect(session.started(), "the project's session started");
     // The initializer is what the first evaluation shows.
     expect(counter_value(session) == 5, "the project's first evaluation starts at its initializer");
 
     // An edit that changes the initializer and the text but keeps the component and the cell.
     cli::CanvasSessionSource edited = source_for(kZero, "ui/App.tsx");
-    expect(session.start(project_of(kZero), edited).empty(), "the edited project starts");
+    const std::string edit_error = session.start(project_of(kZero), edited);
+    expect(edit_error.empty(), "the edited project starts: " + edit_error);
+    if (!edit_error.empty()) {
+        return;
+    }
     expect(!session.reused(), "an edited project re-evaluates");
     expect(counter_value(session) == 5,
            "the cell is carried across a project edit, not re-initialized (issue #865)");
