@@ -60,6 +60,28 @@ jobs:
       - name: Build tests
         run: cmake --build build/android-tests --parallel
 
+      # The Java half of the shell was never compiled by any lane: the CMake builds below cover the
+      # native library, and nothing built `android/app/src/main/java`. A change there landed
+      # unverified - and two did, because the only way to find a typo was to open Android Studio.
+      #
+      # `compileDebugJavaWithJavac` is the narrowest task that type-checks the Java against the
+      # Android SDK, and it needs no emulator and no native library. `assembleDebug` is deliberately
+      # NOT used: it would run the CMake external build again and take minutes for nothing.
+      #
+      # It runs before the emulator so a Java error fails fast rather than after a 15-minute boot.
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile the app shell's Java
+        working-directory: android
+        run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon --stacktrace
+
       - name: ccache statistics
         run: ccache --show-stats
 

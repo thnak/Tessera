@@ -3,9 +3,9 @@
 How to cross-compile Tessera for Android and run its tests on an emulator. The lane is advisory
 (nightly and on demand, [`.github/workflows/android.yml`](../../.github/workflows/android.yml)) and
 Android is not a V1 platform ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md),
-Big Step F). What exists today is the **null backend** and the test executables; there is no
-`AndroidManifest.xml`, no Gradle project, no `ANativeWindow`/`NativeActivity` glue and no
-`VK_KHR_android_surface` path, so no runnable Android app can be produced yet.
+Big Step F). What exists is the **null backend**, the test executables, and the app shell's Gradle
+project (`android/`) whose Java the lane now type-checks. Missing: the `ANativeWindow`/`NativeActivity`
+glue and the `VK_KHR_android_surface` path, so no runnable app can be produced yet.
 
 ## 1. Use the NDK the workflow uses
 
