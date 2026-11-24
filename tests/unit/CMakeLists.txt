@@ -374,6 +374,17 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# A host built over an ALREADY SETTLED tree must still paint its first frame (the Android fold
+# defect, docs/guides/android-lane.md section 3.19). Destroying and recreating the surface rebuilds
+# the host around the shell's live scene, whose nodes are clean, so a damage-only first frame planned
+# nothing and the window stayed black. Headless: ManualClock, a counting paint sink.
+add_executable(app_host_repaint_tests
+    app_host_repaint_tests.cpp)
+
+target_link_libraries(app_host_repaint_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_host_repaint COMMAND app_host_repaint_tests)
+
 # The ADR-041 settle loop wired into a real AppHost (issue #693): a `@container` rule that crosses a
 # condition re-styles in the same tick as the resize, a resize inside one condition costs no engine
 # round, a stylesheet without `@container` pays nothing, and the round budget terminates a

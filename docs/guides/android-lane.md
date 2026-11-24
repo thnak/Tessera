@@ -149,8 +149,6 @@ action, tool-type, source and keycode constants are stable ABI values, so the ru
 on every lane (`android_input`). That is where the defects that a device lane cannot see cheaply are
 caught — the scroll sign, the pointer-index packing, the cancel semantics.
 
-Three rules worth knowing:
-
 - **Scroll sign.** Android's `AXIS_VSCROLL` is positive when the content should move *up*; the engine
   uses the web sign, where positive `dy` scrolls content *down*. The vertical axis is negated.
 - **Pointer identity.** Android reports a pointer *index* per event, and the index is renumbered as
@@ -168,16 +166,14 @@ orientation. The newest sample is used, which loses sub-frame motion but never l
 
 ### 3.5 Window metrics: insets, cutouts and fold
 
-`src/platform/android/android_metrics_translation.cpp` decodes the platform's window-metrics signals
-into `hal::WindowMetrics`. Like the input rules it **includes no Android header**, so it is
+`src/platform/android/android_metrics_translation.cpp` decodes the platform's metrics into
+`hal::WindowMetrics`. Like the input rules it **includes no Android header**, so it is
 unit-tested on every lane (`android_metrics`).
 
-The platform reports insets in **physical pixels**; `WindowMetrics` carries logical pixels. That
-conversion is the whole reason this is a separate testable unit: a wrong scale turns a 24 px status
-bar into a 24 dp one, which is a layout bug that only shows on a device with a non-1.0 density. The
-decode **rounds** rather than truncates, so a 2.75× device does not lose a pixel per side.
-
-Three rules worth knowing:
+The platform reports insets in **physical pixels**; `WindowMetrics` carries logical pixels.
+That conversion is why this is a separate testable unit: a wrong scale turns a 24 px status
+bar into a 24 dp one, a layout bug that only shows at a non-1.0 density. The decode
+**rounds** rather than truncates, so a 2.75x device does not lose a pixel per side.
 
 - **Cutout rectangles.** Android reports `right`/`bottom` as exclusive edges; the engine's rectangles
   are `x`/`y`/`width`/`height`, so the extent is the difference. A zero-area rectangle is dropped
@@ -185,33 +181,29 @@ Three rules worth knowing:
 - **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports `FoldState::Flat`
   and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an occluding hinge, and only
   when the platform gives it a non-zero rectangle.
-- **Orientation comes from the extent**, not from Android's rotation, so a device that reports
+- **Orientation comes from the extent**, not Android's rotation, so a device that reports
   neither still gets the same answer as the desktop lanes.
-
-The window backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
-platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event, so a
-burst of callbacks between two ticks costs one event per kind.
+The backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
+platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event.
 
 ### 3.6 The JNI bridge
 
-The shell is a **Java activity**, not `android.app.NativeActivity`, because the platform reports
-insets, cutouts and fold posture through Java APIs that have no NDK equivalent. A NativeActivity can
-hand the engine an `ANativeWindow` but cannot read those.
+The shell is a **Java activity**, not `android.app.NativeActivity`, because insets, cutouts
+and fold posture are Java APIs with no NDK equivalent: a NativeActivity can hand over an
+`ANativeWindow` but cannot read those.
 
-| File | Role |
-|---|---|
-| `android/app/src/main/java/dev/tessera/app/TesseraActivity.java` | the activity: edge-to-edge, hides the system bars, owns the view |
-| `android/app/src/main/java/dev/tessera/app/TesseraView.java` | a `SurfaceView`: surface lifecycle, insets/cutouts, touch |
-| `android/app/src/main/cpp/jni_bridge.cpp` | the only TU that includes `<jni.h>` |
+Three files carry it: `TesseraActivity.java` (edge-to-edge, hides the system bars, owns the view),
+`TesseraView.java` (a `SurfaceView`: surface lifecycle, insets/cutouts, touch) and
+`jni_bridge.cpp` (the only TU that includes `<jni.h>`).
 
 `TesseraView` is a `SurfaceView` because that is the one view whose `Surface` the NDK can turn into
 an `ANativeWindow` (`ANativeWindow_fromSurface`). A `TextureView` would give a `SurfaceTexture`,
 which needs a different Vulkan path.
 
-**The render thread.** `WindowHost` is single-threaded and must be created, run and destroyed on the
-thread that owns the window, so the bridge starts a dedicated render thread that calls `host->run(0)`
-(see 3.19 for the pause/teardown rules). `pump_once` on the Java thread would need a spin, and a spin
-on a phone burns battery for nothing.
+**The render thread.** `WindowHost` is single-threaded and must be created, run and destroyed
+on the thread that owns the window, so the bridge starts a dedicated thread that calls
+`host->run(0)` (3.19 has the pause rules). `pump_once` on the Java thread would need a
+battery-burning spin.
 
 **The input seam.** The shell is a Java activity, so touch arrives as an `android.view.MotionEvent`,
 not as the NDK's `AInputEvent`. The bridge reads the getters once into a `MotionSample` and the pure
@@ -220,24 +212,23 @@ the same reason: the rules are plain numbers, so the physical-to-logical convers
 and the pointer bookkeeping are unit-tested on every lane (`android_motion`) instead of only on a
 device.
 
-Two seams carry it. `hal::Window::post_input_event` queues an event the HOST translated;
-`translate_input` is the opposite split, where the backend translates an opaque native event. Android
-has both paths because the same platform can deliver touch either way.
+Two seams carry it: `post_input_event` queues an event the HOST translated, and
+`translate_input` is the opposite split where the backend translates an opaque native event.
+Android has both because the same platform can deliver touch either way.
 
-**The IME bridge.** A custom-rendered text field does not get an IME for free: the platform talks to
-an `InputConnection`, and the engine's edit controller consumes `ui::InputEvent`.
-`TesseraInputConnection` is the adapter — it holds no text of its own, because the engine owns the
-buffer, the undo history and the selection, and a copy in Java would be a second source of truth that
-drifts.
+**The IME bridge.** A custom-rendered field gets no IME for free: the platform talks to an
+`InputConnection` and the engine consumes `ui::InputEvent`. `TesseraInputConnection` is the
+adapter and holds no text of its own - the engine owns the buffer, undo history and selection,
+and a Java copy would be a second source of truth that drifts.
 
 Two other hooks are required, and both are easy to miss:
 
 - `onCheckIsTextEditor()` must return true, or the platform never offers the view a keyboard.
-- The show request is explicit (`InputMethodManager.showSoftInput`), because a `SurfaceView` cannot
-  focus itself the way an `EditText` does. It is also **conditional**: the view asks the engine
-  whether the tap landed on the field (`nativeTapOnField`), because the whole window is one surface
-  and the platform cannot know which part is editable. Without that answer the keyboard appeared on
-  every tap anywhere in the window; a tap elsewhere now dismisses it instead.
+- The show request is explicit (`showSoftInput`), because a `SurfaceView` cannot focus itself
+  like an `EditText`. It is also **conditional**: the view asks the engine whether the tap landed
+  on the field (`nativeTapOnField`), because the whole window is one surface and the platform
+  cannot know which part is editable. Without it the keyboard appeared on every tap; a tap
+  elsewhere now dismisses it.
 
 The mapping rules live in `android_ime_translation.cpp` and are **pure over UTF-16** — no SDK, no
 JNI — so `android_ime` pins the two conversions that fail silently on screen:
@@ -250,11 +241,11 @@ JNI — so `android_ime` pins the two conversions that fail silently on screen:
 A lone surrogate becomes U+FFFD rather than being dropped, because dropping it would desynchronise
 every offset after it.
 
-**The engine owns the buffer, so the platform must ask.** Forwarding callbacks is only half an IME
-bridge: the platform also *queries* the text, and a bridge that answers `""` makes the IME behave as
-if the field were always empty. That is not cosmetic — suggestions stop, Backspace deletes nothing,
-and the IME places its composing region at offset 0. So `TesseraInputConnection` overrides the
-queries too, and each one reads the engine's buffer back:
+**The engine owns the buffer, so the platform must ask.** Forwarding callbacks is half an IME
+bridge: the platform also *queries* the text, and a bridge that answers `""` makes the IME behave
+as if the field were always empty - suggestions stop, Backspace deletes nothing, and the
+composing region sits at offset 0. So `TesseraInputConnection` overrides the queries too, each
+reading the buffer back:
 
 | callback | what it reads |
 |---|---|
@@ -264,22 +255,18 @@ queries too, and each one reads the engine's buffer back:
 | `deleteSurroundingTextInCodePoints` | the same delete path as the UTF-16 variant |
 
 The shell owns one `EditController` and one `TextInputRuntime` (`Shell::editor`,
-`Shell::editor_runtime`). The runtime is attached to the field's node, so a committed edit publishes
-the buffer's text **and** the caret into that node's `PaintData` — a field whose node started with an
-empty payload would otherwise paint nothing while the buffer filled up, leaving the caret moving over
-blank space.
+`Shell::editor_runtime`). The runtime is attached to the field's node, so a committed edit
+publishes the buffer's text **and** the caret into that node's `PaintData` - otherwise a field
+whose node started empty paints nothing while the buffer fills.
+**The two enums are not the same enum.** `ui::InputEventType` is the normalized input vocabulary
+and `ui::EventType` is the scene's; they do not share values (`EditText` is 13 in one and 14 in
+the other). A `static_cast` turns a commit into a composition start, which looks like typing
+doing nothing while the buffer stays empty. The bridge maps the six types and drops the rest.
 
-**The two enums are not the same enum.** `ui::InputEventType` is the normalized input vocabulary and
-`ui::EventType` is the scene's; they do not share values (`EditText` is 13 in one and 14 in the
-other). A `static_cast` between them silently turns a commit into a composition start, which looks
-like "typing does nothing" while the buffer stays empty. The bridge maps the six types explicitly and
-drops anything else.
-
-**The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`, which
-take the platform's **physical** pixels. The backend converts them with the decode rules in
-`android_metrics_translation.cpp`, so the bridge never needs to know the layout rules and the
-conversion stays unit-tested on every lane. The types live in `window_desc.hpp` so `window.hpp`
-stays inside its size budget.
+**The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`,
+taking the platform's **physical** pixels. The backend converts them with the decode rules in
+`android_metrics_translation.cpp`, so the bridge never knows the layout rules and the conversion
+stays unit-tested on every lane.
 
 ### 3.7 What is still missing
 
@@ -295,18 +282,18 @@ stays inside its size budget.
 
 ### 3.8 Emulator GPU mode matters
 
-A lane that wants to exercise the real renderer must boot with `-gpu host`. The CI default
-(`-gpu swiftshader_indirect`) reports Vulkan 1.2.0, below the 1.3 minimum `choose_device` enforces
-(`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`), so the app refuses to start.
+A lane that exercises the real renderer must boot with `-gpu host`. The CI default
+(`-gpu swiftshader_indirect`) reports Vulkan 1.2.0, below the 1.3 minimum `choose_device`
+enforces, so the app refuses to start.
 
 ### 3.9 Accessibility: the one platform that pulls instead of pushing
 
-Windows (UIA) and Linux (AT-SPI) are **push** bridges: a bridge thread on the app side calls out, and
-the app answers from a tree it already published. Android is the opposite. `AccessibilityNodeProvider`
-is **pull**: the platform calls `createAccessibilityNodeInfo(virtualViewId)` on the UI thread and
-expects that one node back before the call returns. A bridge shaped like UIA's would have to block
-the platform on a frame, which is exactly what the no-blocking rule forbids.
-
+Windows (UIA) and Linux (AT-SPI) are **push** bridges: a bridge thread on the app side calls out
+and the app answers from a tree it already published. Android is the opposite.
+`AccessibilityNodeProvider` is **pull**: the platform calls
+`createAccessibilityNodeInfo(virtualViewId)` on the UI thread and expects that node back before
+the call returns. A UIA-shaped bridge would block the platform on a frame, which the
+no-blocking rule forbids. So the Android column is a different shape, not a branch:
 So the Android column is a different shape, not a branch in an existing one:
 
 - **`ui::a11y::SnapshotProvider`** keeps the last published snapshot and answers one node at a time.
@@ -316,15 +303,15 @@ So the Android column is a different shape, not a branch in an existing one:
   existing dirty tracking and action drain, so a static window still builds no tree and publishes
   nothing. The shell sets `WindowOptions::accessibility_provider`; a null provider reports
   `UnsupportedPlatform`, which is the documented "accessibility off, window keeps running" path.
-- **`TesseraAccessibilityProvider`** (Java) is what the platform talks to. It holds **no tree**: each
-  query is one JNI call returning the node's class name, text, description, flags, bounds, action ids
-  and child ids, and it copies them into an `AccessibilityNodeInfo`.
+- **`TesseraAccessibilityProvider`** (Java) is what the platform talks to. It holds **no tree**:
+  each query is one JNI call returning the node's class name, text, description, flags, bounds,
+  action ids and child ids, copied into an `AccessibilityNodeInfo`.
 
 Three details that are easy to get wrong, and that the tests pin:
 
-**Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers on every
-rebuild and a screen reader focused on view 3 would point at a different control. `SnapshotProvider`
-keeps a slot table: a node keeps its id while it stays in the tree. Id `0` is the host view.
+**Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers on
+every rebuild and a screen reader focused on view 3 would point at a different control. The
+provider keeps a slot table: a node keeps its id while it stays in the tree; id `0` is the host.
 
 **The action ids are the platform's.** They are *not* consecutive powers of two: `ACTION_FOCUS` is
 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is 2097152. Numbering them
@@ -365,21 +352,19 @@ The shell pins **1.5.1** (current stable) and uses it for one call. The chain it
 `kotlin-stdlib` and `kotlinx-coroutines-android` — which is why the build also enables the Kotlin
 plugin, for one 40-line file.
 
-**Why a Kotlin file.** `WindowInfoTracker.windowLayoutInfo` returns a Kotlin `Flow`. Collecting one
-from Java means calling suspend functions through `BuildersKt` with a hand-written `Function2`, which
-breaks on any coroutines version bump; `FoldObserver.kt` does it in three lines instead. All the
-mapping stays in `TesseraFoldReader.java` with the rest of the shell.
+**Why a Kotlin file.** `WindowInfoTracker.windowLayoutInfo` returns a Kotlin `Flow`; collecting
+one from Java means suspend functions through `BuildersKt` and a hand-written `Function2`, which
+breaks on any coroutines bump. `FoldObserver.kt` does it in three lines and the mapping stays in
+`TesseraFoldReader.java` with the rest of the shell.
 
-**Two traps.** A fold change is *not* always a configuration change - the emulator's `HALF_OPENED`
-transition changes the hinge angle without resizing the window - so a re-read on
+**Two traps.** A fold change is *not* always a configuration change - the emulator's
+`HALF_OPENED` changes the hinge angle without resizing the window - so a re-read on
 `onConfigurationChanged` alone reports the launch posture forever. And `onResume` runs *before*
-`surfaceCreated`, so a fold read there has no native handle; `TesseraView.whenNativeReady` defers the
-first push until the shell exists.
+`surfaceCreated`, so a fold read there has no handle; `whenNativeReady` defers the first push.
 
-Verification on the emulator, which can simulate a foldable: `adb shell cmd device_state state 1`
-is `HALF_OPENED` and `state 2` is `OPENED` (`print-states` lists them). Both report posture 1/2 with
-axis 2 (Vertical) and hinge `1038,0,1038,2152` - the exact centre of the 2076 px display - and the
-transition is observed live without restarting the activity.
+Verification on the emulator: `cmd device_state state 1` is `HALF_OPENED` and `state 2` is
+`OPENED`. Both report posture 1/2 with axis 2 (Vertical) and hinge `1038,0,1038,2152` - the centre
+of the 2076 px display - observed live without restarting the activity.
 
 ### 3.11 Hinge angle: the one fold signal the platform SDK does have
 
@@ -592,6 +577,20 @@ that was never destroyed.
 
 Verified: type `abc`, Home, return, tap, type `xyz` - the field reads `abcxyz`. Repeated four times,
 the log shows `window hidden` then a clean `render thread exited`, with no detach and no leak.
+### 3.20 Folding the device: a rebuilt host must repaint
+
+A fold is not a background cycle (3.19): closing destroys the surface, so the host is rebuilt.
+`FramePipeline::tick` clears the damage accumulator and derives `should_render` from the dirty
+nodes it collects, so a frame exists only when something is dirty. App launch satisfies that
+once (the first layout dirties every node), which is why the bug hid there. On a fold the new
+host wraps the shell's **live** scene: every node is clean, so the first tick planned
+nothing, the loop parked and the window stayed black - a tap dirtied a node and the UI
+appeared. The fix is the invariant: **host construction latches a full repaint** (the
+constructor sets `full_repaint_pending` and marks the loop dirty directly, since the `AppHost`
+owning `request_full_repaint` does not exist yet); `resume_host` latches one too, matching
+`WindowHost::set_visible(true)` on desktop.
+that emits commands while the next paints nothing.
+
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.
