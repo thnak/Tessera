@@ -219,8 +219,8 @@ int test_user_select() {
         !expect(label.text_selection_allowed(), "and it is selectable")) {
         return 9;
     }
-    // `contain` stays unsupported: it is reported at parse time and falls back to auto, which is the
-    // default selectable behaviour rather than a blocked gesture.
+    // `contain` stays unsupported: it is reported at parse time and falls back to auto, which is
+    // the default selectable behaviour rather than a blocked gesture.
     styles.set(label, nullptr, "contain");
     sync_interaction_style(root, &stub_compute, &styles);
     if (!expect(label.user_select() == UserSelect::Auto,
