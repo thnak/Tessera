@@ -80,6 +80,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-068](ADR-068-clip-state-in-a-storage-buffer.md) | Clip state in a per-frame storage buffer: RHI 1.12 `bind_storage_buffer`, clip records for rounded rect, ellipse and polygon, `CpuCanvas` shaped-clip reference, for `clip-path` (#615) | Accepted |
 | [ADR-069](ADR-069-awaitable-declares-no-resume.md) | An awaitable declares when its frame will never resume: `declare_no_resume` drops the continuation reference so an abandoned task pair is freed at its owner instead of leaking (#770) | Accepted |
 | [ADR-070](ADR-070-frame-arena-not-pmr.md) | A custom frame arena, not `std::pmr`: one block with an explicit reset, a high-water counter and a fixed capacity that fails with a diagnostic; closes memory-model-v1 open question 1 (#701) | Accepted |
+| [ADR-071](ADR-071-gpu-compute-tile-rasterizer.md) | A GPU compute tile rasterizer (Vello-style) for vector paths, amending ADR-057/ADR-004: cost scales with segments, not pixels; encode stays CPU-incremental, flatten/stroke/morph on the GPU; evidence for the spike is still open (#683) | Proposed |
 
 ## Dependency overview
 
@@ -138,6 +139,7 @@ ADR-067 pending UI (proposed) ── async-data-v1 resources, ADR-021 async runt
 ADR-068 clip storage buffer (accepted) ── ADR-003 thin RHI, ADR-049 RHI versioning, ADR-053 Metal, ADR-004 vector paths
 ADR-069 awaitable declares no resume (accepted) ── ADR-021 async runtime, ADR-050 app framework, async design, background-work design
 ADR-070 frame arena (accepted) ── memory-model-v1 sections 2/3/9, #701 measurement
+ADR-071 GPU compute tile rasterizer (proposed) ── ADR-057 vector paths exit, ADR-004, ADR-068 storage buffers, ADR-049 RHI versioning
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
