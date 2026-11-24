@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/hal/appearance.hpp"
 #include "tessera/hal/window_backdrop.hpp"
 
@@ -98,11 +99,16 @@ struct MediaCondition {
 // `alignas(64)` (issue #732): `bool` + `std::string` (32) + `std::vector` (24) is exactly 64, so
 // with the natural 8-byte alignment seven of eight queries straddle a line. The alignment changes
 // no offset.
+//
+// MSVC's C4324 describes that intent, so it is suppressed here the same narrow way as `Rule` in
+// `parser.hpp` and the groups in `detail/cache_line.hpp` (issue #898).
+TESSERA_CACHE_LINE_BEGIN
 struct alignas(64) MediaQuery {
     bool negated = false;
     std::string type;
     std::vector<MediaCondition> conditions;
 };
+TESSERA_CACHE_LINE_END
 
 struct MediaQueryList {
     std::vector<MediaQuery> queries;

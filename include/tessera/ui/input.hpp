@@ -101,6 +101,7 @@ constexpr bool has_modifier(Modifier value, Modifier flag) {
 // of eight instances straddle a line boundary and a sequential walk over the queue touches both.
 // The alignment changes no offset, so `kInputEventSizeBudget` and the `sizeof_input_event` row are
 // unaffected.
+TESSERA_CACHE_LINE_BEGIN
 struct alignas(64) InputEvent {
     // 8-byte group.
     double timestamp_s = 0.0;
@@ -134,6 +135,7 @@ struct alignas(64) InputEvent {
     // Meaningful for InputEventType::VolumeKey only.
     VolumeDirection volume_direction = VolumeDirection::Up;
 };
+TESSERA_CACHE_LINE_END
 
 // Memory budget of one queued input event (docs/design/performance.md, memory budgets). The
 // default `InputQueue` holds 256 of them, so a byte here is 256 bytes of resident memory.
