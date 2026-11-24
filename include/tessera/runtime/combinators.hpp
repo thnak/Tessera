@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "tessera/runtime/combinator_awaiters.hpp"
 #include "tessera/runtime/combinator_states.hpp"
 #include "tessera/runtime/task.hpp"
 

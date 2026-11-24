@@ -1206,6 +1206,14 @@ add_executable(task_combinator_tests
 target_link_libraries(task_combinator_tests PRIVATE tessera_runtime)
 
 add_test(NAME task_combinators COMMAND task_combinator_tests)
+# The time-based combinator tests (issue #844): delay, timeout and the eager-cancellation
+# wakeup, split from task_combinator_tests to keep both under the source-size limit.
+add_executable(task_time_tests
+    task_time_tests.cpp)
+
+target_link_libraries(task_time_tests PRIVATE tessera_runtime)
+
+add_test(NAME task_time COMMAND task_time_tests)
 
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)

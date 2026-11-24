@@ -1530,19 +1530,21 @@ header include/tessera/runtime/clock.hpp
 class include/tessera/runtime/clock.hpp tessera::runtime::Clock
 class include/tessera/runtime/clock.hpp tessera::runtime::ManualClock
 
+header include/tessera/runtime/combinator_awaiters.hpp
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::CombinatorAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAllPackAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAllRangeAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAnyAwaiter
+class include/tessera/runtime/combinator_awaiters.hpp tessera::runtime::detail::WhenAnyValueAwaiter
+
 header include/tessera/runtime/combinator_states.hpp
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::TaskAggregateError
-class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::CombinatorAwaiter
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::CombinatorState
-class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllPackAwaiter
-class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllRangeAwaiter
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllRangeState
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllStateTyped
-class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyAwaiter
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyPackState
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyRangeState
 class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyStateBase
-class include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAnyValueAwaiter
 struct include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllOutcome
 alias include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::DriverTask
 alias include/tessera/runtime/combinator_states.hpp tessera::runtime::detail::WhenAllResult
