@@ -72,11 +72,6 @@ Task<void> park_on_delay(TaskContext ctx) {
     (void)co_await delay(ctx, 1000.0);
 }
 
-// A parent suspended on a parked child: the shape the eager-cancellation wakeup exists for.
-Task<void> await_parked(TaskContext ctx) {
-    co_await park_on_delay(ctx);
-}
-
 TaskContext time_context(CompletionQueue& queue, ManualClock& clock, TimerQueue& timers) {
     return TaskContext{&queue, CompletionPriority::Visible, {}, &clock, &timers};
 }
@@ -190,7 +185,9 @@ Task<void> root_timeout_child_fails(TaskContext ctx, Task<int> child,
     (void)co_await timeout(ctx, std::move(child), child_source, 5.0);
 }
 
-Task<void> root_parked_child(TaskContext ctx, TaskContext child_ctx) {
+// A parent suspended on a parked child: the shape the eager-cancellation wakeup exists for. The
+// parent's own context is taken unnamed, because the body only reads the child's.
+Task<void> root_parked_child(TaskContext, TaskContext child_ctx) {
     co_await park_on_delay(child_ctx);
 }
 
