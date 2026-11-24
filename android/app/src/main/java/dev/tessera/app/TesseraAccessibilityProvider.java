@@ -63,16 +63,21 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
     /** Derived: a node that offers Press is clickable. TalkBack gates activation on this flag. */
     private static final int FLAG_CLICKABLE = 8;
     private static final int FLAG_LONG_CLICKABLE = 9;
-    private static final int FLAG_COUNT = 10;
+    /** The node is one item of a collection, and the two slots below describe where it sits. */
+    private static final int FLAG_COLLECTION_ITEM = 10;
+    private static final int FLAG_COUNT = 11;
     // Bounds follow the flags: x, y, width, height. Fixed point in 1/64 px, so a fractional logical
     // position survives the crossing and rounds once, here, instead of being truncated twice.
     private static final int BOUNDS_X = FLAG_COUNT;
     private static final int BOUNDS_Y = FLAG_COUNT + 1;
     private static final int BOUNDS_W = FLAG_COUNT + 2;
     private static final int BOUNDS_H = FLAG_COUNT + 3;
-    /** The packed array's size: flags, bounds, action count + ids, child count + ids. */
+    /** 1-based position and the collection's item count, as {@code aria-posinset}/{@code aria-setsize}. */
+    private static final int POS_IN_SET_SLOT = FLAG_COUNT + 4;
+    private static final int SET_SIZE_SLOT = FLAG_COUNT + 5;
+    /** The packed array's size: flags, bounds, collection position, action count + ids, child count + ids. */
     private static final int SLOT_COUNT =
-            FLAG_COUNT + 4 + 1 + MAX_ACTIONS + 1 + MAX_CHILDREN;
+            FLAG_COUNT + 6 + 1 + MAX_ACTIONS + 1 + MAX_CHILDREN;
 
     private final TesseraView view;
     private final long nativeHandle;
@@ -128,6 +133,28 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         node.setSelected(slots[FLAG_SELECTED] != 0);
         node.setEditable(slots[FLAG_EDITABLE] != 0);
         node.setScrollable(slots[FLAG_SCROLLABLE] != 0);
+        // A collection item tells the platform where it sits, which is what makes "3 of 40" and
+        // per-list navigation work (accessibility spec section 5). `rowIndex` and `columnIndex` are
+        // -1 because the engine models a flat list, not a grid: the platform reads a flat item by
+        // its position, and claiming a row would be an invented shape.
+        if (slots[FLAG_COLLECTION_ITEM] != 0) {
+            // The engine models a flat list, so the platform's row/column pair is
+            // (position, one column) rather than an invented grid: `rowIndex` is the 0-based
+            // position, which is `aria-posinset - 1`.
+            final int setSize = (int) slots[SET_SIZE_SLOT];
+            final int rowIndex = Math.max(0, (int) slots[POS_IN_SET_SLOT] - 1);
+            node.setCollectionItemInfo(AccessibilityNodeInfo.CollectionItemInfo.obtain(
+                    rowIndex,
+                    1 /* rowSpan */,
+                    0 /* columnIndex */,
+                    1 /* columnSpan */,
+                    false /* heading */,
+                    false /* selected */));
+            node.setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(
+                    setSize,
+                    1 /* columnCount */,
+                    false /* hierarchical */));
+        }
         node.setAccessibilityFocused(slots[FLAG_ACCESSIBILITY_FOCUSED] != 0);
         // Clickable is not a separate engine concept: a node that offers Press is clickable, and
         // TalkBack decides whether a stop is actionable from this flag rather than from the action

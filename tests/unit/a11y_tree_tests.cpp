@@ -194,6 +194,9 @@ int main() {
     if (!a11y_test::combined_scroll_focus_metadata()) {
         return 10;
     }
+    if (!a11y_test::collection_position_from_source()) {
+        return 11;
+    }
 
     std::cout << "a11y_tree: ok\n";
     return 0;

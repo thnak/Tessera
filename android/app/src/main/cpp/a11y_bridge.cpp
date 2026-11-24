@@ -38,14 +38,20 @@ constexpr int kFlagAccessibilityFocused = 7;
 // Press is clickable, and TalkBack gates activation on this flag.
 constexpr int kFlagClickable = 8;
 constexpr int kFlagLongClickable = 9;
-constexpr int kFlagCount = 10;
+// A collection item reports its position; the platform turns these into `CollectionItemInfo`
+// (accessibility spec section 5). The flag is explicit because "an item of an empty list" and "not
+// an item" are different answers, and a zero `set_size` would conflate them.
+constexpr int kFlagCollectionItem = 10;
+constexpr int kFlagCount = 11;
 constexpr int kBoundsX = kFlagCount;
 constexpr int kBoundsY = kFlagCount + 1;
 constexpr int kBoundsW = kFlagCount + 2;
 constexpr int kBoundsH = kFlagCount + 3;
+constexpr int kPosInSetSlot = kFlagCount + 4;
+constexpr int kSetSizeSlot = kFlagCount + 5;
 constexpr int kMaxActions = static_cast<int>(tessera::hal::android::kMaxActions);
 constexpr int kMaxChildren = static_cast<int>(tessera::ui::a11y::kMaxChildren);
-constexpr int kActionCountSlot = kFlagCount + 4;
+constexpr int kActionCountSlot = kFlagCount + 6;
 constexpr int kChildCountSlot = kActionCountSlot + 1 + kMaxActions;
 constexpr int kSlotCount = kChildCountSlot + 1 + kMaxChildren;
 
@@ -132,6 +138,9 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraAccessibilityProvider_nat
     packed[kBoundsY] = pack(answer.y);
     packed[kBoundsW] = pack(answer.width);
     packed[kBoundsH] = pack(answer.height);
+    set_flag(packed.data(), kFlagCollectionItem, info.is_collection_item);
+    packed[kPosInSetSlot] = static_cast<jlong>(info.pos_in_set);
+    packed[kSetSizeSlot] = static_cast<jlong>(info.set_size);
 
     packed[kActionCountSlot] = static_cast<jlong>(info.actions.count);
     for (std::size_t i = 0; i < info.actions.count; ++i) {

@@ -207,7 +207,8 @@ public:
           styles_(styles),
           out_(out),
           limit_(std::min(options.max_nodes, kMaxNodes)),
-          focused_id_(options.focused_id) {}
+          focused_id_(options.focused_id),
+          collection_position_(options.collection_position) {}
 
     BuildStats run() {
         out_.nodes.clear();
@@ -317,6 +318,15 @@ private:
         entry.role = role;
         entry.states = states_for(role, focusable, focused, disabled, node);
         entry.actions = actions_for(role, disabled, focusable, is_scrollable(node));
+        // A node's position in its collection, when the caller supplied a source that knows. The
+        // default stays zero for anything that is not an item, which is every node in a tree with
+        // no virtualized list.
+        if (collection_position_) {
+            if (const std::optional<CollectionPosition> position =
+                    collection_position_(node.id())) {
+                entry.collection = *position;
+            }
+        }
         entry.bounds = bounds;
         store_text(entry.name, resolve_name(node, role), stats_.truncated_text);
         store_text(entry.value, resolve_value(node, role), stats_.truncated_text);
@@ -412,6 +422,8 @@ private:
     A11ySnapshot& out_;
     std::size_t limit_;
     NodeId focused_id_;
+    // Where a node sits in a collection; empty when the caller has no virtualized list.
+    CollectionPositionSource collection_position_;
     const Node* modal_ = nullptr;
     bool modal_reached_ = false;
     BuildStats stats_;

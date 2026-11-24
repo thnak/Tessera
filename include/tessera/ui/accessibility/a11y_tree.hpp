@@ -9,7 +9,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -110,12 +112,29 @@ constexpr bool has_action(Action value, Action flag) {
 // One semantics node. Text fields are inline bounded copies so a snapshot owns no scene strings and
 // stays valid after scene mutations; `A11yNode` is trivially copyable apart from nothing (arrays
 // only), so a snapshot can be copied or shipped to a bridge thread.
+// Where one node sits in a collection, the way ARIA's `aria-setsize`/`aria-posinset` and Android's
+// `CollectionItemInfo` describe it (docs/specs/accessibility-v1.md section 5).
+//
+// **Why it is on the node and not a second table.** A screen reader asks a node "how many items are
+// in your list, and which one are you" while it walks that node; a side table keyed by id would be
+// a second thing to keep consistent with the snapshot, and the snapshot is already the answer to
+// everything else. `set_size == 0` means "not a collection item", so a node outside a collection
+// carries the default and costs nothing.
+struct CollectionPosition {
+    // The collection's item count (`aria-setsize`, Android `rowCount`/`columnCount`).
+    std::size_t set_size = 0;
+    // This item's 1-based position (`aria-posinset`), matching `virtualization::kPosInSetBase`.
+    std::size_t pos_in_set = 1;
+};
+
 struct A11yNode {
     NodeId id = 0;
     std::uint64_t automation_id = 0;
     Role role = Role::Generic;
     State states = State::None;
     Action actions = Action::None;
+    // Set for a node that is one item of a collection; the default is "not one".
+    CollectionPosition collection{};
     std::array<char, kMaxTextBytes> name{};
     std::array<char, kMaxTextBytes> value{};
     std::array<char, kMaxTextBytes> description{};
@@ -153,12 +172,25 @@ public:
     [[nodiscard]] virtual style::ComputedStyle compute(const Node& node) = 0;
 };
 
+// Answers "where does this node sit in its collection", for the builder (docs/specs/
+// accessibility-v1.md section 5).
+//
+// It is a callback rather than a container so the caller can keep the collection's own source of
+// truth - `virtualization::CollectionSemantics` answers from its key index, which is the same
+// object the range is driven by. Returning `std::nullopt` means "not a collection item", so a
+// builder configured with a source that recognises nothing produces exactly the snapshot it did
+// before this existed.
+using CollectionPositionSource = std::function<std::optional<CollectionPosition>(NodeId)>;
+
 struct BuildOptions {
     // The FocusManager's current focus (`0` = none). Only this node can carry State::Focused, and
     // it is the caller's source of truth: the builder never derives focus from pseudo-state bits.
     NodeId focused_id = 0;
     // Hard cap for this snapshot; clamped to kMaxNodes.
     std::size_t max_nodes = kMaxNodes;
+    // Where a node sits in a collection. Empty means no node is a collection item, which is what a
+    // caller without a virtualized list wants.
+    CollectionPositionSource collection_position;
 };
 
 // Counters for one build. "skipped_*" count skipped subtrees/nodes exactly as documented in
