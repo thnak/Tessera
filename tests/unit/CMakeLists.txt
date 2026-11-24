@@ -3257,3 +3257,14 @@ add_executable(scene_style_memo_tests
     scene_style_memo_tests.cpp)
 target_link_libraries(scene_style_memo_tests PRIVATE tessera_style)
 add_test(NAME scene_style_memo COMMAND scene_style_memo_tests)
+
+# Selection over static text (issue #279, follow-up of #217): each `user-select` value, the
+# ancestor-inherited case, the shapes a drag produces, and the rule that a copy never includes
+# `none` text. Appended, so no existing entry moves.
+add_executable(selection_controller_tests
+    selection_controller_tests.cpp)
+# The controller lives beside the editing core (`tessera_text_edit`): it needs `hit_test_point`
+# from the text layer and the `UserSelect` value from the scene types, and it must not pull either
+# into the shaping layer.
+target_link_libraries(selection_controller_tests PRIVATE tessera_text_edit tessera_text)
+add_test(NAME selection_controller COMMAND selection_controller_tests)
