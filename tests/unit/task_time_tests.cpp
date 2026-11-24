@@ -60,13 +60,6 @@ Task<void> marking(TaskContext, bool& flag) {
     co_return;
 }
 
-Task<int> slow_double(TaskContext ctx, int value, bool& done) {
-    const int first = co_await number(ctx, value);
-    const int second = co_await number(ctx, first);
-    done = true;
-    co_return second;
-}
-
 Task<void> park_on_delay(TaskContext ctx) {
     (void)co_await delay(ctx, 1000.0);
 }

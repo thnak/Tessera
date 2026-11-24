@@ -72,10 +72,6 @@ Task<void> park_on_delay(TaskContext ctx) {
     (void)co_await delay(ctx, 1000.0);
 }
 
-TaskContext time_context(CompletionQueue& queue, ManualClock& clock, TimerQueue& timers) {
-    return TaskContext{&queue, CompletionPriority::Visible, {}, &clock, &timers};
-}
-
 // The "no task left live" assertion every test block ends with.
 bool drained(const CompletionQueue& queue) {
     return queue.empty() && queue.stats().pending_continuations == 0;
@@ -156,39 +152,6 @@ Task<void> root_any_value_failing(TaskContext ctx, Task<int> loser, Task<int> wi
 Task<void> root_any_range_empty(TaskContext ctx) {
     std::vector<Task<int>> children;
     (void)co_await when_any_range(ctx, std::span<Task<int>>(children));
-}
-
-Task<void> root_delay_deadline(TaskContext ctx) {
-    (void)co_await delay(ctx, 2.5);
-}
-
-Task<void> root_delay_cancel(TaskContext ctx) {
-    (void)co_await delay(ctx, 50.0);
-}
-
-Task<void> root_timeout_child_wins(TaskContext ctx, Task<int> child,
-                                   CancellationSource& child_source, int& out) {
-    const std::expected<int, TimedOut> result =
-        co_await timeout(ctx, std::move(child), child_source, 5.0);
-    if (result.has_value()) {
-        out = *result;
-    }
-}
-
-Task<void> root_timeout_deadline_wins(TaskContext ctx, Task<void> child,
-                                      CancellationSource& child_source) {
-    (void)co_await timeout(ctx, std::move(child), child_source, 1.0);
-}
-
-Task<void> root_timeout_child_fails(TaskContext ctx, Task<int> child,
-                                    CancellationSource& child_source) {
-    (void)co_await timeout(ctx, std::move(child), child_source, 5.0);
-}
-
-// A parent suspended on a parked child: the shape the eager-cancellation wakeup exists for. The
-// parent's own context is taken unnamed, because the body only reads the child's.
-Task<void> root_parked_child(TaskContext, TaskContext child_ctx) {
-    co_await park_on_delay(child_ctx);
 }
 
 // Rethrows the root's stored exception when there is one, so `catch` blocks can inspect it.
