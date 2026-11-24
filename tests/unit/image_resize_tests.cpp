@@ -102,6 +102,105 @@ bool downscale() {
     return ok;
 }
 
+// A deterministic digest of `downscale_box`'s output, so a GPU port can be held to byte equality
+// (issue #689's second acceptance item: "GPU output equals `downscale_box` byte for byte on a noise
+// image and on an image with alpha (the premultiplied case)").
+//
+// **Why this test and not a golden PNG.** The GPU path will produce the same pixels in a different
+// order, so a file comparison is the only workable check - but a PNG in the tree is a binary nobody
+// can review and a diff nobody can read. A digest over the bytes is the same guarantee with a
+// number a reviewer can see change, and the two inputs it uses are the two the issue names.
+//
+// **Why a 64x48 image and not 4K.** The box filter's arithmetic is per output pixel and identical
+// at every size; what varies with size is only how many pixels there are. 64x48 covers multi-texel
+// boxes, a non-integer ratio (64/23), and a partial edge box, which is where an off-by-one in a GPU
+// port would actually show up - and it runs in microseconds.
+//
+// FNV-1a 64: no dependency, and a digest of 12 KiB has no collision concern that matters here.
+std::uint64_t digest_of(const std::vector<std::uint8_t>& bytes) {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    for (const std::uint8_t byte : bytes) {
+        hash ^= byte;
+        hash *= 0x100000001b3ULL;
+    }
+    return hash;
+}
+
+bool downscale_box_reference() {
+    // Input 1: noise. Every channel differs from its neighbours, so any transposition, off-by-one
+    // box bound or wrong rounding shows up in the digest.
+    constexpr std::uint32_t kWidth = 64;
+    constexpr std::uint32_t kHeight = 48;
+    image::DecodedImage noise;
+    noise.width = kWidth;
+    noise.height = kHeight;
+    noise.source_width = kWidth;
+    noise.source_height = kHeight;
+    noise.rgba.resize(static_cast<std::size_t>(kWidth) * kHeight * 4U);
+    // A plain LCG rather than <random>: the values must be identical on every standard library, or
+    // the digest is not a reference.
+    std::uint32_t state = 0x12345678U;
+    for (auto& byte : noise.rgba) {
+        state = state * 1664525U + 1013904223U;
+        byte = static_cast<std::uint8_t>(state >> 24);
+    }
+
+    bool ok = true;
+    // 64/23 is deliberately not an integer ratio, so the box bounds are uneven and the last row and
+    // column take a partial box - exactly the cases a shader's integer division gets wrong.
+    const image::DecodedImage noise_out = image::downscale_box(noise, 23, 17);
+    ok = expect(noise_out.width == 23 && noise_out.height == 17,
+                "the noise case has its target size") &&
+         ok;
+    const std::uint64_t noise_digest = digest_of(noise_out.rgba);
+    // Pinned from the current implementation. A GPU port must reproduce these exactly; if a change
+    // to the CPU loop moves them, that is a behaviour change and the PR must say so.
+    ok = expect(noise_digest == 0x2a941ce5260b9ad6ULL, "noise digest") && ok;
+
+    // Input 2: alpha, including fully transparent pixels with non-zero color. That is the
+    // premultiplied case the issue calls out: a transparent red must contribute its alpha and not
+    // its red, so a port that averages unpremultiplied channels produces a different digest and a
+    // visibly wrong edge.
+    image::DecodedImage alpha;
+    alpha.width = kWidth;
+    alpha.height = kHeight;
+    alpha.source_width = kWidth;
+    alpha.source_height = kHeight;
+    alpha.rgba.resize(static_cast<std::size_t>(kWidth) * kHeight * 4U);
+    for (std::uint32_t y = 0; y < kHeight; ++y) {
+        for (std::uint32_t x = 0; x < kWidth; ++x) {
+            const std::size_t index = (static_cast<std::size_t>(y) * kWidth + x) * 4U;
+            // A quadrant of fully transparent red, a quadrant of half-alpha green, and two opaque
+            // quadrants of different blue - so all four premultiplied behaviours are exercised.
+            const bool left = x < kWidth / 2;
+            const bool top = y < kHeight / 2;
+            if (left && top) {
+                alpha.rgba[index + 0] = 255; // red, alpha 0: must contribute nothing
+                alpha.rgba[index + 3] = 0;
+            } else if (!left && top) {
+                alpha.rgba[index + 1] = 255; // green at half alpha
+                alpha.rgba[index + 3] = 128;
+            } else if (left) {
+                alpha.rgba[index + 2] = 200; // opaque blue
+                alpha.rgba[index + 3] = 255;
+            } else {
+                alpha.rgba[index + 2] = 40; // opaque dark blue
+                alpha.rgba[index + 3] = 255;
+            }
+        }
+    }
+    const image::DecodedImage alpha_out = image::downscale_box(alpha, 23, 17);
+    const std::uint64_t alpha_digest = digest_of(alpha_out.rgba);
+    ok = expect(alpha_digest == 0xc08734cb04b3af88ULL, "alpha digest") && ok;
+
+    // And the property the digests exist to protect: the same input twice is the same bytes. A port
+    // that is deterministic but different fails the digests; a port that is neither fails this too.
+    ok = expect(digest_of(image::downscale_box(noise, 23, 17).rgba) == noise_digest,
+                "the reference is deterministic") &&
+         ok;
+    return ok;
+}
+
 bool decode_to_target() {
     const std::vector<std::uint8_t> bytes = read_fixture("checker.png");
     const auto full = image::decode_image(bytes);
@@ -172,6 +271,7 @@ int main() {
     bool ok = buckets();
     ok = fit_sizes() && ok;
     ok = downscale() && ok;
+    ok = downscale_box_reference() && ok;
     ok = decode_to_target() && ok;
     ok = cache_keys() && ok;
     if (!ok) {
