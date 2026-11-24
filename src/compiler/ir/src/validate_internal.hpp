@@ -77,7 +77,11 @@ void validate_type(ValidationContext& context, const std::string& type, const So
 void validate_type(ValidationContext& context, const std::string& type, const SourceSpan& where,
                    bool mark_used);
 void validate_span(ValidationContext& context, const SourceSpan& span, const std::string& what);
-void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root);
+// ADR-066 item 5 (issue #802): `provider_types` maps a context name to the type its environment
+// entries declare, so a provider node's value is validated as a record value when the context is
+// record-typed. Empty for the plain walk.
+void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root,
+                        const std::map<std::string, std::string>& provider_types = {});
 void validate_component(ValidationContext& context, const Component& component);
 
 // Module-level record type table checks: ids, names, sorted order, spans, members and cycles

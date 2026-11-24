@@ -5,6 +5,7 @@
 #include "tessera/compiler/ir/node_kind_traits.hpp"
 #include "validate_internal.hpp"
 
+#include <map>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -70,6 +71,9 @@ bool is_span_prop(std::string_view name) {
 struct NodeWalker {
     ValidationContext& context;
     ComponentScope& scope;
+    // ADR-066 item 5 (issue #802): context name -> the type its environment entries declare. A
+    // provider node's value is validated as a record value when its context is record-typed.
+    const std::map<std::string, std::string>* provider_types = nullptr;
     unsigned slot_count = 0; // section 3.4: at most one Slot per component
 
     void walk(const Node& node, const LocalNames& outer, int loop_depth, bool in_slot_content,
@@ -157,6 +161,23 @@ void NodeWalker::check_shape(const Node& node) {
     }
     if (!component && !node.component.empty()) {
         context.report("TESSERA_IR_MALFORMED", "only a Component node has `component`",
+                       node.source);
+    }
+    // ADR-066 item 5 (issue #802): a provider is a wrapper the generated base evaluates at build
+    // time, so it carries the context name and the value expression and nothing else of its own.
+    // The value's type is the context's; the lowering checked it against the context's declared
+    // type (a record-typed context takes an object literal, which it lowers to a `record` value),
+    // so this position allows a record value exactly as a prop default of the same type is one.
+    if (!node.provider.empty()) {
+        if (node.provider_value == nullptr) {
+            context.report("TESSERA_IR_MALFORMED", "a provider needs its `value` expression",
+                           node.source);
+        } else {
+            validate_expr(context, scope, LocalNames{}, node.provider_value.get(), node.source,
+                          true);
+        }
+    } else if (node.provider_value != nullptr) {
+        context.report("TESSERA_IR_MALFORMED", "only a provider node has a `providerValue`",
                        node.source);
     }
     if (component && !node.style.empty()) {
@@ -442,8 +463,9 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth,
 
 } // namespace
 
-void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root) {
-    NodeWalker walker{context, scope};
+void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root,
+                        const std::map<std::string, std::string>& provider_types) {
+    NodeWalker walker{context, scope, &provider_types};
     walker.walk(root, {}, 0, false, true);
 }
 

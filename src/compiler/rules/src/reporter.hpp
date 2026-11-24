@@ -13,6 +13,8 @@
 
 namespace tessera::compiler::rules {
 
+struct AnalyzedModule; // the module pass's output; `check_module_contexts` writes into it
+
 // Per-component reporting state: forwards to the module's sink and remembers whether this
 // component reported an error, independent of the sink's diagnostic limit.
 struct Context {
@@ -29,6 +31,10 @@ struct Context {
     // expanded region carries that region's call site as its related span, so the reader sees the
     // line they wrote rather than one inside a hook body.
     const jsx::CallSiteMap* call_sites = nullptr;
+    // ADR-066 item 5 (issue #802): the module's `createContext` consts, filled by
+    // `check_module_contexts` before the per-component passes run. `check_contexts` validates each
+    // `useContext` argument against them.
+    const std::vector<ContextInfo>* module_contexts = nullptr;
     bool failed = false;
 
     // The related span for a diagnostic at `span`: the call site of the expansion that produced it,
@@ -83,5 +89,11 @@ void check_effect_deps(Context& ctx);    // effect_deps.cpp: exact dependency ma
 void check_memo_deps(Context& ctx);
 // reducer.cpp: the `useReducer` form, run after the hook forms so its symbols exist.
 void check_reducers(Context& ctx);
+// context.cpp: ADR-066 item 5 (issue #802). The module pass collects the `createContext` consts;
+// the component pass validates each `useContext` against them, run after the hook forms so its
+// symbol exists.
+void check_module_contexts(const jsx::Module& module, AnalyzedModule& out,
+                           jsx::DiagnosticSink& sink);
+void check_contexts(Context& ctx);
 
 } // namespace tessera::compiler::rules

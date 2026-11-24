@@ -4,6 +4,7 @@
 // of docs/specs/ir-v1.md section 3, on top of the slice 6 hook and binding data.
 
 #include "node_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
 
 #include <algorithm>
@@ -86,6 +87,92 @@ std::optional<ir::Node> make_node(NodeState& state, const jsx::JsxNode& element)
     node.kind = info->kind;
     node.id = next_node_id(state);
     node.source = to_source_span(state.context.source_map, element.span, state.context.file);
+    if (!info->provider.empty()) {
+        // ADR-066 item 5 (issue #802): a `<Ctx.Provider value={...}>` wrapper. The node is a View
+        // holding the provided subtree; the provider fields name the context and carry the value,
+        // which must be a pure expression of this component's props and state. No other attribute
+        // exists on a provider, and the wrapper has no style or key of its own.
+        node.provider = info->provider;
+        const jsx::JsxAttribute* value = nullptr;
+        for (const jsx::JsxAttribute& attribute : element.attributes) {
+            if (attribute.name == "value") {
+                value = &attribute;
+                break;
+            }
+            fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                      "a `<" + element.tag + ">` provider carries only `value`", attribute.span);
+            return std::nullopt;
+        }
+        if (value == nullptr) {
+            fail_node(state, "TESSERA_IR_MALFORMED",
+                      "a `<" + element.tag + ">` provider needs its `value`", element.tag_span);
+            return std::nullopt;
+        }
+        if (value->kind != jsx::JsxAttrKind::Expression || value->expr == nullptr) {
+            fail_node(state, "TESSERA_IR_MALFORMED",
+                      "the `value` of a `<" + element.tag +
+                          ">` provider is an expression attribute",
+                      value->span);
+            return std::nullopt;
+        }
+        // The value's type is the context's: a record-typed context takes an object literal, which
+        // lowers to an `ir::Record` â€” the same rule a record-typed prop default follows (ADR-051
+        // slice 3) â€” and a primitive context takes an ordinary pure expression.
+        const rules::ContextInfo* declared =
+            state.context.analyzed != nullptr ? state.context.analyzed->find_context(info->provider)
+                                              : nullptr;
+        const ir::RecordType* record = nullptr;
+        if (declared != nullptr && state.context.records != nullptr) {
+            if (const std::optional<std::string_view> name =
+                    record_name_of(*state.context.records, declared->ir_type)) {
+                record = find_record(*state.context.records, *name);
+            }
+        }
+        if (record != nullptr) {
+            if (value->expr->kind != jsx::ExprKind::Object) {
+                fail_node(state, "TESSERA_IR_RECORD_VALUE",
+                          "the `value` of a `<" + element.tag + ">` provider is type `" +
+                              record->name + "`, so it must be an object literal",
+                          value->span);
+                return std::nullopt;
+            }
+            // The names resolver turns a shorthand field (`{ accent }`) into the dotted IR id it
+            // reads (`prop::accent`), exactly as a record-typed prop default does.
+            RecordLoweringState record_state{state.context.source_map, state.context.file,
+                                             std::nullopt, &state.names};
+            ir::ExprPtr lowered =
+                lower_record_value(record_state, *value->expr, *record, *state.context.records);
+            if (!lowered) {
+                if (!state.error && record_state.error) {
+                    state.error = std::move(record_state.error);
+                }
+                if (!state.error) {
+                    fail_node(state, "TESSERA_IR_RECORD_VALUE",
+                              "the `value` of a `<" + element.tag + ">` provider does not lower",
+                              value->span);
+                }
+                return std::nullopt;
+            }
+            node.provider_value = std::move(lowered);
+        } else {
+            ir::ExprPtr lowered = lower_node_expression(state, *value->expr);
+            if (!lowered) {
+                return std::nullopt;
+            }
+            node.provider_value = std::move(lowered);
+        }
+        // The provider wrapper's children are the provided subtree: any elements, in order —
+        // `Multiple` semantics, but built directly because a provider has no schema row to read
+        // the children kind from.
+        std::vector<ChildItem> items;
+        if (!flatten_children(state, element, items, false)) {
+            return std::nullopt;
+        }
+        if (!append_runs_and_elements(state, items, node)) {
+            return std::nullopt;
+        }
+        return node;
+    }
     if (info->is_component) {
         node.component = info->component_id;
         if (!lower_component_attributes(state, element, *info, node)) {

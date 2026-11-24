@@ -5,6 +5,7 @@
 #include "tessera/compiler/jsx/module_ast.hpp"
 #include "tessera/compiler/rules/arrow_role.hpp"
 #include "tessera/compiler/rules/behavior_info.hpp"
+#include "tessera/compiler/rules/context_info.hpp"
 #include "tessera/compiler/rules/effect_info.hpp"
 #include "tessera/compiler/rules/environment_info.hpp"
 #include "tessera/compiler/rules/reducer_info.hpp"
@@ -31,6 +32,10 @@ struct ComponentAnalysis {
     // ADR-066 item 4: `useReducer` statements in their accepted form, in body order. A rejected
     // one is a diagnostic and contributes no entry.
     std::vector<ReducerInfo> reducers;
+    // ADR-066 item 5 (issue #802): `useContext` statements in their accepted form, in body order.
+    // A rejected one is a diagnostic and contributes no entry. The contexts themselves are
+    // module-scope, so they live on AnalyzedModule.
+    std::vector<ContextUseInfo> context_uses;
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

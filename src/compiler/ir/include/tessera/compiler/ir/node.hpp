@@ -60,6 +60,13 @@ struct Node {
     std::map<std::string, ExprPtr> style;
     std::map<std::string, std::string> events; // event name -> bind:: or handler:: id
     ExprPtr text;
+    // ADR-066 item 5 (issue #802): a `<Ctx.Provider value={...}>` element. The name is the
+    // module-scope context const the tag spells (`ThemeContext`); the value is the provider's
+    // expression, a pure function of its component's props and state, which the generated base
+    // evaluates and pushes to every consumer instance below it. Both stay empty on every other
+    // node.
+    std::string provider;
+    ExprPtr provider_value;
     std::vector<Node> children;
     ExprPtr condition;
     std::optional<Loop> loop;

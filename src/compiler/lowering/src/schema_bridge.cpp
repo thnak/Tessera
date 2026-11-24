@@ -150,6 +150,21 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                   element.span);
         return std::nullopt;
     }
+    // ADR-066 item 5 (issue #802): `<Ctx.Provider>` is a provider wrapper when `Ctx` names a
+    // module-scope `createContext` const. The node is a View wrapper in the IR — the generated
+    // base evaluates the provider's value and pushes it to the consumers below — with the
+    // provider fields naming the context. A `Provider` suffix on a name that is not a context
+    // keeps the ordinary resolution, which reports the unknown tag.
+    if (const std::size_t dot = element.tag.find('.');
+        dot != std::string::npos && element.tag.substr(dot + 1) == "Provider") {
+        const std::string context_name(element.tag.substr(0, dot));
+        if (state.context.analyzed != nullptr &&
+            state.context.analyzed->find_context(context_name) != nullptr) {
+            ElementInfo info;
+            info.provider = context_name;
+            return info;
+        }
+    }
     // ADR-066 item 1: `StrictMode` and `Profiler` are pass-through wrappers. There is no
     // development double-render and no profiler in this model, so the element contributes nothing
     // of its own and its children are spliced where it stood, exactly as a fragment's are.
@@ -183,7 +198,7 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                       element.tag_span);
             return std::nullopt;
         }
-        return ElementInfo{row, *kind, false, {}};
+        return ElementInfo{row, *kind, false, {}, {}, {}, {}, {}};
     }
     if (const schema::AliasRow* alias = schema::find_alias(element.tag); alias != nullptr) {
         // ADR-039 decision 3, html-aliases.md section 6: an unsupported row (the ADR-059 `planned`
@@ -212,9 +227,9 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                       element.tag_span);
             return std::nullopt;
         }
-        return ElementInfo{row,       *kind,         false,
-                           {},        alias->inject, schema::alias_style_defaults(alias->tag),
-                           alias->tag};
+        return ElementInfo{
+            row,        *kind, false, {}, alias->inject, schema::alias_style_defaults(alias->tag),
+            alias->tag, {}};
     }
     for (const ComponentRef& reference : state.context.component_refs) {
         if (reference.name == element.tag) {

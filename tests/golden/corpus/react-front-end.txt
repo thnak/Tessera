@@ -1,25 +1,22 @@
 corpus: 52 file(s)
-front end accepted: 41 (78.8%), 11 rejected
-front end accepted with a component declaration: 41 (78.8%)
-pipeline accepted: 31 (59.6%)
+front end accepted: 42 (80.8%), 10 rejected
+front end accepted with a component declaration: 42 (80.8%)
+pipeline accepted: 32 (61.5%)
 warnings: 2
 
 front-end rejections (code, occurrences, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5 5
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
   TESSERA_JSX_SUBSET_DOM 1 1
-  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1 1
   TESSERA_JSX_SUBSET_MUTATION 1 1
   TESSERA_REACT_EFFECT_DEPS 1 1
   TESSERA_REACT_HOOK_ORDER 1 1
   TESSERA_REACT_UNKNOWN_HOOK 1 1
-  TESSERA_REACT_UNSUPPORTED_API 1 1
 
 front-end first rejections (code, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
-  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
@@ -33,7 +30,6 @@ pipeline rejections (first blocking code, files):
   TESSERA_IR_UNRESOLVED 1
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
-  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
@@ -73,7 +69,7 @@ files:
   rejected react/handlers/handler-loop.tsx components=1: TESSERA_JSX_SUBSET_MUTATION pipeline=TESSERA_JSX_SUBSET_MUTATION
   rejected react/hooks/hook-order.tsx components=1: TESSERA_REACT_HOOK_ORDER pipeline=TESSERA_REACT_HOOK_ORDER
   accepted react/hooks/use-callback.tsx components=1 pipeline=ok
-  rejected react/hooks/use-context.tsx components=2: TESSERA_JSX_SUBSET_DYNAMIC_TAG TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_JSX_SUBSET_DYNAMIC_TAG
+  accepted react/hooks/use-context.tsx components=2 pipeline=ok
   accepted react/hooks/use-effect-cleanup.tsx components=1 pipeline=ok
   rejected react/hooks/use-effect-no-deps.tsx components=1: TESSERA_REACT_EFFECT_DEPS pipeline=TESSERA_REACT_EFFECT_DEPS
   accepted react/hooks/use-id.tsx components=1 pipeline=ok

@@ -2351,7 +2351,7 @@ target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
 
-# ADR-066 item 4: the `useReducer` lowering ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â one state cell, one handler per case, and a
+# ADR-066 item 4: the `useReducer` lowering: one state cell, one handler per case, and a
 # `dispatch({ type: "x" })` that becomes a `Dispatch` action.
 add_executable(lowering_reducer_tests
     lowering_reducer_tests.cpp)
@@ -2392,6 +2392,14 @@ add_executable(parse_number_or_tests
 target_link_libraries(parse_number_or_tests PRIVATE tessera_scene)
 
 add_test(NAME parse_number_or COMMAND parse_number_or_tests)
+# Issue #802: the static context form. The rules/lowering half; `codegen_context_runtime` covers
+# the generated C++ (the provider push and the default fallback).
+add_executable(lowering_context_tests
+    lowering_context_tests.cpp)
+
+target_link_libraries(lowering_context_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_context COMMAND lowering_context_tests)
 
 add_executable(lowering_control_reject_tests
     lowering_control_reject_tests.cpp)

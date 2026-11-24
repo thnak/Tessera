@@ -97,7 +97,7 @@ agree. `hash` stays the hash of the file bytes — it identifies the source file
 | `effects` | Effect[] | no | `useEffect`. An Effect has `id`, `deps`, `handler` (binding id), `source`, and an optional `cleanup` (binding id of the cleanup handler; it runs before the effect runs again and on unmount) |
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
-| `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
+| `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1), and `useContext` (ADR-066 item 5, issue #802). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme`, `breakpoint` or `context:<CtxName>` for a static context), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1). A `context:` provider's value is not host-pushed: the providing ancestor pushes it, and a consumer under no provider reads the context's default |
 | `services` | Service[] | no | ADR-050 section 3.1 (`useService<T>()`). Additive and omitted when empty. A Service has `id` (`svc::<name>`), `name` (the TSX binding the generated accessor is named after), `type` (the C++ service interface, fully qualified, from the project's service manifest), `header` (the header declaring `type`) and `source`. Codegen resolves each entry once at mount; `service<T>()` for a `T` not in this list is `TESSERA_CG_SERVICE_UNDECLARED` |
 | `root` | Node | yes | Exactly one root node |
 
@@ -244,6 +244,8 @@ declares no record writes exactly the bytes it wrote before this section existed
 | `condition` | Expr/null | no | Static conditional; V1 bool expression (never a template or a non-bool literal) |
 | `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
 | `itemTemplate` | Node/null | for `VirtualList`/`VirtualGrid` | The static item template of a virtual collection (section 3.5) |
+| `provider` | string | no | ADR-066 item 5 (issue #802): the module-scope context a `<Ctx.Provider>` provides. The node is a wrapper whose children are the provided subtree |
+| `providerValue` | Expr/null | only with `provider` | The provided value, a pure expression of its component's props and state. A record-typed context makes this a record value (section 4.3) |
 
 Node kinds are closed in V1; the list above, with `Component` and `Slot` (section 3.4), is the complete list.
 A reference to a project or library component is a `Component` node; there is no dynamic

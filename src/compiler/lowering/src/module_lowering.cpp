@@ -355,7 +355,8 @@ finish(ProjectState& state, std::string_view module_name, const TypeNameTable* t
                                               types,
                                               records,
                                               anonymous_records,
-                                              entry.css_modules};
+                                              entry.css_modules,
+                                              source.analysis};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
                 if (!state.error && !component.error().empty()) {

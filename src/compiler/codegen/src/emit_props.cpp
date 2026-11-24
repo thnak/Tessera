@@ -11,6 +11,7 @@
 #include "value_ops.hpp"
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -377,10 +378,17 @@ bool build_value_guard(CppWriter& out, const PropBinding& binding, const ir::Com
 
 } // namespace
 
-bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
-                      std::span<const ir::RecordType> records, const DirtyPlan& dirty,
-                      const std::vector<ComponentInstance>& instances, std::string& error) {
-    bool any = false;
+bool emit_apply_props_with_context(CppWriter& writer, const ir::Component& owner,
+                                   const ir::IrModule& module,
+                                   std::span<const ir::RecordType> records, const DirtyPlan& dirty,
+                                   const std::vector<ComponentInstance>& instances,
+                                   std::string& error) {
+    // ADR-066 item 5 (issue #802): the provider push (emit_provider_push.cpp) runs first, then the
+    // prop assignments. A provider push alone is enough to need the pass: a component whose
+    // instance takes no props still provides its context value to that instance.
+    std::map<std::string, const ir::Node*> provided;
+    const bool provides = collect_providers(owner, provided);
+    bool any = provides;
     for (const ComponentInstance& instance : instances) {
         any = any || !instance.props.empty();
     }
@@ -388,6 +396,9 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
         return true;
     }
     writer.open("void " + owner.name + "::apply_props()");
+    if (!emit_provider_pushes(writer, owner, module, provided, instances, error)) {
+        return false;
+    }
     for (const ComponentInstance& instance : instances) {
         if (instance.in_template()) {
             continue; // a per-item instance's props are set by its item builder/content pass
@@ -471,6 +482,16 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
     writer.close("");
     writer.line("");
     return true;
+}
+
+bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
+                      std::span<const ir::RecordType> records, const DirtyPlan& dirty,
+                      const std::vector<ComponentInstance>& instances, std::string& error) {
+    // No provider push: the caller has no module here. Every component pass in this slice calls
+    // `emit_apply_props_with_context`; this form stays for callers outside the component pass.
+    static const ir::IrModule empty_module;
+    return emit_apply_props_with_context(writer, owner, empty_module, records, dirty, instances,
+                                         error);
 }
 
 } // namespace tessera::compiler::codegen::internal

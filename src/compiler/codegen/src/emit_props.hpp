@@ -62,6 +62,31 @@ enum class PropGuard : std::uint8_t { None, Value, Callback };
                                     const std::vector<ComponentInstance>& instances,
                                     std::string& error);
 
+// ADR-066 item 5 (issue #802): the same walk, plus the provider push — for every instance whose
+// component consumes a context this component provides, `apply_props()` pushes the provider's
+// value into that instance's consumer setter. `module` resolves the instance's component to its
+// `context:` environment entries.
+[[nodiscard]] bool emit_apply_props_with_context(CppWriter& writer, const ir::Component& owner,
+                                                 const ir::IrModule& module,
+                                                 std::span<const ir::RecordType> records,
+                                                 const DirtyPlan& dirty,
+                                                 const std::vector<ComponentInstance>& instances,
+                                                 std::string& error);
+
+// ADR-066 item 5 (issue #802): the provider nodes of one component's tree, by context name
+// (`emit_provider_push.cpp`). False when the component provides no context.
+[[nodiscard]] bool collect_providers(const ir::Component& owner,
+                                     std::map<std::string, const ir::Node*>& out);
+
+// The provider half of `apply_props()`: one push per instance under a provider of a context it
+// consumes, into the instance's consumer setter. Emits nothing when the component provides no
+// context.
+[[nodiscard]] bool emit_provider_pushes(CppWriter& writer, const ir::Component& owner,
+                                        const ir::IrModule& module,
+                                        const std::map<std::string, const ir::Node*>& provided,
+                                        const std::vector<ComponentInstance>& instances,
+                                        std::string& error);
+
 // One per-item instance's props (docs/design/compiler-node-state.md section 3). `record` names the
 // item record (`tessera_out`) and `field` the instance field in it (`tessera_out.child_7`).
 // `initial` emits the values the instance is built with (no guard; a callback lambda is bound once

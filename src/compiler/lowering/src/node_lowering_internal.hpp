@@ -65,6 +65,10 @@ struct ElementInfo {
     // The lowercase tag the element was written as (`h1`); becomes the `tag` prop so a type
     // selector can match it (issue #610). Empty for every other element.
     std::string_view alias_tag = {};
+    // ADR-066 item 5 (issue #802): the module-scope context this `<Ctx.Provider>` provides, or
+    // empty for every other element. The node lowering copies it to `Node::provider` and lowers
+    // the `value` attribute to `Node::provider_value`.
+    std::string provider;
     // ADR-066 item 1: `StrictMode` and `Profiler` are pass-through wrappers with no node of their
     // own, so their children are spliced where the element stood (like a fragment's). Every other
     // element builds a node.
