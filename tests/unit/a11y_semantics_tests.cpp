@@ -261,7 +261,8 @@ bool collection_position_from_source() {
     StubStyles styles;
     A11ySnapshot snapshot;
     BuildOptions options;
-    options.collection_position = [](NodeId id) -> std::optional<tessera::ui::a11y::CollectionPosition> {
+    options.collection_position =
+        [](NodeId id) -> std::optional<tessera::ui::a11y::CollectionPosition> {
         if (id == 2) {
             return tessera::ui::a11y::CollectionPosition{.set_size = 40, .pos_in_set = 3};
         }
