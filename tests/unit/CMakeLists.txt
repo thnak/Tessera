@@ -2518,6 +2518,16 @@ target_link_libraries(paint_cull_tests PRIVATE
 
 add_test(NAME paint_cull COMMAND paint_cull_tests)
 
+# The cache half of the cull rules (issue #257), split from paint_cull_tests for the size limit.
+add_executable(paint_cull_records_tests
+    paint_cull_records_tests.cpp)
+
+target_link_libraries(paint_cull_records_tests PRIVATE
+    tessera_paint
+    tessera_software)
+
+add_test(NAME paint_cull_records COMMAND paint_cull_records_tests)
+
 # The paint side of layout's text-fit hint (issue #490): `Node::text_fits_box` lets the paint-pass cull
 # bound a plain-text payload by its box, so a fitting text node outside the rect is skipped and counted.
 # Every payload paint adds on top of the plain text layout measured (spans, decoration, `max_lines`, a

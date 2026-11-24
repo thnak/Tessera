@@ -1417,6 +1417,7 @@ function include/tessera/rendering/redraw_plan.hpp tessera::rendering::should_fu
 header include/tessera/rendering/rhi/device.hpp
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::Buffer
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::CommandList
+class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::ComputePipeline
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::Device
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::Pipeline
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::RenderTarget
@@ -1447,6 +1448,7 @@ constant include/tessera/rendering/rhi/timestamp.hpp tessera::rendering::rhi::kM
 header include/tessera/rendering/rhi/types.hpp
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::BufferDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::Color
+struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::ComputePipelineDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::DeviceDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::Extent2D
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::Mat3
@@ -1477,6 +1479,7 @@ function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::is_srg
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::is_supported_sample_count
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::rgba8
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::valid_texture_levels
+constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kMaxComputeStorageBuffers
 constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kMemoryCategoryCount
 constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kSampleCount1
 constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kSampleCount4
@@ -1502,7 +1505,9 @@ header include/tessera/rendering/vulkan/storage_probe_pipeline.hpp
 function include/tessera/rendering/vulkan/storage_probe_pipeline.hpp tessera::rendering::vulkan::storage_probe_pipeline_desc
 
 header include/tessera/rendering/vulkan/vulkan_device.hpp
+struct include/tessera/rendering/vulkan/vulkan_device.hpp tessera::rendering::vulkan::TextureCreateTimings
 function include/tessera/rendering/vulkan/vulkan_device.hpp tessera::rendering::vulkan::create_vulkan_device
+function include/tessera/rendering/vulkan/vulkan_device.hpp tessera::rendering::vulkan::texture_create_timings
 
 header include/tessera/rendering/vulkan/vulkan_device_info.hpp
 struct include/tessera/rendering/vulkan/vulkan_device_info.hpp tessera::rendering::vulkan::VulkanDeviceInfo
@@ -2234,10 +2239,11 @@ constant include/tessera/ui/forms/form_types.hpp tessera::ui::forms::kInvalidFie
 
 header include/tessera/ui/frame_interpolation.hpp
 class include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::InterpolationPaintView
+class include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::PaintSamples
 struct include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::PaintSample
-alias include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::PaintSamples
 function include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::capture_paint_sample
 function include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::interpolate_paint_samples
+function include/tessera/ui/frame_interpolation.hpp tessera::ui::frame::interpolate_paint_samples_into
 
 header include/tessera/ui/frame_pipeline.hpp
 class include/tessera/ui/frame_pipeline.hpp tessera::runtime::RuntimeLoop
@@ -2453,6 +2459,7 @@ struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushTransfor
 alias include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientPayload
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::extend_paint_clip_hash
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::replay_paint_ops
+function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::same_paint_signature
 constant include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::kPaintClipHashSeed
 
 header include/tessera/ui/paint/paint_pass.hpp
@@ -2496,6 +2503,13 @@ header include/tessera/ui/paint/scene_style_sync.hpp
 struct include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::SceneStyleSyncResult
 function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style
 function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style_scoped
+
+header include/tessera/ui/paint/subtree_paint_cache.hpp
+class include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreePaintCache
+struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreePaintCacheConfig
+struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreePaintCacheStats
+struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreeRecord
+struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreeStatsDelta
 
 header include/tessera/ui/paint/text_layout_cache.hpp
 class include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCache

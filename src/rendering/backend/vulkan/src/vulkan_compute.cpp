@@ -5,7 +5,6 @@
 // buffer is one descriptor write and a frame records no descriptor allocation.
 
 #include "vulkan_compute.hpp"
-
 #include "vulkan_scope_guard.hpp"
 
 #include <cstdint>
@@ -55,7 +54,8 @@ VulkanDevice::create_compute_pipeline(const rhi::ComputePipelineDesc& desc) {
     if (desc.spirv == nullptr || desc.spirv_size == 0 || desc.spirv_size % 4 != 0) {
         throw std::invalid_argument("create_compute_pipeline: SPIR-V is empty or not word-sized");
     }
-    if (desc.storage_buffer_count == 0 || desc.storage_buffer_count > rhi::kMaxComputeStorageBuffers ||
+    if (desc.storage_buffer_count == 0 ||
+        desc.storage_buffer_count > rhi::kMaxComputeStorageBuffers ||
         desc.storage_buffer_count > storage_buffer_capacity_) {
         throw std::invalid_argument("create_compute_pipeline: storage_buffer_count " +
                                     std::to_string(desc.storage_buffer_count) + " is out of range");
@@ -96,7 +96,8 @@ VulkanDevice::create_compute_pipeline(const rhi::ComputePipelineDesc& desc) {
     VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
     check_vk(vkCreateDescriptorSetLayout(device_, &set_layout_info, nullptr, &set_layout),
              "vkCreateDescriptorSetLayout(compute)");
-    ScopeGuard set_layout_guard([&] { vkDestroyDescriptorSetLayout(device_, set_layout, nullptr); });
+    ScopeGuard set_layout_guard(
+        [&] { vkDestroyDescriptorSetLayout(device_, set_layout, nullptr); });
 
     VkDescriptorPoolSize pool_size{};
     pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -144,8 +145,9 @@ VulkanDevice::create_compute_pipeline(const rhi::ComputePipelineDesc& desc) {
     pipeline_info.stage.pName = "main";
     pipeline_info.layout = layout;
     VkPipeline pipeline = VK_NULL_HANDLE;
-    check_vk(vkCreateComputePipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline),
-             "vkCreateComputePipelines");
+    check_vk(
+        vkCreateComputePipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline),
+        "vkCreateComputePipelines");
     ScopeGuard pipeline_guard([&] { vkDestroyPipeline(device_, pipeline, nullptr); });
 
     resource_created();
@@ -194,10 +196,9 @@ void VulkanCommandList::bind_compute_buffer(std::uint32_t slot, const rhi::Buffe
         throw std::logic_error("bind_compute_buffer: missing compute pipeline");
     }
     if (slot >= compute_pipeline_->storage_buffer_count()) {
-        throw std::invalid_argument("bind_compute_buffer: slot " + std::to_string(slot) +
-                                    " is outside the pipeline's " +
-                                    std::to_string(compute_pipeline_->storage_buffer_count()) +
-                                    " storage buffers");
+        throw std::invalid_argument(
+            "bind_compute_buffer: slot " + std::to_string(slot) + " is outside the pipeline's " +
+            std::to_string(compute_pipeline_->storage_buffer_count()) + " storage buffers");
     }
     if (storage.size() == 0) {
         throw std::invalid_argument("bind_compute_buffer: an empty buffer cannot be bound");

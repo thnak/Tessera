@@ -72,11 +72,12 @@ namespace tessera::rendering::rhi {
 // issue #671). The default is false, which is the answer for every pipeline created without
 // `PipelineDesc::storage_buffer`, so no existing backend or caller changes.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-// 1.16 (2026-11-24): additive compute (issue #683, ADR-071): `ComputePipelineDesc`/`ComputePipeline`,
-// `BufferDesc::gpu_read_write`, `CommandList::bind_compute_pipeline`/`bind_compute_buffer`/
+// 1.16 (2026-11-24): additive compute (issue #683, ADR-071):
+// `ComputePipelineDesc`/`ComputePipeline`, `BufferDesc::gpu_read_write`,
+// `CommandList::bind_compute_pipeline`/`bind_compute_buffer`/
 // `compute_push_constants`/`dispatch`/`compute_barrier`/`copy_buffer` and the capability that gates
-// them, `Device::supports_compute()`. Every new virtual has a default (false / throws), so no existing
-// backend or caller changes; a backend answering false keeps its CPU path.
+// them, `Device::supports_compute()`. Every new virtual has a default (false / throws), so no
+// existing backend or caller changes; a backend answering false keeps its CPU path.
 inline constexpr std::uint32_t kRhiVersionMinor = 16;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 

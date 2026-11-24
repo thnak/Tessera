@@ -47,7 +47,8 @@ void VulkanBuffer::write(const void* data, std::size_t size, std::size_t offset)
     if (usage_ == rhi::BufferUsage::Storage) {
         // A gpu_read_write storage buffer lives in device memory (RHI 1.16): mapping it would be a
         // validation error, so refuse it here with the documented exception.
-        throw std::runtime_error("VulkanBuffer::write: a gpu_read_write buffer is not host-mappable");
+        throw std::runtime_error(
+            "VulkanBuffer::write: a gpu_read_write buffer is not host-mappable");
     }
 
     void* mapped = nullptr;
@@ -66,7 +67,8 @@ void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const 
         return;
     }
     if (usage_ == rhi::BufferUsage::Storage) {
-        throw std::runtime_error("VulkanBuffer::read: a gpu_read_write buffer is not host-mappable");
+        throw std::runtime_error(
+            "VulkanBuffer::read: a gpu_read_write buffer is not host-mappable");
     }
 
     void* mapped = nullptr;

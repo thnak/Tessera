@@ -266,7 +266,8 @@ public:
         throw std::runtime_error("compute_push_constants: this backend has no compute");
     }
     // Runs `x * y * z` workgroups. Each count must be non-zero and within the device's limit
-    // (65535 on every device this RHI targets); a zero or larger count throws std::invalid_argument.
+    // (65535 on every device this RHI targets); a zero or larger count throws
+    // std::invalid_argument.
     virtual void dispatch(std::uint32_t /*x*/, std::uint32_t /*y*/, std::uint32_t /*z*/) {
         throw std::runtime_error("dispatch: this backend has no compute");
     }
@@ -392,8 +393,8 @@ public:
     virtual std::unique_ptr<RenderTarget> create_render_target(const RenderTargetDesc& desc) = 0;
     virtual std::unique_ptr<CommandList> create_command_list() = 0;
 
-    // RHI 1.16 (issue #683): compute pipelines, read/write storage buffers and the dispatch calls on
-    // `CommandList`. The only authority on the capability; false means `create_compute_pipeline`
+    // RHI 1.16 (issue #683): compute pipelines, read/write storage buffers and the dispatch calls
+    // on `CommandList`. The only authority on the capability; false means `create_compute_pipeline`
     // throws std::runtime_error and a caller keeps its CPU path.
     [[nodiscard]] virtual bool supports_compute() const {
         return false;

@@ -308,7 +308,7 @@ struct BufferDesc {
 // read/write storage buffers at bindings 0..count-1, bound with `bind_compute_buffer`.
 struct ComputePipelineDesc {
     const std::uint32_t* spirv = nullptr;
-    std::size_t spirv_size = 0; // bytes
+    std::size_t spirv_size = 0;             // bytes
     std::uint32_t storage_buffer_count = 0; // 1..kMaxComputeStorageBuffers
     std::uint32_t push_constant_size = 0;   // bytes, a multiple of 4
 };

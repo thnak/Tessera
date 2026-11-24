@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
-// RHI 1.16 compute (issue #683): a dispatch writes a device-memory storage buffer, a barrier orders a
-// second dispatch after it, a buffer copy reads the result back, and every misuse is rejected
+// RHI 1.16 compute (issue #683): a dispatch writes a device-memory storage buffer, a barrier orders
+// a second dispatch after it, a buffer copy reads the result back, and every misuse is rejected
 // instead of reaching the driver. The null backend answers supports_compute() false and its
 // create_compute_pipeline throws. Skips without a Vulkan device.
 
@@ -38,7 +38,7 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
-template <typename F> bool throws(F&& call) {
+template<typename F> bool throws(F&& call) {
     try {
         call();
     } catch (const std::exception&) {
@@ -60,7 +60,8 @@ bool check_null_backend() {
     return expect(!device->supports_compute(), "the null backend has no compute") &&
            expect(throws([&] { (void)device->create_compute_pipeline(compute); }),
                   "create_compute_pipeline throws without the capability") &&
-           expect(throws([&] { list->dispatch(1, 1, 1); }), "dispatch throws without the capability");
+           expect(throws([&] { list->dispatch(1, 1, 1); }),
+                  "dispatch throws without the capability");
 }
 
 bool check_vulkan(Device& device) {
@@ -83,7 +84,10 @@ bool check_vulkan(Device& device) {
     const auto out_buffer = device.create_buffer(out_desc);
     const auto readback = device.create_buffer({bytes, BufferUsage::Readback});
 
-    if (!expect(throws([&] { std::uint32_t word = 0; out_buffer->read(&word, 4); }),
+    if (!expect(throws([&] {
+                    std::uint32_t word = 0;
+                    out_buffer->read(&word, 4);
+                }),
                 "a gpu_read_write buffer is not host-readable")) {
         return false;
     }
