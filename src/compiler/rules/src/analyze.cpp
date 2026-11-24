@@ -31,6 +31,12 @@ const ComponentAnalysis* AnalyzedModule::find_component(std::size_t item_index) 
     return found == components.end() ? nullptr : &*found;
 }
 
+const ContextInfo* AnalyzedModule::find_context(std::string_view name) const {
+    const auto found = std::find_if(contexts.begin(), contexts.end(),
+                                    [&](const ContextInfo& info) { return info.name == name; });
+    return found == contexts.end() ? nullptr : &*found;
+}
+
 const jsx::HookManifest& builtin_hook_manifest() {
     // Parsed once, on first use. The manifest is embedded at build time, so this is a pure function
     // of the build; a failure yields an empty manifest rather than a half-read one.
@@ -50,6 +56,10 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
     const jsx::HookManifest& hooks = manifest != nullptr ? *manifest : builtin_hook_manifest();
     jsx::DiagnosticSink sink(map, limits);
     AnalyzedModule result;
+    // ADR-066 item 5 (issue #802) first: the module's `createContext` consts, so every
+    // component's `useContext` check can name them.
+    check_module_contexts(module, result, sink);
+    const std::vector<ContextInfo>& contexts = result.contexts;
     for (std::size_t index = 0; index < module.items.size(); ++index) {
         const jsx::ModuleItem& item = module.items[index];
         if (item.kind != jsx::ItemKind::Component) {
@@ -64,7 +74,9 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
             continue;
         }
         Context ctx{item, analysis, sink, hooks, module, call_sites};
+        ctx.module_contexts = &contexts;
         check_hooks(ctx);
+        check_contexts(ctx);
         classify_arrows(ctx);
         check_effect_deps(ctx);
         check_memo_deps(ctx);

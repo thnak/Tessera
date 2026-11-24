@@ -29,7 +29,7 @@ TESSERA_JSX_SUBSET_ASYNC	subset-async	`await` is not supported
 TESSERA_JSX_SUBSET_CALL	subset-call	`.map` callback body must be a single JSX element, not a block or another value
 TESSERA_JSX_SUBSET_CLASS	subset-class	`new` is not supported
 TESSERA_JSX_SUBSET_DOM	subset-dom	`dangerouslySetInnerHTML` is not supported
-TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member and namespace tags (`<A.B>`) are not supported
+TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member tags (`<A.B>`) are not supported
 TESSERA_JSX_SUBSET_FUNCTION_VALUE	subset-function-value	`function` is not supported
 TESSERA_JSX_SUBSET_IMPORT	subset-import	`export default` is not supported for this form
 TESSERA_JSX_SUBSET_LITERAL	subset-literal	computed object keys are not supported
@@ -46,6 +46,7 @@ TESSERA_JSX_TYPE_NUMBER	type-number	bare `number` is not a Tessera type
 TESSERA_REACT_BIND_ID	react-bind-id	malformed bind id `Foo`
 TESSERA_REACT_BIND_MISSING	react-bind-missing	handler `f` has no `// Note: bind::<id>` annotation and its body is not made of setter calls only
 TESSERA_REACT_BIND_POSITION	react-bind-position	`bind::` annotations go before a handler declaration or a `useEffect` statement inside a component
+TESSERA_REACT_CONTEXT_FORM	react-context-form	`Ctx` is not a context declared in this module
 TESSERA_REACT_CUSTOM_HOOK	react-custom-hook	custom hook `useThing` is not supported
 TESSERA_REACT_EFFECT_DEPS	react-effect-deps	`useEffect` needs a dependency array (V1 dependencies are exact)
 TESSERA_REACT_EFFECT_RETURN	react-effect-return	the final `return` of an effect must return a cleanup arrow function

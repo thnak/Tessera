@@ -66,6 +66,8 @@ field	ir	ir-v1::3. Node::key	string/int/null/Expr	no	-
 field	ir	ir-v1::3. Node::kind	string	yes	-
 field	ir	ir-v1::3. Node::loop	Loop/null	no	-
 field	ir	ir-v1::3. Node::props	object	no	-
+field	ir	ir-v1::3. Node::provider	string	no	-
+field	ir	ir-v1::3. Node::providerValue	Expr/null	no	-
 field	ir	ir-v1::3. Node::source	SourceSpan	yes	-
 field	ir	ir-v1::3. Node::style	object	no	-
 field	ir	ir-v1::3. Node::text	Expr/null	no	-

@@ -6,6 +6,7 @@
 
 #include "expression_lowering_internal.hpp"
 #include "hook_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/compiler/jsx/hook_manifest.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
@@ -303,6 +304,86 @@ void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& o
             return;
         }
         env.argument = std::move(*lowered);
+    }
+    out.environment.push_back(std::move(env));
+}
+
+// ADR-066 item 5 (issue #802): one `const theme = useContext(ThemeContext);` call. The IR carries
+// it as an environment entry whose provider is `context:<CtxName>` — a namespace the engine
+// providers never use — so the generated base can tell a compile-time context value from a
+// host-pushed one. The type is the context's declared one; the default is the `createContext`
+// value, which the consumer with no ancestor provider falls back to (the owner's decision).
+void lower_context_use(HookState& state, std::size_t index, LoweredHooks& out,
+                       const NameResolver& names) {
+    const HookLoweringContext& context = state.context;
+    const jsx::Statement& statement = context.component.body[index];
+    const rules::ContextUseInfo* info = nullptr;
+    for (const rules::ContextUseInfo& candidate : context.analysis.context_uses) {
+        if (candidate.statement == index) {
+            info = &candidate;
+            break;
+        }
+    }
+    if (info == nullptr || context.analyzed == nullptr) {
+        fail_hook(state, "TESSERA_IR_MALFORMED",
+                  "the analysis did not classify this `useContext` call", statement.span);
+        return;
+    }
+    const rules::ContextInfo* declared = context.analyzed->find_context(info->context);
+    if (declared == nullptr) {
+        fail_hook(state, "TESSERA_IR_MALFORMED",
+                  "`" + info->context + "` is not a context of this module", statement.span);
+        return;
+    }
+    ir::Environment env;
+    env.id = prefixed("env::", info->name);
+    env.name = info->name;
+    env.provider = "context:" + declared->name;
+    env.type = declared->ir_type;
+    env.writable = false;
+    env.source = to_source_span(context.source_map, statement.span, context.file);
+    // The `createContext` default: the value a consumer reads when no ancestor provider resolves.
+    // A record-typed default is an object literal that lowers to an `ir::Record` — the same rule a
+    // prop default follows (ADR-051 slice 3) — and a primitive default is an ordinary expression.
+    if (declared->default_value != nullptr) {
+        const ir::RecordType* record = nullptr;
+        if (context.records != nullptr) {
+            if (const std::optional<std::string_view> name =
+                    record_name_of(*context.records, declared->ir_type)) {
+                record = find_record(*context.records, *name);
+            }
+        }
+        if (record != nullptr) {
+            if (declared->default_value->kind != jsx::ExprKind::Object) {
+                fail_hook(state, "TESSERA_IR_RECORD_VALUE",
+                          "the default of `" + declared->name + "` is type `" + record->name +
+                              "`, so it must be an object literal",
+                          declared->span);
+                return;
+            }
+            RecordLoweringState record_state{context.source_map, context.file, std::nullopt};
+            ir::ExprPtr lowered = lower_record_value(record_state, *declared->default_value,
+                                                     *record, *context.records);
+            if (!lowered) {
+                if (!state.error && record_state.error) {
+                    state.error = std::move(record_state.error);
+                }
+                if (!state.error) {
+                    fail_hook(state, "TESSERA_IR_RECORD_VALUE",
+                              "the default of `" + declared->name + "` does not lower",
+                              declared->span);
+                }
+                return;
+            }
+            env.argument = std::move(*lowered);
+        } else {
+            ir::ExprPtr lowered =
+                lower_component_expression(state, *declared->default_value, names);
+            if (!lowered) {
+                return;
+            }
+            env.argument = std::move(*lowered);
+        }
     }
     out.environment.push_back(std::move(env));
 }

@@ -4,6 +4,8 @@
 
 #include "validate_internal.hpp"
 
+#include <map>
+#include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
@@ -310,7 +312,17 @@ void validate_component(ValidationContext& context, const Component& component) 
     // Declarations first: later passes resolve references against them.
     checker.check_declarations();
     checker.check_handlers();
-    validate_node_tree(context, checker.scope, component.root);
+    // ADR-066 item 5 (issue #802): a provider node's value has the type of the context it
+    // provides, so a record-typed context makes the position a record-value position. The
+    // component's `environment[]` entries carry the types (the environment is the consumer's IR
+    // form), so the map is built here, where they are declared.
+    std::map<std::string, std::string> provider_types;
+    for (const auto& env : component.environment) {
+        if (env.provider.rfind("context:", 0) == 0) {
+            provider_types.emplace(env.provider.substr(8), env.type);
+        }
+    }
+    validate_node_tree(context, checker.scope, component.root, provider_types);
     checker.check_effects_and_refs();
 }
 

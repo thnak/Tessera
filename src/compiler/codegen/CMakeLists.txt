@@ -55,6 +55,7 @@ add_library(tessera_codegen STATIC
     src/emit_node_behavior.cpp
     src/emit_node_support.cpp
     src/emit_props.cpp
+    src/emit_provider_push.cpp
     src/emit_virtual.cpp
     src/emit_virtual_geometry.cpp
     src/emit_virtual_scroll.cpp
@@ -1548,6 +1549,17 @@ if (TESSERA_BUILD_TESTS)
         tessera_codegen)
 
     add_test(NAME codegen_environment COMMAND codegen_environment_tests)
+
+    # ADR-066 item 5 (issue #802): the static context form's generated C++ â€” the consumer's
+    # environment field at the `createContext` default, its typed setter, and the provider's
+    # `apply_props()` push into the consuming instance.
+    add_executable(codegen_context_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_context_tests.cpp)
+
+    target_link_libraries(codegen_context_tests PRIVATE
+        tessera_codegen)
+
+    add_test(NAME codegen_context COMMAND codegen_context_tests)
 
     # Behavior hook codegen (docs/specs/behavior-hooks-v1.md section 9, issue #641): a component
     # that calls a behavior hook gets one `Instance` slot, the public attach/refresh/detach triple

@@ -5,6 +5,7 @@
 add_library(tessera_react_rules STATIC
     src/analyze.cpp
     src/arrows.cpp
+    src/context.cpp
     src/dependency_names.cpp
     src/effect_deps.cpp
     src/expr_walk.cpp

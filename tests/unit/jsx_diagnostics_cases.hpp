@@ -328,6 +328,15 @@ inline const std::vector<Case> kCases = {
             "  return <View/>;\n"
             "}\n",
             54, 6, 2),
+    // ADR-066 item 5 (issue #802): the static context form. `Ctx` names no module-scope context,
+    // so the argument is rejected; the span is the `Ctx` identifier (offset 31, length 15 ends
+    // after it).
+    fixture("TESSERA_REACT_CONTEXT_FORM", "react-context-form", Entry::kRules,
+            "function A() {\n"
+            "  const theme = useContext(Ctx);\n"
+            "  return <View/>;\n"
+            "}\n",
+            31, 15, 2),
     fixture("TESSERA_REACT_UNKNOWN_HOOK", "react-unknown-hook", Entry::kRules,
             "function A() {\n"
             "  const t = useNothing();\n"

@@ -66,7 +66,10 @@ inline bool is_hook_name(std::string_view name) {
 inline bool is_core_hook(std::string_view name) {
     return name == "useState" || name == "useEffect" || name == "useRef" ||
            name == "useAnimatedValue" || name == "useId" || name == "useLayoutEffect" ||
-           name == "useReducer";
+           name == "useReducer" ||
+           // ADR-066 item 5 (issue #802): `useContext` is a core hook whose form its own pass
+           // (context.cpp) checks against the module's `createContext` consts.
+           name == "useContext";
 }
 
 // True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion

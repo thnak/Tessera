@@ -75,11 +75,27 @@ bool Parser::parse_tag_name(std::string& name, Span& span) {
 
 // Issue #229, ADR-039 and ADR-059: a lowercase tag is a spelling of an intrinsic, resolved in
 // analysis against the shared alias table (html-aliases.md). The parser therefore accepts every
-// lowercase tag; only the member and namespace forms are still parse-time rejections.
+// lowercase tag. A dotted member tag parses on, but only the `<Context.Provider>` form (ADR-066
+// item 5, issue #802) is accepted; every other member or namespace tag is still reported here so
+// a rejection names the element the developer wrote.
 void Parser::check_tag_name(const std::string& name, Span span) {
-    if (name.find_first_of(".:") != std::string::npos) {
+    const std::size_t dot = name.find('.');
+    const std::size_t colon = name.find(':');
+    if (dot == std::string::npos && colon == std::string::npos) {
+        return; // a plain name
+    }
+    if (colon != std::string::npos) {
         report("TESSERA_JSX_SUBSET_DYNAMIC_TAG",
-               "member and namespace tags (`<" + excerpt(name) + ">`) are not supported", span,
+               "namespace tags (`<" + excerpt(name) + ">`) are not supported", span,
+               "use a fixed tag");
+        return;
+    }
+    // Exactly one dot, and the part after it must be `Provider`: the only member element V1
+    // accepts. `<Ctx.Provider>` is recognized by the rules pass, which also checks that `Ctx`
+    // names a context; a dotted tag whose suffix is anything else is reported here.
+    if (name.find('.', dot + 1) != std::string::npos || name.substr(dot + 1) != "Provider") {
+        report("TESSERA_JSX_SUBSET_DYNAMIC_TAG",
+               "member tags (`<" + excerpt(name) + ">`) are not supported", span,
                "use a fixed tag");
     }
 }

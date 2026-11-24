@@ -341,6 +341,10 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         // ADR-066 item 4: handled by its own pass (reducer.cpp), which needs the module's helper
         // and type aliases. Nothing is recorded here, so a rejected form reports once.
         return;
+    } else if (name == "useContext") {
+        // ADR-066 item 5: handled by its own pass (context.cpp), which needs the module's
+        // `createContext` consts. Nothing is recorded here, so a rejected form reports once.
+        return;
     } else if (name == "useRef") {
         check_ref(ctx, index, statement, call);
     } else if (name == "useMergedRefs") {
@@ -368,7 +372,10 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
 } // namespace
 
 void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span) {
-    const bool unsupported = name == "useMemo" || name == "useCallback" || name == "useContext";
+    // `useContext` is ADR-066 item 5 (its own pass, context.cpp); `useMemo`/`useCallback` stay
+    // unsupported: a `const` of a pure expression covers the memo case, and a callback is a
+    // handler.
+    const bool unsupported = name == "useMemo" || name == "useCallback";
     if (unsupported) {
         ctx.error("TESSERA_REACT_UNSUPPORTED_API",
                   "`" + std::string(name) + "` is not supported in V1", span,

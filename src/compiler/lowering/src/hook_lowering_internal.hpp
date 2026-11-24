@@ -80,6 +80,10 @@ void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out,
 // checked the form, so this turns the recorded call into an IR `environment[]` entry.
 void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out,
                             const NameResolver& names);
+// ADR-066 item 5 (issue #802): one `useContext(Ctx)` call, lowered to an environment entry whose
+// provider is `context:<Ctx>` and whose argument is the context's default value.
+void lower_context_use(HookState& state, std::size_t index, LoweredHooks& out,
+                       const NameResolver& names);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 // One `const [state, dispatch] = useReducer(reduce, initial)` in its accepted form (ADR-066 item

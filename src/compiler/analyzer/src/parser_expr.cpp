@@ -227,8 +227,13 @@ ExprPtr Parser::parse_postfix() {
         const std::uint32_t begin = expr->span.offset;
         std::vector<ExprPtr> operands;
         std::vector<TypePtr> type_args;
+        // `useX<...>(...)` hooks and `createContext<...>(...)` (ADR-066 item 5, issue #802) carry
+        // an explicit type argument, so `<` here opens the type-argument list and `parse_call_
+        // type_args` rewinds when it is not one. A `<` after any other expression is the less-than
+        // operator, which is why the callee must be one of the two names.
         const bool generic = at_punct("<") && expr->kind == ExprKind::Identifier &&
-                             expr->text.starts_with("use") && parse_call_type_args(type_args);
+                             (expr->text.starts_with("use") || expr->text == "createContext") &&
+                             parse_call_type_args(type_args);
         if (at_punct(".") || at_punct("?.")) {
             // ADR-066 item 1: `a?.b` over an `optional<T>` is accepted and lowers to a conditional
             // that yields the field or null (ir-v1-expr.md section 4). It is recorded as a Member

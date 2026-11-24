@@ -336,6 +336,10 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             // entry. The generated base derives the value from the instance identity rather than
             // receiving it from the host.
             internal::lower_environment_hook(state, index, out, names);
+        } else if (hook == "useContext") {
+            // ADR-066 item 5 (issue #802): an environment entry naming the context, so the
+            // provider walk in codegen resolves the value per instance.
+            internal::lower_context_use(state, index, out, names);
         } else if (const jsx::HookEntry* behavior = rules::builtin_hook_manifest().find(hook);
                    behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
             internal::lower_behavior_hook(state, index, out, names);

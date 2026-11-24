@@ -12,6 +12,7 @@
 #include "tessera/compiler/jsx/module_ast.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
 #include "tessera/compiler/lowering/type_alias.hpp"
+#include "tessera/compiler/rules/analyzed_module.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
 #include <cstdint>
@@ -85,6 +86,10 @@ struct HookLoweringContext {
     // Issue #463: the CSS modules this file imports, so `className={styles.title}` can resolve the
     // authored class against that file's own map. Empty when the file imports no module sheet.
     std::span<const CssModuleBinding> css_modules{};
+    // ADR-066 item 5 (issue #802): the module's `createContext` consts, so a `useContext` call can
+    // name its context's IR type, default and id. Null in the single-component entry points, where
+    // a `useContext` stays the unsupported API it was.
+    const rules::AnalyzedModule* analyzed = nullptr;
     // The component's declared prop records, lowered before its handlers and nodes so a callback
     // prop can be forwarded or called with its declared type (issue #286). Null when the props type
     // has no resolvable object type.

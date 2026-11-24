@@ -307,6 +307,14 @@ JsonValue to_json(const Node& node) {
     if (node.text) {
         json.set("text", expr_to_json(node.text.get()));
     }
+    if (!node.provider.empty()) {
+        // ADR-066 item 5 (issue #802): a `<Ctx.Provider>` node names the context and carries the
+        // provider's value expression.
+        json.set("provider", JsonValue::string(node.provider));
+        if (node.provider_value) {
+            json.set("providerValue", expr_to_json(node.provider_value.get()));
+        }
+    }
     if (!node.children.empty()) {
         JsonValue children = JsonValue::array();
         for (const auto& child : node.children) {

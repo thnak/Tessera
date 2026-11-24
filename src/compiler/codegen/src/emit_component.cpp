@@ -184,7 +184,8 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     writer.close("");
     writer.line("");
-    if (!emit_apply_props(writer, component, module.types, plan.dirty, instances, error)) {
+    if (!emit_apply_props_with_context(writer, component, module, module.types, plan.dirty,
+                                       instances, error)) {
         return false;
     }
     if (!emit_form_source(writer, component, forms, error)) {
