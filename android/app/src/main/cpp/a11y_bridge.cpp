@@ -187,8 +187,14 @@ Java_dev_tessera_app_TesseraAccessibilityProvider_nativeFocusedId(JNIEnv*, jclas
 
 // Queues one platform action for the engine. Returns true when it was accepted, which for the
 // platform means "the request is in flight", not "the control has already reacted".
+//
+// `text` carries the payload `ACTION_SET_TEXT` and `ACTION_SET_SELECTION` bring with them: the
+// platform's `AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE` (a `CharSequence`) and
+// `ACTION_ARGUMENT_SELECTION_START_INT`/`_END_INT` (two ints, which the Java side renders as the
+// engine's own "start,end" request). A null/absent text is the empty payload, which every other
+// action passes.
 JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraAccessibilityProvider_nativePerformAction(
-    JNIEnv*, jclass, jlong handle, jint virtual_view_id, jint platform_action) {
+    JNIEnv* env, jclass, jlong handle, jint virtual_view_id, jint platform_action, jstring text) {
     auto* shell =
         reinterpret_cast<tessera::android_shell::Shell*>(static_cast<std::intptr_t>(handle));
     if (shell == nullptr || shell->a11y == nullptr) {
@@ -198,7 +204,18 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraAccessibilityProvider_nat
     if (action == tessera::ui::a11y::Action::None) {
         return JNI_FALSE;
     }
-    return shell->a11y->post_action(virtual_view_id, action) ? JNI_TRUE : JNI_FALSE;
+    // The payload is read only for an action that carries one; a `null` string is the empty payload.
+    std::string payload;
+    if (text != nullptr) {
+        const char* utf = env->GetStringUTFChars(text, nullptr);
+        if (utf == nullptr) {
+            // An OOM while copying: refuse the request rather than queue it with a truncated payload.
+            return JNI_FALSE;
+        }
+        payload.assign(utf);
+        env->ReleaseStringUTFChars(text, utf);
+    }
+    return shell->a11y->post_action(virtual_view_id, action, payload) ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

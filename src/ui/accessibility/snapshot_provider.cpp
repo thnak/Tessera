@@ -6,6 +6,7 @@
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace tessera::ui::a11y {
 namespace {
@@ -225,8 +226,20 @@ std::size_t SnapshotProvider::children_of(int virtual_id, std::span<int> out) co
     return written;
 }
 
-bool SnapshotProvider::post_action(int virtual_id, Action action) {
+bool SnapshotProvider::post_action(int virtual_id, Action action, std::string_view text) {
     if (action == Action::None) {
+        return false;
+    }
+    // The payload is only meaningful for the two value-setting actions, and a request that carries
+    // one for anything else is refused rather than silently dropped: the platform offered something
+    // the host would not act on, and answering `true` would tell it the request succeeded.
+    const bool wants_text = action == Action::SetValue || action == Action::SetSelection;
+    if (!wants_text && !text.empty()) {
+        return false;
+    }
+    if (text.size() >= kMaxProviderActionTextBytes) {
+        // Refused, not truncated: a truncated field text is worse than a refused edit, because the
+        // screen reader would then hold a buffer the engine does not.
         return false;
     }
     std::lock_guard lock(mutex_);
@@ -241,7 +254,13 @@ bool SnapshotProvider::post_action(int virtual_id, Action action) {
         ++dropped_actions_;
         return false;
     }
-    actions_[action_count_] = ProviderAction{nodes_.nodes[index].id, action};
+    ProviderAction& queued = actions_[action_count_];
+    queued = ProviderAction{};
+    queued.node = nodes_.nodes[index].id;
+    queued.action = action;
+    if (!text.empty()) {
+        std::memcpy(queued.text.data(), text.data(), text.size());
+    }
     ++action_count_;
     return true;
 }

@@ -7,8 +7,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <mutex>
 #include <span>
+#include <string_view>
 
 namespace tessera::ui::a11y {
 
@@ -53,9 +55,26 @@ struct ProviderAnswer {
 };
 
 // One action request from the platform, resolved to a scene node and an engine action.
+//
+// `text` is the payload a value-setting action carries: `Action::SetValue` ("replace the field's
+// text") and `Action::SetSelection` ("put the caret/selection here") are the two that need one, and a
+// request without it is a request the host cannot honour - which is why Android's `SetText` used to
+// be offered and then dropped. The buffer is bounded and NUL-terminated, the same shape UIA's
+// `UiaActionRequest` uses for `ValuePattern.SetValue` and AT-SPI's `ActionRequest.value_text`, so the
+// three platforms carry the same information rather than each inventing a subset.
+inline constexpr std::size_t kMaxProviderActionTextBytes = 1024;
+
 struct ProviderAction {
     ui::NodeId node = 0;
     Action action = Action::None;
+    // The text a `SetValue`/`SetSelection` request carries; empty for every other action.
+    std::array<char, kMaxProviderActionTextBytes> text{};
+
+    // The payload as a view, which is how a consumer reads it: the array is fixed-size, so the string
+    // ends at the first NUL rather than at the array's end.
+    [[nodiscard]] std::string_view text_of() const noexcept {
+        return std::string_view(text.data(), ::strnlen(text.data(), text.size()));
+    }
 };
 
 // A synchronous, queryable view of the last published semantics snapshot (issue #189,
@@ -103,8 +122,11 @@ public:
     [[nodiscard]] std::size_t children_of(int virtual_id, std::span<int> out) const;
 
     // Any thread (the platform thread): queues one action for the UI thread to execute. Bounded and
-    // overflow-dropping: a flooding client cannot grow the queue.
-    [[nodiscard]] bool post_action(int virtual_id, Action action);
+    // overflow-dropping: a flooding client cannot grow the queue. `text` is the payload a value-setting
+    // action carries (`Action::SetValue`, `Action::SetSelection`); passing one for another action is
+    // refused, as is a payload at or over `kMaxProviderActionTextBytes` - a truncated field text would
+    // leave the screen reader holding a buffer the engine does not.
+    [[nodiscard]] bool post_action(int virtual_id, Action action, std::string_view text = {});
     // UI thread, tick boundary: drains the queue in arrival order.
     [[nodiscard]] std::size_t take_actions(std::span<ProviderAction> out);
 

@@ -184,6 +184,35 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         return node;
     }
 
+    /**
+     * The text payload one platform action carries, or empty when it carries none.
+     *
+     * `ACTION_SET_TEXT` passes its `CharSequence` straight through. `ACTION_SET_SELECTION` passes the
+     * two ints as `<start>,<end>`: the engine's selection is a pair of UTF-8 byte offsets and the
+     * platform's are UTF-16 units, and only the engine holds the buffer that can convert between
+     * them, so the bridge hands over the numbers it was given.
+     */
+    private static String payloadFor(int action, Bundle arguments) {
+        if (arguments == null) {
+            return "";
+        }
+        if (action == AccessibilityNodeInfo.ACTION_SET_TEXT) {
+            CharSequence text = arguments.getCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE);
+            return text == null ? "" : text.toString();
+        }
+        if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
+            if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
+                    || !arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)) {
+                return "";
+            }
+            int start = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT);
+            int end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT);
+            return start + "," + end;
+        }
+        return "";
+    }
+
     @Override
     public boolean performAction(int virtualViewId, int action, Bundle arguments) {
         if (nativeHandle == 0) {
@@ -193,7 +222,15 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         // engine queues the request; the window driver executes it on the next tick, on the thread
         // that owns the scene. True here means "accepted", not "already done", which is what the
         // platform expects from this call.
-        if (nativePerformAction(nativeHandle, virtualViewId, action)) {
+        //
+        // The two value-setting actions carry a payload, and dropping it is why they used to be
+        // offered and then ignored: `ACTION_SET_TEXT` brings the new text as a `CharSequence`, and
+        // `ACTION_SET_SELECTION` brings a start/end pair. The engine's buffer is UTF-8 and its
+        // selection is a UTF-8 byte offset, while both platform values are UTF-16 offsets, so the
+        // selection is passed as text for the same reason a `SetText` is - the bridge cannot do the
+        // conversion without the buffer, and the engine already owns one.
+        final String payload = payloadFor(action, arguments);
+        if (nativePerformAction(nativeHandle, virtualViewId, action, payload)) {
             return true;
         }
         return super.performAction(virtualViewId, action, arguments);
@@ -253,5 +290,6 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
 
     static native int nativeFocusedId(long handle);
 
-    static native boolean nativePerformAction(long handle, int virtualViewId, int action);
+    static native boolean nativePerformAction(long handle, int virtualViewId, int action,
+            String text);
 }
