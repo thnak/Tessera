@@ -380,15 +380,15 @@ export function Settings(): Node {
 
 // Carrying a state cell across an edit of a **whole project**, not a single file.
 //
-// The page never uses the one-file `start(text, file)` overload: it stages a project (the entry plus
-// every stylesheet it reaches) and calls `start(ProjectInput, ...)`. The one-file test above passes,
-// and so did the page's own behaviour look correct until a browser check compared a counter across an
-// edit: same component, same cell, same IR type, and the new evaluation started at its initializer
-// instead of carrying the running value (issue #865).
+// The page never uses the one-file `start(text, file)` overload: it stages a project (the entry
+// plus every stylesheet it reaches) and calls `start(ProjectInput, ...)`. The one-file test above
+// passes, and so did the page's own behaviour look correct until a browser check compared a counter
+// across an edit: same component, same cell, same IR type, and the new evaluation started at its
+// initializer instead of carrying the running value (issue #865).
 //
-// The difference this pins is what the entry is: with a project, the component that owns the cells is
-// looked up through `evaluate_project`'s selected component, and the carry has to match against THAT
-// component's id - not against whatever the one-file path happened to select.
+// The difference this pins is what the entry is: with a project, the component that owns the cells
+// is looked up through `evaluate_project`'s selected component, and the carry has to match against
+// THAT component's id - not against whatever the one-file path happened to select.
 void test_state_carries_across_a_project_edit() {
     constexpr std::string_view kSheet = ".page { display: flex; flex-direction: column; }\n";
     constexpr std::string_view kFive = R"(import "../styles/theme.css";
@@ -414,8 +414,7 @@ export function Carry(): Node {
 }
 )";
     auto project_of = [&](std::string_view entry_text) {
-        const std::array<cli::ProjectFile, 1> sources{
-            {{"ui/App.tsx", entry_text}}};
+        const std::array<cli::ProjectFile, 1> sources{{{"ui/App.tsx", entry_text}}};
         const std::array<cli::ProjectFile, 1> sheets{{{"styles/theme.css", kSheet}}};
         return cli::ProjectInput{sources, sheets, "ui/App.tsx"};
     };
