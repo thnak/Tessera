@@ -30,10 +30,11 @@ int main() {
     // 1.14 added `MemoryCategory`, `MemoryCategoryStats`, `TextureDesc::category` and
     // `DeviceMemoryStats::categories` (issue #703), which grew `DeviceMemoryStats` and is therefore
     // an ABI change for anything that copies it; 1.15 added `Pipeline::declares_storage_buffer()`
-    // (ADR-068 slice 3, issue #671).
+    // (ADR-068 slice 3, issue #671); 1.16 added compute pipelines, `BufferDesc::gpu_read_write` and
+    // the `CommandList` compute commands (ADR-071 spike, issue #683).
     // All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 15 ||
-        rhi::kRhiVersion != ((1u << 16) | 15u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 16 ||
+        rhi::kRhiVersion != ((1u << 16) | 16u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

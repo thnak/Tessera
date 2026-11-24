@@ -101,10 +101,12 @@ and renders the `sparse` and `dense` scenes of `cpu_to_gpu_4k_measure` at 4K.
 
 | target (to be confirmed by the owner) | RX 5300M | iGPU | RTX 4060 | browser WebGPU |
 |---|---|---|---|---|
-| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | open | open | open | open |
-| CPU time per frame <= 0.5 ms and zero bytes uploaded per frame after the first | open | open | open | open |
-| ThorVG comparison within the defined tolerance on the lavapipe golden | open | - | - | - |
+| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | open | open | **dense 2.53 / 2.56 ms, sparse 0.92 / 0.92 ms (min / p50, 20 runs)** | open |
+| CPU time per frame <= 0.5 ms and zero bytes uploaded per frame after the first | open | open | **record+submit 0.01 / 0.03 ms; full re-encode 0.09 / 0.11 ms; 0 B per frame after 93 / 149 KB once** | open |
+| ThorVG comparison within the defined tolerance on the lavapipe golden | open (RTX 4060 only so far: premultiplied diff max 57 sparse / 28 dense, 0.49% / 0.37% of pixels off by >4, 0.28% / 0.013% by >16; lavapipe not run) | - | - | - |
 | the alternatives above measured on the same scenes | open | open | open | open |
+
+Spike caveats (issue #683, `tools/poc/compute_raster`, RHI 1.16): the measured variant is a **scanline-binned exact-area** rasterizer (clear, bin per segment, fine per pixel), not the tile design above, and it is fill-only: strokes are expanded to rings on the CPU, and no transform, dash or animation path was exercised, so the "animation changes a factor, not an encode" claim is untested. Only the RTX 4060 is measured (no other GPU is available); AMD, iGPU and browser WebGPU stay open. The ThorVG diff is dominated by stroke edge geometry. Status stays Proposed: the owner decides.
 
 The proof that a compute rasterizer beats the CPU raster at 4K at all is the spike's own deliverable
 and is unproven today. If the spike contradicts the proxy, this ADR is rejected with the numbers.

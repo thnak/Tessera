@@ -396,6 +396,13 @@ add_subdirectory(src/rendering/backend/metal)
 
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
+    # ADR-071 spike (issue #683): a GPU compute path rasterizer measured against ThorVG at 4K. Off by
+    # default; it changes no default and is not registered with ctest.
+    option(TESSERA_BUILD_COMPUTE_RASTER_SPIKE
+        "Build the ADR-071 GPU compute path-rasterizer spike (a measurement tool, not in ctest)" OFF)
+    if (TESSERA_BUILD_COMPUTE_RASTER_SPIKE)
+        add_subdirectory(tools/poc/compute_raster)
+    endif()
     if (TESSERA_BUILD_POC)
         add_subdirectory(tools/poc/vulkan_offscreen)
         add_subdirectory(tools/poc/batched2d)
