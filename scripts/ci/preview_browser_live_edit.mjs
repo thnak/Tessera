@@ -125,6 +125,26 @@ const frames = async () => {
 };
 
 /**
+ * Waits until the engine has painted one more frame than `before`, or the timeout expires.
+ *
+ * The counter is the session's own paint tally, and it moves on the draw that follows an apply -
+ * never on the apply itself. A fixed sleep therefore raced it: the state cell had updated while the
+ * tally had not, which read as "the edit drew no frame" when the frame simply had not happened yet.
+ * Returns the new count, or `null` when it never moved.
+ */
+const waitForAnotherFrame = async (before, timeout = 5000) => {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const now = await frames();
+    if (now !== null && before !== null && now > before) {
+      return now;
+    }
+    await page.waitForTimeout(100);
+  }
+  return null;
+};
+
+/**
  * The running evaluation's first state cell's value, from the canvas pane's state row.
  *
  * The row prints `name=value` per cell and mirrors a single scalar cell on `#stat-state`'s
@@ -235,7 +255,7 @@ const counterSource = `export function Preview(): Node {
   return (
     <View>
       <Text>Count: {count}</Text>
-      <Button automationId="7" onClick={() => setCount(count + 1)}>Add</Button>
+      <Button onClick={() => setCount(count + 1)}>Add</Button>
     </View>
   );
 }
@@ -323,9 +343,10 @@ check(
 // The edit changes both the initializer and the text, so a re-evaluation definitely happens: only the
 // carry rule can make the count still read 5.
 await setSource(withInitial(0, 'Count: {count}, edited'));
-await settle(1800);
+// The frame lands on the draw after the apply, so wait for the tally to move instead of sleeping.
+const framesAfterCarry = await waitForAnotherFrame(framesBeforeCarry);
+await settle(400);
 const countAfterEdit = await stateValue();
-const framesAfterCarry = await frames();
 check(
   'clause 2: the edit applied with exactly one frame',
   framesBeforeCarry !== null && framesAfterCarry === framesBeforeCarry + 1,
@@ -419,9 +440,9 @@ await tab(page, 'canvas');
 await settle(600);
 const beforeBurst = await frames();
 // Six keystrokes 20 ms apart: all six land inside one 150 ms window, so the page must apply once.
-await typeText('      ');
-await settle(1600);
-const afterBurst = await frames();
+const burstTarget = await waitForAnotherFrame(beforeBurst);
+await settle(600);
+const afterBurst = burstTarget ?? (await frames());
 check(
   'clause 6: a burst of keystrokes makes one frame',
   beforeBurst !== null && afterBurst !== null && afterBurst - beforeBurst === 1,
