@@ -29,10 +29,12 @@ layout(std430, binding = 1) readonly buffer Paths { uint paths[]; }; // 16 words
 layout(std430, binding = 2) buffer Work { uint work[]; };            // counter, row heads, nodes
 layout(std430, binding = 3) buffer Out { uint pixels[]; };           // straight RGBA8
 #ifdef PASS_STROKE
-// 12 words: x0 y0 x1 y1 (f32), path, half width (f32), flags (1 end cap, 2 has previous vertex),
-// join (0 round, 1 bevel, 2 miter), previous vertex x y (f32), miter limit (f32), cap (0 round, 1 butt,
-// 2 square)
+// 16 words: x0 y0 x1 y1 (f32), path, half width (f32), flags, join (0 round, 1 bevel, 2 miter),
+// previous vertex x y (f32), miter limit (f32), cap (0 round, 1 butt, 2 square), path length at x0 y0
+// (f32), first edge slot, dash pieces, -
 layout(std430, binding = 4) readonly buffer Strokes { uint strokes[]; };
+// Per path, 12 words: dash entry count (0 = solid), offset (f32), period (f32), -, up to 8 lengths (f32)
+layout(std430, binding = 5) readonly buffer Dashes { uint dashes[]; };
 #endif
 
 layout(push_constant) uniform Push {
@@ -165,42 +167,20 @@ void put_square(uint slot, vec2 p, vec2 side, vec2 extend, uint path) {
     put_zero(slot + 4u, pc.arc_edges + 2u - 4u, path);
 }
 
-void main() {
-    uint i = gl_GlobalInvocationID.x;
-    if (i >= pc.stroke_count) {
-        return;
-    }
-    uint r = i * 12u;
-    vec2 p0 = vec2(uintBitsToFloat(strokes[r]), uintBitsToFloat(strokes[r + 1u]));
-    vec2 p1 = vec2(uintBitsToFloat(strokes[r + 2u]), uintBitsToFloat(strokes[r + 3u]));
-    uint path = strokes[r + 4u];
-    float hw = uintBitsToFloat(strokes[r + 5u]);
-    uint flags = strokes[r + 6u];
-    uint join_kind = strokes[r + 7u]; // 0 round, 1 bevel, 2 miter
-    vec2 prev_point = vec2(uintBitsToFloat(strokes[r + 8u]), uintBitsToFloat(strokes[r + 9u]));
-    float miter_limit = uintBitsToFloat(strokes[r + 10u]);
-    uint cap_kind = strokes[r + 11u]; // 0 round, 1 butt, 2 square
+// One run of a stroke along a segment direction d1: the body from pa to pb, then the start (a join
+// against the previous vertex, or a cap) and the end (a cap, when this run ends the stroke or a dash).
+// Occupies 4 + 2 * (arc_edges + 2) edge slots from `slot`.
+void emit_piece(uint slot, vec2 pa, vec2 pb, vec2 d1, float hw, bool join_start, bool end_cap,
+                vec2 prev_point, uint join_kind, float miter_limit, uint cap_kind, uint path) {
     uint wedge = pc.arc_edges + 2u;
-    uint stride = 4u + 2u * wedge;
-    uint slot = i * stride;
-    vec2 d = p1 - p0;
-    float len = length(d);
-    if (len <= 0.0) {
-        put_zero(slot, stride, path);
-        return;
-    }
-    vec2 d1 = d / len;
     vec2 n1 = vec2(-d1.y, d1.x) * hw;
     // body: wound so successive edges turn the same way as the wedges below
-    put_edge(slot, p0 + n1, p0 - n1, path);
-    put_edge(slot + 1u, p0 - n1, p1 - n1, path);
-    put_edge(slot + 2u, p1 - n1, p1 + n1, path);
-    put_edge(slot + 3u, p1 + n1, p0 + n1, path);
-    // start: a join against the previous vertex, or a cap when there is none
-    bool joined = false;
-    if ((flags & 2u) != 0u) {
-        joined = true;
-        vec2 dv = p0 - prev_point;
+    put_edge(slot, pa + n1, pa - n1, path);
+    put_edge(slot + 1u, pa - n1, pb - n1, path);
+    put_edge(slot + 2u, pb - n1, pb + n1, path);
+    put_edge(slot + 3u, pb + n1, pa + n1, path);
+    if (join_start) {
+        vec2 dv = pa - prev_point;
         float dl = length(dv);
         float sweep = 0.0;
         vec2 a = n1;
@@ -216,33 +196,117 @@ void main() {
         if (sweep < 1e-4) {
             put_zero(slot + 4u, wedge, path);
         } else if (join_kind == 0u) {
-            put_wedge(slot + 4u, p0, a, sweep, path);
+            put_wedge(slot + 4u, pa, a, sweep, path);
         } else {
             // 1 / cos(sweep / 2) is the miter length over the stroke width: past the limit (or a
             // reversal, where it is unbounded) the join falls back to a bevel, as SVG specifies.
             bool miter = join_kind == 2u && cos(sweep * 0.5) * miter_limit >= 1.0;
             vec2 tip = (a + b) / (1.0 + cos(sweep));
-            put_corner(slot + 4u, p0, a, b, tip, miter, path);
+            put_corner(slot + 4u, pa, a, b, tip, miter, path);
         }
+    } else if (cap_kind == 0u) {
+        put_wedge(slot + 4u, pa, n1, 3.14159265358979, path);
+    } else if (cap_kind == 2u) {
+        put_square(slot + 4u, pa, -n1, -d1 * hw, path);
+    } else {
+        put_zero(slot + 4u, wedge, path);
     }
-    if (!joined) {
-        if (cap_kind == 0u) {
-            put_wedge(slot + 4u, p0, n1, 3.14159265358979, path);
-        } else if (cap_kind == 2u) {
-            put_square(slot + 4u, p0, -n1, -d1 * hw, path);
-        } else {
-            put_zero(slot + 4u, wedge, path);
-        }
-    }
-    // end cap of an open contour
     uint end_slot = slot + 4u + wedge;
-    if ((flags & 1u) == 0u || cap_kind == 1u) {
+    if (!end_cap || cap_kind == 1u) {
         put_zero(end_slot, wedge, path);
     } else if (cap_kind == 0u) {
-        put_wedge(end_slot, p1, -n1, 3.14159265358979, path);
+        put_wedge(end_slot, pb, -n1, 3.14159265358979, path);
     } else {
-        put_square(end_slot, p1, n1, d1 * hw, path);
+        put_square(end_slot, pb, n1, d1 * hw, path);
     }
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.stroke_count) {
+        return;
+    }
+    uint r = i * 16u;
+    vec2 p0 = vec2(uintBitsToFloat(strokes[r]), uintBitsToFloat(strokes[r + 1u]));
+    vec2 p1 = vec2(uintBitsToFloat(strokes[r + 2u]), uintBitsToFloat(strokes[r + 3u]));
+    uint path = strokes[r + 4u];
+    float hw = uintBitsToFloat(strokes[r + 5u]);
+    uint flags = strokes[r + 6u]; // 1 end of an open contour, 2 has a previous vertex, 4 contour start, 8 contour end
+    uint join_kind = strokes[r + 7u]; // 0 round, 1 bevel, 2 miter
+    vec2 prev_point = vec2(uintBitsToFloat(strokes[r + 8u]), uintBitsToFloat(strokes[r + 9u]));
+    float miter_limit = uintBitsToFloat(strokes[r + 10u]);
+    uint cap_kind = strokes[r + 11u]; // 0 round, 1 butt, 2 square
+    float s0 = uintBitsToFloat(strokes[r + 12u]); // path length up to p0
+    uint slot = strokes[r + 13u];                 // first edge slot of this record
+    uint pieces = strokes[r + 14u];               // dash pieces this record has room for (1 = solid)
+    uint wedge = pc.arc_edges + 2u;
+    uint stride = 4u + 2u * wedge;
+    vec2 d = p1 - p0;
+    float len = length(d);
+    if (len <= 0.0) {
+        put_zero(slot, stride * pieces, path);
+        return;
+    }
+    vec2 d1 = d / len;
+    uint db = path * 12u;
+    uint dn = dashes[db]; // dash entries (alternating on / off), 0 = solid
+    if (dn == 0u) {
+        emit_piece(slot, p0, p1, d1, hw, (flags & 2u) != 0u, (flags & 1u) != 0u, prev_point,
+                   join_kind, miter_limit, cap_kind, path);
+        return;
+    }
+    // Dashes: walk the pattern across [s0, s0 + len]. The pattern phase is (s + offset) mod period, so
+    // an animated offset is one float per path; the CPU split every segment to at most one period, so
+    // `pieces` (on-entries + 1) always covers what a segment can hold.
+    float offset = uintBitsToFloat(dashes[db + 1u]);
+    float period = uintBitsToFloat(dashes[db + 2u]);
+    float s1 = s0 + len;
+    float ph = mod(s0 + offset, period);
+    uint k = 0u;
+    float c0 = 0.0;
+    for (; k < dn; ++k) {
+        float v = uintBitsToFloat(dashes[db + 4u + k]);
+        if (ph < c0 + v) {
+            break;
+        }
+        c0 += v;
+    }
+    if (k >= dn) {
+        k = 0u;
+        c0 = 0.0;
+        ph = 0.0;
+    }
+    float q = s0;
+    uint used = 0u;
+    for (uint guard = 0u; guard < 96u && q < s1 - 1e-4 && used < pieces; ++guard) {
+        float v = uintBitsToFloat(dashes[db + 4u + k]);
+        float rem = c0 + v - ph;
+        float qe = min(q + rem, s1);
+        if (rem > 1e-3 && (k & 1u) == 0u) {
+            bool starts_here = ph - c0 < 1e-3;
+            bool at_contour_start = (flags & 4u) != 0u && q <= s0;
+            bool join_start = !starts_here && !at_contour_start && (flags & 2u) != 0u;
+            // A dash that ends inside (or exactly at the end of) this segment is capped; one that runs
+            // on into the next segment is left for that segment's record to join.
+            bool end_cap = q + rem <= s1 + 1e-3 || ((flags & 8u) != 0u && qe >= s1 - 1e-3);
+            emit_piece(slot + used * stride, p0 + d1 * (q - s0), p0 + d1 * (qe - s0), d1, hw,
+                       join_start, end_cap, prev_point, join_kind, miter_limit, cap_kind, path);
+            ++used;
+        }
+        ph += qe - q;
+        q = qe;
+        if (ph >= c0 + v - 1e-3) {
+            ph = c0 + v;
+            c0 = ph;
+            ++k;
+            if (k >= dn) {
+                k = 0u;
+                c0 = 0.0;
+                ph = 0.0;
+            }
+        }
+    }
+    put_zero(slot + used * stride, (pieces - used) * stride, path);
 }
 #endif
 
