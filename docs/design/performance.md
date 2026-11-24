@@ -463,7 +463,7 @@ which paints every node; the viewport cull that would change that (#257) is unde
 - Should a full paint cull against the viewport by default (#257)? A prototype took the reference
   full paint from 34.75 to 3 ms; it is not in `main`, and the full paint is the one number above the
   render-thread trigger.
-- Which of the open V1 performance items are release blockers: #842 (a worker completion does not
-  wake a parked UI thread, so async results can arrive up to 250 ms late), #697, #476 (retained draw
+- Which of the open V1 performance items are release blockers: #842 (a worker completion wakes the parked UI thread on Linux and Windows; the Android advisory
+  lane still waits out the clamp), #697, #476 (retained draw
   list and layer cache; `layerCacheBudgetMb` is parsed but unused) and #683 (GPU vector rasterizer, a
   spike with no ADR yet).
