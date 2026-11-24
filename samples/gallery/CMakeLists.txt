@@ -65,6 +65,20 @@ target_compile_features(gallery PRIVATE cxx_std_23)
 
 if (TESSERA_BUILD_TESTS)
     enable_testing()
+    # The page table (issue #528): every name `--page` accepts has a branch that builds it, an
+    # unknown name is refused by both lists, and only the form page claims a CSS module. It needs no
+    # GPU, so it runs on every lane - which matters because it is the test that catches the drift a
+    # second list would introduce.
+    add_executable(gallery_page_table_tests page_table_tests.cpp)
+    # The page types are generated components: a Form page pulls in the text-input runtime even
+    # though the test never types, because the table instantiates every page's Scene.
+    target_link_libraries(gallery_page_table_tests PRIVATE tessera_scene tessera_text_edit
+        tessera_animation)
+    target_include_directories(gallery_page_table_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} ${_gallery_gen})
+    target_compile_features(gallery_page_table_tests PRIVATE cxx_std_23)
+    add_test(NAME gallery_page_table COMMAND gallery_page_table_tests)
+
     # Smoke: one capture on any Vulkan device. No device: the tool prints its documented skip line.
     add_test(NAME gallery_capture
         COMMAND gallery --capture ${CMAKE_CURRENT_BINARY_DIR}/gallery_smoke.png)
