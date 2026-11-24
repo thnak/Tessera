@@ -243,4 +243,58 @@ bool combined_scroll_focus_metadata() {
            expect(button_node.bounds.y == 80.0f, "bounds include the scroll offset") &&
            expect(scroll_node.child_count == 1 && scroll_node.children[0] == 2, "child link");
 }
+// A collection item's position reaches the snapshot (accessibility spec section 5).
+//
+// Two halves matter and both are asserted: a node the source recognises carries its set size and
+// 1-based position, and a node it does not stays at the default - which is what keeps every tree
+// without a virtualized list producing exactly the snapshot it produced before this existed.
+bool collection_position_from_source() {
+    Node root(1);
+    root.set_bounds({0, 0, 100, 100});
+    Node& item = child(root, 2);
+    item.set_element_kind("ListItem");
+    item.set_bounds({0, 0, 100, 20});
+    Node& other = child(root, 3);
+    other.set_element_kind("Text");
+    other.set_bounds({0, 20, 100, 20});
+
+    StubStyles styles;
+    A11ySnapshot snapshot;
+    BuildOptions options;
+    options.collection_position =
+        [](NodeId id) -> std::optional<tessera::ui::a11y::CollectionPosition> {
+        if (id == 2) {
+            return tessera::ui::a11y::CollectionPosition{.set_size = 40, .pos_in_set = 3};
+        }
+        return std::nullopt;
+    };
+    build(root, styles, snapshot, options);
+
+    const A11yNode* found = nullptr;
+    const A11yNode* plain = nullptr;
+    for (const A11yNode& node : snapshot.nodes) {
+        if (node.id == 2) {
+            found = &node;
+        }
+        if (node.id == 3) {
+            plain = &node;
+        }
+    }
+    if (!expect(found != nullptr && plain != nullptr, "both nodes are in the snapshot")) {
+        return false;
+    }
+    if (!expect(found->collection.set_size == 40, "the recognised node carries the set size")) {
+        return false;
+    }
+    if (!expect(found->collection.pos_in_set == 3, "and its 1-based position")) {
+        return false;
+    }
+    if (!expect(plain->collection.set_size == 0,
+                "a node the source did not recognise keeps the default")) {
+        return false;
+    }
+    return expect(plain->collection.pos_in_set == 1,
+                  "with the 1-based default, not a 0 that would print as `0 of 0`");
+}
+
 } // namespace a11y_test

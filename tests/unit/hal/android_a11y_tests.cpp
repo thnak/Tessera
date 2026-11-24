@@ -234,6 +234,26 @@ int main() {
         }
     }
 
+    // --- A collection item reports where it sits ---------------------------------------------
+    // The platform turns these into `CollectionItemInfo`/`CollectionInfo`, which is what makes a
+    // screen reader say "3 of 40" (accessibility spec section 5).
+    {
+        A11yNode item = node_of(Role::ListItem);
+        item.collection.set_size = 40;
+        item.collection.pos_in_set = 3;
+        const android::A11yNodeInfo described = android::describe(item);
+        check(described.is_collection_item, "a node in a collection is a collection item");
+        check(described.pos_in_set == 3, "and reports its 1-based position");
+        check(described.set_size == 40, "and the collection's item count");
+
+        // A node outside one is not an item, and the flag is what says so: an empty collection has
+        // `set_size == 0` too, so the size alone cannot distinguish the two.
+        A11yNode plain = node_of(Role::ListItem);
+        const android::A11yNodeInfo plain_info = android::describe(plain);
+        check(!plain_info.is_collection_item, "a node outside a collection is not an item");
+        check(plain_info.set_size == 0, "and has no set size");
+    }
+
     if (failures != 0) {
         std::cerr << "android_a11y: " << failures << " failure(s)\n";
         return 1;

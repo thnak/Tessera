@@ -237,6 +237,22 @@ CancellationSource CancellationSource::linked(std::span<const CancellationToken>
     return linked;
 }
 
+void CancellationSource::cancel_deadline() {
+    if (state_ == nullptr) {
+        return;
+    }
+    // The same drop-then-clear move `cancel_after` uses to re-arm; a stale id is harmless.
+    std::lock_guard<std::mutex> lock(state_->mutex);
+    if (state_->has_timer && state_->timer_queue != nullptr) {
+        state_->timer_queue->cancel(state_->timer_id);
+    }
+    state_->has_timer = false;
+}
+
+bool CancellationSource::deadline_fired() const {
+    return state_ != nullptr && state_->deadline_fired.load(std::memory_order_acquire);
+}
+
 bool CancellationSource::cancel_after(Clock& clock, TimerQueue& timers, double seconds) {
     if (cancelled()) {
         return false;
@@ -257,9 +273,14 @@ bool CancellationSource::cancel_after(Clock& clock, TimerQueue& timers, double s
     const std::weak_ptr<detail::CancellationState> weak = state_;
     const std::optional<TimerId> id =
         timers.schedule_one_shot(clock.now_seconds() + seconds, [weak] {
-            if (const std::shared_ptr<detail::CancellationState> state = weak.lock()) {
-                cancel_state(state, CancelReason::Timeout);
+            const std::shared_ptr<detail::CancellationState> state = weak.lock();
+            if (state == nullptr) {
+                return;
             }
+            // Mark the deadline as elapsed before cancelling, so an awaiter racing this deadline
+            // (`timeout`) can distinguish it from a plain `cancel()`.
+            state->deadline_fired.store(true, std::memory_order_release);
+            cancel_state(state, CancelReason::Timeout);
         });
     if (!id) {
         return false;

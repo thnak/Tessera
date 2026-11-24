@@ -57,6 +57,12 @@ struct CancellationState {
     TimerId timer_id{};
     bool has_timer = false;
 
+    // Set by the `cancel_after` timer callback right before it cancels, so an awaiter racing a
+    // deadline (`timeout`) can tell "the deadline elapsed" from "someone cancelled the source".
+    // Atomic because the timer callback runs on the drain thread while other threads may observe
+    // the source.
+    std::atomic<bool> deadline_fired{false};
+
     // Registrations a `linked()` child holds on its parents. Destroying the child drops them, so a
     // long-lived parent token never accumulates dead callbacks.
     std::vector<CancellationRegistration> link_registrations;

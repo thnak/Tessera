@@ -63,16 +63,21 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
     /** Derived: a node that offers Press is clickable. TalkBack gates activation on this flag. */
     private static final int FLAG_CLICKABLE = 8;
     private static final int FLAG_LONG_CLICKABLE = 9;
-    private static final int FLAG_COUNT = 10;
+    /** The node is one item of a collection, and the two slots below describe where it sits. */
+    private static final int FLAG_COLLECTION_ITEM = 10;
+    private static final int FLAG_COUNT = 11;
     // Bounds follow the flags: x, y, width, height. Fixed point in 1/64 px, so a fractional logical
     // position survives the crossing and rounds once, here, instead of being truncated twice.
     private static final int BOUNDS_X = FLAG_COUNT;
     private static final int BOUNDS_Y = FLAG_COUNT + 1;
     private static final int BOUNDS_W = FLAG_COUNT + 2;
     private static final int BOUNDS_H = FLAG_COUNT + 3;
-    /** The packed array's size: flags, bounds, action count + ids, child count + ids. */
+    /** 1-based position and the collection's item count, as {@code aria-posinset}/{@code aria-setsize}. */
+    private static final int POS_IN_SET_SLOT = FLAG_COUNT + 4;
+    private static final int SET_SIZE_SLOT = FLAG_COUNT + 5;
+    /** The packed array's size: flags, bounds, collection position, action count + ids, child count + ids. */
     private static final int SLOT_COUNT =
-            FLAG_COUNT + 4 + 1 + MAX_ACTIONS + 1 + MAX_CHILDREN;
+            FLAG_COUNT + 6 + 1 + MAX_ACTIONS + 1 + MAX_CHILDREN;
 
     private final TesseraView view;
     private final long nativeHandle;
@@ -128,6 +133,28 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         node.setSelected(slots[FLAG_SELECTED] != 0);
         node.setEditable(slots[FLAG_EDITABLE] != 0);
         node.setScrollable(slots[FLAG_SCROLLABLE] != 0);
+        // A collection item tells the platform where it sits, which is what makes "3 of 40" and
+        // per-list navigation work (accessibility spec section 5). `rowIndex` and `columnIndex` are
+        // -1 because the engine models a flat list, not a grid: the platform reads a flat item by
+        // its position, and claiming a row would be an invented shape.
+        if (slots[FLAG_COLLECTION_ITEM] != 0) {
+            // The engine models a flat list, so the platform's row/column pair is
+            // (position, one column) rather than an invented grid: `rowIndex` is the 0-based
+            // position, which is `aria-posinset - 1`.
+            final int setSize = (int) slots[SET_SIZE_SLOT];
+            final int rowIndex = Math.max(0, (int) slots[POS_IN_SET_SLOT] - 1);
+            node.setCollectionItemInfo(AccessibilityNodeInfo.CollectionItemInfo.obtain(
+                    rowIndex,
+                    1 /* rowSpan */,
+                    0 /* columnIndex */,
+                    1 /* columnSpan */,
+                    false /* heading */,
+                    false /* selected */));
+            node.setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(
+                    setSize,
+                    1 /* columnCount */,
+                    false /* hierarchical */));
+        }
         node.setAccessibilityFocused(slots[FLAG_ACCESSIBILITY_FOCUSED] != 0);
         // Clickable is not a separate engine concept: a node that offers Press is clickable, and
         // TalkBack decides whether a stop is actionable from this flag rather than from the action
@@ -184,6 +211,24 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         return node;
     }
 
+    /**
+     * The text payload one platform action carries, or empty when it carries none.
+     *
+     * `ACTION_SET_TEXT` passes its `CharSequence` straight through: it is the one value-setting action
+     * the engine models (`a11y::Action::SetValue`). `ACTION_SET_SELECTION` deliberately has no payload
+     * here - the engine's `Action` has no selection member, so the bridge refuses that request in
+     * `performAction` and lets the platform's default handling answer it, rather than accepting a
+     * caret move it would never apply.
+     */
+    private static String payloadFor(int action, Bundle arguments) {
+        if (arguments == null || action != AccessibilityNodeInfo.ACTION_SET_TEXT) {
+            return "";
+        }
+        CharSequence text = arguments.getCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE);
+        return text == null ? "" : text.toString();
+    }
+
     @Override
     public boolean performAction(int virtualViewId, int action, Bundle arguments) {
         if (nativeHandle == 0) {
@@ -193,7 +238,21 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         // engine queues the request; the window driver executes it on the next tick, on the thread
         // that owns the scene. True here means "accepted", not "already done", which is what the
         // platform expects from this call.
-        if (nativePerformAction(nativeHandle, virtualViewId, action)) {
+        //
+        // The two value-setting actions carry a payload, and dropping it is why they used to be
+        // offered and then ignored: `ACTION_SET_TEXT` brings the new text as a `CharSequence`, and
+        // `ACTION_SET_SELECTION` brings a start/end pair. The engine's buffer is UTF-8 and its
+        // selection is a UTF-8 byte offset, while both platform values are UTF-16 offsets, so the
+        // selection is passed as text for the same reason a `SetText` is - the bridge cannot do the
+        // conversion without the buffer, and the engine already owns one.
+        // A selection request is not something the engine's Action vocabulary can express, so it is
+        // refused rather than accepted and ignored: `super` then answers with whatever this platform
+        // version does for it, and the screen reader is not told a caret move happened.
+        if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
+            return super.performAction(virtualViewId, action, arguments);
+        }
+        final String payload = payloadFor(action, arguments);
+        if (nativePerformAction(nativeHandle, virtualViewId, action, payload)) {
             return true;
         }
         return super.performAction(virtualViewId, action, arguments);
@@ -253,5 +312,6 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
 
     static native int nativeFocusedId(long handle);
 
-    static native boolean nativePerformAction(long handle, int virtualViewId, int action);
+    static native boolean nativePerformAction(long handle, int virtualViewId, int action,
+            String text);
 }

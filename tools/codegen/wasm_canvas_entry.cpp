@@ -400,10 +400,16 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
         none.error = "no canvas session: call tessera_canvas_apply first";
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
-    return duplicate_out(
-        report_with_css(cli::paint_session(*g_session, extent, canvas_view, *g_device), extent,
-                        g_session->css_diagnostics(), g_session->frames_painted(),
-                        g_session->cascade_generation()));
+    // **Paint first, into a named result.** `paint_session(...)` and `g_session->frames_painted()`
+    // were two arguments of one call, and C++ leaves the order in which arguments are evaluated
+    // unspecified. A build that reads the counter first reports the tally from *before* the paint,
+    // so
+    // `#stat-frame` shows `#1` forever while the session is visibly painting later frames.
+    const cli::SceneFrameResult painted =
+        cli::paint_session(*g_session, extent, canvas_view, *g_device);
+    return duplicate_out(report_with_css(painted, extent, g_session->css_diagnostics(),
+                                         g_session->frames_painted(),
+                                         g_session->cascade_generation()));
 }
 
 // Releases the session (and with it the tree, its handlers and its carried state). The page calls
