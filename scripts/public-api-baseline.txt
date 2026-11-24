@@ -1796,6 +1796,7 @@ class include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::
 struct include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::ProviderAction
 struct include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::ProviderAnswer
 constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kHostVirtualId
+constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kMaxProviderActionTextBytes
 constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kMaxProviderActions
 constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kMaxProviderChildren
 
