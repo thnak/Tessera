@@ -45,13 +45,6 @@ void check_eq(std::string_view actual, std::string_view expected, std::string_vi
     }
 }
 
-void clear_all(ui::Node& node) {
-    node.clear_dirty(ui::Dirty::All);
-    for (const auto& child : node.children()) {
-        clear_all(*child);
-    }
-}
-
 std::string_view text_of(const ui::Node& node) {
     const auto& paint = node.paint_data();
     return paint ? std::string_view(paint->text) : std::string_view();
