@@ -2,9 +2,9 @@
 //
 // Android window backend (issue #189).
 //
-// The OS owns the surface, so this backend does NOT create a window; it *adopts* the `ANativeWindow*`
-// the host already owns and wraps it in the HAL contract, so the engine keeps seeing
-// `WindowMetrics` and never a platform handle (ADR-020 rule 1).
+// The OS owns the surface, so this backend does NOT create a window; it *adopts* the
+// `ANativeWindow*` the host already owns and wraps it in the HAL contract, so the engine keeps
+// seeing `WindowMetrics` and never a platform handle (ADR-020 rule 1).
 //
 // It reports the surface extent, device scale and window family, and translates input through
 // `AndroidInputTranslator`. Insets, cutouts and fold state come from the Java bridge
