@@ -187,30 +187,19 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
     /**
      * The text payload one platform action carries, or empty when it carries none.
      *
-     * `ACTION_SET_TEXT` passes its `CharSequence` straight through. `ACTION_SET_SELECTION` passes the
-     * two ints as `<start>,<end>`: the engine's selection is a pair of UTF-8 byte offsets and the
-     * platform's are UTF-16 units, and only the engine holds the buffer that can convert between
-     * them, so the bridge hands over the numbers it was given.
+     * `ACTION_SET_TEXT` passes its `CharSequence` straight through: it is the one value-setting action
+     * the engine models (`a11y::Action::SetValue`). `ACTION_SET_SELECTION` deliberately has no payload
+     * here - the engine's `Action` has no selection member, so the bridge refuses that request in
+     * `performAction` and lets the platform's default handling answer it, rather than accepting a
+     * caret move it would never apply.
      */
     private static String payloadFor(int action, Bundle arguments) {
-        if (arguments == null) {
+        if (arguments == null || action != AccessibilityNodeInfo.ACTION_SET_TEXT) {
             return "";
         }
-        if (action == AccessibilityNodeInfo.ACTION_SET_TEXT) {
-            CharSequence text = arguments.getCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE);
-            return text == null ? "" : text.toString();
-        }
-        if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
-            if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
-                    || !arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)) {
-                return "";
-            }
-            int start = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT);
-            int end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT);
-            return start + "," + end;
-        }
-        return "";
+        CharSequence text = arguments.getCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE);
+        return text == null ? "" : text.toString();
     }
 
     @Override
@@ -229,6 +218,12 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         // selection is a UTF-8 byte offset, while both platform values are UTF-16 offsets, so the
         // selection is passed as text for the same reason a `SetText` is - the bridge cannot do the
         // conversion without the buffer, and the engine already owns one.
+        // A selection request is not something the engine's Action vocabulary can express, so it is
+        // refused rather than accepted and ignored: `super` then answers with whatever this platform
+        // version does for it, and the screen reader is not told a caret move happened.
+        if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
+            return super.performAction(virtualViewId, action, arguments);
+        }
         final String payload = payloadFor(action, arguments);
         if (nativePerformAction(nativeHandle, virtualViewId, action, payload)) {
             return true;

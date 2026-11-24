@@ -230,11 +230,10 @@ bool SnapshotProvider::post_action(int virtual_id, Action action, std::string_vi
     if (action == Action::None) {
         return false;
     }
-    // The payload is only meaningful for the two value-setting actions, and a request that carries
-    // one for anything else is refused rather than silently dropped: the platform offered something
-    // the host would not act on, and answering `true` would tell it the request succeeded.
-    const bool wants_text = action == Action::SetValue || action == Action::SetSelection;
-    if (!wants_text && !text.empty()) {
+    // Only `SetValue` carries a payload. A request that passes one for another action is refused
+    // rather than silently dropped: the platform offered something the host would not act on, and
+    // answering `true` would tell it the request succeeded.
+    if (action != Action::SetValue && !text.empty()) {
         return false;
     }
     if (text.size() >= kMaxProviderActionTextBytes) {

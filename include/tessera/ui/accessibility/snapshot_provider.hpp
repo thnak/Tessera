@@ -56,18 +56,21 @@ struct ProviderAnswer {
 
 // One action request from the platform, resolved to a scene node and an engine action.
 //
-// `text` is the payload a value-setting action carries: `Action::SetValue` ("replace the field's
-// text") and `Action::SetSelection` ("put the caret/selection here") are the two that need one, and a
-// request without it is a request the host cannot honour - which is why Android's `SetText` used to
-// be offered and then dropped. The buffer is bounded and NUL-terminated, the same shape UIA's
-// `UiaActionRequest` uses for `ValuePattern.SetValue` and AT-SPI's `ActionRequest.value_text`, so the
-// three platforms carry the same information rather than each inventing a subset.
+// `text` is the payload `Action::SetValue` carries ("replace this field's text"). A request without
+// one is a request the host cannot honour, which is why Android's `SetText` used to be offered and
+// then dropped. The buffer is bounded and NUL-terminated, the same shape UIA's `UiaActionRequest`
+// uses for `ValuePattern.SetValue`, so both platforms carry the same information rather than each
+// inventing a subset.
+//
+// There is deliberately no selection payload: the engine's `Action` has no `SetSelection` member, so
+// a caret request is not something this bridge can express. Android's `ACTION_SET_SELECTION` is
+// therefore refused rather than accepted and ignored.
 inline constexpr std::size_t kMaxProviderActionTextBytes = 1024;
 
 struct ProviderAction {
     ui::NodeId node = 0;
     Action action = Action::None;
-    // The text a `SetValue`/`SetSelection` request carries; empty for every other action.
+    // The text a `SetValue` request carries; empty for every other action.
     std::array<char, kMaxProviderActionTextBytes> text{};
 
     // The payload as a view, which is how a consumer reads it: the array is fixed-size, so the string
@@ -122,10 +125,10 @@ public:
     [[nodiscard]] std::size_t children_of(int virtual_id, std::span<int> out) const;
 
     // Any thread (the platform thread): queues one action for the UI thread to execute. Bounded and
-    // overflow-dropping: a flooding client cannot grow the queue. `text` is the payload a value-setting
-    // action carries (`Action::SetValue`, `Action::SetSelection`); passing one for another action is
-    // refused, as is a payload at or over `kMaxProviderActionTextBytes` - a truncated field text would
-    // leave the screen reader holding a buffer the engine does not.
+    // overflow-dropping: a flooding client cannot grow the queue. `text` is the `SetValue` payload;
+    // passing one for another action is refused, as is a payload at or over
+    // `kMaxProviderActionTextBytes` - a truncated field text would leave the screen reader holding a
+    // buffer the engine does not.
     [[nodiscard]] bool post_action(int virtual_id, Action action, std::string_view text = {});
     // UI thread, tick boundary: drains the queue in arrival order.
     [[nodiscard]] std::size_t take_actions(std::span<ProviderAction> out);
