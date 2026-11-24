@@ -16,7 +16,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { editEntry, editSheet, tab, tabButton } from './studio_project.mjs';
+import { computedStyle, editEntry, editSheet, rgbOf, tab, tabButton, uiIdAt } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -67,29 +67,26 @@ function check(name, ok, detail) {
 
 const settle = (ms = 600) => page.waitForTimeout(ms);
 
-// The average colour of the canvas element as the page composites it.
-async function canvasColour(label) {
-  const png = await page.locator('#canvas').screenshot();
-  return page.evaluate(async (data) => {
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
-    const scratch = document.createElement('canvas');
-    scratch.width = 16;
-    scratch.height = 16;
-    const ctx = scratch.getContext('2d');
-    ctx.drawImage(bitmap, 0, 0, 16, 16);
-    const pixels = ctx.getImageData(0, 0, 16, 16).data;
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      r += pixels[i];
-      g += pixels[i + 1];
-      b += pixels[i + 2];
-    }
-    const n = pixels.length / 4;
-    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
-  }, png.toString('base64'));
+// The Button's resolved `background-color`, read through the canvas session's query seam.
+//
+// **Why not a screenshot.** This averaged `page.locator('#canvas').screenshot()`. Headless Chromium does
+// not composite a presented WebGPU frame, so that image is black and every state read came back
+// `other(0,0,0)` - the hover/active/focus assertions could not pass on any machine. The style report
+// answers what the assertion means: which colour the cascade resolved for the button in its current
+// interaction state (issue #849).
+async function canvasColour() {
+  const node = await uiIdAt(page);
+  if (node === null) {
+    check('the evaluated scene has a node with an id', false, 'no uiId from the picker');
+    return { r: 0, g: 0, b: 0 };
+  }
+  const value = await computedStyle(page, node, 'background-color');
+  const colour = rgbOf(value);
+  if (colour === null) {
+    check('the button resolves a readable background-color', false, String(value));
+    return { r: 0, g: 0, b: 0 };
+  }
+  return colour;
 }
 const hue = (c) => (c.r > c.g + 60 && c.r > c.b + 60 ? 'red' : c.g > c.r + 40 && c.g > c.b + 40 ? 'green' : c.b > c.r + 60 && c.b > c.g + 60 ? 'blue' : c.r > 150 && c.g > 120 && c.b < 90 ? 'yellow' : `other(${c.r},${c.g},${c.b})`);
 
@@ -189,7 +186,10 @@ check('a move inside the same element changes nothing, so it paints nothing', (a
 await page.mouse.move(geometry.left - 40, geometry.top + 10);
 await settle();
 await tabButton(page, 'canvas').focus();
-for (let step = 0; step < 12; step += 1) {
+// The dock grew focusable controls (zoom, pan, the picker and inspector toggles), so the canvas is
+// reached after more stops than the original twelve; the loop walks until it arrives rather than
+// assuming a count that a toolbar change silently invalidates.
+for (let step = 0; step < 40; step += 1) {
   if (await page.evaluate(() => document.activeElement?.id === 'canvas')) break;
   await page.keyboard.press('Tab');
 }
