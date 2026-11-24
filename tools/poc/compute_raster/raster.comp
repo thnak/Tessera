@@ -169,22 +169,27 @@ void put_square(uint slot, vec2 p, vec2 side, vec2 extend, uint path) {
 
 // One run of a stroke along a segment direction d1: the body from pa to pb, then the start (a join
 // against the previous vertex, or a cap) and the end (a cap, when this run ends the stroke or a dash).
-// Occupies 4 + 2 * (arc_edges + 2) edge slots from `slot`.
+// Occupies 7 + 2 * (arc_edges + 2) edge slots from `slot`: 7 for the body, the rest for the wedges.
+//
+// On the inside of a turn this body and the previous one overlap. Summing their partial coverage at
+// the overlap's edge would overcount, so the body is cut: it starts from the previous body's end edge
+// (p -> p + n0 on the inside), runs along the previous body's inner side to the point I where the two
+// inner offset lines meet, and continues along its own. The cut is only valid while I lies inside both
+// bodies (t = hw tan(sweep / 2) no longer than either run, and `back_run` is how far the previous
+// body really extends behind pa: its segment, or less when a dash began inside it); otherwise the body
+// stays whole and the overlap is clamped as before.
 void emit_piece(uint slot, vec2 pa, vec2 pb, vec2 d1, float hw, bool join_start, bool end_cap,
-                vec2 prev_point, uint join_kind, float miter_limit, uint cap_kind, uint path) {
+                vec2 prev_point, float back_run, uint join_kind, float miter_limit, uint cap_kind,
+                uint path) {
     uint wedge = pc.arc_edges + 2u;
     vec2 n1 = vec2(-d1.y, d1.x) * hw;
-    // body: wound so successive edges turn the same way as the wedges below
-    put_edge(slot, pa + n1, pa - n1, path);
-    put_edge(slot + 1u, pa - n1, pb - n1, path);
-    put_edge(slot + 2u, pb - n1, pb + n1, path);
-    put_edge(slot + 3u, pb + n1, pa + n1, path);
+    float sweep = 0.0;
+    vec2 a = n1;
+    vec2 b = n1;
+    bool trimmed = false;
     if (join_start) {
         vec2 dv = pa - prev_point;
         float dl = length(dv);
-        float sweep = 0.0;
-        vec2 a = n1;
-        vec2 b = n1;
         if (dl > 0.0) {
             vec2 d0 = dv / dl;
             float cr = d0.x * d1.y - d0.y * d1.x;
@@ -192,26 +197,60 @@ void emit_piece(uint slot, vec2 pa, vec2 pb, vec2 d1, float hw, bool join_start,
             vec2 n0 = vec2(-d0.y, d0.x) * hw;
             a = cr > 0.0 ? -n0 : n1;
             b = cr > 0.0 ? -n1 : n0;
+            float t = hw * tan(sweep * 0.5);
+            if (sweep >= 1e-4 && sweep < 3.0 && t <= min(dl, back_run) && t <= length(pb - pa)) {
+                trimmed = true;
+                vec2 inner = (n0 + n1) / (1.0 + cos(sweep));
+                if (cr > 0.0) {
+                    vec2 corner = pa + inner;
+                    put_edge(slot, pa - n1, pb - n1, path);
+                    put_edge(slot + 1u, pb - n1, pb + n1, path);
+                    put_edge(slot + 2u, pb + n1, corner, path);
+                    put_edge(slot + 3u, corner, pa + n0, path);
+                    put_edge(slot + 4u, pa + n0, pa, path);
+                    put_edge(slot + 5u, pa, pa - n1, path);
+                } else {
+                    vec2 corner = pa - inner;
+                    put_edge(slot, pa + n1, pa, path);
+                    put_edge(slot + 1u, pa, pa - n0, path);
+                    put_edge(slot + 2u, pa - n0, corner, path);
+                    put_edge(slot + 3u, corner, pb - n1, path);
+                    put_edge(slot + 4u, pb - n1, pb + n1, path);
+                    put_edge(slot + 5u, pb + n1, pa + n1, path);
+                }
+                put_zero(slot + 6u, 1u, path);
+            }
         }
+    }
+    if (!trimmed) {
+        // body: wound so successive edges turn the same way as the wedges below
+        put_edge(slot, pa + n1, pa - n1, path);
+        put_edge(slot + 1u, pa - n1, pb - n1, path);
+        put_edge(slot + 2u, pb - n1, pb + n1, path);
+        put_edge(slot + 3u, pb + n1, pa + n1, path);
+        put_zero(slot + 4u, 3u, path);
+    }
+    uint start_slot = slot + 7u;
+    if (join_start) {
         if (sweep < 1e-4) {
-            put_zero(slot + 4u, wedge, path);
+            put_zero(start_slot, wedge, path);
         } else if (join_kind == 0u) {
-            put_wedge(slot + 4u, pa, a, sweep, path);
+            put_wedge(start_slot, pa, a, sweep, path);
         } else {
             // 1 / cos(sweep / 2) is the miter length over the stroke width: past the limit (or a
             // reversal, where it is unbounded) the join falls back to a bevel, as SVG specifies.
             bool miter = join_kind == 2u && cos(sweep * 0.5) * miter_limit >= 1.0;
             vec2 tip = (a + b) / (1.0 + cos(sweep));
-            put_corner(slot + 4u, pa, a, b, tip, miter, path);
+            put_corner(start_slot, pa, a, b, tip, miter, path);
         }
     } else if (cap_kind == 0u) {
-        put_wedge(slot + 4u, pa, n1, 3.14159265358979, path);
+        put_wedge(start_slot, pa, n1, 3.14159265358979, path);
     } else if (cap_kind == 2u) {
-        put_square(slot + 4u, pa, -n1, -d1 * hw, path);
+        put_square(start_slot, pa, -n1, -d1 * hw, path);
     } else {
-        put_zero(slot + 4u, wedge, path);
+        put_zero(start_slot, wedge, path);
     }
-    uint end_slot = slot + 4u + wedge;
+    uint end_slot = start_slot + wedge;
     if (!end_cap || cap_kind == 1u) {
         put_zero(end_slot, wedge, path);
     } else if (cap_kind == 0u) {
@@ -240,7 +279,7 @@ void main() {
     uint slot = strokes[r + 13u];                 // first edge slot of this record
     uint pieces = strokes[r + 14u];               // dash pieces this record has room for (1 = solid)
     uint wedge = pc.arc_edges + 2u;
-    uint stride = 4u + 2u * wedge;
+    uint stride = 7u + 2u * wedge;
     vec2 d = p1 - p0;
     float len = length(d);
     if (len <= 0.0) {
@@ -252,7 +291,7 @@ void main() {
     uint dn = dashes[db]; // dash entries (alternating on / off), 0 = solid
     if (dn == 0u) {
         emit_piece(slot, p0, p1, d1, hw, (flags & 2u) != 0u, (flags & 1u) != 0u, prev_point,
-                   join_kind, miter_limit, cap_kind, path);
+                   1e30, join_kind, miter_limit, cap_kind, path);
         return;
     }
     // Dashes: walk the pattern across [s0, s0 + len]. The pattern phase is (s + offset) mod period, so
@@ -290,7 +329,8 @@ void main() {
             // on into the next segment is left for that segment's record to join.
             bool end_cap = q + rem <= s1 + 1e-3 || ((flags & 8u) != 0u && qe >= s1 - 1e-3);
             emit_piece(slot + used * stride, p0 + d1 * (q - s0), p0 + d1 * (qe - s0), d1, hw,
-                       join_start, end_cap, prev_point, join_kind, miter_limit, cap_kind, path);
+                       join_start, end_cap, prev_point, ph - c0, join_kind, miter_limit, cap_kind,
+                       path);
             ++used;
         }
         ph += qe - q;

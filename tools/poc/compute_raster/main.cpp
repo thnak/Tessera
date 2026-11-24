@@ -16,6 +16,8 @@
 // push-constant matrix, not an upload, which this tool does not exercise.
 
 #include "tessera/rendering/path/path_rasterizer.hpp"
+#include "tessera/rendering/path/path_scale.hpp"
+#include "tessera/rendering/path/svg_loader.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
@@ -28,6 +30,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <span>
 #include <string>
@@ -131,6 +135,10 @@ struct GpuShape {
     // expanded on the GPU; `open` puts a round cap at the end (the start has no previous vertex).
     float half_width = 0.0f;
     bool open = false;
+    // Several contours in one shape (an SVG path with subpaths): segments per contour, and whether
+    // each is open. Empty means one contour of every segment, open when `open` says so.
+    std::vector<std::uint32_t> contour_sizes;
+    std::vector<bool> contour_open;
     std::vector<float> dash; // normalized on/off lengths (even count, at most 8); empty = solid
     float dash_offset = 0.0f;
     std::uint32_t join = 0; // 0 round, 1 bevel, 2 miter
@@ -457,6 +465,154 @@ void add_dashed_blob(SceneDescription& scene, float cx, float cy, float r, path:
     return scene;
 }
 
+// ---- SVG route: the decoded document (ThorVG is the parser) -> the compute rasterizer's input
+// -------
+
+struct FlatContour {
+    std::vector<Pt> points;
+    bool closed = false;
+};
+
+// Flattens a path into polylines in device space. Curves split by Wang's bound for a chord error of
+// `tolerance` pixels; a repeated point is dropped (a zero-length segment has no direction, so it
+// could not carry a join).
+[[nodiscard]] std::vector<FlatContour> flatten_path(const path::Path& geometry, float tolerance) {
+    std::vector<FlatContour> result;
+    FlatContour current;
+    Pt at{0, 0}, start{0, 0};
+    const auto push = [&](Pt p) {
+        if (current.points.empty() ||
+            std::hypot(p.x - current.points.back().x, p.y - current.points.back().y) > 1e-4f) {
+            current.points.push_back(p);
+        }
+        at = p;
+    };
+    const auto begin_drawing = [&] {
+        if (current.points.empty()) {
+            current.points.push_back(at); // after a close, drawing resumes from the subpath start
+        }
+    };
+    const auto finish = [&] {
+        if (!current.points.empty()) {
+            result.push_back(std::move(current));
+        }
+        current = {};
+    };
+    const auto second_difference = [](Pt a, Pt b, Pt c) {
+        return std::hypot(a.x - 2 * b.x + c.x, a.y - 2 * b.y + c.y);
+    };
+    for (const path::PathSegment& segment : geometry.segments) {
+        switch (segment.kind) {
+        case path::SegmentKind::move_to:
+            finish();
+            at = start = {segment.p0.x, segment.p0.y};
+            current.points.push_back(at);
+            break;
+        case path::SegmentKind::line_to:
+            begin_drawing();
+            push({segment.p0.x, segment.p0.y});
+            break;
+        case path::SegmentKind::quad_to: {
+            begin_drawing();
+            const Pt p0 = at, c{segment.p0.x, segment.p0.y}, p1{segment.p1.x, segment.p1.y};
+            const int n = std::clamp(static_cast<int>(std::ceil(std::sqrt(
+                                         0.25f * second_difference(p0, c, p1) / tolerance))),
+                                     1, 64);
+            for (int i = 1; i <= n; ++i) {
+                const float t = static_cast<float>(i) / static_cast<float>(n), u = 1 - t;
+                push({u * u * p0.x + 2 * u * t * c.x + t * t * p1.x,
+                      u * u * p0.y + 2 * u * t * c.y + t * t * p1.y});
+            }
+            break;
+        }
+        case path::SegmentKind::cubic_to: {
+            begin_drawing();
+            const Pt p0 = at, c0{segment.p0.x, segment.p0.y}, c1{segment.p1.x, segment.p1.y},
+                     p1{segment.p2.x, segment.p2.y};
+            const float m = std::max(second_difference(p0, c0, c1), second_difference(c0, c1, p1));
+            const int n =
+                std::clamp(static_cast<int>(std::ceil(std::sqrt(0.75f * m / tolerance))), 1, 128);
+            for (int i = 1; i <= n; ++i) {
+                const float t = static_cast<float>(i) / static_cast<float>(n), u = 1 - t;
+                const float b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t;
+                push({b0 * p0.x + b1 * c0.x + b2 * c1.x + b3 * p1.x,
+                      b0 * p0.y + b1 * c0.y + b2 * c1.y + b3 * p1.y});
+            }
+            break;
+        }
+        case path::SegmentKind::close:
+            if (!current.points.empty()) {
+                current.closed = true;
+                finish();
+            }
+            at = start;
+            break;
+        }
+    }
+    finish();
+    return result;
+}
+
+// Appends the segments of `points` (closed back to the first point when `close`) to `out`.
+std::size_t add_segments(std::vector<float>& out, std::vector<Pt> points, bool close) {
+    if (close && points.size() > 1 &&
+        std::hypot(points.back().x - points[0].x, points.back().y - points[0].y) <= 1e-4f) {
+        points.pop_back(); // the closing segment would have no length
+    }
+    std::size_t count = 0;
+    for (std::size_t i = 0; i + 1 < points.size(); ++i) {
+        out.insert(out.end(), {points[i].x, points[i].y, points[i + 1].x, points[i + 1].y});
+        ++count;
+    }
+    if (close && points.size() > 1) {
+        out.insert(out.end(), {points.back().x, points.back().y, points[0].x, points[0].y});
+        ++count;
+    }
+    return count;
+}
+
+// One scene from decoded document shapes (already scaled to device pixels): a fill shape, then a
+// stroke shape, per source shape, in painter order, as the rasterizer composites them.
+[[nodiscard]] SceneDescription svg_scene(std::span<const path::PathShape> shapes) {
+    SceneDescription scene;
+    scene.reference.assign(shapes.begin(), shapes.end());
+    for (const path::PathShape& source : shapes) {
+        const std::vector<FlatContour> contours = flatten_path(source.path, 0.05f);
+        if (source.paint.fill) {
+            GpuShape fill;
+            fill.rgba = pack(*source.paint.fill);
+            fill.rule = source.path.fill_rule == path::FillRule::even_odd ? 1U : 0U;
+            for (const FlatContour& contour : contours) {
+                add_segments(fill.contours, contour.points, true); // a fill closes every subpath
+            }
+            if (!fill.contours.empty()) {
+                scene.gpu.push_back(std::move(fill));
+            }
+        }
+        if (source.paint.stroke) {
+            const path::StrokeStyle& style = *source.paint.stroke;
+            GpuShape stroke;
+            stroke.rgba = pack(style.color);
+            stroke.half_width = style.width * 0.5f;
+            stroke.join = join_code(style.join);
+            stroke.cap = cap_code(style.cap);
+            stroke.miter_limit = style.miter_limit;
+            for (const FlatContour& contour : contours) {
+                const std::size_t count =
+                    add_segments(stroke.contours, contour.points, contour.closed);
+                if (count > 0) {
+                    stroke.contour_sizes.push_back(static_cast<std::uint32_t>(count));
+                    stroke.contour_open.push_back(!contour.closed);
+                }
+            }
+            if (!stroke.contours.empty()) {
+                scene.gpu.push_back(std::move(stroke));
+            }
+        }
+    }
+    return scene;
+}
+
 // ---- GPU data
 // ------------------------------------------------------------------------------------
 
@@ -534,6 +690,10 @@ void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uin
         record[9] = clamp_to(std::floor(min_y) - 1, height);
         record[10] = clamp_to(std::ceil(max_x) + 1, width);
         record[11] = clamp_to(std::ceil(max_y) + 1, height);
+        record[12] =
+            (m.a == 1.0f && m.b == 0.0f && m.c == 0.0f && m.d == 1.0f && m.e == 0.0f && m.f == 0.0f)
+                ? 1U
+                : 0U;
     }
 }
 
@@ -541,13 +701,27 @@ void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uin
                              std::uint32_t height, float max_scale) {
     Encoded result;
     result.arc_edges = arc_edges_for(scene, max_scale);
-    const std::uint32_t stride = 4 + 2 * (result.arc_edges + 2);
+    const std::uint32_t stride = 7 + 2 * (result.arc_edges + 2);
     for (std::size_t p = 0; p < scene.gpu.size(); ++p) {
         const GpuShape& shape = scene.gpu[p];
         float min_x = 1e30f, min_y = 1e30f, max_x = -1e30f, max_y = -1e30f;
         if (shape.half_width > 0.0f) {
             const float hw = shape.half_width;
-            const std::size_t count = shape.contours.size() / 4;
+            const std::size_t total = shape.contours.size() / 4;
+            struct Range {
+                std::size_t first, count;
+                bool open;
+            };
+            std::vector<Range> ranges;
+            if (shape.contour_sizes.empty()) {
+                ranges.push_back({0, total, shape.open});
+            } else {
+                std::size_t at = 0;
+                for (std::size_t k = 0; k < shape.contour_sizes.size(); ++k) {
+                    ranges.push_back({at, shape.contour_sizes[k], shape.contour_open[k]});
+                    at += shape.contour_sizes[k];
+                }
+            }
             // Dashed: cut every segment into chunks no longer than one pattern period, so a chunk
             // holds at most (on entries + 1) dashes and every record has a fixed number of piece
             // slots. The cut does not depend on the offset, so animating the offset re-encodes
@@ -561,53 +735,61 @@ void write_paths(Encoded& encoded, const std::vector<Affine>& matrices, std::uin
             struct Chunk {
                 float x0, y0, x1, y1, start;
             };
-            std::vector<Chunk> chunks;
-            float length_so_far = 0.0f;
-            for (std::size_t i = 0; i < count; ++i) {
-                const float* s = &shape.contours[i * 4];
-                const float length = std::hypot(s[2] - s[0], s[3] - s[1]);
-                const std::size_t parts =
-                    period > 0.0f ? std::max<std::size_t>(
-                                        1, static_cast<std::size_t>(std::ceil(length / period)))
-                                  : 1;
-                for (std::size_t part = 0; part < parts; ++part) {
-                    const float t0 = static_cast<float>(part) / static_cast<float>(parts);
-                    const float t1 = static_cast<float>(part + 1) / static_cast<float>(parts);
-                    chunks.push_back({s[0] + (s[2] - s[0]) * t0, s[1] + (s[3] - s[1]) * t0,
-                                      s[0] + (s[2] - s[0]) * t1, s[1] + (s[3] - s[1]) * t1,
-                                      length_so_far + length * t0});
+            for (const Range& range : ranges) {
+                if (range.count == 0) {
+                    continue;
                 }
-                length_so_far += length;
-            }
-            for (std::size_t i = 0; i < chunks.size(); ++i) {
-                const Chunk& c = chunks[i];
-                const bool closed = !shape.open;
-                const bool has_prev = closed || i > 0;
-                const Chunk& before = i > 0 ? chunks[i - 1] : chunks.back();
-                const bool last = i + 1 == chunks.size();
-                const std::uint32_t flags = (shape.open && last ? 1U : 0U) | (has_prev ? 2U : 0U) |
-                                            (i == 0 ? 4U : 0U) | (last ? 8U : 0U);
-                result.strokes.insert(result.strokes.end(),
-                                      {bits(c.x0), bits(c.y0), bits(c.x1), bits(c.y1),
-                                       static_cast<std::uint32_t>(p), bits(hw), flags, shape.join,
-                                       bits(before.x0), bits(before.y0), bits(shape.miter_limit),
-                                       shape.cap, bits(c.start), result.stroke_edges, pieces, 0});
-                result.stroke_edges += pieces * stride;
-                min_x = std::min({min_x, c.x0, c.x1});
-                max_x = std::max({max_x, c.x0, c.x1});
-                min_y = std::min({min_y, c.y0, c.y1});
-                max_y = std::max({max_y, c.y0, c.y1});
-                // Rows the expanded edges can cross: the two long body edges, the two short ones,
-                // and two wedges each walking the rim up and down, for each dash piece.
-                const float dy = std::abs(c.y1 - c.y0);
-                const float rows =
-                    2 * (dy + 2) + 2 * (2 * hw + 2) +
-                    2 * (2 * (2 * hw + 2) + static_cast<float>(result.arc_edges) + 2);
-                // A miter tip can reach hw * miter_limit past the vertex: widen the row bound.
-                const float reach = shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f) : hw;
-                result.row_nodes +=
-                    static_cast<std::uint64_t>((rows + 4 * reach) * static_cast<float>(pieces));
-                ++result.stroke_count;
+                std::vector<Chunk> chunks;
+                float length_so_far = 0.0f;
+                for (std::size_t i = range.first; i < range.first + range.count; ++i) {
+                    const float* s = &shape.contours[i * 4];
+                    const float length = std::hypot(s[2] - s[0], s[3] - s[1]);
+                    const std::size_t parts =
+                        period > 0.0f ? std::max<std::size_t>(
+                                            1, static_cast<std::size_t>(std::ceil(length / period)))
+                                      : 1;
+                    for (std::size_t part = 0; part < parts; ++part) {
+                        const float t0 = static_cast<float>(part) / static_cast<float>(parts);
+                        const float t1 = static_cast<float>(part + 1) / static_cast<float>(parts);
+                        chunks.push_back({s[0] + (s[2] - s[0]) * t0, s[1] + (s[3] - s[1]) * t0,
+                                          s[0] + (s[2] - s[0]) * t1, s[1] + (s[3] - s[1]) * t1,
+                                          length_so_far + length * t0});
+                    }
+                    length_so_far += length;
+                }
+                for (std::size_t i = 0; i < chunks.size(); ++i) {
+                    const Chunk& c = chunks[i];
+                    const bool closed = !range.open;
+                    const bool has_prev = closed || i > 0;
+                    const Chunk& before = i > 0 ? chunks[i - 1] : chunks.back();
+                    const bool last = i + 1 == chunks.size();
+                    const std::uint32_t flags = (range.open && last ? 1U : 0U) |
+                                                (has_prev ? 2U : 0U) | (i == 0 ? 4U : 0U) |
+                                                (last ? 8U : 0U);
+                    result.strokes.insert(result.strokes.end(),
+                                          {bits(c.x0), bits(c.y0), bits(c.x1), bits(c.y1),
+                                           static_cast<std::uint32_t>(p), bits(hw), flags,
+                                           shape.join, bits(before.x0), bits(before.y0),
+                                           bits(shape.miter_limit), shape.cap, bits(c.start),
+                                           result.stroke_edges, pieces, 0});
+                    result.stroke_edges += pieces * stride;
+                    min_x = std::min({min_x, c.x0, c.x1});
+                    max_x = std::max({max_x, c.x0, c.x1});
+                    min_y = std::min({min_y, c.y0, c.y1});
+                    max_y = std::max({max_y, c.y0, c.y1});
+                    // Rows the expanded edges can cross: the two long body edges, the two short
+                    // ones, and two wedges each walking the rim up and down, for each dash piece.
+                    const float dy = std::abs(c.y1 - c.y0);
+                    const float rows =
+                        2 * (dy + 2) + 2 * (2 * hw + 2) +
+                        2 * (2 * (2 * hw + 2) + static_cast<float>(result.arc_edges) + 2);
+                    // A miter tip can reach hw * miter_limit past the vertex: widen the row bound.
+                    const float reach =
+                        shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f) : hw;
+                    result.row_nodes +=
+                        static_cast<std::uint64_t>((rows + 4 * reach) * static_cast<float>(pieces));
+                    ++result.stroke_count;
+                }
             }
             // A miter tip or a square cap reaches past hw: the box must hold it.
             const float reach = shape.join == 2 ? hw * std::max(shape.miter_limit, 1.0f)
@@ -678,7 +860,8 @@ struct Options {
     int iterations = 30;
     int warmup = 5;
     bool validate = false;
-    bool each = false; // also compare every dashed shape of the dash scene on its own
+    bool keep_pixels = false; // RunResult carries both images (the SVG mode's --dump)
+    bool each = false;        // also compare every dashed shape of the dash scene on its own
 };
 
 // How a scene is animated after the static frame: every path gets its own transform per frame, and
@@ -736,14 +919,40 @@ transformed_reference(const std::vector<path::PathShape>& shapes,
     return result;
 }
 
-void run_scene(rhi::Device& device, const char* name, const SceneDescription& scene,
-               const Options& options, Motion motion = Motion::none) {
-    using std::printf;
+// What one scene run measured; the SVG mode prints these as one line per icon.
+struct RunResult {
+    double gpu_p50_ms = 0.0;
+    double wall_p50_ms = 0.0; // record + submit + wait: what a texture-cache miss would wait
+    double thorvg_ms = 0.0;
+    double encode_ms = 0.0;
+    int max_diff = 0;
+    double over4_percent = 0.0;
+    double over16_percent = 0.0;
+    bool compared = false;
+    std::vector<std::uint8_t> gpu_pixels, reference_pixels; // kept when Options::keep_pixels
+};
+
+bool g_quiet = false;
+
+template<typename... Args> void say(const char* format, Args... args) {
+    if (g_quiet) {
+        return;
+    }
+    if constexpr (sizeof...(Args) == 0) {
+        std::fputs(format, stdout);
+    } else {
+        std::printf(format, args...); // NOLINT(clang-diagnostic-format-nonliteral)
+    }
+}
+
+RunResult run_scene(rhi::Device& device, const char* name, const SceneDescription& scene,
+                    const Options& options, Motion motion = Motion::none) {
+    RunResult result;
     const auto encode_begin = Clock::now();
     Encoded encoded = encode(scene, options.width, options.height, motion_max_scale(motion));
     const double encode_ms =
         std::chrono::duration<double, std::milli>(Clock::now() - encode_begin).count();
-    printf("  CPU encode (flattened segments -> packed, full re-encode): %.3f ms\n", encode_ms);
+    say("  CPU encode (flattened segments -> packed, full re-encode): %.3f ms\n", encode_ms);
 
     const std::uint64_t node_capacity =
         static_cast<std::uint64_t>(static_cast<double>(encoded.row_nodes) *
@@ -752,9 +961,9 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
     const std::uint32_t nodes_base = 1 + encoded.path_count * options.height;
     const std::uint32_t exp_base = static_cast<std::uint32_t>(nodes_base + node_capacity * 2);
     const std::size_t work_words = exp_base + static_cast<std::size_t>(encoded.stroke_edges) * 8;
-    printf("\n[%s: %zu paths, %u fill + %u stroke segments (%u expanded edges), %llu row nodes]\n",
-           name, scene.gpu.size(), encoded.fill_count, encoded.stroke_count, encoded.stroke_edges,
-           static_cast<unsigned long long>(encoded.row_nodes));
+    say("\n[%s: %zu paths, %u fill + %u stroke segments (%u expanded edges), %llu row nodes]\n",
+        name, scene.gpu.size(), encoded.fill_count, encoded.stroke_count, encoded.stroke_edges,
+        static_cast<unsigned long long>(encoded.row_nodes));
     const std::size_t pixel_bytes =
         static_cast<std::size_t>(options.width) * options.height * sizeof(std::uint32_t);
 
@@ -784,12 +993,12 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
     const auto out_buffer = device.create_buffer(rw);
     const auto readback = device.create_buffer({pixel_bytes, rhi::BufferUsage::Readback});
     const auto counter_readback = device.create_buffer({4, rhi::BufferUsage::Readback});
-    printf("  bytes uploaded: %zu once (segments + strokes + paths), 0 per frame; GPU memory: work "
-           "%.1f MiB, output %.1f MiB\n",
-           (encoded.segs.size() + encoded.strokes.size() + encoded.paths.size()) *
-               sizeof(std::uint32_t),
-           static_cast<double>(work_words * 4) / (1024.0 * 1024.0),
-           static_cast<double>(pixel_bytes) / (1024.0 * 1024.0));
+    say("  bytes uploaded: %zu once (segments + strokes + paths), 0 per frame; GPU memory: work "
+        "%.1f MiB, output %.1f MiB\n",
+        (encoded.segs.size() + encoded.strokes.size() + encoded.paths.size()) *
+            sizeof(std::uint32_t),
+        static_cast<double>(work_words * 4) / (1024.0 * 1024.0),
+        static_cast<double>(pixel_bytes) / (1024.0 * 1024.0));
 
     const auto make_pipeline = [&](const std::uint32_t* spirv, std::size_t size) {
         rhi::ComputePipelineDesc desc;
@@ -846,7 +1055,7 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
         }
     };
 
-    std::vector<double> gpu_ms, cpu_ms;
+    std::vector<double> gpu_ms, cpu_ms, wall_ms;
     for (int i = 0; i < options.warmup + options.iterations; ++i) {
         const auto list = device.create_command_list();
         const bool timed = list->begin_gpu_timestamps(0);
@@ -858,24 +1067,28 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
         if (!list->wait(10000)) {
             throw std::runtime_error("the compute submission did not finish");
         }
+        const double wall = std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
         double ms = 0.0;
         if (i >= options.warmup) {
             cpu_ms.push_back(record_ms);
+            wall_ms.push_back(wall);
             if (timed && list->gpu_frame_time_ms(ms)) {
                 gpu_ms.push_back(ms);
             }
         }
     }
+    result.encode_ms = encode_ms;
+    result.wall_p50_ms = percentile(wall_ms, 0.5);
+    result.gpu_p50_ms = gpu_ms.empty() ? 0.0 : percentile(gpu_ms, 0.5);
     if (gpu_ms.empty()) {
-        printf("  GPU time: no usable timestamps on this device\n");
+        say("  GPU time: no usable timestamps on this device\n");
     } else {
-        printf(
-            "  GPU time per frame: min %.2f ms, p50 %.2f ms, p95 %.2f ms (%zu runs; clear + bin + "
+        say("  GPU time per frame: min %.2f ms, p50 %.2f ms, p95 %.2f ms (%zu runs; clear + bin + "
             "fine at %ux%u)\n",
             *std::min_element(gpu_ms.begin(), gpu_ms.end()), percentile(gpu_ms, 0.5),
             percentile(gpu_ms, 0.95), gpu_ms.size(), options.width, options.height);
     }
-    printf("  CPU record + submit per frame: p50 %.3f ms\n", percentile(cpu_ms, 0.5));
+    say("  CPU record + submit per frame: p50 %.3f ms\n", percentile(cpu_ms, 0.5));
 
     const auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
     const bool have_thorvg = rasterizer != nullptr && rasterizer->backend_name() == "thorvg-cpu";
@@ -889,11 +1102,11 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
         list->submit();
         std::uint32_t used = 0;
         counter_readback->read(&used, 4);
-        printf("  %sbin nodes used %u of %llu%s\n", label, used,
-               static_cast<unsigned long long>(node_capacity),
-               used > node_capacity ? "  OVERFLOW" : "");
+        say("  %sbin nodes used %u of %llu%s\n", label, used,
+            static_cast<unsigned long long>(node_capacity),
+            used > node_capacity ? "  OVERFLOW" : "");
         if (!have_thorvg) {
-            printf("  ThorVG unavailable in this build: no pixel comparison\n");
+            say("  ThorVG unavailable in this build: no pixel comparison\n");
             return;
         }
         std::vector<std::uint8_t> gpu_pixels(pixel_bytes);
@@ -903,11 +1116,15 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
                                         options.height, options.width * 4U};
         const auto thor_begin = Clock::now();
         if (!rasterizer->rasterize(reference_shapes, target).has_value()) {
-            printf("  ThorVG rasterize failed\n");
+            say("  ThorVG rasterize failed\n");
             return;
         }
-        printf("  %sThorVG CPU raster of the same scene: %.2f ms\n", label,
-               std::chrono::duration<double, std::milli>(Clock::now() - thor_begin).count());
+        const double thor_ms =
+            std::chrono::duration<double, std::milli>(Clock::now() - thor_begin).count();
+        say("  %sThorVG CPU raster of the same scene: %.2f ms\n", label, thor_ms);
+        if (label[0] == 0) {
+            result.thorvg_ms = thor_ms;
+        }
         std::uint64_t over4 = 0, over16 = 0;
         std::uint64_t sum = 0;
         int max_diff = 0;
@@ -929,15 +1146,27 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
             over4 += worst > 4 ? 1 : 0;
             over16 += worst > 16 ? 1 : 0;
         }
-        printf("  %svs ThorVG: mean abs diff %.4f per channel, max %d, pixels off by >4: %.4f%%, "
-               ">16: %.4f%%\n",
-               label, static_cast<double>(sum) / static_cast<double>(pixel_count * 4), max_diff,
-               100.0 * static_cast<double>(over4) / static_cast<double>(pixel_count),
-               100.0 * static_cast<double>(over16) / static_cast<double>(pixel_count));
+        if (label[0] == 0 && options.keep_pixels) {
+            result.gpu_pixels = gpu_pixels;
+            result.reference_pixels = reference;
+        }
+        if (label[0] == 0) {
+            result.compared = true;
+            result.max_diff = max_diff;
+            result.over4_percent =
+                100.0 * static_cast<double>(over4) / static_cast<double>(pixel_count);
+            result.over16_percent =
+                100.0 * static_cast<double>(over16) / static_cast<double>(pixel_count);
+        }
+        say("  %svs ThorVG: mean abs diff %.4f per channel, max %d, pixels off by >4: %.4f%%, "
+            ">16: %.4f%%\n",
+            label, static_cast<double>(sum) / static_cast<double>(pixel_count * 4), max_diff,
+            100.0 * static_cast<double>(over4) / static_cast<double>(pixel_count),
+            100.0 * static_cast<double>(over16) / static_cast<double>(pixel_count));
     };
     frame_and_compare("", scene.reference);
     if (motion == Motion::none) {
-        return;
+        return result;
     }
 
     // Animated frames: only the path records change (CPU rewrite + upload), the segments and the
@@ -1009,23 +1238,138 @@ void run_scene(rhi::Device& device, const char* name, const SceneDescription& sc
     const std::size_t animated_bytes =
         (motion == Motion::dash ? encoded.dashes.size() : encoded.paths.size()) *
         sizeof(std::uint32_t);
-    printf("  animated frame: CPU rewrite + upload p50 %.3f ms for %zu bytes (%u paths), versus "
-           "%.3f ms "
-           "for a full re-encode; GPU p50 %.2f ms (min %.2f)\n",
-           percentile(update_ms, 0.5), animated_bytes, encoded.path_count, encode_ms,
-           animated_gpu_ms.empty() ? 0.0 : percentile(animated_gpu_ms, 0.5),
-           animated_gpu_ms.empty()
-               ? 0.0
-               : *std::min_element(animated_gpu_ms.begin(), animated_gpu_ms.end()));
+    say("  animated frame: CPU rewrite + upload p50 %.3f ms for %zu bytes (%u paths), versus "
+        "%.3f ms "
+        "for a full re-encode; GPU p50 %.2f ms (min %.2f)\n",
+        percentile(update_ms, 0.5), animated_bytes, encoded.path_count, encode_ms,
+        animated_gpu_ms.empty() ? 0.0 : percentile(animated_gpu_ms, 0.5),
+        animated_gpu_ms.empty()
+            ? 0.0
+            : *std::min_element(animated_gpu_ms.begin(), animated_gpu_ms.end()));
+    return result;
+}
+
+// Every SVG under `directory`, decoded by the production loader (ThorVG parses; its geometry is
+// what the texture cache rasterizes today) and rasterized at each size by the compute rasterizer
+// and by ThorVG: one line per icon and size, then a summary per size. `wall` is record + submit +
+// wait, what a texture-cache miss would wait for (the CPU path's equivalent is the ThorVG time).
+void run_svg_dir(rhi::Device& device, const std::string& directory,
+                 const std::vector<std::uint32_t>& sizes, const Options& options,
+                 const std::string& dump_prefix) {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> files;
+    for (const auto& entry : fs::recursive_directory_iterator(directory)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".svg") {
+            files.push_back(entry.path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    struct Totals {
+        int count = 0;
+        double gpu = 0, wall = 0, encode = 0, thorvg = 0, over4 = 0, over16 = 0;
+        int worst = 0;
+        std::string worst_name;
+    };
+    std::vector<Totals> totals(sizes.size());
+    std::printf("svg dir %s: %zu files\n", directory.c_str(), files.size());
+    for (const fs::path& file : files) {
+        std::ifstream stream(file, std::ios::binary);
+        const std::string bytes((std::istreambuf_iterator<char>(stream)),
+                                std::istreambuf_iterator<char>());
+        const auto document = path::load_svg(std::span<const char>(bytes.data(), bytes.size()));
+        if (!document.has_value()) {
+            std::printf("  skip %s: loader error %d\n", file.filename().string().c_str(),
+                        static_cast<int>(document.error()));
+            continue;
+        }
+        const std::uint32_t longest = std::max(document->width, document->height);
+        for (std::size_t s = 0; s < sizes.size(); ++s) {
+            const float scale = static_cast<float>(sizes[s]) / static_cast<float>(longest);
+            const std::vector<path::PathShape> scaled =
+                path::scale_path_shapes(document->shapes, scale);
+            const std::span<const path::PathShape> shapes =
+                scaled.empty() ? std::span<const path::PathShape>(document->shapes)
+                               : std::span<const path::PathShape>(scaled);
+            Options sized = options;
+            sized.width =
+                static_cast<std::uint32_t>(std::ceil(static_cast<float>(document->width) * scale));
+            sized.height =
+                static_cast<std::uint32_t>(std::ceil(static_cast<float>(document->height) * scale));
+            if (sized.width == 0 || sized.height == 0) {
+                continue;
+            }
+            const SceneDescription scene = svg_scene(shapes);
+            g_quiet = true;
+            sized.keep_pixels = !dump_prefix.empty();
+            const RunResult r = run_scene(device, "", scene, sized);
+            if (!dump_prefix.empty() && !r.gpu_pixels.empty()) {
+                const std::string base =
+                    dump_prefix + file.stem().string() + "_" + std::to_string(sizes[s]);
+                const auto raw = [&](const char* suffix, const std::vector<std::uint8_t>& px) {
+                    std::ofstream out(base + suffix, std::ios::binary);
+                    out.write(reinterpret_cast<const char*>(px.data()),
+                              static_cast<std::streamsize>(px.size()));
+                };
+                raw("_gpu.rgba", r.gpu_pixels);
+                raw("_ref.rgba", r.reference_pixels);
+                std::ofstream(base + ".size") << sized.width << " " << sized.height;
+            }
+            g_quiet = false;
+            std::printf("  %-28s %5ux%-5u %3zu shapes  GPU %.3f ms  wall %.3f ms  ThorVG %.3f ms  "
+                        "max %3d  >4 %.3f%%  >16 %.3f%%\n",
+                        file.filename().string().c_str(), sized.width, sized.height, shapes.size(),
+                        r.gpu_p50_ms, r.wall_p50_ms, r.thorvg_ms, r.max_diff, r.over4_percent,
+                        r.over16_percent);
+            Totals& t = totals[s];
+            ++t.count;
+            t.gpu += r.gpu_p50_ms;
+            t.wall += r.wall_p50_ms;
+            t.encode += r.encode_ms;
+            t.thorvg += r.thorvg_ms;
+            t.over4 += r.over4_percent;
+            t.over16 += r.over16_percent;
+            if (r.max_diff > t.worst) {
+                t.worst = r.max_diff;
+                t.worst_name = file.filename().string();
+            }
+        }
+    }
+    for (std::size_t s = 0; s < sizes.size(); ++s) {
+        const Totals& t = totals[s];
+        if (t.count == 0) {
+            continue;
+        }
+        const double n = t.count;
+        std::printf("SUMMARY %4u px: %d icons, mean GPU %.3f ms, wall %.3f ms, CPU encode %.3f ms "
+                    "(GPU path total %.3f ms), ThorVG %.3f ms, mean >4 %.3f%%, mean >16 %.3f%%, "
+                    "worst max diff %d (%s)\n",
+                    sizes[s], t.count, t.gpu / n, t.wall / n, t.encode / n, (t.wall + t.encode) / n,
+                    t.thorvg / n, t.over4 / n, t.over16 / n, t.worst, t.worst_name.c_str());
+    }
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
     Options options;
+    std::string svg_dir, dump_prefix;
+    std::vector<std::uint32_t> svg_sizes = {32, 64, 256, 1024};
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--each") {
+        if (arg == "--dump" && i + 1 < argc) {
+            dump_prefix = argv[++i];
+        } else if (arg == "--svg-dir" && i + 1 < argc) {
+            svg_dir = argv[++i];
+        } else if (arg == "--svg-sizes" && i + 1 < argc) {
+            svg_sizes.clear();
+            const std::string list = argv[++i];
+            for (std::size_t at = 0; at < list.size();) {
+                const std::size_t comma = list.find(',', at);
+                svg_sizes.push_back(
+                    static_cast<std::uint32_t>(std::atoi(list.substr(at, comma - at).c_str())));
+                at = comma == std::string::npos ? list.size() : comma + 1;
+            }
+        } else if (arg == "--each") {
             options.each = true;
         } else if (arg == "--validate") {
             options.validate = true;
@@ -1044,6 +1388,15 @@ int main(int argc, char** argv) {
         const auto device = tessera::rendering::vulkan::create_vulkan_device(desc);
         if (!device->supports_compute()) {
             std::printf("compute_raster: this device reports no compute\n");
+            return 0;
+        }
+        if (!svg_dir.empty()) {
+            if (!path::svg_backend_available()) {
+                std::printf(
+                    "compute_raster: this build has no SVG backend (TESSERA_ENABLE_THORVG)\n");
+                return 0;
+            }
+            run_svg_dir(*device, svg_dir, svg_sizes, options, dump_prefix);
             return 0;
         }
         std::printf("compute_raster: %ux%u, %d iterations after %d warm-up\n", options.width,
