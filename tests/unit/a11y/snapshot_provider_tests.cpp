@@ -307,11 +307,14 @@ int main() {
         std::string oversized(a11y::kMaxProviderActionTextBytes, 'x');
         check(!provider.post_action(1, a11y::Action::SetValue, oversized),
               "an oversized payload is refused, never truncated");
+        // Drain what the refusals above left behind, so this reads the entry it just queued rather
+        // than the oldest one still waiting.
+        (void)provider.take_actions(drained);
         std::string at_limit(a11y::kMaxProviderActionTextBytes - 1, 'y');
         check(provider.post_action(1, a11y::Action::SetValue, at_limit),
               "a payload one byte under the bound is accepted");
         const std::size_t after = provider.take_actions(drained);
-        check(after >= 1 && drained[0].text_of().size() == at_limit.size(),
+        check(after == 1 && drained[0].text_of() == at_limit,
               "and keeps every byte it was given");
     }
 
