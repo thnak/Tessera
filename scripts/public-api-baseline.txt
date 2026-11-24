@@ -1695,8 +1695,13 @@ function include/tessera/testing/expect.hpp tessera::testing::print_value
 variable include/tessera/testing/expect.hpp tessera::testing::g_failures
 
 header include/tessera/testing/test_app.hpp
+class include/tessera/testing/test_app.hpp tessera::appfw::FakeNet
+class include/tessera/testing/test_app.hpp tessera::appfw::FakeShell
 class include/tessera/testing/test_app.hpp tessera::testing::TestApp
 struct include/tessera/testing/test_app.hpp tessera::testing::AdvanceConfig
+struct include/tessera/testing/test_app.hpp tessera::testing::SettleConfig
+struct include/tessera/testing/test_app.hpp tessera::testing::SettleResult
+enum include/tessera/testing/test_app.hpp tessera::testing::SettleOutcome
 
 header include/tessera/ui/accessibility/a11y_tree.hpp
 class include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::StyleProvider
