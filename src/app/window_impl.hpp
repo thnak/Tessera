@@ -309,6 +309,9 @@ struct WindowHost::Impl {
     // (`frame` null). Style/layout work is a semantics change, so it marks the controller dirty
     // before the dirty-only tick.
     void tick_accessibility(const ui::frame::FrameTick* frame = nullptr);
+    // Dispatches one `TextChange` carrying `text` into `target` (the accessibility `SetValue`
+    // path).
+    void dispatch_text_value(ui::Node& target, std::string_view text);
     void apply_accessibility_action(const AccessibilityAction& action);
 
     ui::Node& root;

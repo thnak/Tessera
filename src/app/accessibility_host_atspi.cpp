@@ -93,7 +93,10 @@ bool AccessibilityHost::Impl::tick_atspi() {
     if (taken > 0) {
         for (std::size_t index = 0; index < taken; ++index) {
             AccessibilityAction action;
-            map_action(batch[index].node, batch[index].action, action);
+            // AT-SPI carries a `SetValue` payload outside the request struct (it is a D-Bus string
+            // the bridge consumes when it queues), so this path has no text to forward. Passing an
+            // empty view keeps the contract honest rather than pretending the platform sent one.
+            map_action(batch[index].node, batch[index].action, {}, action);
             if (action.node != 0) {
                 apply_actions(std::span<const AccessibilityAction>(&action, 1));
                 ++status.actions;
