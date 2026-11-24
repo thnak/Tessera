@@ -91,8 +91,12 @@ realize/recycle, and pairs each realized `ItemKey` with the item node's compiler
 re-hashed at runtime). Focus and selection changes produce bounded, coalesced announcements: the
 host observes once after input handling and drains one structured announcement per observed change
 (`pos_in_set`, `set_size`, realized state), so an unrealized-item focus announces exactly once with
-its position, a superseded change is dropped, and nothing is announced per frame. The semantics tree
-builder and the platform bridges do not consume it yet; that integration is the remaining work.
+its position, a superseded change is dropped, and nothing is announced per frame.
+
+The builder and the Android bridge consume it (issue #874): `BuildOptions` takes a
+`CollectionPositionSource`, `snapshot_positions()` fills one from a `CollectionSemantics`, and
+Android's `describe()` turns `A11yNode::collection` into `CollectionItemInfo`/`CollectionInfo`. A
+node outside a collection keeps the zero default, so a tree with no virtualized list is unchanged.
 
 ## 7. Platform bridges
 
@@ -395,7 +399,6 @@ Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_dbus_address`, `a11y_
 `a11y_atspi_session` (byte replay of every handshake message, dispatch and event emission after
 `Ready`, determinism), and `a11y_atspi_session_pump` (worker start/stop join, restart, handshake
 timeout, peer close before and after `Ready`, worker-driven determinism).
-
 
 ## 12.2 Implemented subset: Windows UIA provider on an MTA bridge thread
 

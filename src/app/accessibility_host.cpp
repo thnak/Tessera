@@ -229,7 +229,7 @@ bool AccessibilityHost::Impl::tick_uia() {
         },
         [this](const a11y::UiaActionRequest& request) {
             AccessibilityAction action;
-            map_action(request.node, request.action, action);
+            map_action(request.node, request.action, a11y::text_of(request), action);
             if (action.node != 0) {
                 apply_actions(std::span<const AccessibilityAction>(&action, 1));
             }
@@ -255,7 +255,7 @@ void AccessibilityHost::Impl::sync_size_dirty() {
 }
 
 void AccessibilityHost::Impl::map_action(a11y::A11yIndex index, a11y::Action action,
-                                         AccessibilityAction& out) {
+                                         std::string_view text, AccessibilityAction& out) {
     out = AccessibilityAction{};
     if (index == a11y::kInvalidIndex || index >= snapshot.nodes.size()) {
         // A stale request for a tree that has already been replaced: drop it, never dereference.
@@ -263,6 +263,9 @@ void AccessibilityHost::Impl::map_action(a11y::A11yIndex index, a11y::Action act
     }
     out.node = snapshot.nodes[index].id;
     out.action = action;
+    // Copied out of the provider's queue entry: the handler runs at this tick boundary and the
+    // provider may have been handed the entry back by then.
+    out.text.assign(text);
 }
 
 void AccessibilityHost::Impl::apply_actions(std::span<const AccessibilityAction> actions) {

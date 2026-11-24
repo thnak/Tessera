@@ -87,6 +87,18 @@ struct A11yNodeInfo {
     bool scrollable = false;
     // The platform's action ids the node supports. A list, not a bit set: see `A11yActionList`.
     A11yActionList actions;
+    // Whether the node is one item of a collection, and where it sits. The Java side turns this
+    // into `AccessibilityNodeInfo.CollectionItemInfo`, which is what lets a screen reader say "3 of
+    // 40" and offer per-list navigation (`docs/specs/accessibility-v1.md` section 5).
+    //
+    // `is_collection_item` is explicit rather than inferred from `set_size > 0`, because a snapshot
+    // node outside a collection carries the zero default and a real collection may legitimately be
+    // empty: the platform distinguishes "not an item" from "an item of an empty list", and so must
+    // this struct.
+    bool is_collection_item = false;
+    // 1-based, matching `aria-posinset` and `virtualization::kPosInSetBase`.
+    std::size_t pos_in_set = 1;
+    std::size_t set_size = 0;
 };
 
 // The platform class name for a role, or nullptr for a role the platform should not announce as

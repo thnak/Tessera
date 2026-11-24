@@ -136,7 +136,6 @@ The manifest declares only what the engine can honour. `localeConfig`, `networkS
 `enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a capability
 the app cannot honour routes platform events to a handler that does not exist.
 
-
 ### 3.4 Input translation
 
 `src/platform/android/android_input.cpp` translates `AInputEvent`s into `ui::InputEvent` and pushes
@@ -262,14 +261,15 @@ stays unit-tested on every lane.
 
 ### 3.7 What is still missing
 
-- **Accessibility's long tail.** The role/action mapping, the pull-side provider and the Java
-  `AccessibilityNodeProvider` are done (3.9). Not wired: live regions, collection set-size/position,
-  and `SetText`/`SetSelection` (offered but dropped - `ProviderAction` carries no text payload).
-- **The IME's long tail.** `requestCursorUpdates` answers once (3.18); the async cursor
-  stream, which the engine has no notion of, is what remains.
-  because the codegen CLI runs on the host and `tessera_compiler_demo` is gated on
-  `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
-  tool - the same `ExternalProject` pattern the shader manifest checker uses.
+- **Accessibility's long tail.** The role/action mapping, the pull-side provider, the Java
+  `AccessibilityNodeProvider` and `SetText` (3.9) are done. Not wired: live regions, collection
+  set-size/position, and `SetSelection` - the engine's `Action` has no caret member, so that request
+  is delegated to the platform rather than accepted and ignored.
+- **The IME's long tail.** `requestCursorUpdates` answers once (3.18); only the async cursor stream,
+  which the engine has no notion of, remains.
+- **A generated component.** The shell's scene is hand-built: the codegen CLI runs on the host and
+  `tessera_compiler_demo` is gated on `NOT CMAKE_CROSSCOMPILING`; a generated `demo::Demo` needs the
+  codegen host tool, the pattern the shader manifest checker already uses.
 
 ### 3.8 Emulator GPU mode matters
 

@@ -67,6 +67,9 @@ bool AccessibilityHost::Impl::tick_provider() {
         AccessibilityAction action;
         action.node = batch[index].node;
         action.action = batch[index].action;
+        // The value-setting actions carry their payload in the queue entry; it is copied here so
+        // the handler can read it after the provider's entry is reused.
+        action.text = batch[index].text_of();
         if (action.node != 0) {
             apply_actions(std::span<const AccessibilityAction>(&action, 1));
             ++status.actions;

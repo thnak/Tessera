@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <span>
 #include <system_error>
 
 namespace tessera::ui::virtualization {
@@ -275,6 +276,46 @@ std::string_view CollectionSemantics::format_announcement(const Announcement& an
     append_text(remaining, " of ");
     append_size(remaining, announcement.set_size);
     return std::string_view(out.data(), out.size() - remaining.size());
+}
+
+std::optional<std::size_t>
+CollectionPositions::pos_in_set_of(std::uint64_t node_id) const noexcept {
+    // Sorted by node id, so this is a binary search rather than a scan: the builder asks once per
+    // emitted node, and a long list makes a linear scan the wrong shape.
+    const auto found = std::lower_bound(by_node.begin(), by_node.end(), node_id,
+                                        [](const std::pair<std::uint64_t, std::size_t>& entry,
+                                           std::uint64_t wanted) { return entry.first < wanted; });
+    if (found == by_node.end() || found->first != node_id) {
+        return std::nullopt;
+    }
+    return found->second;
+}
+
+void snapshot_positions(const CollectionSemantics& semantics, CollectionPositions& out) {
+    out.clear();
+    out.set_size = semantics.set_size();
+    // The realized window is what has a scene node, so it is what can appear in a snapshot. An
+    // unrealized item has no node to describe, which is why the accessibility tree never needs its
+    // position even though the collection knows it.
+    // `realized_items` copies at most `out.size()` entries and returns how many it copied, so a
+    // short buffer looks like a short window. Grow until the answer stops filling the buffer; in
+    // practice the first call fits, because this buffer keeps its size for the next build.
+    thread_local std::vector<CollectionItemView> views;
+    for (;;) {
+        const std::size_t count = semantics.realized_items(views);
+        if (count < views.size()) {
+            views.resize(count);
+            break;
+        }
+        views.resize(views.empty() ? 16 : views.size() * 2);
+    }
+    for (const CollectionItemView& view : views) {
+        if (view.identity.ui_id == 0) {
+            continue; // not addressable in the snapshot's terms
+        }
+        out.by_node.emplace_back(view.identity.ui_id, view.pos_in_set);
+    }
+    std::sort(out.by_node.begin(), out.by_node.end());
 }
 
 } // namespace tessera::ui::virtualization
