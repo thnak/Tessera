@@ -9,7 +9,9 @@
 
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
 
+#include <array>
 #include <iostream>
+#include <string>
 #include <vector>
 
 namespace {
@@ -268,6 +270,49 @@ int main() {
         }
         provider.publish(big);
         check(provider.count() == a11y::kMaxNodes, "a snapshot past the cap is truncated");
+    }
+
+    // --- A SetValue request carries its text, and only it can ------------------------------
+    {
+        SnapshotProvider provider;
+        A11ySnapshot snapshot;
+        snapshot.nodes.resize(1);
+        snapshot.nodes[0] = make_node(300, a11y::Role::TextField, "Email");
+        provider.publish(snapshot);
+
+        check(provider.post_action(1, a11y::Action::SetValue, "typed by a screen reader"),
+              "a SetValue request is accepted");
+        std::array<a11y::ProviderAction, a11y::kMaxProviderActions> drained{};
+        const std::size_t taken = provider.take_actions(drained);
+        check(taken == 1, "and drains as one action");
+        check(taken == 1 && drained[0].action == a11y::Action::SetValue,
+              "with the action it was queued as");
+        check(taken == 1 && drained[0].text_of() == "typed by a screen reader",
+              "and the payload the platform sent");
+
+        // The payload is what made Android's SetText work at all; a request without one would be
+        // honoured as "replace the text with nothing", so an empty payload is legitimate and the
+        // distinction a caller must make is the action, not the string.
+        check(provider.post_action(1, a11y::Action::SetValue, ""),
+              "an empty SetValue payload is a real request (clear the field)");
+
+        // A payload on an action that does not carry one is refused rather than silently ignored:
+        // answering true would tell the platform the request succeeded.
+        check(!provider.post_action(1, a11y::Action::Press, "not a press payload"),
+              "a payload on Press is refused");
+        check(provider.post_action(1, a11y::Action::Press), "and Press without one is accepted");
+
+        // A payload at or over the bound is refused, not truncated: a screen reader holding a
+        // trimmed field text would disagree with the engine's buffer.
+        std::string oversized(a11y::kMaxProviderActionTextBytes, 'x');
+        check(!provider.post_action(1, a11y::Action::SetValue, oversized),
+              "an oversized payload is refused, never truncated");
+        std::string at_limit(a11y::kMaxProviderActionTextBytes - 1, 'y');
+        check(provider.post_action(1, a11y::Action::SetValue, at_limit),
+              "a payload one byte under the bound is accepted");
+        const std::size_t after = provider.take_actions(drained);
+        check(after >= 1 && drained[0].text_of().size() == at_limit.size(),
+              "and keeps every byte it was given");
     }
 
     if (failures != 0) {
