@@ -385,8 +385,7 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and almost all of it is
   developer-run: `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
-  `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements, minimally updated for the dock; W6
-  #563 rewrites it) and `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence),
+  `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence),
   `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
   the count survives it, a syntax error keeps the frame, Restart app resets it, a static scene draws zero
   frames, and a burst is one frame), `scripts/ci/preview_browser_author_css.mjs` (#390's acceptance: the
@@ -395,10 +394,17 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   feature's own probe covers**: with author CSS applied, a source edit must keep the author's styling -- a
   sheet dropped from `tessera_canvas_apply` repaints the built-in dark, so the colour is read after a
   keystroke, not after a button). These are Playwright scripts, resolved from `scripts/ci/package.json`
-  (`npm ci --prefix scripts/ci`); Playwright is build-and-test tooling and never ships. **They are stale
-  as of the dock redesign**: they click `#tab-<view>`, which the FlexLayout adapter renamed to
-  `#flexlayout-tabbutton-<panel>`, and they assume a project is already open, which #391 removed. Nothing
-  ran them, so nothing noticed; repairing them (and re-recording their results) is issue #849.
+  (`npm ci --prefix scripts/ci`); Playwright is build-and-test tooling and never ships.
+- **How a probe drives the page** (#849). Nothing ran these for a while, so two drifts went unnoticed:
+  the dock renamed `#tab-<view>` to `#flexlayout-tabbutton-<panel>`, and #391 removed the boot project.
+  Both are `studio_project.mjs`'s business now: `tab()` owns the id, `ensureProject()` opens a project
+  through its Open Zip route, and `openPanel()` activates a collapsed panel. **Use those**, and walk to
+  a focus stop rather than counting Tab presses.
+- **A probe reads style, not pixels.** Several asserted state by averaging
+  `page.locator('#canvas').screenshot()`; headless Chromium does not composite a presented WebGPU frame,
+  so that image is black even while the pane reports `drew N draw call(s)`. The seam is
+  `computedStyle(page, uiIdAt(page), 'background-color')`; `uiIdAt` samples `tessera_canvas_pick`, since
+  a node's id is its computed `uiId` and a check may not invent an `automationId`.
 - **One browser check is a CI gate**: `scripts/ci/preview_browser_canvas_handover.mjs` runs in the Pages
   lane against the assembled `build/pages`. Headless Chromium on SwiftShader gives it a real device, so it
   requires the canvas to draw and fails when the handover regresses to null handles, and it asserts both
