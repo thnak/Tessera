@@ -511,6 +511,9 @@ public:
     void compute_barrier() override;
     void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,
                      std::size_t size) override;
+    // RHI 1.17 (vulkan_buffer_texture_copy.cpp, ADR-072).
+    void copy_buffer_to_texture(const rhi::Buffer& source, rhi::Texture& destination,
+                                const rhi::BufferTextureCopy& copy) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;
     void push_constants(const void* data, std::size_t size) override;

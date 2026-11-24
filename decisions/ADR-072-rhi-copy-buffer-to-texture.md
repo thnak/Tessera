@@ -1,7 +1,9 @@
 # ADR-072: RHI 1.17, copy a buffer into a texture inside a command list
 
-- Status: **Proposed** (2026-11-24). Only the owner moves it to Accepted. Nothing in this ADR is
-  implemented; the RHI is at 1.16.
+- Status: **Accepted** for slices 1-2 (2026-11-24, owner decision, with the defaults proposed here:
+  fixed 256-byte pitch, Staging sources allowed, two capabilities). Slices 1-2 (the header, the null
+  backend, the Vulkan backend, tests) are implemented and the RHI is at 1.17; slices 3-4 (WebGPU,
+  Metal) remain proposed.
 - Date: 2026-11-24
 - Amends: [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (the RHI surface grows by one
   command and one capability).

@@ -78,7 +78,13 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // `compute_push_constants`/`dispatch`/`compute_barrier`/`copy_buffer` and the capability that gates
 // them, `Device::supports_compute()`. Every new virtual has a default (false / throws), so no
 // existing backend or caller changes; a backend answering false keeps its CPU path.
-inline constexpr std::uint32_t kRhiVersionMinor = 16;
+// 1.17 (2026-11-24): additive `CommandList::copy_buffer_to_texture`, `BufferTextureCopy`,
+// `kTextureCopyRowAlignment`/`aligned_texture_copy_pitch`/`checked_buffer_texture_copy`
+// (texture_region.hpp) and the capability that gates them, `Device::supports_buffer_texture_copy()`
+// (ADR-072): the handoff from a compute pass's storage buffer to a texture a draw samples. The
+// command defaults to throwing and the capability to false, so no existing backend or caller
+// changes.
+inline constexpr std::uint32_t kRhiVersionMinor = 17;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

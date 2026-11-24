@@ -5,6 +5,13 @@ add_executable(rhi_null_tests
 target_link_libraries(rhi_null_tests PRIVATE tessera_rhi_null)
 add_test(NAME rhi_null COMMAND rhi_null_tests)
 
+# RHI 1.17 `copy_buffer_to_texture` (ADR-072) on the null backend: the validation matrix, the record and
+# the command order. The pixels are read back by buffer_texture_copy_tests on a real device.
+add_executable(buffer_texture_copy_null_tests
+    rhi/buffer_texture_copy_null_tests.cpp)
+target_link_libraries(buffer_texture_copy_null_tests PRIVATE tessera_rhi_null)
+add_test(NAME buffer_texture_copy_null COMMAND buffer_texture_copy_null_tests)
+
 add_executable(rhi_buffer_bounds_tests
     rhi/rhi_buffer_bounds_tests.cpp)
 target_link_libraries(rhi_buffer_bounds_tests PRIVATE tessera_rhi_null)
@@ -498,6 +505,23 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(texture_write_region_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME texture_write_region COMMAND texture_write_region_tests)
     set_tests_properties(texture_write_region PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # RHI 1.17 `copy_buffer_to_texture` (ADR-072): staging, storage and compute-fed sources read back
+    # through the pipeline. The compute case reuses the compute probe shader, compiled below, and is
+    # compiled out where glslc is absent. Skips without a Vulkan device.
+    add_executable(buffer_texture_copy_tests
+        batched2d/buffer_texture_copy_tests.cpp)
+    target_link_libraries(buffer_texture_copy_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    if (Vulkan_GLSLC_EXECUTABLE)
+        target_compile_definitions(buffer_texture_copy_tests PRIVATE TESSERA_HAS_COPY_PROBE)
+        target_include_directories(buffer_texture_copy_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        add_dependencies(buffer_texture_copy_tests compute_dispatch_tests)
+    endif()
+    add_test(NAME buffer_texture_copy COMMAND buffer_texture_copy_tests)
+    set_tests_properties(buffer_texture_copy PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 

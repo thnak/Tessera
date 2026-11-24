@@ -1341,6 +1341,7 @@ function include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering
 header include/tessera/rendering/null/null_device.hpp
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandList
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullPipeline
+struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullBufferTextureCopy
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandStats
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullDrawRecord
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullSampledTargetBind
@@ -1436,8 +1437,13 @@ enum include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::Swapch
 enum include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::SwapchainError
 
 header include/tessera/rendering/rhi/texture_region.hpp
+struct include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::BufferTextureCopy
 struct include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::TextureRegion
+function include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::aligned_texture_copy_pitch
+function include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::checked_buffer_texture_copy
 function include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::checked_region_pitch
+function include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::texture_format_bytes
+constant include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::kTextureCopyRowAlignment
 
 header include/tessera/rendering/rhi/timestamp.hpp
 struct include/tessera/rendering/rhi/timestamp.hpp tessera::rendering::rhi::GpuTimestampCapability

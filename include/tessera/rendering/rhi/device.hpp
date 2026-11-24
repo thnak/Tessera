@@ -134,8 +134,7 @@ public:
     //
     // Contract:
     //  - `textures.size()` must be at most `Device::texture_array_capacity()`; a longer array
-    //  throws
-    //    std::invalid_argument. An empty array is a no-op.
+    //    throws std::invalid_argument. An empty array is a no-op.
     //  - Every texture must be a 1-sample texture created by this device. The array is a snapshot:
     //    the caller re-binds it when the set of textures changes, which the renderer does at a
     //    batch boundary, never per quad.
@@ -284,6 +283,15 @@ public:
         throw std::runtime_error("copy_buffer: this backend has no compute");
     }
 
+    // Copies buffer bytes into `copy.region` of `destination` (RHI 1.17, ADR-072): compute output
+    // to a texture a draw samples, no CPU round trip. `source`: Staging or Storage buffer;
+    // `destination`: 1 sample, 1 level; bytes are the texture's own layout. Ordered after earlier
+    // compute; outside a render pass. Validation: `checked_buffer_texture_copy`; rhi.md 5.7.
+    virtual void copy_buffer_to_texture(const Buffer& /*source*/, Texture& /*destination*/,
+                                        const BufferTextureCopy& /*copy*/) {
+        throw std::runtime_error("copy_buffer_to_texture: supports_buffer_texture_copy() is false");
+    }
+
     // Synchronous submit: returns once the GPU has finished. For offscreen rendering, readback
     // and tests only; frame code on the UI thread uses submit_async().
     virtual void submit() = 0;
@@ -402,6 +410,10 @@ public:
     virtual std::unique_ptr<ComputePipeline> create_compute_pipeline(const ComputePipelineDesc&) {
         throw std::runtime_error("create_compute_pipeline: this backend has no compute "
                                  "(supports_compute() is false)");
+    }
+    // RHI 1.17 (ADR-072): true when `CommandList::copy_buffer_to_texture` works on this device.
+    [[nodiscard]] virtual bool supports_buffer_texture_copy() const {
+        return false;
     }
 
     // Creates a presentation swapchain. Invalid descriptors (image_count < 2) and backends

@@ -124,6 +124,10 @@ public:
     [[nodiscard]] bool supports_compute() const override {
         return storage_buffer_capacity_ > 0;
     }
+    // RHI 1.17 (ADR-072): a transfer command every Vulkan device has.
+    [[nodiscard]] bool supports_buffer_texture_copy() const override {
+        return true;
+    }
     std::unique_ptr<rhi::ComputePipeline>
     create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override;
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
