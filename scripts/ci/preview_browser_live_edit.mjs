@@ -34,6 +34,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { ensureProject, openPanel, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -162,7 +163,7 @@ const typeText = async (characters) => {
 const settle = (extra = 900) => page.waitForTimeout(extra);
 
 const openCanvas = async () => {
-  await page.locator('#tab-canvas').click();
+  await tab(page, 'canvas');
   await page.waitForFunction(
     () => {
       const status = document.querySelector('#canvas-status')?.textContent ?? '';
@@ -178,7 +179,7 @@ const openCanvas = async () => {
 };
 
 const openScene = async () => {
-  await page.locator('#tab-scene').click();
+  await tab(page, 'scene');
   await page.waitForFunction(
     () => (document.querySelectorAll('#nodes .node').length ?? 0) > 0,
     undefined,
@@ -189,6 +190,9 @@ const openScene = async () => {
 // --- the run ---------------------------------------------------------------------------------------
 
 await page.goto(`${base}/index.html`, { waitUntil: 'load' });
+
+// No project boots by default (issue #391), so open one before anything is expected to compile (#849).
+await ensureProject(page);
 
 // The browser under test really has WebGPU, otherwise clauses 1, 3, 5 and 6 are meaningless.
 const hasGpu = await page.evaluate(async () => {
@@ -203,8 +207,10 @@ if (!hasGpu) {
   process.exit(1);
 }
 
-// The first automatic apply: the page must not need a click to show anything (issue #444). Diagnostics
-// is the default view, so its status leaving "ready" is the signal that a source was compiled.
+// The first automatic apply: the page must not need a click to show anything (issue #444).
+// Diagnostics is not in the default layout any more - its group starts collapsed (issue #431) - so the
+// panel area is opened first, which is what makes `#diag-status` exist to read (#849).
+await openPanel(page, 'diagnostics');
 await page.waitForFunction(
   () => {
     const status = document.querySelector('#diag-status')?.textContent ?? '';
@@ -253,7 +259,7 @@ check(
 await openScene();
 const nodesFor = async () => page.locator('#nodes .node').count();
 const nodesBefore = await nodesFor();
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(300);
 await setSource(
   counterSource
@@ -298,7 +304,7 @@ const withInitial = (initial, text) => `export function Preview(): Node {
   );
 }
 `;
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(900);
 // The `5` document is written first, and **Restart app** then cold-starts *it*, so the 5 is that
 // document's initializer. The order matters: restarting before writing the source would cold-start the
@@ -360,7 +366,8 @@ check(
   afterErrorValue === beforeErrorValue,
   `${beforeErrorValue} -> ${afterErrorValue}`,
 );
-await page.locator('#tab-diagnostics').click();
+await openPanel(page, 'diagnostics');
+await tab(page, 'diagnostics');
 await settle(1600);
 const diagnosticsText = await page.evaluate(
   () =>
@@ -375,7 +382,7 @@ check(
 );
 
 // Recover to a valid document that still carries 5, so clause 4 has a non-zero count to reset.
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(900);
 await setSource(withInitial(0, 'Count: {count}, recovered'));
 await settle(1800);
@@ -408,7 +415,7 @@ check(
 );
 
 // --- clause 6: a burst of keystrokes makes exactly one frame ---------------------------------------
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await settle(600);
 const beforeBurst = await frames();
 // Six keystrokes 20 ms apart: all six land inside one 150 ms window, so the page must apply once.
@@ -425,7 +432,7 @@ check(
 check('no console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | ') || 'none');
 
 if (shot) {
-  await page.locator('#tab-canvas').click();
+  await tab(page, 'canvas');
   await settle(500);
   await page.screenshot({ path: shot });
   console.log(`screenshot: ${shot}`);

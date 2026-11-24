@@ -24,6 +24,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -130,7 +131,7 @@ check('Diagnostics applies the sample without a click',
   (await page.evaluate(() => document.querySelector('#diag-status')?.textContent ?? '')) !== 'not run yet');
 
 // 3. The scene module evaluates.
-await page.locator('#tab-scene').click();
+await tab(page, 'scene');
 await page.waitForTimeout(900);
 check('Scene view opens', (await page.evaluate(() => document.body.innerText)).length > 0);
 
@@ -138,7 +139,7 @@ check('Scene view opens', (await page.evaluate(() => document.body.innerText)).l
 //    click below is the #430 regression: the module used to be re-instantiated per Run, so the new
 //    instance had no device and the frame was replaced by "no WebGPU device: call
 //    tessera_webgpu_set_device first".
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(2200);
 check('Canvas draws a frame on its first open', /draw call/.test((await status()) ?? ''), await status());
 

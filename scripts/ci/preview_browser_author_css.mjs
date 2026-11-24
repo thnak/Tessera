@@ -13,7 +13,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { editEntry, editSheet } from './studio_project.mjs';
+import { computedStyle, editEntry, editSheet, rgbOf, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -69,47 +69,42 @@ async function status() {
   return (await page.locator('#canvas-status').textContent())?.trim();
 }
 
-// The average colour of the canvas element as the page composites it, decoded from a real screenshot.
-async function canvasColour(label) {
-  const png = await page.locator('#canvas').screenshot({ path: `${outDir}/390-${label}.png` });
-  const base64 = png.toString('base64');
-  return page.evaluate(async (data) => {
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
-    const scratch = document.createElement('canvas');
-    scratch.width = 16;
-    scratch.height = 16;
-    const ctx = scratch.getContext('2d');
-    ctx.drawImage(bitmap, 0, 0, 16, 16);
-    const pixels = ctx.getImageData(0, 0, 16, 16).data;
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      r += pixels[i];
-      g += pixels[i + 1];
-      b += pixels[i + 2];
-    }
-    const n = pixels.length / 4;
-    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
-  }, base64);
+// What the engine resolved for one node, read through the canvas session's query seam.
+//
+// **Why not a screenshot.** This probe used to average `page.locator('#canvas').screenshot()`. Headless
+// Chromium does not composite a presented WebGPU frame, so that image is black even when the pane says
+// `drew N draw call(s)` - the colour assertion could only ever compare `rgb(0, 0, 0)` with itself.
+// `tessera_canvas_style` answers the question the assertion actually means: which colour did the
+// cascade resolve for this node.
+async function canvasColour(node, property = 'background-color') {
+  const value = await computedStyle(page, node, property);
+  const colour = rgbOf(value);
+  if (colour === null) {
+    // A named or functional colour the probe cannot compare channel-wise is reported as such rather
+    // than silently passing a NaN comparison.
+    check(`node ${node} has a readable ${property}`, false, String(value));
+    return { r: 0, g: 0, b: 0 };
+  }
+  return colour;
 }
 
 function describe(colour) {
   return `rgb(${colour.r}, ${colour.g}, ${colour.b})`;
 }
 
-const SOURCE = `export function Screen(): Node {
+// The ids are what make the tree addressable (automation-ids-v1.md section 2): without one a node
+// reports `"0"` from the picker and `tessera_canvas_style` refuses it.
+const SOURCE = `export function App() {
   return (
-    <View className="page">
-      <Text className="title">Author CSS</Text>
-      <Button>Go</Button>
+    <View className="page" automationId="1">
+      <Text className="title" automationId="2">Author CSS</Text>
+      <Button automationId="3">Go</Button>
     </View>
   );
 }
 `;
 
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(600);
 
 // --- case 0: the seeded project's sheet is imported by the entry, so it is real author CSS -----------
@@ -122,7 +117,7 @@ await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('empty sheet: canvas draws', /draw call/.test((await status()) ?? ''), await status());
-const fallback = await canvasColour('fallback');
+const fallback = await canvasColour(1);
 check(
   'empty sheet: paints the built-in dark surface (blue-dominant)',
   fallback.b > fallback.r + 8,
@@ -138,7 +133,7 @@ await editSheet(page, RED_CSS);
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('author CSS: canvas draws', /draw call/.test((await status()) ?? ''), await status());
-const authored = await canvasColour('author');
+const authored = await canvasColour(1);
 check(
   'author CSS: the frame is visibly red, not the built-in blue',
   authored.r > authored.b + 60,
@@ -159,7 +154,7 @@ await editSheet(
 );
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
-const tokened = await canvasColour('token');
+const tokened = await canvasColour(1);
 check(
   'a :root token through var() changes the drawn colour to green',
   tokened.g > tokened.r + 30 && tokened.g > tokened.b + 20,
@@ -181,7 +176,7 @@ check(
   /styles\/theme\.css:2:\d+: TESSERA_CSS_UNKNOWN_PROPERTY/.test(failedBody),
   failedBody.split('\n')[0] ?? failedBody,
 );
-const broken = await canvasColour('badrule');
+const broken = await canvasColour(1);
 check(
   'a bad rule does NOT blank the frame (it still paints red)',
   broken.r > broken.b + 60,
@@ -192,7 +187,7 @@ check(
 await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
-const restored = await canvasColour('restored');
+const restored = await canvasColour(1);
 check(
   'emptying the sheet restores the built-in look',
   restored.b > restored.r + 8,

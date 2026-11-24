@@ -14,6 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { writeZip, readZip } from '../../designer/web/studio-zip.js';
+import { tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -116,7 +117,7 @@ const PROJECT = {
   'src/native.cpp': '// never edited',
 };
 
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(600);
 
 // --- 1. open a zip -----------------------------------------------------------------------------------

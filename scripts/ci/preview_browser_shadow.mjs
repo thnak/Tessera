@@ -23,7 +23,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { editEntry, editSheet } from './studio_project.mjs';
+import { editEntry, editSheet, ensureProject, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -133,6 +133,8 @@ const rgb = (pixel) => `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
 
 await page.goto(`${base}/index.html`, { waitUntil: 'load' });
 await page.waitForTimeout(1200);
+// No project boots by default (issue #391); open one so the diagnostic pane has an evaluation (issue #849).
+await ensureProject(page);
 
 const hasGpu = await page.evaluate(async () => {
   if (!navigator.gpu) return false;
@@ -151,7 +153,7 @@ await page.waitForFunction(
   { timeout: 15000 },
 );
 
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(1200);
 
 // The author stylesheet goes first: the source's `onInput` is what triggers the debounced apply.

@@ -59,7 +59,11 @@ import { attachCanvasKeyboard } from "./canvas-keyboard";
 import { sendPlatformEvent } from "./canvas-platform";
 import { unavailableReply } from "../lib/platform-events";
 import { attachCanvasPointer } from "./canvas-pointer";
-import { createCanvasInspector, type CanvasInspector } from "./canvas-inspector";
+import {
+  createCanvasInspector,
+  type CanvasInspector,
+  type CanvasStyleReport,
+} from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 import type { CommitBridge } from "../lib/override-client";
@@ -137,6 +141,26 @@ export interface CanvasSession extends ViewSession {
    * rules and box. It consumes the click it inspects, which is why it is not on by default.
    */
   readonly inspector: CanvasInspector;
+  /**
+   * The computed style of one node, as `tessera_canvas_style` reports it, or `null` when no device
+   * exists yet (issue #849).
+   *
+   * This is the seam a browser check needs to assert what the frame is *made of*. The probes used to
+   * read the canvas element's screenshot and average its colour, which headless Chromium cannot do: it
+   * does not composite a presented WebGPU frame, so `screenshot()` comes back black even while the pane
+   * reports `drew N draw call(s)`. A style report is the same information without the compositor -- it
+   * is what the engine resolved and painted with.
+   */
+  readonly styleInfo: (nodeRef: string) => CanvasStyleReport | null;
+  /**
+   * The automation id under one canvas-local point (issue #849), or `null` with no device.
+   *
+   * `styleInfo` needs an id and a check has no way to guess one, so this is its companion: a check
+   * asks "what is at the centre of the canvas" and then "what style did that node resolve". Both are
+   * queries (`_tessera_canvas_pick` and `_tessera_canvas_style`), so neither moves `:hover` nor costs
+   * a frame.
+   */
+  readonly pickAt: (x: number, y: number) => { found: boolean; automationId: string } | null;
 }
 
 export function createCanvasSession(options: CanvasSessionOptions): CanvasSession {
@@ -784,6 +808,38 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         requestFrame();
       }
       return reply;
+    },
+    /**
+     * The computed style of one node (issue #849): the automation seam a browser check uses instead of
+     * reading the composited canvas.
+     *
+     * It is a **query**: `tessera_canvas_style` dispatches nothing, so asking it between two frames
+     * cannot move `:hover`, start an animation or cost a draw. A page with no device answers `null`
+     * rather than throwing, so a check can report "nothing drew yet" as a verdict.
+     */
+    styleInfo: (nodeRef: string) => {
+      if (gpu === null) {
+        return null;
+      }
+      try {
+        return JSON.parse(callExport(gpu.module, "_tessera_canvas_style", [nodeRef], [])) as CanvasStyleReport;
+      } catch {
+        return null;
+      }
+    },
+    /** The automation id at one canvas-local point (issue #849); see `pickAt`'s note. */
+    pickAt: (x: number, y: number) => {
+      if (gpu === null) {
+        return null;
+      }
+      try {
+        return JSON.parse(callExport(gpu.module, "_tessera_canvas_pick", [], [x, y])) as {
+          found: boolean;
+          automationId: string;
+        };
+      } catch {
+        return null;
+      }
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */
     onSample: () => {

@@ -16,7 +16,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { editEntry, editSheet } from './studio_project.mjs';
+import { editEntry, editSheet, tab, tabButton } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -110,7 +110,7 @@ Button:active { background-color: rgb(30, 30, 220); }
 Button:focus-visible { background-color: rgb(250, 200, 20); }
 `;
 
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(600);
 await editEntry(page, SOURCE);
 await editSheet(page, CSS);
@@ -188,7 +188,7 @@ check('a move inside the same element changes nothing, so it paints nothing', (a
 // Move the mouse away so hover is not in play, then arrive at the canvas with the keyboard.
 await page.mouse.move(geometry.left - 40, geometry.top + 10);
 await settle();
-await page.locator('#tab-canvas').focus();
+await tabButton(page, 'canvas').focus();
 for (let step = 0; step < 12; step += 1) {
   if (await page.evaluate(() => document.activeElement?.id === 'canvas')) break;
   await page.keyboard.press('Tab');

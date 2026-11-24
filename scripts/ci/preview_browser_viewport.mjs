@@ -37,7 +37,7 @@
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { editEntry, editSheet } from './studio_project.mjs';
+import { computedStyle, editEntry, editSheet, rgbOf, tab } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -139,31 +139,20 @@ async function counters() {
 const stateValue = async () =>
   page.evaluate(() => document.querySelector('#stat-state')?.getAttribute('data-value') ?? null);
 
-/** The average colour of the canvas element as the page composites it, decoded from a screenshot. */
-async function canvasColour(label) {
-  const options = shots ? { path: join(shots, `436-${label}.png`) } : {};
-  const png = await page.locator('#canvas').screenshot(options);
-  const base64 = png.toString('base64');
-  return page.evaluate(async (data) => {
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
-    const scratch = document.createElement('canvas');
-    scratch.width = 16;
-    scratch.height = 16;
-    const ctx = scratch.getContext('2d');
-    ctx.drawImage(bitmap, 0, 0, 16, 16);
-    const pixels = ctx.getImageData(0, 0, 16, 16).data;
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      r += pixels[i];
-      g += pixels[i + 1];
-      b += pixels[i + 2];
-    }
-    const n = pixels.length / 4;
-    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
-  }, base64);
+// What the engine resolved for the sheet's `.page` node, read through the canvas session's query seam.
+//
+// **Why not a screenshot.** This probe averaged `page.locator('#canvas').screenshot()`. Headless
+// Chromium does not composite a presented WebGPU frame, so the image is black even while the pane
+// reports `drew N draw call(s)` - every colour assertion compared `rgb(0, 0, 0)` with itself. The
+// style report answers what the assertion means: which colour the cascade resolved (issue #849).
+async function canvasColour() {
+  const value = await computedStyle(page, PAGE_ID, 'background-color');
+  const colour = rgbOf(value);
+  if (colour === null) {
+    check('the sheet resolves a readable background-color', false, String(value));
+    return { r: 0, g: 0, b: 0 };
+  }
+  return colour;
 }
 
 const describe = (colour) => `rgb(${colour.r}, ${colour.g}, ${colour.b})`;
@@ -186,10 +175,14 @@ async function settle(before, timeoutMs = 4000) {
 
 // The page under test: a `page` class whose background a width breakpoint changes, and a state cell
 // so "the preview did not re-run" has something to keep.
+// The id is what makes the `.page` node addressable (automation-ids-v1.md section 2): without one
+// `tessera_canvas_style` cannot be asked about it.
+const PAGE_ID = '1';
+
 const SOURCE = `export function Screen(): Node {
   const [count, setCount] = useState<int>(7);
   return (
-    <View className="page">
+    <View className="page" automationId="1">
       <Text className="title">Viewport</Text>
       <Button>Go</Button>
     </View>
@@ -207,7 +200,7 @@ Button { width: 120px; height: 32px; background-color: rgb(45, 108, 223); }
 
 await page.goto(base, { waitUntil: 'load' });
 await page.waitForTimeout(800);
-await page.locator('#tab-canvas').click();
+await tab(page, 'canvas');
 await page.waitForTimeout(600);
 
 if (!(await page.locator('#unsupported').isHidden())) {
@@ -226,7 +219,7 @@ await page.locator('#restart-app').click();
 await page.waitForTimeout(3000);
 
 const wideCounters = await counters();
-const wideColour = await canvasColour('desktop-1280x800');
+const wideColour = await canvasColour();
 console.log(`desktop 1280x800: ${describe(wideColour)} ${wideCounters.raw}`);
 check(
   'the desktop preset paints the base colour (blue-dominant, not the breakpoint red)',
@@ -244,7 +237,7 @@ const baseline = wideCounters;
 // --- a same-side switch: no colour change, one frame, no cascade rebuild -------------------------
 await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '768x1024' }));
 const tabletCounters = await settle(baseline.frames);
-const tabletColour = await canvasColour('tablet-768x1024');
+const tabletColour = await canvasColour();
 console.log(`tablet 768x1024: ${describe(tabletColour)} ${tabletCounters.raw}`);
 check(
   'a size on the same side of the breakpoint keeps the colour (no crossing)',
@@ -271,7 +264,7 @@ check('the state cell survives the same-side switch', (await stateValue()) === '
 // --- crossing the breakpoint: the colour must move ----------------------------------------------
 await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '390x844' }));
 const phoneCounters = await settle(tabletCounters.frames);
-const phoneColour = await canvasColour('phone-390x844');
+const phoneColour = await canvasColour();
 console.log(`phone 390x844: ${describe(phoneColour)} ${phoneCounters.raw}`);
 check(
   'the phone preset paints the @media (max-width: 600px) colour (red-dominant)',
@@ -298,7 +291,7 @@ check('the state cell survives the breakpoint (in-place resize, no re-run)', (aw
 // --- back to the desktop: one more crossing, one more frame, the base colour ---------------------
 await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '1280x800' }));
 const backCounters = await settle(phoneCounters.frames);
-const backColour = await canvasColour('desktop-again');
+const backColour = await canvasColour();
 console.log(`desktop again: ${describe(backColour)} ${backCounters.raw}`);
 check(
   'switching back restores the base colour',
