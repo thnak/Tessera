@@ -371,7 +371,7 @@ LayoutResult RetainedTree::layout(const LayoutInput& root, const LayoutViewport&
                           retained_root->rtl ? YGDirectionRTL : YGDirectionLTR);
 
     LayoutResult result;
-    result.boxes.reserve(16);
+    result.boxes.reserve(state.nodes.size());
     const float origin_x =
         page ? root_auto_margin_offset(retained_root->node, viewport.width) : 0.0f;
     collect_retained_boxes(*retained_root, origin_x, 0.0f, state, result);
