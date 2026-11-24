@@ -93,6 +93,19 @@ struct RetainedNode {
     // box size plus the cache's contents, so it stays valid until one of those moves: the style or
     // text writes below clear `fit_valid`, the box size is compared, and `fit_generation` is the
     // cache's `generation()`. Mutable because the box walk reads the tree as const.
+    // The box the last walk read off Yoga, relative to the parent: position, size and the padding +
+    // border insets. Yoga raises `hasNewLayout` on a node at the end of every layout visit - cached
+    // or not - and a node it did not visit keeps its layout, so a cleared flag means these twelve
+    // values are still exactly what the getters would return. The walk clears the flag after it
+    // reads (`YGNodeSetHasNewLayout`, the documented protocol); a new node starts with it set.
+    // Mutable because the box walk reads the tree as const.
+    mutable bool box_valid = false;
+    mutable float box_left = 0.0f;
+    mutable float box_top = 0.0f;
+    mutable float box_width = 0.0f;
+    mutable float box_height = 0.0f;
+    mutable LayoutInsets box_insets;
+
     mutable bool fit_valid = false;
     mutable TextFit fit_result = TextFit::Unknown;
     mutable float fit_width = 0.0f;

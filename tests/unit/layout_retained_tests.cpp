@@ -401,6 +401,60 @@ int main() {
         }
     }
 
+    // The box walk reuses what it read off Yoga for a node whose `hasNewLayout` is clear. Siblings
+    // shift and a percentage padding re-resolves when an unrelated node's width changes, without
+    // those nodes' own styles moving, so each such change has to reach the walk through Yoga's
+    // flag.
+    {
+        const auto cell = [](std::uint64_t id, const char* width) {
+            return node(id, style({{"width", width}, {"height", "20px"}}));
+        };
+        LayoutInput padded = node(30,
+                                  style({{"display", "flex"},
+                                         {"flex-direction", "row"},
+                                         {"padding-left", "10%"},
+                                         {"padding-top", "5%"},
+                                         {"height", "60px"}}),
+                                  {cell(31, "30px"), cell(32, "30px")});
+        const auto page = [&](const char* first_width, const char* container_width) {
+            LayoutInput row = node(10,
+                                   style({{"display", "flex"},
+                                          {"flex-direction", "row"},
+                                          {"width", "500px"},
+                                          {"height", "80px"}}),
+                                   {cell(11, first_width), cell(12, "70px"), cell(13, "80px")});
+            LayoutInput wrap = node(20,
+                                    style({{"display", "flex"},
+                                           {"flex-direction", "column"},
+                                           {"width", container_width}}),
+                                    {padded});
+            return node(1,
+                        style({{"display", "flex"},
+                               {"flex-direction", "column"},
+                               {"width", "600px"},
+                               {"height", "300px"}}),
+                        {std::move(row), std::move(wrap)});
+        };
+        RetainedTree walking;
+        std::uint32_t step = 0;
+        const auto check_page = [&](const LayoutInput& scene_input) {
+            const LayoutResult warm = walking.layout(scene_input, viewport, cache);
+            const LayoutResult cold =
+                layout_cold(scene_input, viewport, viewport.width, viewport.height, cache,
+                            /*as_grid_item=*/false);
+            return same_boxes(warm, cold, 20000 + step++);
+        };
+        // Three identical passes (the second and third read cached boxes), then the first cell
+        // grows so its siblings shift; then the container narrows so the percentage padding
+        // re-resolves; then everything returns; then one more steady pass.
+        if (!check_page(page("40px", "200px")) || !check_page(page("40px", "200px")) ||
+            !check_page(page("40px", "200px")) || !check_page(page("90px", "200px")) ||
+            !check_page(page("90px", "120px")) || !check_page(page("40px", "200px")) ||
+            !check_page(page("40px", "200px"))) {
+            return 1;
+        }
+    }
+
     std::cout << "retained: " << kFrames << " frames, " << retained.node_count() << " nodes, "
               << retained.style_applications() << " style applications, " << retained.rebuilds()
               << " rebuilds\n";
