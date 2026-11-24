@@ -119,6 +119,13 @@ public:
     std::unique_ptr<rhi::RenderTarget>
     create_render_target(const rhi::RenderTargetDesc& desc) override;
     std::unique_ptr<rhi::CommandList> create_command_list() override;
+    // RHI 1.16 (issue #683): compute needs the same UPDATE_AFTER_BIND storage-buffer support the
+    // clip-record set does, so the capability is that probe's answer.
+    [[nodiscard]] bool supports_compute() const override {
+        return storage_buffer_capacity_ > 0;
+    }
+    std::unique_ptr<rhi::ComputePipeline>
+    create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override;
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
     create_swapchain(const rhi::SwapchainDesc& desc) override;
     void wait_idle() override;

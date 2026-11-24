@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.15**
-  (`0x0001000f`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.16**
+  (`0x00010010`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -80,6 +80,12 @@ RHI versioning and capabilities (ADR-049):
   about to draw with reads a storage buffer before binding one (ADR-068 slice 3, issue #671). The
   default is false, which is the answer for every pipeline created without
   `PipelineDesc::storage_buffer`, so no existing backend or caller changes.
+  1.16 adds compute (issue #683, [ADR-071](../../../decisions/ADR-071-gpu-compute-tile-rasterizer.md)):
+  `ComputePipelineDesc`/`ComputePipeline`, `BufferDesc::gpu_read_write` (a device-memory storage buffer
+  shaders write), the `CommandList` calls `bind_compute_pipeline`, `bind_compute_buffer`,
+  `compute_push_constants`, `dispatch`, `compute_barrier` and `copy_buffer`, and the capability that gates
+  them, `Device::supports_compute()`. Every new virtual has a default (false / throws), so no existing
+  backend or caller changes; Vulkan implements it, the null and WebGPU backends answer false.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

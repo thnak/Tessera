@@ -674,6 +674,27 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME vulkan_async_upload COMMAND vulkan_async_upload_tests)
     set_tests_properties(vulkan_async_upload PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # RHI 1.16 compute (issue #683): a dispatch, a barrier and a readback copy on a real device. The
+    # probe shader is compiled by this rule alone, so it needs no shader-manifest entry.
+    if (Vulkan_GLSLC_EXECUTABLE)
+        set(TESSERA_COMPUTE_PROBE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/compute_probe_comp_spv.h)
+        add_custom_command(
+            OUTPUT ${TESSERA_COMPUTE_PROBE_HEADER}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3
+                    ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_probe.comp -o ${TESSERA_COMPUTE_PROBE_HEADER}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_probe.comp
+            COMMENT "glslc compute_probe.comp"
+            VERBATIM)
+        add_executable(compute_dispatch_tests
+            rhi/compute_dispatch_tests.cpp ${TESSERA_COMPUTE_PROBE_HEADER})
+        target_include_directories(compute_dispatch_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        target_link_libraries(compute_dispatch_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
+        add_test(NAME compute_dispatch COMMAND compute_dispatch_tests)
+        set_tests_properties(compute_dispatch PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    endif()
+
     add_executable(vulkan_async_submit_tests
         vulkan/vulkan_async_submit_tests.cpp)
     target_link_libraries(vulkan_async_submit_tests PRIVATE tessera_rhi_vulkan)

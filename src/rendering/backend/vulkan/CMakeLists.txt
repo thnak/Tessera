@@ -124,6 +124,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_texture.cpp
     src/vulkan_texture_array.cpp
     src/vulkan_storage_buffer.cpp
+    src/vulkan_compute.cpp
     src/vulkan_mipmaps.cpp
     src/vulkan_pipeline.cpp
     src/vulkan_validation.cpp

@@ -81,6 +81,13 @@ public:
     }
 };
 
+// A compiled compute pipeline plus the one descriptor set its buffers are bound through (RHI 1.16).
+class ComputePipeline {
+public:
+    virtual ~ComputePipeline() = default;
+    [[nodiscard]] virtual std::uint32_t storage_buffer_count() const = 0;
+};
+
 class RenderTarget {
 public:
     virtual ~RenderTarget() = default;
@@ -237,6 +244,45 @@ public:
     virtual void blit_target(const RenderTarget& source, const RenderTarget& destination,
                              Filter filter) = 0;
 
+    // --- Compute (RHI 1.16, issue #683) ---------------------------------------------------------
+    // Compute work is recorded outside a render pass, in the same list and submission as the
+    // render passes around it. Every call below throws std::runtime_error on a backend whose
+    // `Device::supports_compute()` is false; callers ask the capability first.
+    //
+    // Binds `pipeline` for the dispatches that follow. The pipeline must outlive the submission.
+    virtual void bind_compute_pipeline(const ComputePipeline& /*pipeline*/) {
+        throw std::runtime_error("bind_compute_pipeline: this backend has no compute");
+    }
+    // Binds `buffer` at binding `slot` of the bound compute pipeline's descriptor set. The buffer
+    // must be a `BufferUsage::Storage` buffer of this device and non-empty, `slot` below the
+    // pipeline's storage_buffer_count; violations throw std::invalid_argument. The set belongs to
+    // the pipeline object, so one submission binds a given pipeline's buffers once: two dispatches
+    // of the same pipeline with different buffers need two pipeline objects (or one buffer and a
+    // push-constant offset).
+    virtual void bind_compute_buffer(std::uint32_t /*slot*/, const Buffer& /*buffer*/) {
+        throw std::runtime_error("bind_compute_buffer: this backend has no compute");
+    }
+    virtual void compute_push_constants(const void* /*data*/, std::size_t /*size*/) {
+        throw std::runtime_error("compute_push_constants: this backend has no compute");
+    }
+    // Runs `x * y * z` workgroups. Each count must be non-zero and within the device's limit
+    // (65535 on every device this RHI targets); a zero or larger count throws std::invalid_argument.
+    virtual void dispatch(std::uint32_t /*x*/, std::uint32_t /*y*/, std::uint32_t /*z*/) {
+        throw std::runtime_error("dispatch: this backend has no compute");
+    }
+    // Makes every storage-buffer write recorded so far visible to the compute dispatches recorded
+    // after it. A dispatch that reads what an earlier one wrote needs one between them.
+    virtual void compute_barrier() {
+        throw std::runtime_error("compute_barrier: this backend has no compute");
+    }
+    // Copies `size` bytes from `source` to `destination` at offset 0, ordered after the compute
+    // work recorded before it. Both buffers belong to this device; the destination is usually a
+    // `Readback` buffer (the way a `gpu_read_write` buffer is read on the CPU).
+    virtual void copy_buffer(const Buffer& /*source*/, Buffer& /*destination*/,
+                             std::size_t /*size*/) {
+        throw std::runtime_error("copy_buffer: this backend has no compute");
+    }
+
     // Synchronous submit: returns once the GPU has finished. For offscreen rendering, readback
     // and tests only; frame code on the UI thread uses submit_async().
     virtual void submit() = 0;
@@ -345,6 +391,17 @@ public:
     virtual std::unique_ptr<Pipeline> create_pipeline(const PipelineDesc& desc) = 0;
     virtual std::unique_ptr<RenderTarget> create_render_target(const RenderTargetDesc& desc) = 0;
     virtual std::unique_ptr<CommandList> create_command_list() = 0;
+
+    // RHI 1.16 (issue #683): compute pipelines, read/write storage buffers and the dispatch calls on
+    // `CommandList`. The only authority on the capability; false means `create_compute_pipeline`
+    // throws std::runtime_error and a caller keeps its CPU path.
+    [[nodiscard]] virtual bool supports_compute() const {
+        return false;
+    }
+    virtual std::unique_ptr<ComputePipeline> create_compute_pipeline(const ComputePipelineDesc&) {
+        throw std::runtime_error("create_compute_pipeline: this backend has no compute "
+                                 "(supports_compute() is false)");
+    }
 
     // Creates a presentation swapchain. Invalid descriptors (image_count < 2) and backends
     // without a surface path report NotSupported rather than throwing or returning nullptr.

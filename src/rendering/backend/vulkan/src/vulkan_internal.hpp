@@ -503,6 +503,13 @@ public:
                             const std::vector<const rhi::Texture*>& textures) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
+    // RHI 1.16 compute (vulkan_compute.cpp).
+    void bind_compute_pipeline(const rhi::ComputePipeline& pipeline) override;
+    void bind_compute_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
+    void compute_push_constants(const void* data, std::size_t size) override;
+    void dispatch(std::uint32_t x, std::uint32_t y, std::uint32_t z) override;
+    void compute_barrier() override;
+    void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination, std::size_t size) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;
     void push_constants(const void* data, std::size_t size) override;
@@ -531,6 +538,8 @@ private:
     // Records the pair's reset and begin timestamp at the first recording opportunity (a query
     // reset cannot be recorded inside a render pass, and the begin must precede every command).
     void record_timestamp_begin();
+    // Begins the command buffer when nothing has yet (compute is the first command of a list).
+    void ensure_recording(const char* what);
 
     static constexpr std::uint32_t kNoTimestampPair = 0xFFFFFFFFU;
 
@@ -541,6 +550,7 @@ private:
     CommandResources resources_;
     VkCommandBuffer buffer_ = VK_NULL_HANDLE;
     VkPipelineLayout current_layout_ = VK_NULL_HANDLE;
+    const class VulkanComputePipeline* compute_pipeline_ = nullptr;
     std::uint32_t current_pipeline_sample_count_ = 1;
     const VulkanRenderTarget* current_target_ = nullptr;
     // The last target bound by bind_sampled_target(). Recording a render pass on it would sample an
