@@ -110,6 +110,16 @@ int main(int argc, char** argv) {
     if (argc >= 2 && std::string_view(argv[1]) == "--walk") {
         return benchmark::run_scene_walk(argc >= 3 ? std::atoi(argv[2]) : 15);
     }
+    // `--profile [rounds]`: the one-text-change frame in a loop, for a sampling profiler. No
+    // budget.
+    if (argc >= 2 && std::string_view(argv[1]) == "--profile") {
+        const std::size_t rounds = argc >= 3 ? static_cast<std::size_t>(std::atoi(argv[2])) : 400;
+        benchmark::Fixture fixture;
+        const double mean_ms = fixture.run_text_frames(rounds);
+        std::printf("cpu_benchmark: profile loop, %zu text-change frames, mean %.3f ms\n", rounds,
+                    mean_ms);
+        return 0;
+    }
     if (argc < 2) {
         std::fprintf(stderr, "usage: tessera_benchmark <tests/golden/perf/cpu_benchmark.txt>\n");
         return 2;

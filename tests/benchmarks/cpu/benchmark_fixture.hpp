@@ -111,6 +111,10 @@ public:
     Fixture& operator=(const Fixture&) = delete;
 
     [[nodiscard]] Measurement measure();
+    // The one-text-change frame repeated `rounds` times on a scene that has already had its first
+    // frame, for a sampling profiler (`--profile`): the cold first frame is excluded so the samples
+    // describe the incremental path. Returns the mean frame time in milliseconds.
+    [[nodiscard]] double run_text_frames(std::size_t rounds);
     [[nodiscard]] std::size_t nodes() const noexcept {
         return targets_.nodes;
     }

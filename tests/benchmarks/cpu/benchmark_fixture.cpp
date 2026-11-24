@@ -120,6 +120,25 @@ void Fixture::edit_container() {
     targets_.container_node->set_inline_style("width", "260px");
 }
 
+double Fixture::run_text_frames(std::size_t rounds) {
+    driver_->request_full_repaint();
+    (void)driver_->begin_frame();
+    (void)paint(false);
+    driver_->end_frame();
+    // Two different strings, because re-applying the same payload is a no-op frame.
+    static constexpr const char* kTexts[2] = {
+        "Card 0 summary title, rewritten by the benchmark to force a text remeasure",
+        "Card 0 summary title, edited again so exactly one node is damaged"};
+    const Clock::time_point begin = Clock::now();
+    for (std::size_t round = 0; round < rounds; ++round) {
+        edit_text(kTexts[round % 2]);
+        (void)driver_->begin_frame();
+        (void)paint(false);
+        driver_->end_frame();
+    }
+    return rounds == 0 ? 0.0 : milliseconds(begin, Clock::now()) / static_cast<double>(rounds);
+}
+
 Measurement Fixture::measure() {
     Measurement result;
     // The first frame of a fresh scene is the cold style+layout path. Force the redraw plan to a
