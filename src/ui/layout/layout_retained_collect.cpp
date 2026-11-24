@@ -7,6 +7,7 @@
 
 #include "layout_measure.hpp"
 #include "layout_retained.hpp"
+#include "tessera/ui/text/text_measure_cache.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -62,7 +63,18 @@ void collect_retained_boxes(const RetainedNode& retained, float parent_x, float 
     inputs.pad_top = retained.pad_top;
     inputs.pad_right = retained.pad_right;
     inputs.pad_bottom = retained.pad_bottom;
-    box.text_fit = measure_text_fit(inputs, box.bounds, *state.cache);
+    const std::uint64_t generation = state.cache->generation();
+    if (retained.fit_valid && retained.fit_generation == generation &&
+        retained.fit_width == box.bounds.width && retained.fit_height == box.bounds.height) {
+        box.text_fit = retained.fit_result;
+    } else {
+        box.text_fit = measure_text_fit(inputs, box.bounds, *state.cache);
+        retained.fit_valid = true;
+        retained.fit_result = box.text_fit;
+        retained.fit_width = box.bounds.width;
+        retained.fit_height = box.bounds.height;
+        retained.fit_generation = generation;
+    }
     result.boxes.push_back(box);
 
     if (retained.grid) {

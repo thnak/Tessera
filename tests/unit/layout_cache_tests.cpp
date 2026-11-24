@@ -101,7 +101,9 @@ int main() {
         !expect(engine.text_cache() != nullptr, "cache exposed") ||
         !expect(engine.text_cache()->capacity() == 8, "capacity configured") ||
         !expect(engine.text_cache()->stats().misses > 0, "misses recorded") ||
-        !expect(engine.text_cache()->stats().hits > 0, "hits recorded")) {
+        // The retained tree remembers each node's text-fit fact, so a repeated pass does not even
+        // ask the cache (no hit is recorded for it); `calls == first_calls` above is the proof.
+        !expect(engine.text_cache()->stats().misses > 0, "misses stay recorded")) {
         return 1;
     }
 

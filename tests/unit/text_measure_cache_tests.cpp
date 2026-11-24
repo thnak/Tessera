@@ -92,14 +92,26 @@ int main() {
         return 6;
     }
 
+    // The generation moves on invalidate and clear (even when nothing was removed) and on nothing
+    // else, so a holder of a derived result knows when to distrust it.
+    const std::uint64_t generation = invalidating.generation();
+    invalidating.measure("gamma", style, constraints);
+    if (!expect(invalidating.generation() == generation, "measure keeps the generation") ||
+        !expect(invalidating.invalidate("missing") == 0 && invalidating.generation() > generation,
+                "an invalidate that removed nothing still bumps the generation")) {
+        return 6;
+    }
+
     const std::size_t calls_before_refetch = measurer->calls;
     invalidating.measure("alpha", style, constraints);
     if (!expect(measurer->calls == calls_before_refetch + 1, "invalidated refetch")) {
         return 7;
     }
 
+    const std::uint64_t before_clear = invalidating.generation();
     invalidating.clear();
-    if (!expect(invalidating.size() == 0, "clear size") ||
+    if (!expect(invalidating.generation() > before_clear, "clear bumps the generation") ||
+        !expect(invalidating.size() == 0, "clear size") ||
         !expect(invalidating.stats().hits == 0 && invalidating.stats().misses == 0 &&
                     invalidating.stats().evictions == 0 && invalidating.stats().invalidations == 0,
                 "clear stats") ||

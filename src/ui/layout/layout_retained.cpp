@@ -104,6 +104,12 @@ void reset(RetainedTreeState& state) {
 // stale-low count would make Yoga lay out a `display: contents` node as a real box.
 void reconcile_children(RetainedTreeState& state, RetainedNode& retained) {
     YGNodeRef node = retained.node;
+    // A steady frame keeps every child in place. Checking that first is one pass; the removal scan
+    // below searches `desired` for every existing child, which is quadratic in a container with
+    // thousands of children (a 2.3k-row list spent ~4 percent of the incremental frame there).
+    if (retained.children == retained.desired) {
+        return;
+    }
     for (std::size_t i = retained.children.size(); i-- > 0;) {
         RetainedNode* child = retained.children[i];
         if (std::find(retained.desired.begin(), retained.desired.end(), child) !=
@@ -166,6 +172,7 @@ void apply_node_style(RetainedTreeState& state, RetainedNode& retained, const La
         apply_block_child_style(retained.node); // `margin: 0 auto` fill, no shrink (issue #611)
     }
     retained.style_digest = style::layout_digest(input.style);
+    retained.fit_valid = false; // text style, padding and `display` all feed the text-fit fact
     retained.block_parent = block_parent;
     retained.grid = is_grid_container(input.style);
     retained.display_none = is_keyword(input.style.find("display"), "none");
@@ -246,6 +253,9 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
     if (retained->text_wrap != input.text_wrap) {
         retained->text_wrap = input.text_wrap;
         text_changed = true;
+    }
+    if (text_changed) {
+        retained->fit_valid = false;
     }
 
     // How this node is measured, mirroring `build_tree`: a grid container is a measured leaf over

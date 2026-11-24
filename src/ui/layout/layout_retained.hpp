@@ -87,6 +87,18 @@ struct RetainedNode {
     float pad_right = 0.0f;
     float pad_bottom = 0.0f;
 
+    // The text-fit fact of the last box walk and what it was measured against. A steady frame
+    // repeats it for every text node, and re-deriving it hashes the text and the style through the
+    // measure cache each time. The fact is a function of this node's text, text style, padding and
+    // box size plus the cache's contents, so it stays valid until one of those moves: the style or
+    // text writes below clear `fit_valid`, the box size is compared, and `fit_generation` is the
+    // cache's `generation()`. Mutable because the box walk reads the tree as const.
+    mutable bool fit_valid = false;
+    mutable TextFit fit_result = TextFit::Unknown;
+    mutable float fit_width = 0.0f;
+    mutable float fit_height = 0.0f;
+    mutable std::uint64_t fit_generation = 0;
+
     // A grid container is a Yoga leaf whose measure callback runs `GridEngine` over the whole
     // subtree, so the tree owns that subtree's input and refreshes it only when its signature
     // changes. Nothing else points into it.
