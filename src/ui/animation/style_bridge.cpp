@@ -140,6 +140,32 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
     }
 }
 
+StyleBridgeResult StyleBridge::sync_scoped(AnimationRuntime& runtime,
+                                           std::span<const Node* const> roots,
+                                           StyleBridgeFn compute, void* context,
+                                           const std::vector<style::KeyframeBlock>& keyframes,
+                                           AnimationCallback on_complete) {
+    StyleBridgeResult result;
+    if (compute == nullptr) {
+        return result;
+    }
+    const std::uint64_t generation = ++generation_;
+    idle_memo_.begin();
+    for (const Node* root : roots) {
+        bool reachable = true;
+        for (const Node* parent = root->parent(); parent != nullptr; parent = parent->parent()) {
+            if (!parent->rendered()) {
+                reachable = false;
+                break;
+            }
+        }
+        if (reachable) {
+            sync_node(runtime, *root, compute, context, keyframes, on_complete, generation, result);
+        }
+    }
+    return result;
+}
+
 StyleBridgeResult StyleBridge::sync(AnimationRuntime& runtime, const Node& root,
                                     StyleBridgeFn compute, void* context,
                                     const std::vector<style::KeyframeBlock>& keyframes,

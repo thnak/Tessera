@@ -28,7 +28,7 @@ public:
     [[nodiscard]] bool hit(NodeId id, const ComputedStyle& style, float width = 0.0f,
                            float height = 0.0f) {
         const auto found = entries_.find(id);
-        if (found == entries_.end() || found->second.style != style.identity() ||
+        if (found == entries_.end() || !style.has_identity(found->second.style) ||
             found->second.width != width || found->second.height != height) {
             return false;
         }

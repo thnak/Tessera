@@ -159,9 +159,11 @@ public:
     // exactly what the layout-unchanged gate proves, so the host calls this only on a frame the
     // gate accepted. An empty `roots` is a no-op.
     //
-    // The transition/animation bridge still walks the whole tree: it diffs every node's style
-    // against its previous snapshot, and a scoped walk there would need the same "unchanged"
-    // proof per node. That is a separate slice.
+    // The interaction sync and the transition/animation bridge walk only `roots` too, once a whole
+    // walk has run and neither the scene's shape nor any node's `visible()` has changed since (the
+    // two process-wide epochs): those walks skip invisible subtrees and keep per-node memos, so
+    // those are the only two things besides a style change that could owe a node outside `roots`
+    // anything. Until then, and after either epoch moves, they walk the whole tree.
     paint::SceneStyleSyncResult sync_style_scoped(Node& root, paint::StyleProvider& styles,
                                                   std::span<const Node* const> roots,
                                                   const FrameTick& tick, bool force = false) const;
@@ -355,6 +357,11 @@ private:
     mutable style::SyncMemo scene_sync_memo_;
     mutable style::SyncMemo interaction_sync_memo_;
     mutable animation::StyleBridgeResult style_bridge_snapshot_;
+    // The epochs at the last whole interaction/bridge walk; a scoped walk needs both unchanged.
+    void note_whole_walk() const;
+    mutable bool whole_walk_done_ = false;
+    mutable std::uint64_t whole_walk_structure_epoch_ = 0;
+    mutable std::uint64_t whole_walk_visibility_epoch_ = 0;
     const std::vector<style::KeyframeBlock>* style_keyframes_ = nullptr;
     // Painted corners (x0,y0..x3,y3, device px) of each transform-sampled node at the last frame
     // that added its box to damage; the reference the suppression distance is measured from.

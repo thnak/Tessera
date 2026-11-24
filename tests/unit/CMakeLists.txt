@@ -2193,6 +2193,15 @@ target_link_libraries(transition_wiring_tests PRIVATE tessera_frame tessera_runt
 
 add_test(NAME transition_wiring COMMAND transition_wiring_tests)
 
+# The scoped interaction sync and transition bridge walk only the restyled roots, and fall back to
+# the whole tree after a visible() flip or a shape change (issue #735).
+add_executable(scoped_style_sync_tests
+    scoped_style_sync_tests.cpp)
+
+target_link_libraries(scoped_style_sync_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME scoped_style_sync COMMAND scoped_style_sync_tests)
+
 add_executable(lowering_expression_tests
     lowering_expression_tests.cpp)
 

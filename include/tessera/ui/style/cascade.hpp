@@ -233,6 +233,11 @@ public:
     [[nodiscard]] std::shared_ptr<const void> identity() const {
         return properties_;
     }
+    // `identity() == held` without the reference-count round trip a returned shared_ptr costs; the
+    // memo walks compare once per node, so it adds up over a large tree.
+    [[nodiscard]] bool has_identity(const std::shared_ptr<const void>& held) const noexcept {
+        return properties_ == held;
+    }
 
     // One cached 64-bit digest of the effective style, for a reader that folds the style into a
     // hash (the layout signature). It lives with the shared entries, so every copy of an unchanged

@@ -7,12 +7,14 @@
 // raises.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/structure_epoch.hpp"
 
 namespace tessera::ui {
 
 void NodeInteractionApi::set_visible(bool visible) {
     Node& self = node();
     if (self.input_.set_visible(visible)) {
+        note_scene_visibility_change();
         self.mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
     }
 }

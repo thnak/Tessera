@@ -7,6 +7,7 @@
 #include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>
+#include <span>
 
 namespace tessera::ui::style {
 
@@ -51,5 +52,13 @@ InteractionStyleSyncResult sync_interaction_style(Node& root, InteractionStyleFn
                                                   void* context, SyncMemo* memo = nullptr);
 // With a `memo` a node whose style is unchanged since the last call is not re-read; its hidden
 // state decides whether the walk goes on below it.
+
+// The same sync over `roots` and their subtrees only, for a caller that can prove every other node
+// kept its computed style, its structure and its `visible()` (see `FramePipeline`). A root below a
+// node the whole walk would not enter is skipped. The memo is not swept, so entries for the nodes
+// left alone survive.
+InteractionStyleSyncResult sync_interaction_style_scoped(std::span<const Node* const> roots,
+                                                         InteractionStyleFn compute, void* context,
+                                                         SyncMemo* memo = nullptr);
 
 } // namespace tessera::ui::style

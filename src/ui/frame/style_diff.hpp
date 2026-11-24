@@ -69,7 +69,7 @@ public:
             return next;
         }
         found->second.generation = generation_;
-        if (found->second.identity == next.identity()) {
+        if (next.has_identity(found->second.identity)) {
             return next; // same entries block: the effective style cannot differ
         }
         // A new entries block. The values may still be identical (a recompute into a fresh block),

@@ -126,7 +126,37 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context, SyncMemo* 
     }
 }
 
+// True when the walk from the root would reach `node`: every ancestor is rendered.
+bool reachable_from_root(const Node& node) {
+    for (const Node* parent = node.parent(); parent != nullptr; parent = parent->parent()) {
+        if (!parent->rendered()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
+
+InteractionStyleSyncResult sync_interaction_style_scoped(std::span<const Node* const> roots,
+                                                         InteractionStyleFn compute, void* context,
+                                                         SyncMemo* memo) {
+    InteractionStyleSyncResult result;
+    if (compute == nullptr) {
+        return result;
+    }
+    if (memo != nullptr) {
+        memo->begin();
+    }
+    for (const Node* root : roots) {
+        if (reachable_from_root(*root)) {
+            sync_node(const_cast<Node&>(*root), compute, context, memo, result);
+        }
+    }
+    // No `sweep()`: it drops every entry this walk did not touch, and a scoped walk touches only
+    // the restyled subtrees, which would erase the memo for every unchanged node.
+    return result;
+}
 
 InteractionStyleSyncResult sync_interaction_style(Node& root, InteractionStyleFn compute,
                                                   void* context, SyncMemo* memo) {
