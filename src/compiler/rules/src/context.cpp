@@ -50,7 +50,7 @@ std::optional<std::string> declared_type_argument(const Expr& call) {
 // record-typed prop or state cell does too (ADR-051: a record's identity is its name).
 std::optional<std::string> context_ir_type(const jsx::Module& module, const std::string& written,
                                            DiagnosticSink& sink, jsx::Span span) {
-    static constexpr std::string_view kPrimitives[] = {"bool", "int", "float", "string",
+    static constexpr std::string_view kPrimitives[] = {"bool",  "int",    "float",   "string",
                                                        "color", "length", "node_ref"};
     for (const std::string_view primitive : kPrimitives) {
         if (written == primitive) {
@@ -98,8 +98,8 @@ void check_module_contexts(const jsx::Module& module, AnalyzedModule& out,
                    "inferred one has nothing to name it");
             continue;
         }
-        const std::optional<std::string> ir_type = context_ir_type(module, *written, sink,
-                                                                   item.span);
+        const std::optional<std::string> ir_type =
+            context_ir_type(module, *written, sink, item.span);
         if (!ir_type) {
             continue; // the type diagnostic is already reported
         }
@@ -125,9 +125,7 @@ void check_contexts(Context& ctx) {
         }
         const Expr& call = *statement.init;
         const auto reject = [&](const std::string& message, jsx::Span span,
-                                const std::string& note) {
-            ctx.error(kForm, message, span, note);
-        };
+                                const std::string& note) { ctx.error(kForm, message, span, note); };
         if (statement.kind != jsx::StatementKind::Const || statement.names.size() != 1) {
             reject("`useContext` binds one value: `const theme = useContext(ThemeContext);`",
                    statement.span, "read a field of the bound value where it is used");

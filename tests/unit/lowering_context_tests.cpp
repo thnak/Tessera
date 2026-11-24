@@ -109,12 +109,11 @@ void test_untyped_create_context_is_not_a_context() {
     // The IR carries the type on the environment, so an inferred `createContext(default)` has
     // nothing to name it: the rules pass reports TESSERA_REACT_CONTEXT_FORM (pinned in the
     // diagnostics registry) and contributes no context, so a consumer of it has nothing to bind.
-    constexpr std::string_view text =
-        "const Ctx = createContext({ count: 0 });\n"
-        "export function A() {\n"
-        "  const v = useContext(Ctx);\n"
-        "  return <View/>;\n"
-        "}\n";
+    constexpr std::string_view text = "const Ctx = createContext({ count: 0 });\n"
+                                      "export function A() {\n"
+                                      "  const v = useContext(Ctx);\n"
+                                      "  return <View/>;\n"
+                                      "}\n";
     Project project;
     project.add(parse_file_raw("ui/untyped.tsx", std::string(text)));
     const lowering::ModuleLoweringResult result = project.lower("untyped");
@@ -130,11 +129,10 @@ void test_untyped_create_context_is_not_a_context() {
 void test_unknown_context_argument_is_not_a_context() {
     // `Nope` names no module-scope const, so the rules pass reports TESSERA_REACT_CONTEXT_FORM
     // (pinned in the diagnostics registry) and the use records no environment.
-    constexpr std::string_view text =
-        "export function A() {\n"
-        "  const theme = useContext(Nope);\n"
-        "  return <View/>;\n"
-        "}\n";
+    constexpr std::string_view text = "export function A() {\n"
+                                      "  const theme = useContext(Nope);\n"
+                                      "  return <View/>;\n"
+                                      "}\n";
     Project project;
     project.add(parse_file_raw("ui/unknown.tsx", std::string(text)));
     const lowering::ModuleLoweringResult result = project.lower("unknown");
