@@ -1197,6 +1197,16 @@ target_link_libraries(task_cancellation_tests PRIVATE tessera_runtime)
 
 add_test(NAME task_cancellation COMMAND task_cancellation_tests)
 
+# Issue #844: the task combinators (when_all/when_any/when_any_value) and the time helpers
+# (delay/timeout), including the eager-cancellation wakeup they lean on. Split from `task_tests`
+# so neither file passes the 500-line limit.
+add_executable(task_combinator_tests
+    task_combinator_tests.cpp)
+
+target_link_libraries(task_combinator_tests PRIVATE tessera_runtime)
+
+add_test(NAME task_combinators COMMAND task_combinator_tests)
+
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)
 

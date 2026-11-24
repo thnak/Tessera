@@ -15,7 +15,9 @@ namespace detail {
 TaskStateBase::TaskStateBase(TaskContext context)
     : queue_(context.queue),
       priority_(context.priority),
-      token_(std::move(context.token)) {}
+      token_(std::move(context.token)),
+      clock_(context.clock),
+      timers_(context.timers) {}
 
 void TaskPromiseBase::declare_no_resume() noexcept {
     // The promise holds the state weakly, so a frame that has already been released is a no-op
@@ -53,6 +55,18 @@ bool TaskStateBase::post_resume() {
     return true;
 }
 
+void TaskStateBase::arm_cancel_wakeup() {
+    if (done_ || cancel_wakeup_.active()) {
+        return;
+    }
+    // The callback runs synchronously on whichever thread cancels the token, so it must only
+    // post: `post_resume` is lock-light, never touches the frame, and a resume that is already
+    // queued absorbs it. The actual cancellation check happens in the queued resume, on the drain
+    // thread. `post_resume` is public, so the lambda can hold the state strongly; that strong
+    // reference lives only until the registration is released in `finish()`.
+    cancel_wakeup_ = token_.on_cancel([self = shared_from_this()] { self->post_resume(); });
+}
+
 void TaskStateBase::resume_continuation() {
     // Drop the queued reference last: `resume_from_queue` may finish the task and resume its
     // continuation, and a re-post made by that resume must see a clean slot.
@@ -83,6 +97,10 @@ void TaskStateBase::finish() {
         return;
     }
     done_ = true;
+    // Disarm the eager-cancellation wakeup first: a finished task never keeps a callback on its
+    // token, and a cancel racing this release is absorbed by the `done_` check in
+    // `resume_from_queue`.
+    cancel_wakeup_.reset();
     std::shared_ptr<TaskStateBase> continuation = std::move(continuation_);
     if (continuation != nullptr) {
         continuation->post_resume();
@@ -106,6 +124,9 @@ void TaskStateBase::declare_no_resume() noexcept {
     // state, and this function runs inside the frame that state owns.
     const std::shared_ptr<TaskStateBase> self = weak_from_this().lock();
     continuation_.reset();
+    // The wakeup registration holds this state through its callback capture; an abandoned task
+    // releases it here, together with the continuation, so nothing pins the pair.
+    cancel_wakeup_.reset();
 }
 
 } // namespace detail
