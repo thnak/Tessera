@@ -87,7 +87,7 @@ using DriverTask = Task<void>;
 // Runs one child of a `when_all` pack to completion and records the outcome. `Index` addresses
 // the state's value slot, so the child's result lands in argument order.
 template<typename State, std::size_t Index, typename T>
-DriverTask make_all_driver(TaskContext driver_ctx, std::shared_ptr<State> state, Task<T> child) {
+DriverTask make_all_driver(TaskContext, std::shared_ptr<State> state, Task<T> child) {
     try {
         if constexpr (std::is_void_v<T>) {
             co_await std::move(child);
@@ -103,7 +103,7 @@ DriverTask make_all_driver(TaskContext driver_ctx, std::shared_ptr<State> state,
 
 // The same for a `when_all_range` child, whose slot is addressed at run time.
 template<typename State, typename T>
-DriverTask make_all_range_driver(TaskContext driver_ctx, std::shared_ptr<State> state,
+DriverTask make_all_range_driver(TaskContext, std::shared_ptr<State> state,
                                  std::size_t index, Task<T> child) {
     try {
         state->store_value(index, co_await std::move(child));
@@ -117,7 +117,7 @@ DriverTask make_all_range_driver(TaskContext driver_ctx, std::shared_ptr<State> 
 // Runs one `when_any` child to completion; only the failure (if any) is recorded, because the
 // winner's identity is what the caller asked for. Losers keep running to completion.
 template<typename State, typename T>
-DriverTask make_any_driver(TaskContext driver_ctx, std::shared_ptr<State> state, std::size_t index,
+DriverTask make_any_driver(TaskContext, std::shared_ptr<State> state, std::size_t index,
                            Task<T> child) {
     try {
         co_await std::move(child);
@@ -130,7 +130,7 @@ DriverTask make_any_driver(TaskContext driver_ctx, std::shared_ptr<State> state,
 
 // The value-recording variant used by `when_any_value`, which must hand back the winner's result.
 template<typename State, typename T>
-DriverTask make_any_value_driver(TaskContext driver_ctx, std::shared_ptr<State> state,
+DriverTask make_any_value_driver(TaskContext, std::shared_ptr<State> state,
                                  std::size_t index, Task<T> child) {
     try {
         if constexpr (std::is_void_v<T>) {
