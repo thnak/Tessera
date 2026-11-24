@@ -198,7 +198,7 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                       element.tag_span);
             return std::nullopt;
         }
-        return ElementInfo{row, *kind, false, {}};
+        return ElementInfo{row, *kind, false, {}, {}, {}, {}, {}};
     }
     if (const schema::AliasRow* alias = schema::find_alias(element.tag); alias != nullptr) {
         // ADR-039 decision 3, html-aliases.md section 6: an unsupported row (the ADR-059 `planned`
@@ -229,7 +229,7 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
         }
         return ElementInfo{row,       *kind,         false,
                            {},        alias->inject, schema::alias_style_defaults(alias->tag),
-                           alias->tag};
+                           alias->tag, {}};
     }
     for (const ComponentRef& reference : state.context.component_refs) {
         if (reference.name == element.tag) {
