@@ -3311,6 +3311,14 @@ function include/tessera/ui/text/hit_test.hpp tessera::ui::text::hit_test_point
 header include/tessera/ui/text/scale_glyph_atlas.hpp
 class include/tessera/ui/text/scale_glyph_atlas.hpp tessera::ui::text::ScaleGlyphAtlas
 
+header include/tessera/ui/text/selection_controller.hpp
+class include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionController
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionPoint
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionRange
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionTarget
+enum include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionGesture
+function include/tessera/ui/text/selection_controller.hpp tessera::ui::text::copy_text
+
 header include/tessera/ui/text/text_input_runtime.hpp
 class include/tessera/ui/text/text_input_runtime.hpp tessera::ui::text::TextInputRuntime
 function include/tessera/ui/text/text_input_runtime.hpp tessera::ui::text::bind_text_input_events

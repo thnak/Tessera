@@ -367,7 +367,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
-| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
+| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select` (auto/none/text/all), `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent, `light-dark()`, `color-mix()` | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
@@ -476,13 +476,13 @@ matches):**
   are unchanged: `pointer-events` is not `display`/`visibility` and never hides a node from
   assistive technology. The resolved value is copied onto the scene node by
   `style::sync_interaction_style` (`tests/unit/interaction_style_tests.cpp`).
-- `user-select: auto | none | text` (initial `auto`, inherited): `none` blocks starting a text
-  selection at the node and in its subtree (drag-select included), `text` allows it, and `auto` keeps
-  the default (static text is selectable). An editable `TextInput`/`TextArea` always allows
-  selection, whatever an ancestor's `none` says, as in CSS. The scene exposes the resolved policy as
-  `Node::text_selection_allowed()`; the static-text selection controller it gates is a later slice
-  and the editable-field path is the implemented consumer
-  (`tests/unit/interaction_style_tests.cpp`).
+- `user-select: auto | none | text | all` (initial `auto`, inherited): `none` blocks starting a text
+  selection at the node and in its subtree (drag-select included), `text` allows it, `auto` keeps the
+  default (static text is selectable), and `all` selects the whole element's text on a press. An
+  editable `TextInput`/`TextArea` always allows selection, whatever an ancestor's `none` says, as in
+  CSS. `Node::text_selection_allowed()` exposes the resolved policy and
+  `text::SelectionController` (`tests/unit/selection_controller_tests.cpp`) is the static-text
+  consumer for all four values; `tests/unit/interaction_style_tests.cpp` covers the editable one.
 - `aspect-ratio: auto | <number> | <number> / <number>` (initial `auto`, not inherited): layout maps
   a positive numeric ratio onto Yoga's aspect ratio, so a box with one `auto` dimension gets the
   other from the ratio; an explicit `width` or `height` wins over the ratio, as in CSS. Both ratio
