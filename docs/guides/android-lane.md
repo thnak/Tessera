@@ -178,9 +178,9 @@ bar into a 24 dp one, a layout bug that only shows at a non-1.0 density. The dec
 - **Cutout rectangles.** Android reports `right`/`bottom` as exclusive edges; the engine's rectangles
   are `x`/`y`/`width`/`height`, so the extent is the difference. A zero-area rectangle is dropped
   rather than reported as a cutout that insets nothing.
-- **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports `FoldState::Flat`
-  and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an occluding hinge, and only
-  when the platform gives it a non-zero rectangle.
+- **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports
+  `FoldState::Flat` and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an
+  occluding hinge, and only when the platform gives it a non-zero rectangle.
 - **Orientation comes from the extent**, not Android's rotation, so a device that reports
   neither still gets the same answer as the desktop lanes.
 The backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
@@ -230,35 +230,27 @@ Two other hooks are required, and both are easy to miss:
   cannot know which part is editable. Without it the keyboard appeared on every tap; a tap
   elsewhere now dismisses it.
 
-The mapping rules live in `android_ime_translation.cpp` and are **pure over UTF-16** — no SDK, no
-JNI — so `android_ime` pins the two conversions that fail silently on screen:
-
-- **UTF-16 to UTF-8.** A naive per-character loop encodes each surrogate half separately and turns
-  every emoji into two replacement characters.
-- **UTF-16 offsets to UTF-8 byte offsets.** Android reports the caret in UTF-16 units; the engine's
-  selection is UTF-8 bytes. Mixing them puts the caret in the wrong place on any non-ASCII string.
-
+The mapping rules live in `android_ime_translation.cpp` and are **pure over UTF-16** - no SDK,
+no JNI - so `android_ime` pins the two conversions that fail silently on screen: **UTF-16 to
+UTF-8** (a naive per-character loop encodes each surrogate half separately and turns every emoji
+into two replacement characters) and **UTF-16 offsets to UTF-8 byte offsets** (Android reports
+the caret in UTF-16 units, the engine's selection is UTF-8 bytes, so mixing them puts the caret
+in the wrong place on any non-ASCII string).
 A lone surrogate becomes U+FFFD rather than being dropped, because dropping it would desynchronise
 every offset after it.
 
 **The engine owns the buffer, so the platform must ask.** Forwarding callbacks is half an IME
-bridge: the platform also *queries* the text, and a bridge that answers `""` makes the IME behave
-as if the field were always empty - suggestions stop, Backspace deletes nothing, and the
-composing region sits at offset 0. So `TesseraInputConnection` overrides the queries too, each
-reading the buffer back:
-
-| callback | what it reads |
-|---|---|
-| `getTextBeforeCursor` / `getTextAfterCursor` | the buffer around the caret, in UTF-16 units |
-| `getSelectedText` | `EditBuffer::selected_text()` |
-| `setSelection` | `EditBuffer::set_selection`, converting UTF-16 offsets to UTF-8 bytes |
-| `deleteSurroundingTextInCodePoints` | the same delete path as the UTF-16 variant |
-
+bridge: the platform also *queries* the text, and a bridge that answers `""` makes the IME
+behave as if the field were always empty - suggestions stop, Backspace deletes nothing, and the
+composing region sits at offset 0. `TesseraInputConnection` overrides the queries too:
+`getTextBeforeCursor`/`getTextAfterCursor` read the buffer around the caret in UTF-16 units,
+`getSelectedText` reads `EditBuffer::selected_text()`, `setSelection` converts UTF-16 offsets to
+UTF-8 bytes, and `deleteSurroundingTextInCodePoints` takes the same delete path as the UTF-16
+variant.
 The shell owns one `EditController` and one `TextInputRuntime` (`Shell::editor`,
 `Shell::editor_runtime`). The runtime is attached to the field's node, so a committed edit
 publishes the buffer's text **and** the caret into that node's `PaintData` - otherwise a field
 whose node started empty paints nothing while the buffer fills.
-**The two enums are not the same enum.** `ui::InputEventType` is the normalized input vocabulary
 and `ui::EventType` is the scene's; they do not share values (`EditText` is 13 in one and 14 in
 the other). A `static_cast` turns a commit into a composition start, which looks like typing
 doing nothing while the buffer stays empty. The bridge maps the six types and drops the rest.
@@ -273,9 +265,8 @@ stays unit-tested on every lane.
 - **Accessibility's long tail.** The role/action mapping, the pull-side provider and the Java
   `AccessibilityNodeProvider` are done (3.9). Not wired: live regions, collection set-size/position,
   and `SetText`/`SetSelection` (offered but dropped - `ProviderAction` carries no text payload).
-- **The IME's long tail.** `requestCursorUpdates` is forwarded (3.18); what remains is the async
-  cursor stream, which the engine has no notion of, so a monitor request is answered once.
-- **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is hand-built,
+- **The IME's long tail.** `requestCursorUpdates` answers once (3.18); the async cursor
+  stream, which the engine has no notion of, is what remains.
   because the codegen CLI runs on the host and `tessera_compiler_demo` is gated on
   `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
   tool - the same `ExternalProject` pattern the shader manifest checker uses.
@@ -313,16 +304,15 @@ Three details that are easy to get wrong, and that the tests pin:
 every rebuild and a screen reader focused on view 3 would point at a different control. The
 provider keeps a slot table: a node keeps its id while it stays in the tree; id `0` is the host.
 
-**The action ids are the platform's.** They are *not* consecutive powers of two: `ACTION_FOCUS` is
-1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is 2097152. Numbering them
-in enum order turns a click into a focus request, and since the platform echoes back the id it was
-offered, that failure is silent. They were read from `android.jar` with `javap -constants` and the
-test asserts them. They are also a **list**, not a bit set: `Click | LongClick` is 48, which is no id
-the platform knows.
+**The action ids are the platform's.** They are *not* consecutive powers of two:
+`ACTION_FOCUS` is 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096,
+`ACTION_SET_TEXT` is 2097152. Numbering them in enum order turns a click into a focus
+request, and since the platform echoes back the id it was offered, that failure is silent.
+They were read from `android.jar` with `javap -constants` and the test asserts them. They are
+also a **list**, not a bit set: `Click | LongClick` is 48, no id the platform knows.
 
-**Bounds are the engine's logical pixels**, the view's own coordinate space, so Java converts no
-density; they cross as fixed point in 1/64 px so a fractional position rounds once, not twice.
-
+**Bounds are the engine's logical pixels**, the view's own coordinate space, so Java converts
+no density; they cross as fixed point in 1/64 px so a fractional position rounds once.
 ```powershell
 # What a screen reader should see, without a screen reader:
 adb shell settings put secure enabled_accessibility_services \
@@ -336,21 +326,20 @@ whole window was one unnamed stop.
 
 ### 3.10 Fold posture: the one AndroidX dependency, and why
 
-**The platform has no fold API.** Verified against the build's own `android.jar` for API 35, 36.1 and
-37: no class matches fold, hinge or posture, and `android.view.WindowInfo` does not exist at any of
-those levels. `android.view.DisplayShape` does exist but describes the outline of a display, not a
-hinge, so it cannot substitute.
-
+**The platform has no fold API.** Verified against the build's own `android.jar` for API 35,
+36.1 and 37: no class matches fold, hinge or posture, and `android.view.WindowInfo` does not
+exist at any of those levels. `android.view.DisplayShape` does exist but describes the outline
+of a display, not a posture. So `androidx.window:window` is the only source, and it is the
+lane's single AndroidX dependency.
 Posture is exposed only by **Jetpack WindowManager** (`androidx.window:window`), Google's official
 Apache-2.0 library for exactly this. It was already the planned dependency:
 [`dependencies.md`](../specs/dependencies.md) lists it as "Android V1 optional" and
 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) already carried the entry, so this slice
 consumes a decision that was already made rather than making a new one.
 
-The shell pins **1.5.1** (current stable) and uses it for one call. The chain it pulls in is
-`window-core`, `androidx.core`, `androidx.collection`, `androidx.annotation`, `jspecify`,
-`kotlin-stdlib` and `kotlinx-coroutines-android` — which is why the build also enables the Kotlin
-plugin, for one 40-line file.
+The shell pins **1.5.1** and uses it for one call. The chain it pulls in is `window-core`,
+`androidx.core`, `androidx.collection`, `androidx.annotation`, `jspecify`, `kotlin-stdlib` and
+`kotlinx-coroutines-android` - which is why the build also enables the Kotlin plugin.
 
 **Why a Kotlin file.** `WindowInfoTracker.windowLayoutInfo` returns a Kotlin `Flow`; collecting
 one from Java means suspend functions through `BuildersKt` and a hand-written `Function2`, which
@@ -369,31 +358,28 @@ of the 2076 px display - observed live without restarting the activity.
 ### 3.11 Hinge angle: the one fold signal the platform SDK does have
 
 Posture is discrete and needs AndroidX. The **angle** is continuous and does not: the platform
-exposes it as a sensor, `android.hardware.Sensor.TYPE_HINGE_ANGLE` (36), present in `android.jar`
-for API 35 and later and in the NDK as `ASENSOR_TYPE_HINGE_ANGLE`. So this slice adds no dependency
-— it is `SensorManager`, which every Android build already has.
+exposes it as a sensor, `android.hardware.Sensor.TYPE_HINGE_ANGLE` (36), present in
+`android.jar` for API 35 and later and in the NDK as `ASENSOR_TYPE_HINGE_ANGLE`. So this slice
+adds no dependency - it is `SensorManager`, which every Android build already has.
 
-**Why it is a separate reader.** The two read different sources at different rates, and a device can
-have one without the other. Posture comes from `FoldingFeature` (AndroidX) as `FLAT`/`HALF_OPENED`,
-one event per transition; the angle comes from `SensorManager` as 0-360 degrees, continuous while
-folding. A foldable with no hinge sensor still reports posture, and a device whose window is not laid
-out yet reports no posture while the sensor keeps working. One reader would make each depend on the
-other's failure mode.
-
+**Why a separate reader.** The two read different sources at different rates, and a device can
+have one without the other. Posture comes from `FoldingFeature` as `FLAT`/`HALF_OPENED`, one
+event per transition; the angle comes from `SensorManager` as 0-360 degrees, continuous while
+folding. A foldable with no hinge sensor still reports posture, and a device whose window is
+not laid out yet reports no posture while the sensor keeps working.
 `HingeAngleChanged` is a separate event for the same reason: a posture change is a discrete relayout,
 the angle is a continuous signal a scene may animate against, and merging them would rebuild the
 layout on every degree. The angle coalesces into the newest, so a burst between two ticks costs one
 event.
 
-**The sentinel is negative.** `kUnknownHingeAngle` is `-1`, not `0`, because `0` is a real
-measurement - a fully closed hinge. A non-finite reading becomes the sentinel rather than a clamp, so
-a broken HAL reporting `NaN` cannot look closed, and the upper clamp is 360 because a display that
-folds all the way around is real. `fold_info` sets the angle before the posture switch, so a device
-with a sensor but no `FoldingFeature` still reports it.
-
-**Registration follows the lifecycle.** The sensor is registered on resume and released on pause: a
-non-wake-up sensor left registered while backgrounded stays powered for a value no frame can show.
-
+**The sentinel is negative.** `kUnknownHingeAngle` is `-1`, because `0` is a real measurement
+- a fully closed hinge. A non-finite reading becomes the sentinel rather than a clamp, so a
+broken HAL reporting `NaN` cannot look closed, and the upper clamp is 360 because a display
+that folds all the way around is real. `fold_info` sets the angle before the posture switch,
+so a device with a sensor but no `FoldingFeature` still reports it.
+**Registration follows the lifecycle.** The sensor is registered on resume and released on
+pause: a non-wake-up sensor left registered while backgrounded stays powered for a value no
+frame can show.
 Verification on the emulator, which has a hinge sensor:
 
 ```powershell
@@ -403,7 +389,6 @@ adb shell dumpsys sensorservice | Select-String "hinge"
 ```
 
 It reports `90.00` at `HALF_OPENED` and `0.00` at `CLOSED` - the sensor's scale, not the enum.
-
 
 ### 3.12 Keys and the caret: two seams a custom-rendered field does not get for free
 
@@ -419,37 +404,34 @@ the Java getters into a `KeySample` and lets the pure `translate_key_sample`
 (`android_input_translation.cpp`) do the mapping — the same split as the touch path, so
 `android_input` pins it on every lane.
 
-Two rules matter there. A key-down that types a character produces **two** events, the key event
-and a `Text` event; the edit controller inserts from the latter, so a bridge that forwards only the
-key event types nothing. And a key the engine has no logical code for produces **nothing**, so the
-caller lets the platform handle it - that is what keeps the system Back gesture working.
+Two rules matter there. A key-down that types a character produces **two** events, the key
+event and a `Text` event; the edit controller inserts from the latter, so a bridge forwarding
+only the key event types nothing. And a key the engine has no logical code for produces
+**nothing**, so the caller lets the platform handle it - that is what keeps system Back working.
 
-An IME that synthesises a key (Space, Enter) does **not** go through the view's dispatcher: the IME
-owns the input connection, so the event arrives at `TesseraInputConnection.sendKeyEvent` instead.
-That override takes the same `nativeKey` path, which is why Space types at all — without it the
-field could not contain a space while letters (committed as text) still worked.
+An IME that synthesises a key (Space, Enter) does **not** go through the view's dispatcher: the
+IME owns the input connection, so the event arrives at `sendKeyEvent` instead. That override
+takes the same `nativeKey` path, which is why Space types at all - without it the field could
+not contain a space while letters (committed as text) still worked.
 
-Enter has two paths and both are needed. A hardware Enter arrives as a key event; a soft-keyboard
-Enter on a multi-line field arrives as `performEditorAction`, which the connection answers by
-sending the same key pair. A single-line field gates the newline off by design (submit is a form
-concern the engine defers), so the shell's demo field is multi-line — otherwise Enter reads as a
-broken key on a phone with no form to submit.
+Enter has two paths. A hardware Enter arrives as a key event; a soft-keyboard Enter on a
+multi-line field arrives as `performEditorAction`, which the connection answers by sending
+the same key pair. A single-line field gates the newline off by design (submit is a form
+concern the engine defers), so the shell's demo field is multi-line - otherwise Enter reads
+as a broken key on a phone with no form to submit.
 
-`adb shell input keyevent` is not a substitute for a real keyboard here: it delivers only the
-key-up to the view (the default `View.onKeyDown` consumes the down), so a newline cannot be
-reproduced with it. Tap the soft keyboard's Enter instead.
+`adb shell input keyevent` cannot reproduce a newline here: it delivers only the key-up to
+the view (the default `View.onKeyDown` consumes the down). Tap the soft keyboard's Enter.
 
-**The caret.** `CaretBlink` is host-owned (`WindowHost::Impl::caret`) and ticks once per driver
-iteration, but the host cannot know whether a field is focused — only the app can. Two options close
-the loop:
-
-Two options close the loop: `caret_active` (app → host, the focus/editability policy, asked every
-iteration) and `caret_target` (host → app, the `TextInputRuntime` whose decoration carries the
-caret). Without the first the blink never starts; without the second it starts but nothing it decides
-reaches `TextDecoration::blink_phase`, so paint draws a solid caret forever. Both are null by default,
-which keeps every desktop caller on the pre-blink behaviour. `caret_blink_target` (a GPU test) pins
+**The caret.** `CaretBlink` is host-owned (`WindowHost::Impl::caret`) and ticks once per
+driver iteration, but only the app knows whether a field is focused. Two options close the
+loop:
+`caret_active` (app to host: the focus/editability policy, asked every iteration) and
+`caret_target` (host to app: the `TextInputRuntime` whose decoration carries the caret).
+Without the first the blink never starts; without the second it starts but nothing it decides
+reaches `TextDecoration::blink_phase`, so paint draws a solid caret forever. Both are null by
+default, keeping every desktop caller on the pre-blink behaviour. `caret_blink_target` pins
 the round trip.
-
 ### 3.13 A tap places the caret
 
 A custom-rendered field does not get caret placement for free either. The platform reports a touch
@@ -484,10 +466,10 @@ is **pure** - no NDK, no JNI, no device - so `android_selection` pins the thresh
 transitions on every lane.
 
 The thresholds are the platform's own, so a long-press feels like every other app: 500 ms
-(`ViewConfiguration.getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Each rule is a defect
-if wrong: a move past the slop before the timeout abandons the press (else every drag selects instead
-of scrolling); a move inside the slop keeps it alive (else a jittering finger never selects); a new
-down resets a gesture that never saw its up (else a dropped up turns the next tap into a selection);
+(`getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Each rule is a defect if wrong: a move past
+the slop before the timeout abandons the press (else every drag selects); a move inside the slop keeps
+it alive (else a jittering finger never selects); a new down resets a gesture that never saw its up
+(else a dropped up turns the next tap into a selection);
 `tick()` also checks the timeout (a still finger sends no samples, so `feed()` alone never fires).
 `SelectionGesture` is deliberately not `MotionGesture`: that one tracks pointer identity for the
 input queue, and the selection thresholds must not affect its capture bookkeeping.
@@ -511,17 +493,14 @@ and ticks it from the caret callback:
 
 ### 3.16 Copy, Cut, Paste and Select all: a phone has no Ctrl key
 
-`hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but the manager needs a
-`Looper` thread and the engine's render thread has none. The backend caches: a **write** updates the
-engine's copy immediately (so a copy-then-paste in the same frame sees it) and posts the platform
-write to the UI thread; a **read** returns the cache, refreshed on `OnPrimaryClipChangedListener`.
-
-Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a hardware
-keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu). The key codes are
-**commands, not logical keys** - `translate_key_sample` drops them - so `dispatchKeyEvent` handles
-them first. `Select all` reaches the buffer the same way: `nativeSelectAll` from the platform's
-action, and `Ctrl+A` from a hardware keyboard.
-
+`hal::Clipboard` is synchronous, and so is Android's `ClipboardManager` - but it needs a `Looper`
+thread and the engine's render thread has none. The backend caches: a **write** updates the engine's
+copy immediately (so a copy-then-paste in one frame sees it) and posts the platform write to the UI
+thread; a **read** returns the cache, refreshed on `OnPrimaryClipChangedListener`.
+Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a
+hardware keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu).
+The key codes are **commands, not logical keys** - `translate_key_sample` drops them - so
+`dispatchKeyEvent` handles them first; `Select all` reaches the buffer the same way.
 The chord exposed a defect: `codepoint_from_key` derived a character from every letter key
 regardless of modifiers, so `Ctrl+A` produced BOTH a `KeyDown` (Select all) and a `Text` event
 (insert) - every chord also typed its letter. Control/Alt/Meta chords now type nothing.
@@ -533,37 +512,49 @@ after it wrong. An invalid byte becomes U+FFFD rather than being dropped, so the
 
 ### 3.17 The floating toolbar is the platform's, not the engine's
 
-A selection normally raises a floating toolbar with Copy/Cut/Paste/Select all. The engine has no
-popup surface, and it does not need one: Android's `ActionMode` is exactly that toolbar, it positions
-itself, and it dismisses on a tap outside without the engine tracking any of it.
+A selection normally raises a floating toolbar with Copy/Cut/Paste/Select all. The engine has
+no popup surface and does not need one: Android's `ActionMode` is exactly that toolbar, it
+positions itself, and it dismisses on a tap outside without the engine tracking anything.
 
-The engine owns the selection, so the platform asks rather than tracking it. `nativeSelectionState`
-fills a `float[3]` (has-selection, anchor x, anchor y in logical pixels) - one call rather than three,
-so the selection cannot change between the "is there one" and "where" reads. `syncSelectionToolbar`
-runs after every gesture that can change the selection (an up, and a move, which is what a drag
-sends), and starts or finishes the `ActionMode` to match. `onPrepareActionMode` hides Copy and Cut
-when there is no selection, so the toolbar never offers an action that would do nothing; every action
-finishes the mode, because each one collapses or changes the selection.
+The engine owns the selection, so the platform asks rather than tracking it.
+`nativeSelectionState` fills a `float[3]` (has-selection, anchor x, anchor y in logical pixels)
+- one call rather than three, so the selection cannot change between the "is there one" and
+"where" reads. `syncSelectionToolbar` runs after every gesture that can change it (an up, and
+a move, which is what a drag sends) and starts or finishes the `ActionMode` to match.
+`onPrepareActionMode` hides Copy and Cut when there is no selection; every action finishes
+the mode, because each collapses or changes the selection.
 
 Verified on the emulator: long-press and drag over `hello` raises the toolbar above the field; Copy
 writes `hello` (the platform's clipboard chip confirms it); Select all highlights the whole buffer.
 
+### 3.18 The cursor anchor: where the IME puts its strip
+
+The IME places its suggestion strip, autocorrect highlight and magnifier from the **cursor
+anchor**. Without one it guesses, and on a custom-rendered field it guesses wrong: Gboard's
+strip landed off the field. `requestCursorUpdates` answers from `nativeCaretGeometry`, which
+returns the box in logical pixels - the **same** box paint draws the caret in, so anchor and
+glyphs cannot drift.
+
+Two rules. The platform wants **physical** pixels, so Java multiplies by the density once.
+And the request is answered **immediately** rather than reported unhandled: the engine has no
+asynchronous cursor stream, so a monitor request gets one truthful update and the IME polls
+again later. Reporting "not handled" is what sent Gboard back to guessing.
+
 ### 3.19 Going to the background: pause the loop, do not tear it down
 
 Home does **not** destroy the surface on current Android. Only `onPause`/`onStop` run, so
-`surfaceDestroyed` never fires and the render thread kept presenting into a buffer queue the
-compositor stopped consuming. That wedged the queue, the task's snapshot never completed, and coming
-back showed a starting window over an app with no input focus that ANR'd on every touch (`dumpsys
-input` reported an empty `FocusedWindows`).
+`surfaceDestroyed` never fires and the render thread kept presenting into a queue the
+compositor stopped consuming. That wedged the queue, the task's snapshot never completed, and
+coming back showed a starting window over an app with no input focus that ANR'd on every touch.
 
-**The first fix was wrong, and how it was wrong is the useful part.** It stopped the host on pause:
-close the window, join the render thread. That deadlocked the UI thread, because a loop inside a
-present cannot return until the buffer queue is released, which needs the compositor the app no
-longer has. Joining with a timeout and detaching instead leaked a live renderer still holding its
-swapchain, so the next cycle had two renderers on one queue and the app came back **black**.
+**The first fix was wrong.** It stopped the host on pause: close the window, join the render
+thread. That deadlocked the UI thread, because a loop inside a present cannot return until the
+queue is released - which needs the compositor the app no longer has. Detaching on timeout
+instead leaked a live renderer holding its swapchain, so the next cycle had two renderers on
+one queue and the app came back **black**.
 
-The engine already models this: `Window::hide()` sets `WindowMetrics::minimized` and the loop idles
-with zero presents, so nothing has to be joined. Three things had to follow:
+The engine already models this: `Window::hide()` sets `WindowMetrics::minimized` and the loop
+idles with zero presents, so nothing has to be joined. Three things had to follow:
 
 1. **`hide()`/`show()` must queue a lifecycle event.** They only mutated the metrics, so the host -
    which acts on the `Minimized`/`Restored` EVENT - never paused.
@@ -571,25 +562,35 @@ with zero presents, so nothing has to be joined. Three things had to follow:
    close that only set `closed_` left a paused loop running forever.
 3. **`stop_host` is teardown only** (`surfaceDestroyed`/`nativeDestroy`); `onPause` calls `pause_host`.
 
-`onResume` runs **before** `surfaceCreated` and the borrowed window is stale then, so `resume_host`
-does not depend on the surface callback: it shows the window and requests a full repaint on the host
-that was never destroyed.
+`onResume` runs **before** `surfaceCreated` and the borrowed window is stale then, so
+`resume_host` does not depend on the surface callback.
 
-Verified: type `abc`, Home, return, tap, type `xyz` - the field reads `abcxyz`. Repeated four times,
-the log shows `window hidden` then a clean `render thread exited`, with no detach and no leak.
+Verified: type `abc`, Home, return, tap, type `xyz` - the field reads `abcxyz`. Repeated four
+times, the log shows `window hidden` then a clean `render thread exited`, no detach and no leak.
+
 ### 3.20 Folding the device: a rebuilt host must repaint
 
-A fold is not a background cycle (3.19): closing destroys the surface, so the host is rebuilt.
-`FramePipeline::tick` clears the damage accumulator and derives `should_render` from the dirty
-nodes it collects, so a frame exists only when something is dirty. App launch satisfies that
-once (the first layout dirties every node), which is why the bug hid there. On a fold the new
-host wraps the shell's **live** scene: every node is clean, so the first tick planned
-nothing, the loop parked and the window stayed black - a tap dirtied a node and the UI
-appeared. The fix is the invariant: **host construction latches a full repaint** (the
-constructor sets `full_repaint_pending` and marks the loop dirty directly, since the `AppHost`
-owning `request_full_repaint` does not exist yet); `resume_host` latches one too, matching
-`WindowHost::set_visible(true)` on desktop.
-that emits commands while the next paints nothing.
+A fold is not a background cycle (3.19): closing destroys the surface, so the host is genuinely torn
+down and rebuilt. `nativeSurfaceChanged` already forwards the extent to `set_surface_extent`, so the
+metrics and the `Resize` were right; the defect was the paint.
+
+`FramePipeline::tick` clears the damage accumulator and derives `should_render` from the dirty nodes it
+collects, so a frame exists only when something is dirty. App launch satisfies that once - the first
+layout dirties every node - which is why the bug hid there. On a fold the new host wraps the shell's
+**live** scene: every node is clean, so the first tick planned nothing, the loop parked and the window
+stayed black. A tap dirtied a node and the UI appeared; that is the tell.
+
+The fix is the invariant: **host construction latches a full repaint**. The constructor sets
+`full_repaint_pending` and marks the loop dirty directly, because the `AppHost` owning
+`request_full_repaint` does not exist yet at that point; `resume_host` latches one too, matching
+`WindowHost::set_visible(true)` on desktop. `app_host_repaint_tests.cpp` pins the headless shape:
+settle a scene under one host, let it die, build a second over the same tree, and the first frame is a
+full repaint that emits commands while the next paints nothing.
+
+Verified: launch, fold `CLOSED`, unfold `OPENED`, unlock - the scene repaints with no tap and the
+counters survive. The emulator locks its own screen on a fold transition, so `locksettings set-disabled
+true` (or `KEYCODE_WAKEUP` + `wm dismiss-keyguard`) is required; without it the "black screen" is the
+lock screen, not the app.
 
 ## 4. Related
 
