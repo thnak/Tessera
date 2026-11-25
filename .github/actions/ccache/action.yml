@@ -35,6 +35,9 @@ runs:
       shell: bash
       run: |
         echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        # For a job that saves the cache itself before its tests (actions/cache/save): the post-step
+        # save of the restore step below only runs when the whole job succeeded.
+        echo "CCACHE_KEY_DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
         echo "CCACHE_DIR=$RUNNER_TEMP/ccache" >> "$GITHUB_ENV"
         echo "CCACHE_MAXSIZE=${{ inputs.max-size }}" >> "$GITHUB_ENV"
         # CMakeLists already launches C++ through ccache when it finds it; C (FreeType) needs this.

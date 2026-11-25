@@ -57,6 +57,15 @@ jobs:
       - name: ccache statistics
         run: ccache --show-stats
 
+      # A red test must not leave the next run cold: the cache action's own save only runs when the
+      # whole job passes, and two red main runs in a row (window_wait) made the next PR's build take
+      # 2205 s instead of about 300 s (no cache for the day, 26% hits).
+      - name: Save ccache (before the tests)
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-windows-${{ env.CCACHE_KEY_DATE }}-${{ github.sha }}
+
       - name: Package build (CPack ZIP)
         env:
           SOURCE_DATE_EPOCH: "315532800"
@@ -85,9 +94,6 @@ jobs:
         run: >
           python -B scripts/check_static_link.py --os windows
           --binary build/ci/tests/unit/static_runtime_probe.exe
-
-      - name: Release static-runtime proof (ADR-012)
-        run: python -B scripts/check_static_runtime.py --config Release --target static_runtime_probe
 
       - name: Tests
         shell: pwsh
@@ -180,6 +186,32 @@ jobs:
           path: ${{ runner.temp }}/release-artifacts
           if-no-files-found: warn
           retention-days: 30
+
+  # The ADR-012 proof configures and builds its own throwaway Release directory
+  # (build/static-runtime-proof), so it shares nothing with the job above except the checkout. As a
+  # step of that job it ran after the package steps and added 105-187 s to the critical path; as a
+  # job it runs beside it, like the Linux static-runtime-proof job.
+  static-runtime-proof:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Its own cache name: the proof's Release /MT objects never match the Debug/ci build's.
+      - uses: ./.github/actions/ccache
+        with:
+          name: windows-proof
+
+      - name: Release static-runtime proof (ADR-012)
+        run: python -B scripts/check_static_runtime.py --config Release --target static_runtime_probe
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
   release-gates:
     runs-on: windows-latest
