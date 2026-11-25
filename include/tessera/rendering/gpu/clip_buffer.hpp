@@ -43,11 +43,13 @@ public:
     // call. Returns the buffer to bind, or nullptr when there is nothing to bind (no clips this
     // frame, or the device has no storage buffers).
     //
-    // `records` is the frame's full record list and `sets` its full set list; the class tracks how
-    // much of each it has already written. Both must be append-only within a frame, which is what
+    // `records` is the frame's full record list, `sets` its full set list and `vertices` the
+    // polygon vertex pool (ADR-068 slice 5); the class tracks how much of each it has already
+    // written. The records and the vertices must be append-only within a frame, which is what
     // ClipStateTable guarantees.
     [[nodiscard]] rhi::Buffer* upload(const std::vector<clip::ClipRecord>& records,
-                                      const std::vector<clip::ClipSetRange>& sets);
+                                      const std::vector<clip::ClipSetRange>& sets,
+                                      const std::vector<clip::ClipVertex>& vertices);
 
     // The buffer the current frame last uploaded, or nullptr. The renderer binds this before a
     // draw.
@@ -61,6 +63,7 @@ private:
         // How much of the frame's record and set lists this slot already holds.
         std::uint32_t uploaded_records = 0;
         std::uint32_t uploaded_sets = 0;
+        std::uint32_t uploaded_vertices = 0;
     };
 
     void ensure_capacity(Slot& slot);

@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 namespace tessera::rendering::gpu::clip {
 
@@ -21,31 +22,42 @@ namespace tessera::rendering::gpu::clip {
 // Layout, `std430`-compatible and 16-byte aligned so the same bytes work as a Vulkan storage buffer
 // and a WGSL `read-only-storage` binding:
 //
-//   Header      { u32 record_count; u32 reserved[3]; }                      16 bytes
+//   Header      { u32 record_count; u32 vertex_count; u32 reserved[2]; }    16 bytes
 //   Record[i]   { u32 kind; u32 flags; u32 first_vertex; u32 vertex_count;  64 bytes
 //                 f32 x, y, width, height;
 //                 f32 radii[8]; }
 //   ClipSet[k]  { u32 first_record; u32 count; u32 reserved[2]; }           16 bytes
+//   Vertex[v]   { f32 x, y; }                                                8 bytes
 //
-// Slice 3 emits `RoundedRect` records only, with the four corner radii in `radii[0..3]` and
-// `radii[4..7]` zero. The elliptical pairs and the `Ellipse`/`Polygon` kinds are slice 4 and 5; the
-// format already has room for them so those slices add a kind, not a layout.
+// The vertex pool (ADR-068 slice 5) holds every polygon's vertices for the frame; a `Polygon`
+// record names its slice with `first_vertex` and `vertex_count`. It is the last area, so the
+// record and set offsets slice 3 fixed do not move.
+//
+// Slice 3 emitted `RoundedRect` records only, with the four corner radii in `radii[0..3]`. Slice 4
+// added the elliptical pairs in `radii[4..7]` and the `Ellipse` kind; slice 5 adds `Polygon` and
+// the vertex pool at the end of the buffer, so the offsets of the earlier areas did not move.
 //
 // The buffer is one per frame in flight, written by the CPU before the frame's draws are recorded
 // and read by the GPU during them. A frame must not rewrite a buffer a submission still reads,
 // which is what the per-frame slot rotation guarantees.
 
-// One record's kind. `RoundedRect` is the only kind slice 3 emits.
+// One record's kind: `RoundedRect` (slice 3, also `inset()`), `Ellipse` (slice 4, `circle()` and
+// `ellipse()`) and `Polygon` (slice 5, `polygon()`).
 enum class RecordKind : std::uint32_t {
     RoundedRect = 0,
-    // Reserved for slice 4 (`circle()`, `ellipse()`, `inset()` with elliptical radii).
     Ellipse = 1,
-    // Reserved for slice 5 (`polygon()`).
     Polygon = 2,
 };
 
-// Record flags. Slice 3 sets none; the polygon fill rule lands with slice 5.
+// Record flags. A polygon uses the `evenodd` fill rule when this bit is set and `nonzero`
+// otherwise.
 inline constexpr std::uint32_t kRecordFlagEvenOdd = 1U << 0U;
+
+// One polygon vertex in target pixels, as the shader reads it from the vertex pool.
+struct ClipVertex {
+    float x = 0;
+    float y = 0;
+};
 
 // The record as the shader reads it. `radii[0..3]` are the corner radii in TL, TR, BR, BL order;
 // `radii[4..7]` are the second component of each corner's elliptical pair, zero for a circular
@@ -69,7 +81,9 @@ struct ClipRecord {
 // The header at the start of the buffer.
 struct ClipBufferHeader {
     std::uint32_t record_count = 0;
-    std::uint32_t reserved[3] = {};
+    // Vertices written to the pool this frame; the shader reads ranges, so this is for readback.
+    std::uint32_t vertex_count = 0;
+    std::uint32_t reserved[2] = {};
 };
 
 // One interned clip set: a range into the record list. `count == 0` is the empty set, which is what
@@ -83,6 +97,14 @@ struct ClipSetRange {
 static_assert(sizeof(ClipRecord) == 64, "a clip record is 64 bytes (std430, 16-byte aligned)");
 static_assert(sizeof(ClipBufferHeader) == 16, "the clip buffer header is 16 bytes");
 static_assert(sizeof(ClipSetRange) == 16, "a clip set range is 16 bytes");
+static_assert(sizeof(ClipVertex) == 8, "a clip vertex is two floats (std430 vec2 stride)");
+
+// A polygon clip as the renderer takes it: the record (its rect is the polygon's bounding box, its
+// `first_vertex` is ignored and assigned by the table) and the polygon's vertices in target pixels.
+struct ShapeClip {
+    ClipRecord record;
+    std::span<const ClipVertex> vertices;
+};
 
 // The buffer's byte layout: header, then records, then the interned sets. The sets come last
 // because the record list grows as clips are pushed and the sets are written once per frame at the
@@ -99,9 +121,15 @@ static_assert(sizeof(ClipSetRange) == 16, "a clip set range is 16 bytes");
     return records_offset() + static_cast<std::size_t>(max_records) * sizeof(ClipRecord);
 }
 
-[[nodiscard]] constexpr std::size_t buffer_bytes(std::uint32_t max_records,
-                                                 std::uint32_t max_sets) {
+[[nodiscard]] constexpr std::size_t vertices_offset(std::uint32_t max_records,
+                                                    std::uint32_t max_sets) {
     return sets_offset(max_records) + static_cast<std::size_t>(max_sets) * sizeof(ClipSetRange);
+}
+
+[[nodiscard]] constexpr std::size_t buffer_bytes(std::uint32_t max_records, std::uint32_t max_sets,
+                                                 std::uint32_t max_vertices) {
+    return vertices_offset(max_records, max_sets) +
+           static_cast<std::size_t>(max_vertices) * sizeof(ClipVertex);
 }
 
 // The capacities slice 3 sizes the buffer for. `kMaxClipRecords` bounds the record list (a frame
@@ -114,7 +142,15 @@ static_assert(sizeof(ClipSetRange) == 16, "a clip set range is 16 bytes");
 inline constexpr std::uint32_t kMaxClipRecords = 256;
 inline constexpr std::uint32_t kMaxClipSets = 256;
 
-static_assert(buffer_bytes(kMaxClipRecords, kMaxClipSets) == 16 + 256 * 64 + 256 * 16,
+// The polygon limits (ADR-068 slice 5): 256 vertices per polygon and 4096 per frame. A polygon over
+// either falls back to its bounding box, which is conservative for a clip's scissor and is counted
+// in `ClipStateTable::shape_fallbacks()`. 4096 vertices is 32 KB, so the whole buffer is about 52
+// KB per frame in flight.
+inline constexpr std::uint32_t kMaxPolygonVertices = 256;
+inline constexpr std::uint32_t kMaxClipVertices = 4096;
+
+static_assert(buffer_bytes(kMaxClipRecords, kMaxClipSets, kMaxClipVertices) ==
+                  16 + 256 * 64 + 256 * 16 + 4096 * 8,
               "the clip buffer layout must match the documented byte count");
 
 } // namespace tessera::rendering::gpu::clip

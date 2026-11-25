@@ -105,11 +105,9 @@ void test_circle_and_ellipse() {
 }
 
 void test_unsupported_and_invalid() {
-    // `polygon()` is slice 5: reporting it as unsupported is what lets a caller count the gap
-    // instead of silently painting unclipped.
-    const auto polygon = detail::parse_clip_path("polygon(0 0, 100% 0, 100% 100%)", kBox);
-    expect(polygon.unsupported && polygon.shape.is_none(),
-           "polygon() is reported as unsupported, not as none");
+    // `polygon()` is slice 5 (clip_polygon_tests.cpp). `url()` and `path()` stay unsupported:
+    // reporting them as such is what lets a caller count the gap instead of silently painting
+    // unclipped.
     expect(detail::parse_clip_path("url(#mask)", kBox).unsupported, "url() is unsupported");
     expect(detail::parse_clip_path("path('M0 0')", kBox).unsupported, "path() is unsupported");
 

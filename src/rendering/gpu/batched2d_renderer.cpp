@@ -204,39 +204,6 @@ void Batched2DRenderer::pop_scissor() {
     current_batch_.scissor = scissor_;
 }
 
-void Batched2DRenderer::push_clip(const clip::RoundedRect& input) {
-    if (!in_frame_) {
-        return;
-    }
-    // Clips are tested in target-pixel space (gl_FragCoord), so they take the same global content
-    // scale as the positions they guard. Radii use the mean of the two axes: they are exact for the
-    // uniform scale a render-target downgrade uses, and only an approximation otherwise. The CPU
-    // scissor is derived from this scaled rect by ClipStateTable::push (enclosing_scissor), so the
-    // scissor fast path and the shader clip agree on the same target-space rectangle.
-    clip::RoundedRect scaled = input;
-    if (content_scale_x_ != 1.0f || content_scale_y_ != 1.0f) {
-        const float radius_scale = (content_scale_x_ + content_scale_y_) * 0.5f;
-        scaled.rect.x *= content_scale_x_;
-        scaled.rect.y *= content_scale_y_;
-        scaled.rect.width *= content_scale_x_;
-        scaled.rect.height *= content_scale_y_;
-        scaled.top_left *= radius_scale;
-        scaled.top_right *= radius_scale;
-        scaled.bottom_right *= radius_scale;
-        scaled.bottom_left *= radius_scale;
-    }
-    // The frame's own scissor (damage or scroll) is the base this clip intersects, so it is handed
-    // to the table as the level's entry scissor and the pop later restores it exactly.
-    apply_clip_state(clips_.push(clip::clamp_radii(scaled), scissor_));
-}
-
-void Batched2DRenderer::pop_clip() {
-    if (!in_frame_ || clips_.empty()) {
-        return;
-    }
-    apply_clip_state(clips_.pop(scissor_));
-}
-
 void Batched2DRenderer::set_transform(const rhi::Mat3& transform) {
     transform_ = transform;
 }
@@ -482,8 +449,8 @@ void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
     // caller that binds a different pipeline (the glass composite) rebinds its own state, so this
     // only has to be right for the renderer's own draws.
     if (pipeline_ != nullptr && pipeline_->declares_storage_buffer()) {
-        if (rhi::Buffer* records =
-                clip_buffer_.upload(clips_.flat_records(), clips_.set_ranges())) {
+        if (rhi::Buffer* records = clip_buffer_.upload(clips_.flat_records(), clips_.set_ranges(),
+                                                       clips_.flat_vertices())) {
             commands_->bind_storage_buffer(1, *records);
         }
     }

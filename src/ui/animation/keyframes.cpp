@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "clip_path_interpolation.hpp"
 #include "gradient_interpolation.hpp"
 #include "shadow_interpolation.hpp"
 #include "tessera/detail/text_util.hpp"
@@ -106,6 +107,11 @@ std::string interpolate_value(std::string_view property, std::string_view from, 
     if (property == "text-shadow") {
         if (std::optional<std::string> shadow = interpolate_text_shadow(from, to, t)) {
             return std::move(*shadow);
+        }
+    }
+    if (property == "clip-path") {
+        if (std::optional<std::string> shape = interpolate_clip_path(from, to, t)) {
+            return std::move(*shape);
         }
     }
     if (property == "background-image") {

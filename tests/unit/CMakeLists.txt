@@ -1572,6 +1572,15 @@ target_link_libraries(gradient_interpolation_tests PRIVATE tessera_animation)
 
 add_test(NAME gradient_interpolation COMMAND gradient_interpolation_tests)
 
+# `clip-path` shape interpolation (ADR-068 slice 6, issue #674): same-kind shapes blend, anything else
+# stays discrete, and the paint parser reads every result.
+add_executable(clip_path_interpolation_tests
+    clip_path_interpolation_tests.cpp)
+
+target_link_libraries(clip_path_interpolation_tests PRIVATE tessera_animation tessera_paint)
+
+add_test(NAME clip_path_interpolation COMMAND clip_path_interpolation_tests)
+
 add_executable(animation_quality_pause_tests
     animation_quality_pause_tests.cpp)
 
@@ -2676,6 +2685,15 @@ add_executable(clip_path_tests
 target_link_libraries(clip_path_tests PRIVATE tessera_paint tessera_software)
 
 add_test(NAME clip_path COMMAND clip_path_tests)
+
+# `clip-path: polygon()` (ADR-068 slice 5, issue #673): the parser, the record, and the fill-rule
+# coverage the CPU reference and the shader share.
+add_executable(clip_polygon_tests
+    clip_polygon_tests.cpp)
+
+target_link_libraries(clip_polygon_tests PRIVATE tessera_paint tessera_software)
+
+add_test(NAME clip_polygon COMMAND clip_polygon_tests)
 
 add_executable(paint_text_tests
     paint_text_tests.cpp)

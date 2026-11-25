@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <span>
 
 namespace tessera::rendering::gpu::clip {
 
@@ -117,9 +118,48 @@ struct Ellipse {
     return true;
 }
 
+// True when the point is inside the polygon `record` names in `pool` (ADR-068 slice 5).
+//
+// A ray is cast toward +x from the point and each edge that straddles the point's y (half-open: an
+// edge counts when exactly one endpoint is at or above it, so a vertex on the ray is counted once)
+// and lies to the point's right crosses it. `evenodd` is the parity of the crossings; `nonzero` is
+// the signed sum of their directions (the winding number). The shader's `inside_polygon_record`
+// is this loop, expression for expression, so the two agree on every pixel centre that is not
+// within rounding of an edge.
+[[nodiscard]] inline bool inside_polygon(const ClipRecord& record, std::span<const ClipVertex> pool,
+                                         float x, float y) {
+    const std::uint32_t count = record.vertex_count;
+    bool parity = false;
+    int winding = 0;
+    for (std::uint32_t index = 0; index < count; ++index) {
+        const ClipVertex a = pool[record.first_vertex + index];
+        const ClipVertex b = pool[record.first_vertex + (index + 1 == count ? 0 : index + 1)];
+        if ((a.y <= y) == (b.y <= y)) {
+            continue;
+        }
+        const float t = (y - a.y) / (b.y - a.y);
+        const float crossing_x = a.x + t * (b.x - a.x);
+        if (x < crossing_x) {
+            parity = !parity;
+            winding += b.y > a.y ? 1 : -1;
+        }
+    }
+    return (record.flags & kRecordFlagEvenOdd) != 0 ? parity : winding != 0;
+}
+
+// True when `record` names a polygon whose vertices are all inside `pool`. A polygon that does not
+// (the table's over-limit fallback, or a record with no pool) is treated as its bounding box.
+[[nodiscard]] inline bool has_polygon_vertices(const ClipRecord& record,
+                                               std::span<const ClipVertex> pool) {
+    return record.vertex_count >= 3 && record.first_vertex <= pool.size() &&
+           record.vertex_count <= pool.size() - record.first_vertex;
+}
+
 // True when the pixel at integer coordinate (px, py) is covered by `record`, by the pixel-centre
 // rule. This is the one function the CPU reference and the hard-test shader path agree on.
-[[nodiscard]] inline bool covers_pixel(const ClipRecord& record, std::int32_t px, std::int32_t py) {
+// `pool` is the frame's vertex pool; only a `Polygon` record reads it.
+[[nodiscard]] inline bool covers_pixel(const ClipRecord& record, std::int32_t px, std::int32_t py,
+                                       std::span<const ClipVertex> pool = {}) {
     const float x = static_cast<float>(px) + 0.5f;
     const float y = static_cast<float>(py) + 0.5f;
     switch (static_cast<RecordKind>(record.kind)) {
@@ -128,10 +168,13 @@ struct Ellipse {
             make_ellipse(rhi::Rect{record.x, record.y, record.width, record.height});
         return inside_ellipse(ellipse, x, y);
     }
-    case RecordKind::RoundedRect:
     case RecordKind::Polygon:
-        // Polygon records are slice 5; until then a polygon record is treated as its bounding box,
-        // which is the conservative rule the ADR documents for an unsupported shape.
+        if (has_polygon_vertices(record, pool)) {
+            return inside_polygon(record, pool, x, y);
+        }
+        // The over-limit fallback: the bounding box, the conservative rule the ADR documents.
+        return inside_rounded_rect(record, x, y);
+    case RecordKind::RoundedRect:
         return inside_rounded_rect(record, x, y);
     }
     return true;

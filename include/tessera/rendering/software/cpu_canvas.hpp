@@ -20,6 +20,8 @@ namespace tessera::rendering::software {
 // the honest reading of an empty intersection.
 struct ShapedClip {
     std::span<const gpu::clip::ClipRecord> records;
+    // The vertex pool the `Polygon` records index (ADR-068 slice 5); empty when none is a polygon.
+    std::span<const gpu::clip::ClipVertex> vertices = {};
 
     [[nodiscard]] bool empty() const {
         return records.empty();

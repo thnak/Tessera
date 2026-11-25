@@ -175,3 +175,13 @@ Slices 1 to 3 are a refactor with no user-visible change; #615 lands from slice 
   `Device::supports_storage_buffers()`, with the null and Vulkan implementations and a conformance
   check that reads the buffer back out of a rendered target. Contract in
   [rhi.md](../docs/design/gpu/rhi.md) section 5.5.
+- Slice 5 landed (issue #673): `Polygon` records, the vertex pool at the end of the buffer
+  (`kMaxPolygonVertices` 256, `kMaxClipVertices` 4096, 53,264 bytes per frame in flight), the
+  `polygon()` parser, `Batched2DRenderer::push_clip_shape`, the shader and WGSL ray test, and the
+  `CpuCanvas` reference. The shader and `gpu::clip::inside_polygon` are the same loop; the GPU test
+  compares every pixel of six scenes against the CPU reference. Rationale and the fallback rules are
+  in [clip-records.md](../docs/design/gpu/clip-records.md) section 8.
+- Slice 6 landed (issue #674): `animation/clip_path_interpolation.cpp` interpolates same-kind shapes
+  through the keyframe sampler (and so transitions), with the discrete 50 % switch for everything
+  else; `clip-path` joined `paint_dirties_subtree`. See
+  [animation-runtime.md](../docs/design/animation-runtime.md).

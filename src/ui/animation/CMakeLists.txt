@@ -2,6 +2,7 @@
 
 add_library(tessera_animation STATIC
     animated_scalar.cpp
+    clip_path_interpolation.cpp
     easing.cpp
     keyframes.cpp
     gradient_interpolation.cpp
