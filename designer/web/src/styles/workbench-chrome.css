@@ -162,7 +162,10 @@ button.chip { max-width: 360px; }
 .chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chip-caret { font-size: 10px; opacity: 0.7; }
 
-.device-chip .menu-popup { top: 100%; left: 0; }
+/* Only the first level hangs under the chip. A descendant selector here also matched every submenu, and
+   at equal specificity it won over `.menu-popup .menu-popup`, so a submenu opened straight under its own
+   row (top: 100%, left: 0) and covered the items below it instead of flying out to the right. */
+.device-chip > .menu-popup { top: 100%; left: 0; }
 
 button.palette-button {
   display: inline-flex;
