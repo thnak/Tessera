@@ -91,8 +91,11 @@ subtree's signature (`subtree_signature`, 8 bytes, which is why `LayoutInput` is
 signature is hierarchical so a skipped subtree contributes its stored value, and a pass keeps every
 subtree with no style, layout or paint dirt under it (`src/app/layout_input_reuse.hpp`). The phase
 fell from 1.85 ms to 0.01 ms, the one-text frame from 9.5 to 7.7 ms and the one-size frame from 6.9
-to 5.0 ms. The signature of the partly reused tree equalled a full rebuild's on every frame of the
-benchmark. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
+to 5.0 ms. On a second machine (GCC 15, Linux, a shared 16-core box, 5 interleaved runs each) the
+layout-input phase went from 3.56 to 0.01 ms, the one-text frame from 16.6 to 13.2 ms and the
+one-size frame from 14.4 to 10.7 ms; `perf stat` over 300 text-change frames counted 7.35 to 6.04
+billion instructions and 207 to 162 million L1D load misses (the VM exposes no LLC counter). The
+signature of the partly reused tree equalled a full rebuild's on every frame of the benchmark. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
 visible.
 
 ### Checking a change
