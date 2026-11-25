@@ -105,7 +105,10 @@ the next largest L1D-miss source in a `perf record` of the text-change loop. Mea
 benchmark scene, Windows: layout engine 3.54 to 2.58 ms, one-text frame 7.71 to 6.78 ms, one-size
 frame 4.97 to 4.21 ms; Linux (5 interleaved runs, 300-frame `perf stat`): one-text frame 12.1 to 10.5
 ms, layout engine 6.6 to 4.6 ms, instructions 6.07 to 5.41 billion and L1D load misses 161 to 125
-million. A caller must restamp the signatures it hands in (a stale one is the caller's bug), which
+million. A `perf record` after that showed Yoga's pixel-grid rounding walk at 9% of the remaining misses
+even though the unrounded config makes it write nothing; a local Yoga patch skips it when the point scale
+factor is zero (layout engine 2.45 to 2.22 ms on Windows, 4.76 to 3.88 ms on Linux, L1D misses 128 to 112
+million, instructions 5.41 to 5.23 billion per 300 frames). A caller must restamp the signatures it hands in (a stale one is the caller's bug), which
 `layout_retained_tests` does after every randomized edit while still matching a cold layout. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
 visible.
 
