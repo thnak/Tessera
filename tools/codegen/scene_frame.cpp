@@ -195,6 +195,9 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
         if (text != nullptr) {
             context.text_metrics_source = &text->paint_metrics();
         }
+        // The app's page colour fills the whole frame, as a browser's root background fills the
+        // canvas.
+        context.canvas = paint::canvas_background(root, styles);
         const paint::PaintStats painted = paint::paint_scene(root, styles, sink, context);
         renderer.end();
         // `submit()` blocks, which is correct natively and forbidden in a browser; the WebGPU

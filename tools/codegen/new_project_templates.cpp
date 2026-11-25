@@ -108,6 +108,15 @@ std::string cmake_lists(const Options& options) {
     text += "set(CMAKE_CXX_EXTENSIONS OFF)\n";
     text += "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n";
     text += "\n";
+    text += "# Static linking is a hard requirement (ADR-012; tessera.json build.staticRuntime "
+            "must be\n";
+    text +=
+        "# true). The app and the framework must agree on the C/C++ runtime, and this setting is\n";
+    text += "# inherited by add_subdirectory below, so set it before the framework is added.\n";
+    text += "if (MSVC)\n";
+    text += "    set(CMAKE_MSVC_RUNTIME_LIBRARY \"MultiThreaded$<$<CONFIG:Debug>:Debug>\")\n";
+    text += "endif ()\n";
+    text += "\n";
     text += "set(TESSERA_SOURCE_DIR \"\" CACHE PATH\n";
     text +=
         "    \"Tessera checkout to build this project against (route B). Empty: find_package\")\n";
@@ -152,9 +161,11 @@ std::string cmake_lists(const Options& options) {
     text += "target_compile_features(" + options.app_name + " PRIVATE cxx_std_23)\n";
     text += "\n";
     text += "if (TARGET tessera_app_window)\n";
-    text += "    target_link_libraries(" + options.app_name + " PRIVATE tessera_app_window)\n";
+    text += "    target_link_libraries(" + options.app_name +
+            " PRIVATE tessera_app_window tessera_harness_image)\n";
     text += "else ()\n";
-    text += "    target_link_libraries(" + options.app_name + " PRIVATE Tessera::app_window)\n";
+    text += "    target_link_libraries(" + options.app_name +
+            " PRIVATE Tessera::app_window Tessera::harness_image)\n";
     text += "endif ()\n";
     text += "\n";
     text += "if (MSVC)\n";

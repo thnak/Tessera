@@ -237,6 +237,9 @@ struct AppHost::Impl {
     // One-shot full-repaint request from request_full_repaint(). It is applied after the pipeline's
     // tick (which clears the accumulator), so it survives the tick it was requested before.
     bool full_repaint_pending = false;
+    // The canvas colour the last restyle left (ui::paint::canvas_background). The strip it covers
+    // is outside every dirty node's damage, so a change latches a full redraw.
+    std::optional<rendering::rhi::Color> canvas_color;
 };
 
 } // namespace tessera::app

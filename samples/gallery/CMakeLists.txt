@@ -9,8 +9,8 @@
 # region, so the scaffolded classes are empty; the page drives them through the base API
 # (`build`/`mount`/`attach_scheduler`).
 set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
-set(_gallery_button ${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
-set(_gallery_safe_area ${CMAKE_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
+set(_gallery_button ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
+set(_gallery_safe_area ${PROJECT_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
 set(_gallery_outputs
     ${_gallery_gen}/Button.g.hpp ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
     ${_gallery_gen}/Gallery.g.hpp ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp

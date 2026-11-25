@@ -7,6 +7,7 @@
 
 #include "binding_reads.hpp"
 #include "binding_reads_collector.hpp"
+#include "painted_text.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -22,9 +23,13 @@ bool starts_with(std::string_view text, std::string_view prefix) {
     return text.substr(0, prefix.size()) == prefix;
 }
 
-// The prop a controlled input paints from: `value`, else `defaultValue` (interpolation.cpp). Empty
-// for any other node.
+// The prop a node paints from when it is not its `text`: a controlled input's `value`, else
+// `defaultValue` (interpolation.cpp), or a Button's `label`. Empty for any other node.
 std::string paint_prop_name(const ir::Node& node) {
+    // A Button paints its caption (`label`, see painted_text.hpp), which updates like any text.
+    if (node.kind == ir::NodeKind::Button) {
+        return node.props.find("label") != node.props.end() ? "label" : std::string();
+    }
     if (node.kind != ir::NodeKind::TextInput && node.kind != ir::NodeKind::TextArea) {
         return {};
     }

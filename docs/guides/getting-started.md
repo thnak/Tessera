@@ -147,6 +147,14 @@ SDK or a checkout you already have, which is why the command above passes `-DTES
 No font is scaffolded either: copy any OFL font to `assets/fonts/Inter-Regular.ttf` or pass
 `--font <path>`. The generated `README.md` restates all of this.
 
+Route B adds the framework with `add_subdirectory`, so the framework's CMake is a *child* of your
+project. Two rules keep that working, and both are enforced: framework CMake never reads
+`CMAKE_SOURCE_DIR` / `CMAKE_BINARY_DIR` (they name your project there; the `cmake-embeddable` gate in
+`scripts/gates.py` fails on them, use `PROJECT_SOURCE_DIR` / `PROJECT_BINARY_DIR`), and your project
+selects the same static MSVC runtime (ADR-012) before adding the framework, which the generated
+`CMakeLists.txt` does. A project that does not gets a configure-time error naming the line to add,
+not LNK2038 at the end of the build.
+
 The rest of the designed workflow is still the target contract, not runnable:
 
 ```bash

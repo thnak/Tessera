@@ -19,7 +19,20 @@ option(TESSERA_STATIC_RUNTIME
     "Link Tessera and the C/C++ runtime statically where supported" ON)
 
 if (MSVC AND TESSERA_STATIC_RUNTIME)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(_tessera_msvc_runtime "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Built under another project (`tessera new`, route B), the parent's own targets are compiled
+    # with the parent's runtime and linked against ours. The setting below is directory-scoped, so
+    # it cannot reach them: a mismatch is LNK2038 at the very end of a long build. Say so at
+    # configure time instead, and name the fix.
+    if (NOT PROJECT_IS_TOP_LEVEL AND
+        NOT "${CMAKE_MSVC_RUNTIME_LIBRARY}" STREQUAL "${_tessera_msvc_runtime}")
+        message(FATAL_ERROR
+            "Tessera links the C/C++ runtime statically (ADR-012), so the project that includes it "
+            "must too. Before add_subdirectory() or find_package(), set:\n"
+            "  set(CMAKE_MSVC_RUNTIME_LIBRARY \"MultiThreaded$<$<CONFIG:Debug>:Debug>\")\n"
+            "(`tessera new` projects do this already.) Current value: \"${CMAKE_MSVC_RUNTIME_LIBRARY}\".")
+    endif()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "${_tessera_msvc_runtime}")
 endif()
 
 # The debug-info format itself, now that the policy above is in force. Embedded (/Z7) is what makes
@@ -270,7 +283,7 @@ if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
     if (CMAKE_CROSSCOMPILING)
         include(ExternalProject)
         # A relative BINARY_DIR keeps the pins gate able to resolve this declaration: it expands
-        # ${PROJECT_SOURCE_DIR} but not ${CMAKE_BINARY_DIR}, so an absolute build path would read as
+        # ${PROJECT_SOURCE_DIR} but not ${PROJECT_BINARY_DIR}, so an absolute build path would read as
         # an unresolvable pin expression. Relative paths are resolved against the current binary dir.
         set(TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR
             "host-tools/shader-manifest-check")
@@ -368,7 +381,7 @@ if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
         # "no known rule to make it". The command is absolute because a custom command runs in its
         # own working directory, where a relative path would not resolve.
         set(TESSERA_SHADER_MANIFEST_CHECK
-            "${CMAKE_BINARY_DIR}/${TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR}/Release/tessera_shader_manifest_check${CMAKE_EXECUTABLE_SUFFIX}")
+            "${PROJECT_BINARY_DIR}/${TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR}/Release/tessera_shader_manifest_check${CMAKE_EXECUTABLE_SUFFIX}")
         set(TESSERA_SHADER_MANIFEST_CHECK_DEP tessera_shader_manifest_check_host)
     else()
         set(TESSERA_SHADER_MANIFEST_CHECK tessera_shader_manifest_check)

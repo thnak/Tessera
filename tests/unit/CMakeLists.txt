@@ -84,8 +84,8 @@ add_executable(corpus_measure_tests
 target_link_libraries(corpus_measure_tests PRIVATE tessera_corpus_measure_core)
 
 target_compile_definitions(corpus_measure_tests PRIVATE
-    TESSERA_CORPUS_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/corpus/react"
-    TESSERA_CORPUS_GOLDEN="${CMAKE_SOURCE_DIR}/tests/golden/corpus/react-front-end.txt")
+    TESSERA_CORPUS_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/corpus/react"
+    TESSERA_CORPUS_GOLDEN="${PROJECT_SOURCE_DIR}/tests/golden/corpus/react-front-end.txt")
 
 add_test(NAME corpus_measure COMMAND corpus_measure_tests)
 
@@ -111,7 +111,7 @@ add_executable(ir_json_tests
 target_link_libraries(ir_json_tests PRIVATE tessera_ir)
 
 target_compile_definitions(ir_json_tests PRIVATE
-    TESSERA_IR_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/ir")
+    TESSERA_IR_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/ir")
 
 add_test(NAME ir_json COMMAND ir_json_tests)
 
@@ -207,7 +207,7 @@ add_executable(ir_layering_tests
     ir_layering_tests.cpp)
 
 target_compile_definitions(ir_layering_tests PRIVATE
-    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+    TESSERA_COMPILER_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/compiler")
 
 add_test(NAME ir_layering COMMAND ir_layering_tests)
 
@@ -261,7 +261,7 @@ add_executable(rules_layering_tests
     rules_layering_tests.cpp)
 
 target_compile_definitions(rules_layering_tests PRIVATE
-    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+    TESSERA_COMPILER_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/compiler")
 
 add_test(NAME rules_layering COMMAND rules_layering_tests)
 
@@ -1440,7 +1440,7 @@ add_executable(instrument_theme_tests
 target_link_libraries(instrument_theme_tests PRIVATE tessera_style)
 
 target_compile_definitions(instrument_theme_tests PRIVATE
-    TESSERA_INSTRUMENT_THEME="${CMAKE_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+    TESSERA_INSTRUMENT_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 
 add_test(NAME instrument_theme COMMAND instrument_theme_tests)
 
@@ -1477,7 +1477,7 @@ add_executable(property_status_tests
 target_link_libraries(property_status_tests PRIVATE tessera_style)
 
 target_compile_definitions(property_status_tests PRIVATE
-    TESSERA_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs")
+    TESSERA_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs")
 
 add_test(NAME property_status COMMAND property_status_tests)
 
@@ -2247,7 +2247,7 @@ add_executable(lowering_golden_tests
 target_link_libraries(lowering_golden_tests PRIVATE tessera_lowering)
 
 target_compile_definitions(lowering_golden_tests PRIVATE
-    TESSERA_LOWERING_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/lowering")
+    TESSERA_LOWERING_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/lowering")
 
 add_test(NAME lowering_golden COMMAND lowering_golden_tests)
 
@@ -2293,7 +2293,7 @@ add_executable(lowering_layering_tests
 target_link_libraries(lowering_layering_tests PRIVATE tessera_lowering)
 
 target_compile_definitions(lowering_layering_tests PRIVATE
-    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+    TESSERA_COMPILER_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/compiler")
 
 add_test(NAME lowering_layering COMMAND lowering_layering_tests)
 
@@ -2519,7 +2519,7 @@ add_executable(library_tsx_parity_tests
 target_link_libraries(library_tsx_parity_tests PRIVATE tessera_lowering)
 
 target_compile_definitions(library_tsx_parity_tests PRIVATE
-    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/packages/tessera-ui")
+    TESSERA_LIBRARY_TSX_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui")
 
 add_test(NAME library_tsx_parity COMMAND library_tsx_parity_tests)
 
@@ -2604,6 +2604,17 @@ target_link_libraries(paint_opacity_tests PRIVATE
     tessera_runtime)
 
 add_test(NAME paint_opacity COMMAND paint_opacity_tests)
+
+# The canvas background: the app root view's opaque colour is laid over the whole window, as a
+# browser propagates the root/body background to the canvas, without changing the view's box.
+add_executable(paint_canvas_background_tests
+    paint_canvas_background_tests.cpp)
+
+target_link_libraries(paint_canvas_background_tests PRIVATE
+    tessera_frame
+    tessera_runtime)
+
+add_test(NAME paint_canvas_background COMMAND paint_canvas_background_tests)
 
 # Per-run LCD eligibility at the paint seam (#471): the window permission, the per-node narrowing
 # (opacity 1, translate-only) and the paint cache's record/replay of the mark.
@@ -2859,7 +2870,7 @@ add_executable(schema_layering_tests
 target_link_libraries(schema_layering_tests PRIVATE tessera_schema)
 
 target_compile_definitions(schema_layering_tests PRIVATE
-    TESSERA_SCHEMA_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/schema")
+    TESSERA_SCHEMA_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/schema")
 
 add_test(NAME schema_layering COMMAND schema_layering_tests)
 
@@ -2869,7 +2880,7 @@ add_executable(schema_golden_tests
 target_link_libraries(schema_golden_tests PRIVATE tessera_schema_dump_core)
 
 target_compile_definitions(schema_golden_tests PRIVATE
-    TESSERA_SCHEMA_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/schema")
+    TESSERA_SCHEMA_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/schema")
 
 add_test(NAME schema_golden COMMAND schema_golden_tests)
 
@@ -3085,7 +3096,7 @@ target_link_libraries(ir_ids_stability_tests PRIVATE
     tessera_codegen)
 
 target_compile_definitions(ir_ids_stability_tests PRIVATE
-    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/packages/tessera-ui")
+    TESSERA_LIBRARY_TSX_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui")
 
 add_test(NAME ir_ids_stability COMMAND ir_ids_stability_tests)
 
@@ -3204,8 +3215,8 @@ add_executable(library_button_style_tests
     library_button_style_tests.cpp)
 target_link_libraries(library_button_style_tests PRIVATE tessera_style)
 target_compile_definitions(library_button_style_tests PRIVATE
-    TESSERA_BUTTON_CSS="${CMAKE_SOURCE_DIR}/packages/tessera-ui/button.css"
-    TESSERA_INSTRUMENT_THEME="${CMAKE_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+    TESSERA_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
+    TESSERA_INSTRUMENT_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 add_test(NAME library_button_style COMMAND library_button_style_tests)
 
 # Issue #239: the library Button lowers, validates under a salt and generates C++.
@@ -3214,7 +3225,7 @@ add_executable(library_button_lowering_tests
 target_link_libraries(library_button_lowering_tests PRIVATE
     tessera_lowering tessera_codegen tessera_ir_ids)
 target_compile_definitions(library_button_lowering_tests PRIVATE
-    TESSERA_BUTTON_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx"
+    TESSERA_BUTTON_TSX="${PROJECT_SOURCE_DIR}/packages/tessera-ui/Button.tsx"
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)
 
@@ -3272,7 +3283,7 @@ add_executable(library_safe_area_lowering_tests
 target_link_libraries(library_safe_area_lowering_tests PRIVATE
     tessera_lowering tessera_codegen tessera_ir_ids)
 target_compile_definitions(library_safe_area_lowering_tests PRIVATE
-    TESSERA_SAFE_AREA_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx"
+    TESSERA_SAFE_AREA_TSX="${PROJECT_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx"
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_safe_area_lowering COMMAND library_safe_area_lowering_tests)
 

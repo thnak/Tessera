@@ -196,6 +196,8 @@ namespace demo {
       [[maybe_unused]] inline std::string format_value(const char* value) {
         return std::string(value);
       }
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_text_2 = tessera::ui::DirtyMask<5>::of({4});
       // text binding of node::3 reads: state::count.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_text_3 = tessera::ui::DirtyMask<5>::of({2, 4});
       // text binding of node::5 reads: state::name.
@@ -261,6 +263,9 @@ namespace demo {
       node_2->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_2_onClick, this);
       this->ref_box_ = node_2.get();
       node_2->set_focusable(true);
+      tessera::ui::PaintData paint_node_2;
+      paint_node_2.text = "Go";
+      node_2->set_paint_data(std::move(paint_node_2));
       // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull + node_id_base_));
       node_3->set_element_kind("Text");

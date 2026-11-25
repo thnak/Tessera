@@ -127,6 +127,21 @@ void check_layout(const fs::path& project, std::string_view label) {
     check(!has_file(paths, ".git"), where + "no git repository initialised");
 }
 
+// The app and the framework must agree on the C/C++ runtime (ADR-012), and the framework's own
+// setting is directory-scoped, so the project sets it before the framework is added. Without it
+// the app links /MD objects against /MT framework libraries: LNK2038 after the whole build.
+void check_runtime_library(const fs::path& project) {
+    const std::string text = read_file(project / "CMakeLists.txt");
+    const std::size_t runtime = text.find("set(CMAKE_MSVC_RUNTIME_LIBRARY");
+    const std::size_t framework = text.find("add_subdirectory(${TESSERA_SOURCE_DIR}");
+    check(runtime != std::string::npos, "CMakeLists.txt: the MSVC runtime library is set");
+    check(framework != std::string::npos, "CMakeLists.txt: the framework is added");
+    check(runtime < framework,
+          "CMakeLists.txt: the runtime is chosen before the framework is added");
+    check(contains(text, "MultiThreaded$<$<CONFIG:Debug>:Debug>"),
+          "CMakeLists.txt: the static runtime, the framework's own value");
+}
+
 // The entry point hands the generated `Path` assets to the window and to the capture, and builds
 // for a module with no `Path` node (no `<ns>_vector_assets.hpp`) because the include is
 // conditional.
@@ -137,6 +152,10 @@ void check_entry_point(const fs::path& project, std::string_view ns) {
           "main.cpp: the vector assets header is a conditional include");
     check(contains(text, std::string(ns) + "::gen::vector_assets::bundle()"),
           "main.cpp: the generated bundle is taken from the module namespace");
+    check(contains(text, "tessera::harness::encode_png(image)"),
+          "main.cpp: --capture writes the PNG it reports");
+    check(contains(read_file(project / "CMakeLists.txt"), "tessera_harness_image"),
+          "CMakeLists.txt: the PNG encoder is linked");
     check(contains(text, "options.vector_assets = &vector_bundle;"),
           "main.cpp: the window gets the bundle");
     check(contains(text, "shot.vector_assets = options.vector_assets;"),
@@ -247,6 +266,8 @@ void check_templates_differ() {
     check_manifest(counter, "demo", "demo", true);
     check_entry_point(blank, "demo");
     check_entry_point(counter, "demo");
+    check_runtime_library(blank);
+    check_runtime_library(counter);
     check_layout(counter, "counter layout");
 }
 

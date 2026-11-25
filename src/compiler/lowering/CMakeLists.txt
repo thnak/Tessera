@@ -86,7 +86,7 @@ target_compile_features(tessera_lowering_bootstrap PUBLIC cxx_std_23)
 # whenever either file changes. Host builds compile the freshly generated unit and verify that the
 # committed copy (which cross-compiling builds consume, because they cannot execute the generator)
 # is current. Stale committed data fails the host build rather than silently shipping to mobile.
-set(_tessera_library_tsx_dir ${CMAKE_SOURCE_DIR}/packages/tessera-ui)
+set(_tessera_library_tsx_dir ${PROJECT_SOURCE_DIR}/packages/tessera-ui)
 set(_tessera_library_tsx ${_tessera_library_tsx_dir}/Field.tsx ${_tessera_library_tsx_dir}/Form.tsx)
 set(_tessera_library_committed_cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/generated/library_components_generated.cpp)
@@ -98,19 +98,19 @@ if (NOT CMAKE_CROSSCOMPILING)
     # `tessera_style` comes with the CLI: it compiles CSS into the blobs codegen embeds (issue #81),
     # and this executable links the same driver sources as `tessera_codegen_cli`.
     add_executable(tessera_library_ir_gen
-        ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
-    target_include_directories(tessera_library_ir_gen PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        ${PROJECT_SOURCE_DIR}/tools/codegen/main.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
+    target_include_directories(tessera_library_ir_gen PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_library_ir_gen PRIVATE
         tessera_codegen
         tessera_harness
@@ -133,7 +133,7 @@ if (NOT CMAKE_CROSSCOMPILING)
             tessera_library_ir_gen
             ${_tessera_library_tsx}
             ${CMAKE_CURRENT_SOURCE_DIR}/src/library_components_generated.hpp
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         COMMENT "Generating the library component IR from packages/tessera-ui/{Field,Form}.tsx"
         VERBATIM)
 else ()

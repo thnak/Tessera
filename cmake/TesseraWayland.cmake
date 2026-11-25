@@ -11,7 +11,7 @@
 # project that includes this module without it gets a clear configure error instead of a missing
 # header much later.
 
-set(TESSERA_WAYLAND_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated/wayland")
+set(TESSERA_WAYLAND_GENERATED_DIR "${PROJECT_BINARY_DIR}/generated/wayland")
 
 # tessera_add_wayland_client_protocol(<xml> <basename> <header_var> <source_var>)
 #

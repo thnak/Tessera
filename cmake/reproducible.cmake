@@ -25,9 +25,9 @@
 
 if(MSVC)
     add_link_options(/Brepro)
-    add_link_options("/PATHMAP:${CMAKE_SOURCE_DIR}=.")
-    add_link_options("/PATHMAP:${CMAKE_BINARY_DIR}=.")
+    add_link_options("/PATHMAP:${PROJECT_SOURCE_DIR}=.")
+    add_link_options("/PATHMAP:${PROJECT_BINARY_DIR}=.")
 else()
-    add_compile_options("-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.")
-    add_compile_options("-fdebug-prefix-map=${CMAKE_BINARY_DIR}=.")
+    add_compile_options("-fdebug-prefix-map=${PROJECT_SOURCE_DIR}=.")
+    add_compile_options("-fdebug-prefix-map=${PROJECT_BINARY_DIR}=.")
 endif()

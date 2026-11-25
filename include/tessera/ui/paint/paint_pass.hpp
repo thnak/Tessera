@@ -174,6 +174,11 @@ struct PaintContext {
     // whose wrapped lines advance past the content box) only has its children considered, and a
     // subtree is skipped only when the pass actually pushes a clip around those children.
     std::optional<rendering::rhi::Rect> cull;
+    // The canvas colour (`canvas_background`): laid over the whole root box before the root paints,
+    // so the app's page colour reaches every edge of the window. The caller computes it where the
+    // style is already resolved (the host, on a restyle) because the pass itself must not resolve
+    // a style for a node it replays from the cache. Unset paints exactly what the scene says.
+    std::optional<rendering::rhi::Color> canvas;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
@@ -202,5 +207,15 @@ struct PaintContext {
 // painted solid. Unparseable color values and zero-alpha colors are skipped.
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context = {});
+
+// The colour to put in `PaintContext::canvas`. A browser paints the root element's background over
+// the entire canvas, and when the root has none, the first child's takes its place (`body`). Here
+// the root is the window and its first child the app's root view, so the app's page colour reaches
+// every edge of the window however short the content is, without the view's layout changing.
+// Opaque colours only; empty when the root paints its own background. It resolves two styles, so
+// call it where the style is being resolved anyway. The host latches a full redraw when it changes,
+// because the strip it covers is outside every dirty node's damage.
+[[nodiscard]] std::optional<rendering::rhi::Color> canvas_background(const Node& root,
+                                                                     StyleProvider& styles);
 
 } // namespace tessera::ui::paint

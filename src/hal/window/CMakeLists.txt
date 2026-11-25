@@ -3,7 +3,7 @@
 # The clipboard HAL target lives in src/hal/clipboard; it is registered here until the root
 # CMakeLists (Lead-owned) lists that directory directly. Moving the add_subdirectory line later is a
 # no-op for the target itself.
-add_subdirectory(${PROJECT_SOURCE_DIR}/src/hal/clipboard ${CMAKE_BINARY_DIR}/src/hal/clipboard)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/hal/clipboard ${PROJECT_BINARY_DIR}/src/hal/clipboard)
 
 # Native-surface seam (ADR-050 section 7, AF6, issue #178), same arrangement: registered here until
 # the root CMakeLists lists src/hal/surface beside src/hal/window.

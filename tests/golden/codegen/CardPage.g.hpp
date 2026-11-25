@@ -95,6 +95,8 @@ namespace compose {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_text_3 = tessera::ui::DirtyMask<1>::of({0});
       // text binding of node::5 reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_text_5 = tessera::ui::DirtyMask<1>::of({0});
+      // text binding of node::6 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_text_6 = tessera::ui::DirtyMask<1>::of({0});
       // meta binding of node::1 `className` reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_meta_1_className = tessera::ui::DirtyMask<1>::of({0});
       template <class Self>
@@ -143,6 +145,9 @@ namespace compose {
       node_6->set_element_kind("Button");
       node_6->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_6_onClick, this);
       node_6->set_focusable(true);
+      tessera::ui::PaintData paint_node_6;
+      paint_node_6.text = "tap";
+      node_6->set_paint_data(std::move(paint_node_6));
       slot_2.push_back(std::move(node_6));
       this->child_2_.node_id_base_ = static_cast<tessera::ui::NodeId>(202ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_2_.build(*node_2, std::move(slot_2));

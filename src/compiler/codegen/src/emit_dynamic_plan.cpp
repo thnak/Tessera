@@ -8,6 +8,7 @@
 #include "emit_dynamic_plan_util.hpp"
 #include "emit_virtual.hpp"
 #include "interpolation.hpp"
+#include "painted_text.hpp"
 #include "value_ops.hpp"
 
 #include <algorithm>
@@ -121,17 +122,18 @@ bool PlanWalk::validate_template_node(const ir::Node& node, bool is_template_roo
 }
 
 bool PlanWalk::collect_text_site(const ir::Node& node, unsigned node_ordinal) {
-    if (node.text == nullptr || static_text_value(node.text.get())) {
+    const ir::Expr* text = painted_text(node);
+    if (text == nullptr || static_text_value(text)) {
         return true; // no interpolation: the item builder paints the static payload once
     }
     ListTemplate& list = plan.lists[current_list];
     const LocalBindings locals = template_locals();
-    if (!printable_text_expression(*node.text, component, records, locals)) {
+    if (!printable_text_expression(*text, component, records, locals)) {
         return fail(error, "the text of `" + node.id +
                                "` inside the list template has no printable C++ type");
     }
     list.text_sites.push_back(
-        ListTextSite{node_ordinal, static_cast<unsigned>(list.text_sites.size()), node.text.get()});
+        ListTextSite{node_ordinal, static_cast<unsigned>(list.text_sites.size()), text});
     return true;
 }
 
@@ -405,7 +407,7 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         plan.groups.push_back(std::move(group));
     }
     if (node.loop || in_template) {
-        if (node.text != nullptr && !collect_text_site(node, self)) {
+        if (painted_text(node) != nullptr && !collect_text_site(node, self)) {
             return false;
         }
     }

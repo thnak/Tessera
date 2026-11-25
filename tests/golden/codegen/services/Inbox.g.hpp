@@ -135,6 +135,8 @@ namespace demo {
       requires std::is_convertible_v<decltype(&Self::open), void (Self::*)(const tessera::ui::Event&)>;
     };
     namespace Inbox_detail {
+      // text binding of node::1 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_text_1 = tessera::ui::DirtyMask<1>::of({0});
       template <class Self>
       struct Thunks {
         static void event_adapter_1_onClick(void* context, const tessera::ui::Event& event) {
@@ -154,6 +156,9 @@ namespace demo {
       node_1->set_element_kind("Button");
       node_1->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_1_onClick, this);
       node_1->set_focusable(true);
+      tessera::ui::PaintData paint_node_1;
+      paint_node_1.text = "Open";
+      node_1->set_paint_data(std::move(paint_node_1));
       parent.add_child(std::move(node_1));
     }
     template <class Self>
