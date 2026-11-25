@@ -110,8 +110,9 @@ void AppHost::Impl::apply_size(float width, float height, float dpi_scale) {
 // The media half of a size change (issue #436). The three viewport fields are what a window
 // rectangle owns; the appearance fields are already in `media_context` and are kept.
 void AppHost::Impl::apply_viewport(ui::Dirty dirty_mask) {
-    const style::MediaContext next =
-        window_media_context(config.width, config.height, config.dpi_scale, appearance);
+    const style::MediaContext next = style::with_fold(
+        window_media_context(config.width, config.height, config.dpi_scale, appearance),
+        window_fold);
     if (next.viewport_width == media_context.viewport_width &&
         next.viewport_height == media_context.viewport_height &&
         next.resolution_dpi == media_context.resolution_dpi) {
@@ -135,6 +136,23 @@ void AppHost::Impl::apply_viewport(ui::Dirty dirty_mask) {
     // every node. `apply_style_generation` also marks Style, which a re-resolve needs and a plain
     // resize does not.
     apply_style_generation(dirty_mask | ui::Dirty::Style);
+}
+
+// A new fold (ADR-074). The hinge rectangle and the angle are not media answers, so a snapshot that
+// moves only those leaves the context equal and returns before asking the sheet anything.
+void AppHost::Impl::apply_fold(const hal::FoldInfo& fold) {
+    window_fold = fold;
+    const style::MediaContext next = style::with_fold(media_context, fold);
+    if (next.device_posture == media_context.device_posture &&
+        next.horizontal_viewport_segments == media_context.horizontal_viewport_segments &&
+        next.vertical_viewport_segments == media_context.vertical_viewport_segments) {
+        return;
+    }
+    const bool cascade_moves = media_answer_can_change(media_context, next);
+    media_context = next;
+    if (cascade_moves) {
+        apply_style_generation(ui::Dirty::Style | ui::Dirty::Paint | ui::Dirty::Render);
+    }
 }
 
 // True when resolving the sheet against `before` and against `after` can yield a different cascade.

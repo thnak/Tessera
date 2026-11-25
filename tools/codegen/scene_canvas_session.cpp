@@ -117,7 +117,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     // problems beside another sheet's pixels. They are PREPARED once and resolved against the
     // viewport (issue #436), and the prepared form goes into the session so a later viewport change
     // can re-resolve the same data instead of re-parsing CSS.
-    const ui::style::MediaContext media = preview_media_context(source.width, source.height, dpi);
+    const ui::style::MediaContext media =
+        preview_media_context(source.width, source.height, dpi, source.posture);
     PreviewSheets prepared_sheets = prepare_preview_sheets(evaluated->sheets);
     sheet_ = prepared_sheets.prepared.resolve(media);
     css_diagnostics_ = std::move(prepared_sheets.diagnostics);

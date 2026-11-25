@@ -200,6 +200,32 @@ bool backdrop_keyword_matches(std::string_view value, hal::BackdropMaterial mate
     return false;
 }
 
+// A segment count against its `<integer>` value, with the range forms and the two-sided form the
+// other range features take. A value that is not an integer never matches.
+bool segments_match(const MediaCondition& condition, std::uint8_t actual) {
+    const auto parse_integer = [](std::string_view text, double& out) {
+        double number = 0.0;
+        std::string_view unit;
+        if (!parse_number_value(text, number, unit) || !unit.empty() ||
+            number != std::floor(number)) {
+            return false;
+        }
+        out = number;
+        return true;
+    };
+    double expected = 0.0;
+    if (!parse_integer(lower(trim(condition.value)), expected) ||
+        !compare_number(actual, expected, condition.comparison)) {
+        return false;
+    }
+    if (condition.upper_value.empty()) {
+        return true;
+    }
+    double upper = 0.0;
+    return parse_integer(lower(trim(condition.upper_value)), upper) &&
+           compare_number(actual, upper, condition.upper_comparison);
+}
+
 bool evaluate_condition(const MediaCondition& condition, const MediaContext& context) {
     const std::string value = lower(trim(condition.value));
     // The two-sided range form applies to every range feature: `600px <= width <= 900px`. The lower
@@ -322,6 +348,18 @@ bool evaluate_condition(const MediaCondition& condition, const MediaContext& con
             return context.any_pointer == MediaPointer::None;
         }
         return false;
+    case MediaFeature::DevicePosture:
+        if (value == "continuous") {
+            return context.device_posture == MediaPosture::Continuous;
+        }
+        if (value == "folded") {
+            return context.device_posture == MediaPosture::Folded;
+        }
+        return false;
+    case MediaFeature::HorizontalViewportSegments:
+        return segments_match(condition, context.horizontal_viewport_segments);
+    case MediaFeature::VerticalViewportSegments:
+        return segments_match(condition, context.vertical_viewport_segments);
     }
     return false;
 }
@@ -343,6 +381,23 @@ bool evaluate(const MediaQueryList& queries, const MediaContext& context) {
         }
     }
     return false;
+}
+
+MediaContext with_fold(MediaContext context, const hal::FoldInfo& fold) noexcept {
+    context.device_posture =
+        fold.state == hal::FoldState::HalfOpened ? MediaPosture::Folded : MediaPosture::Continuous;
+    context.horizontal_viewport_segments = 1;
+    context.vertical_viewport_segments = 1;
+    if (fold.separating) {
+        // A vertical hinge splits the width, so it makes two horizontal segments; a horizontal
+        // hinge splits the height. A separating fold with no orientation has no axis to split.
+        if (fold.orientation == hal::FoldOrientation::Vertical) {
+            context.horizontal_viewport_segments = 2;
+        } else if (fold.orientation == hal::FoldOrientation::Horizontal) {
+            context.vertical_viewport_segments = 2;
+        }
+    }
+    return context;
 }
 
 MediaContext with_appearance(MediaContext context,

@@ -268,7 +268,7 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     // `evaluate(list, context)` the cascade's resolve step makes, so a size that crosses no
     // breakpoint leaves `sheet_` - and the whole paint cache behind it - untouched.
     const ui::style::MediaContext media =
-        preview_media_context(next.width, next.height, next.dpi_scale);
+        preview_media_context(next.width, next.height, next.dpi_scale, next.posture);
     const bool restyle =
         options_.prepared.has_value() && options_.prepared->media_answer_can_change(media_, media);
     const SceneMetrics previous = layout_metrics_;

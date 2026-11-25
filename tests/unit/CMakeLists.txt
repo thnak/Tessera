@@ -444,6 +444,19 @@ target_link_libraries(app_host_appearance_tests PRIVATE
 
 add_test(NAME app_host_appearance COMMAND app_host_appearance_tests)
 
+# ADR-074: @media (device-posture) and the viewport-segment features answer from the fold in the
+# window metrics. Drives the real AppHost: the cascade re-resolves when a fold answer moves, never
+# for a changing hinge angle or rectangle, and a resize keeps the fold answers.
+add_executable(app_host_fold_media_tests
+    app_host_fold_media_tests.cpp)
+
+target_link_libraries(app_host_fold_media_tests PRIVATE
+    tessera_app
+    tessera_runtime
+    tessera_harness_testing)
+
+add_test(NAME app_host_fold_media COMMAND app_host_fold_media_tests)
+
 # Embedded stylesheet registration (issue #81, ADR-048): blobs load in table (import-graph) order,
 # a later sheet wins an equal cascade key, and a corrupt blob is reported and skipped. Painting goes
 # through a deterministic CPU sink; no GPU, font or wall clock.
