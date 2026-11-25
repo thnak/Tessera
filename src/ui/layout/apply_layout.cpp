@@ -33,18 +33,22 @@ std::size_t clear_text_fit_subtree(Node& node) {
 // the incremental frame at 12k nodes - while a table is built in one pass whatever the order.
 class BoxIndex {
 public:
-    explicit BoxIndex(const std::vector<LayoutBox>& boxes) {
-        std::size_t capacity = 16;
-        while (capacity < boxes.size() * 2) {
-            capacity <<= 1;
+    // `ordered`: the boxes are exactly the scene's tree order, one per node, so each lookup is the
+    // next box and nothing is hashed. Otherwise the table is built once, whatever the order.
+    BoxIndex(const std::vector<LayoutBox>& boxes, bool ordered)
+        : boxes_(boxes),
+          ordered_(ordered) {
+        if (!ordered_) {
+            build();
         }
-        slots_.resize(capacity);
-        mask_ = capacity - 1;
-        for (const LayoutBox& box : boxes) {
-            Slot& slot = slot_for(box.id);
-            slot.id = box.id;
-            slot.box = &box; // a duplicate id keeps the last box, like the map this replaced
+    }
+
+    [[nodiscard]] const LayoutBox* next_in_order(NodeId id) {
+        if (ordered_) {
+            ++matched_;
+            return &boxes_[cursor_++];
         }
+        return find(id);
     }
 
     // The box for `id`, or nullptr when the result has none. One id counts once however many boxes
@@ -68,6 +72,20 @@ public:
     }
 
 private:
+    void build() {
+        std::size_t capacity = 16;
+        while (capacity < boxes_.size() * 2) {
+            capacity <<= 1;
+        }
+        slots_.resize(capacity);
+        mask_ = capacity - 1;
+        for (const LayoutBox& box : boxes_) {
+            Slot& slot = slot_for(box.id);
+            slot.id = box.id;
+            slot.box = &box; // a duplicate id keeps the last box, like the map this replaced
+        }
+    }
+
     struct Slot {
         NodeId id = 0;
         const LayoutBox* box = nullptr; // null marks an empty slot
@@ -84,6 +102,9 @@ private:
         return slots_[index];
     }
 
+    const std::vector<LayoutBox>& boxes_;
+    std::size_t cursor_ = 0;
+    bool ordered_ = false;
     std::vector<Slot> slots_;
     std::size_t mask_ = 0;
     std::size_t matched_ = 0;
@@ -92,7 +113,7 @@ private:
 void apply_node(Node& node, BoxIndex& boxes, float parent_x, float parent_y,
                 LayoutApplyResult& result, std::vector<const Node*>* resized,
                 bool ancestor_resized) {
-    const LayoutBox* box = boxes.find(node.id());
+    const LayoutBox* box = boxes.next_in_order(node.id());
     if (box == nullptr) {
         result.missing += clear_text_fit_subtree(node);
         return;
@@ -124,9 +145,28 @@ void apply_node(Node& node, BoxIndex& boxes, float parent_x, float parent_y,
 
 namespace {
 
+// True when the scene's tree order is exactly the box order, every box claimed once. A node id is
+// unique in the tree, so no box can then be a duplicate or a leftover and the cursor walk below
+// resolves each node without hashing.
+bool boxes_follow_tree(const Node& node, const std::vector<LayoutBox>& boxes, std::size_t& cursor) {
+    if (cursor >= boxes.size() || boxes[cursor].id != node.id()) {
+        return false;
+    }
+    ++cursor;
+    for (const auto& child : node.children()) {
+        if (!boxes_follow_tree(*child, boxes, cursor)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 LayoutApplyResult apply_impl(const LayoutResult& result, Node& root,
                              std::vector<const Node*>* resized) {
-    BoxIndex boxes(result.boxes);
+    std::size_t cursor = 0;
+    const bool ordered =
+        boxes_follow_tree(root, result.boxes, cursor) && cursor == result.boxes.size();
+    BoxIndex boxes(result.boxes, ordered);
     LayoutApplyResult applied;
     apply_node(root, boxes, 0.0f, 0.0f, applied, resized, false);
     if (result.boxes.size() > boxes.matched()) {
