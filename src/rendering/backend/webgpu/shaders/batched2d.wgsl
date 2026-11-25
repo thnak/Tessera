@@ -27,9 +27,14 @@ struct ClipSetRange {
     reserved1: u32,
 };
 
+// The header is four u32s (16 bytes, ClipBufferHeader), so the records start at offset 16 as in the
+// Vulkan std430 layout. A `vec3<u32>` here would align to 16 and push every record to offset 32,
+// so the shader would read the wrong bytes and the struct would be 16 bytes larger than the buffer.
 struct ClipBuffer {
     record_count: u32,
-    header_reserved: vec3<u32>,
+    header_reserved0: u32,
+    header_reserved1: u32,
+    header_reserved2: u32,
     records: array<ClipRecord, TESSERA_CLIP_MAX_RECORDS>,
     sets: array<ClipSetRange, TESSERA_CLIP_MAX_SETS>,
 };

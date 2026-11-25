@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace tessera::rendering::webgpu {
@@ -18,6 +19,8 @@ constexpr std::uint32_t kMaxPushConstantBytes = 256;
 constexpr std::uint32_t kArenaSlices = 256; // 64 KiB per command list
 // Distinct (pipeline layout, texture) pairs kept per command list; a frame binds a handful.
 constexpr std::size_t kBindGroupCacheSize = 16;
+// The stand-in for a storage buffer nobody bound; a binding may not be smaller than one vec4.
+constexpr std::uint64_t kEmptyStorageBytes = 16;
 
 struct Completion {
     bool done = false;
@@ -59,6 +62,10 @@ public:
         release_groups();
         if (encoder_ != nullptr) {
             wgpuCommandEncoderRelease(encoder_);
+        }
+        if (empty_storage_ != nullptr) {
+            wgpuBufferDestroy(empty_storage_);
+            wgpuBufferRelease(empty_storage_);
         }
         if (arena_ != nullptr) {
             wgpuBufferDestroy(arena_);
@@ -107,6 +114,31 @@ public:
         if (pass_ != nullptr) {
             wgpuRenderPassEncoderSetPipeline(pass_, pipeline_->handle());
         }
+        dirty_ = true;
+    }
+
+    // RHI 1.12 (ADR-068). WebGPU has one bind group, so the storage buffer is binding 3 of group 0
+    // (kBindingClipRecords) rather than a second set; `slot` 1 names it, as on Vulkan and null.
+    // The group is built at draw time with the buffer, and the shader reads the buffer's contents
+    // at draw time, so rewriting it between draws needs no rebind.
+    void bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override {
+        if (pipeline_ == nullptr) {
+            throw std::logic_error("WebGpuCommandList: bind_storage_buffer needs a pipeline");
+        }
+        if (!pipeline_->declares_storage_buffer()) {
+            throw std::logic_error(
+                "WebGpuCommandList: the bound pipeline declares no storage buffer");
+        }
+        if (slot != 1) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: the storage buffer is slot 1, not slot " +
+                std::to_string(slot));
+        }
+        if (buffer.size() == 0) {
+            throw std::invalid_argument("WebGpuCommandList: an empty buffer cannot be read");
+        }
+        storage_ = static_cast<const WebGpuBuffer&>(buffer).handle();
+        storage_size_ = buffer.size();
         dirty_ = true;
     }
 
@@ -333,17 +365,19 @@ private:
     // and the texture; push-constant changes move the dynamic offset instead of making a new group.
     WGPUBindGroup bind_group() {
         const WGPUBindGroupLayout layout = pipeline_->bind_group_layout();
+        std::uint64_t storage_size = 0;
         const WGPUTextureView view =
             sampled_target_ != nullptr ? sampled_target_->sampled_view() : texture_->view();
         const WGPUSampler sampler =
             sampled_target_ != nullptr ? sampled_target_->sampler() : texture_->sampler();
         for (const CachedGroup& cached : groups_) {
             if (cached.group != nullptr && cached.layout == layout && cached.view == view &&
-                cached.sampler == sampler && cached.size == pipeline_->uniform_size()) {
+                cached.sampler == sampler && cached.size == pipeline_->uniform_size() &&
+                cached.storage == storage_for_group(storage_size)) {
                 return cached.group;
             }
         }
-        std::array<WGPUBindGroupEntry, 3> entries{};
+        std::array<WGPUBindGroupEntry, 4> entries{};
         for (auto& entry : entries) {
             entry = WGPU_BIND_GROUP_ENTRY_INIT;
         }
@@ -354,9 +388,15 @@ private:
         entries[1].textureView = view;
         entries[2].binding = kBindingSampler;
         entries[2].sampler = sampler;
+        const WGPUBuffer storage = storage_for_group(storage_size);
+        if (storage != nullptr) {
+            entries[3].binding = kBindingClipRecords;
+            entries[3].buffer = storage;
+            entries[3].size = storage_size;
+        }
         WGPUBindGroupDescriptor desc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
         desc.layout = layout;
-        desc.entryCount = entries.size();
+        desc.entryCount = storage != nullptr ? entries.size() : entries.size() - 1;
         desc.entries = entries.data();
         // Round-robin eviction; a pass that already bound the evicted group keeps its own ref.
         CachedGroup& slot = groups_[next_group_];
@@ -364,8 +404,9 @@ private:
         if (slot.group != nullptr) {
             wgpuBindGroupRelease(slot.group);
         }
-        slot = {layout, view, sampler, pipeline_->uniform_size(),
-                wgpuDeviceCreateBindGroup(context_->device, &desc)};
+        slot = {layout,  view,
+                sampler, pipeline_->uniform_size(),
+                storage, wgpuDeviceCreateBindGroup(context_->device, &desc)};
         return slot.group;
     }
 
@@ -383,8 +424,33 @@ private:
         WGPUTextureView view = nullptr;
         WGPUSampler sampler = nullptr;
         std::uint32_t size = 0;
+        WGPUBuffer storage = nullptr;
         WGPUBindGroup group = nullptr;
     };
+
+    // The storage buffer only belongs in a group whose layout declares it; a pipeline without one
+    // must never get the entry, whatever an earlier bind left behind. A pipeline that declares one
+    // but is drawn before any bind (the glass composite shares the layout and never reads it) gets
+    // a small empty buffer, because a bind group must fill every entry its layout declares.
+    // Like the Vulkan set, the bound buffer belongs to the command list, not to one render pass.
+    [[nodiscard]] WGPUBuffer storage_for_group(std::uint64_t& size) {
+        if (!pipeline_->declares_storage_buffer()) {
+            size = 0;
+            return nullptr;
+        }
+        if (storage_ != nullptr) {
+            size = storage_size_;
+            return storage_;
+        }
+        if (empty_storage_ == nullptr) {
+            WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+            desc.usage = buffer_usage_bits::kStorage;
+            desc.size = kEmptyStorageBytes;
+            empty_storage_ = wgpuDeviceCreateBuffer(context_->device, &desc);
+        }
+        size = kEmptyStorageBytes;
+        return empty_storage_;
+    }
 
     std::shared_ptr<WebGpuContext> context_;
     std::shared_ptr<Completion> completion_;
@@ -397,6 +463,10 @@ private:
     std::uint32_t next_slice_ = 0;
     const WebGpuPipeline* pipeline_ = nullptr;
     const WebGpuTexture* texture_ = nullptr;
+    // RHI 1.12: the bound clip-record buffer and its size; null until bind_storage_buffer.
+    WGPUBuffer storage_ = nullptr;
+    std::uint64_t storage_size_ = 0;
+    WGPUBuffer empty_storage_ = nullptr;
     // RHI 1.3: the render target bound as a texture instead of `texture_`; the two are exclusive.
     const WebGpuTargetViews* sampled_target_ = nullptr;
     std::array<std::uint8_t, kMaxPushConstantBytes> push_{};
