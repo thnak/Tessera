@@ -174,9 +174,17 @@ fine pass is the cost: the lucide settings gear at 128 / 256 px takes 0.220 / 0.
 against 0.032 / 0.044 for the stroke pass and 0.024 / 0.052 for bin; a filled gear of the same size
 takes 0.024 / 0.058 in the fine pass. Cause: the fine pass is one thread per pixel and each thread
 walks every node of its (path, row) list, so its cost is pixels times nodes per row (about 270 nodes
-a row for the stroked icon against 4 for the filled one). Open: accumulate coverage per row (area and
-cover, one prefix sum) so each node is visited once per row instead of once per pixel; that helps
-every scene with long rows, not only stroked icons, and shrinks the 4K fine pass too.
+a row for the stroked icon against 4 for the filled one). Tried and dropped (2026-11-25, iGPU, the same gear at 128 px, GPU total, original 0.295 ms): a thread
+per run of 8 pixels that walks each list once (edges left of the run add a carry, edges right of it
+nothing, only overlapping edges pay for area) came out at 0.61 ms, twice as slow, with the same pixels;
+running the walk as 4 interleaved chains (segment id modulo 4) changed nothing (0.61), calling the
+exact area only for the columns an edge touches gave 0.57, and storing the transformed edge in the bin
+node so the fine pass reads one record per node gave 0.54. The same code with one pixel per thread
+(runs of 1) went back to 0.294. So the fine pass is not bound by its chain of dependent loads: it
+needs the thousands of threads that hide the latency, and cutting the threads cut that faster than the
+work. A real gain needs the node walk itself split across the threads of a group (a chain per lane
+and a shared-memory reduction per path), which adds two barriers per path and would slow the 4K scenes
+that have hundreds of paths; not worth it for the stroked icons, which the route keeps on ThorVG.
 
 **The WGSL twin** (`src/rendering/backend/webgpu/shaders/path_raster.wgsl`, the `webgpu` source of the
 manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL
