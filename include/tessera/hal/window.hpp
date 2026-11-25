@@ -16,6 +16,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -354,6 +355,18 @@ public:
     // queue input is dropped; the default does nothing.
     virtual void set_input_queue(ui::InputQueue* queue) {
         (void)queue;
+    }
+
+    // A callback the platform runs on the window thread while the OS owns a modal loop that stops
+    // the normal pump: on Win32, dragging a window edge (or the caption) keeps the thread inside
+    // DefWindowProc until the button is released, so the engine's loop never ticks and the frame
+    // is only stretched by the compositor. The callback is invoked once per size change during
+    // such a drag and should render one frame at the current size; it is never called otherwise and
+    // never re-entered. Pass an empty function to remove it. The default does nothing (no platform
+    // here has another modal loop worth serving), and it must be removed before the callback's
+    // captures die.
+    virtual void set_live_frame_callback(std::function<void()> callback) {
+        (void)callback;
     }
 
     // Offers one platform input event to the window's translator and returns true when it produced

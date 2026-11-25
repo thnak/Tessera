@@ -66,8 +66,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     // glass, 4x MSAA) is prepare_paint_target's, resolved before the image is acquired: a 4x
     // presentation whose offscreen target cannot be allocated skips the attempt without leaving an
     // acquired image unpresented.
-    const rhi::Extent2D presented = swapchain->extent();
-    const ui::scale::AdaptiveTargetExtent adaptive =
+    rhi::Extent2D presented = swapchain->extent();
+    ui::scale::AdaptiveTargetExtent adaptive =
         ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
     std::optional<PaintTarget> paint = prepare_paint_target(slot, presented, adaptive);
     if (!paint.has_value()) {
@@ -84,6 +84,18 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         if (acquired.error() == rhi::SwapchainError::OutOfDate) {
             // A same-size resize is a documented no-op, so recreate at the window's real size.
             recreate_swapchain();
+            // The target description, the offscreen targets and the adaptive extent were all
+            // derived from the swapchain's OLD extent before this acquire. Painting with them into
+            // the recreated, larger image drew only the old rectangle and left the rest cleared
+            // (a maximized window showed its previous size and black beyond it). Nothing is
+            // acquired yet, so re-deriving here is safe.
+            presented = swapchain->extent();
+            adaptive =
+                ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
+            paint = prepare_paint_target(slot, presented, adaptive);
+            if (!paint.has_value()) {
+                return FrameResult::Skipped;
+            }
             continue;
         }
         if (acquired.error() == rhi::SwapchainError::DeviceLost) {

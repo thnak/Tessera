@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <span>
@@ -109,12 +110,16 @@ public:
     void set_accessibility_root(AccessibilityRoot root) override {
         accessibility_root_ = root;
     }
+    void set_live_frame_callback(std::function<void()> callback) override {
+        live_frame_ = std::move(callback);
+    }
 
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     LRESULT handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     void enqueue(WindowEventType type, EventReason reason = EventReason::Unspecified);
     void request_close();
+    void run_live_frame();
     void pump_messages();
     [[nodiscard]] bool has_pending_events() const;
     // Lazily created on the owning thread; null when the OS has no high-resolution timers.
@@ -130,6 +135,12 @@ private:
     AccessibilityRoot accessibility_root_{};
     bool focused_ = false;
     bool minimized_ = false;
+    // Between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the thread is inside DefWindowProc's modal
+    // loop, so the engine loop does not run; `live_frame_` renders from the size messages
+    // instead. `in_live_frame_` keeps a message the frame itself pumps from re-entering it.
+    bool in_size_move_ = false;
+    bool in_live_frame_ = false;
+    std::function<void()> live_frame_;
     // The OS backdrop this window resolved at creation (glass-v1.md section 6); the engine reads it
     // only through WindowMetrics and never re-applies it during a run.
     BackdropResolution backdrop_{};
@@ -448,6 +459,18 @@ void Win32Window::hide() {
     }
 }
 
+// One frame at the size the drag just produced. The callback drains the Resize this very message
+// queued, lays out, paints and presents, so the content follows the frame instead of being
+// stretched by the compositor until the button is released.
+void Win32Window::run_live_frame() {
+    if (!in_size_move_ || !live_frame_ || in_live_frame_) {
+        return;
+    }
+    in_live_frame_ = true;
+    live_frame_();
+    in_live_frame_ = false;
+}
+
 void Win32Window::request_redraw() {
     if (hwnd_ != nullptr) {
         // InvalidateRect coalesces repeated requests until the next WM_PAINT.
@@ -524,9 +547,16 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
             // change is the user or the system moving the frame.
             enqueue(WindowEventType::Resize,
                     wparam == SIZE_MAXIMIZED ? EventReason::Maximize : EventReason::User);
+            run_live_frame();
         }
         return 0;
     }
+    case WM_ENTERSIZEMOVE:
+        in_size_move_ = true;
+        return DefWindowProcW(window, message, wparam, lparam);
+    case WM_EXITSIZEMOVE:
+        in_size_move_ = false;
+        return DefWindowProcW(window, message, wparam, lparam);
     case WM_DPICHANGED: {
         const auto* suggested = reinterpret_cast<const RECT*>(lparam);
         if (suggested != nullptr) {

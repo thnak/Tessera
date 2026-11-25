@@ -98,6 +98,11 @@ struct WindowHost::Impl {
     void sample_frame_sync();
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);
+    // One frame from inside the OS's modal resize loop (hal::Window::set_live_frame_callback):
+    // drains the queued Resize, lays out at the new size and presents. A bounded subset of the run
+    // loop's body - no idle, no pacing, no recovery - because the loop that owns those is parked
+    // inside the OS call that invoked this.
+    void live_resize_frame();
 
     // --- the shared caches (issue #228) ------------------------------------------------------
     // These are views into `group`, never owned here. They are accessors rather than members so the
