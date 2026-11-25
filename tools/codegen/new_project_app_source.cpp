@@ -74,6 +74,13 @@ std::string main_source(const Options& options) {
     text += "\n";
     text += "#include \"App.hpp\"\n";
     text += "\n";
+    // A module with `Path` nodes gets `<ns>_vector_assets.hpp` from the generator; one without it
+    // has no such file, so the include is conditional and the app builds either way.
+    text += "#if __has_include(\"" + options.ns + "_vector_assets.hpp\")\n";
+    text += "#include \"" + options.ns + "_vector_assets.hpp\"\n";
+    text += "#define TESSERA_APP_VECTOR_ASSETS 1\n";
+    text += "#endif\n";
+    text += "\n";
     text += "#include \"tessera/app/window.hpp\"\n";
     text += "#include \"tessera/ui/scene/node.hpp\"\n";
     text += "#include \"tessera/ui/scene/update_scheduler.hpp\"\n";
@@ -174,12 +181,22 @@ std::string main_source(const Options& options) {
     text += "    options.width = 900;\n";
     text += "    options.height = 620;\n";
     text += "    options.font_path = font;\n";
+    text += "#ifdef TESSERA_APP_VECTOR_ASSETS\n";
+    text += "    // The SVG each `Path` node embeds; the window rasterizes it (large ones on the "
+            "GPU).\n";
+    text += "    const tessera::ui::assets::AssetBundle vector_bundle = " + options.ns +
+            "::gen::vector_assets::bundle();\n";
+    text += "    options.vector_assets = &vector_bundle;\n";
+    text += "#endif\n";
     text += "\n";
     text += "    if (!capture.empty()) {\n";
     text += "        tessera::app::CaptureOptions shot;\n";
     text += "        shot.width = options.width;\n";
     text += "        shot.height = options.height;\n";
     text += "        shot.font_path = font;\n";
+    text += "#ifdef TESSERA_APP_VECTOR_ASSETS\n";
+    text += "        shot.vector_assets = options.vector_assets;\n";
+    text += "#endif\n";
     text += "        shot.scheduler = &scheduler;\n";
     text += "        const auto frame = tessera::app::capture_frame(\n";
     text += "            root, tessera::ui::style::compile_stylesheet(css), shot);\n";

@@ -35,9 +35,11 @@ public:
     // sampling and target encoding round-trip. The bundles are borrowed. A build without an SVG
     // backend, no bundle, or a device that cannot create the caches leaves `available()` false and
     // the sink's vector draws stay no-ops.
+    // `allow_gpu` false keeps every raster on ThorVG: a capture feeds goldens, and those are the
+    // CPU rasterizer's bytes only.
     VectorStack(rhi::Device& device, rhi::TextureFormat format,
                 const ui::assets::AssetBundle* assets,
-                const ui::assets::ComposedAssetBundle* bundles);
+                const ui::assets::ComposedAssetBundle* bundles, bool allow_gpu = true);
 
     VectorStack(const VectorStack&) = delete;
     VectorStack& operator=(const VectorStack&) = delete;

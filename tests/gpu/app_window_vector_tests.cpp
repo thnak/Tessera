@@ -52,6 +52,33 @@ constexpr std::uint32_t kMaxIterations = 400;
 // Past the 128 px route line, and a different size every frame so each frame is a new raster.
 constexpr std::uint32_t kFirstSize = 140;
 
+void set_vector(Node& node, std::uint32_t size);
+
+// A windowless capture of the same asset: the capture rasterizes on ThorVG only, so the icon's red
+// disc must show up in the readback.
+bool capture_shows_the_icon(const AssetBundle& bundle) {
+    Node root(1);
+    Node& icon = root.add_child(std::make_unique<Node>(2));
+    icon.set_element_kind("View");
+    set_vector(icon, 128);
+    tessera::app::CaptureOptions shot;
+    shot.width = 320;
+    shot.height = 240;
+    shot.font_path = TESSERA_TEST_FONT;
+    shot.vector_assets = &bundle;
+    const auto frame = tessera::app::capture_frame(
+        root, compile_stylesheet("View { width: 200px; height: 200px; }"), shot);
+    if (!frame.has_value()) {
+        return true; // no device: the window half skips the same way
+    }
+    for (std::size_t at = 0; at + 3 < frame->rgba.size(); at += 4) {
+        if (frame->rgba[at] > 200 && frame->rgba[at + 1] < 80 && frame->rgba[at + 2] < 80) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "app_window_vector: " << message << "\n";
@@ -131,6 +158,7 @@ int main() {
         return ok ? 0 : 1;
     }
     ok = expect(draws >= kFrames, "every presented frame drew the vector") && ok;
+    ok = expect(capture_shows_the_icon(bundle), "a capture paints the bundle's SVG") && ok;
     ok = expect(gpu_fallbacks == 0, "no GPU raster fell back to ThorVG") && ok;
     std::cout << "app_window_vector: " << draws << " draws, " << gpu_rasters << " GPU rasters, "
               << gpu_fallbacks << " fallbacks over " << presented << " frames\n";

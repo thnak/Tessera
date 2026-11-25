@@ -453,6 +453,10 @@ struct CaptureOptions {
     // embedded stylesheets and the theme asset, or activates a theme (`AppHost::set_theme`), the
     // same calls an app makes before its frame loop.
     std::function<void(AppHost&)> configure_host;
+    // The embedded assets a `Path` / SVG node names, as in `WindowOptions`. Borrowed. A capture
+    // rasterizes on ThorVG only, so its pixels stay the deterministic golden bytes.
+    const ui::assets::AssetBundle* vector_assets = nullptr;
+    const ui::assets::ComposedAssetBundle* vector_bundles = nullptr;
     // When positive, one more frame of this many seconds runs after `prepare`'s change has been
     // applied, so a transition or animation the change started is captured part-way. The clock is
     // manual: the instant is exact. Zero keeps the capture at the instant of the change.

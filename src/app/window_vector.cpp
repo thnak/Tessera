@@ -25,7 +25,7 @@ constexpr std::uint64_t kMaxTextureBytes = 64ULL * 1024ULL * 1024ULL;
 
 VectorStack::VectorStack(rhi::Device& device, rhi::TextureFormat format,
                          const ui::assets::AssetBundle* assets,
-                         const ui::assets::ComposedAssetBundle* bundles)
+                         const ui::assets::ComposedAssetBundle* bundles, bool allow_gpu)
     : assets_(assets),
       bundles_(bundles) {
     if (assets == nullptr && bundles == nullptr) {
@@ -48,7 +48,7 @@ VectorStack::VectorStack(rhi::Device& device, rhi::TextureFormat format,
         textures_.reset();
         return;
     }
-    if (!path::GpuPathRasterizer::supported(device)) {
+    if (!allow_gpu || !path::GpuPathRasterizer::supported(device)) {
         return;
     }
     try {

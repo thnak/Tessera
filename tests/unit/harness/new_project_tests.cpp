@@ -127,6 +127,22 @@ void check_layout(const fs::path& project, std::string_view label) {
     check(!has_file(paths, ".git"), where + "no git repository initialised");
 }
 
+// The entry point hands the generated `Path` assets to the window and to the capture, and builds
+// for a module with no `Path` node (no `<ns>_vector_assets.hpp`) because the include is
+// conditional.
+void check_entry_point(const fs::path& project, std::string_view ns) {
+    const std::string text = read_file(project / "src/main.cpp");
+    const std::string header = std::string(ns) + "_vector_assets.hpp";
+    check(contains(text, "#if __has_include(\"" + header + "\")"),
+          "main.cpp: the vector assets header is a conditional include");
+    check(contains(text, std::string(ns) + "::gen::vector_assets::bundle()"),
+          "main.cpp: the generated bundle is taken from the module namespace");
+    check(contains(text, "options.vector_assets = &vector_bundle;"),
+          "main.cpp: the window gets the bundle");
+    check(contains(text, "shot.vector_assets = options.vector_assets;"),
+          "main.cpp: the capture gets the same bundle");
+}
+
 void check_manifest(const fs::path& project, std::string_view app_name, std::string_view ns,
                     bool expects_state) {
     const std::string text = read_file(project / "tessera.json");
@@ -229,6 +245,8 @@ void check_templates_differ() {
     check(!contains(read_file(blank / "ui/App.tsx"), "useState"), "the blank template holds none");
     check_manifest(blank, "demo", "demo", false);
     check_manifest(counter, "demo", "demo", true);
+    check_entry_point(blank, "demo");
+    check_entry_point(counter, "demo");
     check_layout(counter, "counter layout");
 }
 

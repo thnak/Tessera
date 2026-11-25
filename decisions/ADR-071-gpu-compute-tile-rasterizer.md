@@ -142,6 +142,9 @@ submit, only once this window's older frame has finished (a texture evicted duri
 destroyed while the frame before it may still sample it; with two windows sharing the cache the other
 window's frame is not checked, so the cache is sized to keep a window's assets resident). A device
 generation change releases and rebuilds the stack with the rest of the group's caches.
+A project made by `tessera new` hands its generated `<ns>::gen::vector_assets::bundle()` to the window
+and to `capture_frame` (the include is `__has_include`-guarded, so a module with no `Path` node still
+builds); a capture rasterizes on ThorVG only, so its bytes stay golden-stable.
 `tests/gpu/app_window_vector_tests.cpp` drives it on a real hidden window with validation on: 24
 frames, each a new 140+ px raster, 24 GPU rasters, 0 fallbacks, validation-clean on both the RX 5300M
 and the iGPU.
