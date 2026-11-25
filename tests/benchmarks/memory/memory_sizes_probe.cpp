@@ -141,7 +141,8 @@ void sizes() {
     row("sizeof_computed_style", sizeof(style::ComputedStyle));
     row("sizeof_node_id", sizeof(ui::NodeId));
     // The layout engine's per-node input and output records, one of each per node per layout pass
-    // (object-size rules in docs/guides/code-style.md). Pinned so a member added to either shows up.
+    // (object-size rules in docs/guides/code-style.md). Pinned so a member added to either shows
+    // up.
     row("sizeof_layout_input", sizeof(ui::layout::LayoutInput));
     row("sizeof_layout_box", sizeof(ui::layout::LayoutBox));
     // The paint cache's recorded op (issue #731). It was 2376 bytes while every payload sat inline;
