@@ -35,8 +35,10 @@ std::string_view ua_stylesheet_text() noexcept {
     // drawn as a dark top and a light bottom edge, with a 0.5em vertical margin. They match through
     // the tag the alias keeps (`alias_tag`), because none of them has a role.
     //
-    // `ul`/`ol` (issue #606): Chrome's `margin: 1em 0` and 40px start padding. The marker itself
-    // is not drawn (a named exception).
+    // `ul`/`ol` (issue #606): Chrome's `margin: 1em 0` and 40px start padding. The marker is the
+    // inherited `list-style-type` (issue #541), Chrome's `disc`/`circle`/`square` by nesting depth
+    // and `decimal` for `ol`; the painter draws it for a `role="listitem"` child, matched through
+    // the tag the alias keeps like `pre` below.
     return "View { display: block; }\n"
            "Text[role=\"heading\"] { display: block; font-weight: 700; }\n"
            "Text[aria-level=\"1\"] { font-size: 2em; margin: 0.67em 0; }\n"
@@ -48,6 +50,10 @@ std::string_view ua_stylesheet_text() noexcept {
            "Text[role=\"paragraph\"] { display: block; margin: 1em 0; }\n"
            "Text[role=\"link\"] { color: #0000ee; text-decoration: underline; }\n"
            "View[role=\"list\"] { margin: 1em 0; padding-left: 40px; }\n"
+           "ul { list-style-type: disc; }\n"
+           "ol { list-style-type: decimal; }\n"
+           "ul ul, ol ul { list-style-type: circle; }\n"
+           "ul ul ul, ol ul ul, ul ol ul, ol ol ul { list-style-type: square; }\n"
            "pre { display: block; margin: 1em 0; }\n"
            "blockquote { margin: 1em 40px; }\n"
            "hr { height: 0; margin: 0.5em 0; border-top-width: 1px; border-top-style: solid; "

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "property_list_style.hpp"
 #include "property_text_decoration.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
@@ -7,6 +8,7 @@
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
+#include "tessera/ui/style/list_style.hpp"
 #include "tessera/ui/style/selector.hpp"
 #include "tessera/ui/style/supports.hpp"
 #include "tessera/ui/style/text_decoration.hpp"
@@ -103,6 +105,16 @@ bool value_supported(std::string_view property, std::string_view value) {
         return !expand_text_decoration_shorthand(
                     Declaration{"text-decoration", normalized, false, 0})
                     .declarations.empty();
+    }
+    if (property == "list-style") {
+        return !expand_list_style_shorthand(Declaration{"list-style", normalized, false, 0})
+                    .declarations.empty();
+    }
+    if (property == "list-style-type") {
+        return parse_list_style_type(normalized).has_value();
+    }
+    if (property == "list-style-position") {
+        return is_supported_list_style_position(normalized);
     }
     if (property == "text-decoration-line") {
         return parse_text_decoration_line(normalized).has_value();

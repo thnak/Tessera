@@ -3180,6 +3180,11 @@ add_executable(paint_text_span_tests
 target_link_libraries(paint_text_span_tests PRIVATE tessera_paint tessera_scene)
 add_test(NAME paint_text_span COMMAND paint_text_span_tests)
 
+add_executable(list_style_tests
+    list_style_tests.cpp)
+target_link_libraries(list_style_tests PRIVATE tessera_paint tessera_scene tessera_style tessera_animation)
+add_test(NAME list_style COMMAND list_style_tests)
+
 add_executable(a11y_span_tests
     a11y_span_tests.cpp)
 target_link_libraries(a11y_span_tests PRIVATE tessera_accessibility)

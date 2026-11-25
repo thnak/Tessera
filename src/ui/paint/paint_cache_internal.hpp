@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "paint_list_marker.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
@@ -89,6 +90,7 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.lcd_text = pass.lcd_text;
     signature.glass_max_blur_radius = pass.glass_max_blur_radius;
     signature.glass_max_backdrop_area = pass.glass_max_backdrop_area;
+    signature.list_ordinal = list_item_ordinal(node);
     return signature;
 }
 

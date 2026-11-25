@@ -2761,6 +2761,16 @@
     },
     {
       "kind": "keyword",
+      "name": "list-style-type",
+      "note": "none, disc, circle, square, decimal, lower/upper-alpha, lower/upper-roman"
+    },
+    {
+      "kind": "keyword",
+      "name": "list-style-position",
+      "note": "outside only"
+    },
+    {
+      "kind": "keyword",
       "name": "white-space"
     },
     {

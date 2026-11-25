@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "property_background.hpp"
+#include "property_list_style.hpp"
 #include "property_table.hpp"
 #include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
@@ -221,6 +222,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
                                 "window-backdrop takes one of none, auto, mica, acrylic or blur"});
             return result;
         }
+    }
+    if (property == "list-style") {
+        return expand_list_style_shorthand(declaration);
     }
     if (property == "background" || property == "text-decoration") {
         return property == "background" ? expand_background_shorthand(declaration)

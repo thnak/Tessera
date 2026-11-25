@@ -13,7 +13,7 @@ against it.
    unknown. Component names stay uppercase (`TESSERA_JSX_SUBSET_COMPONENT_NAME`), so there is no collision.
 2. **The alias adds no style of its own.** Its look comes from the user-agent stylesheet
    ([ADR-063](../../../decisions/ADR-063-browser-matching-user-agent-defaults.md),
-   [`ua-audit.md`](../../reference/ua-audit.md)), which reproduces the browser defaults (`h1` large and bold, `div` a block, `ul` indented) and is overridden by any author rule. List markers are the one named exception.
+   [`ua-audit.md`](../../reference/ua-audit.md)), which reproduces the browser defaults (`h1` large and bold, `div` a block, `ul` indented) and is overridden by any author rule.
    The one exception is the inline-emphasis group of section 2 (`b`, `strong`, `i`, `em`, `code`,
    and the ADR-059 group A tags `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `cite`, `pre`):
    those tags inject only the run style that names their meaning, because a span with no visual
@@ -41,9 +41,9 @@ against it.
 | HTML tag | Intrinsic | Injected | Status | Notes |
 |---|---|---|---|---|
 | `div`, `section`, `article`, `main`, `header`, `footer`, `nav`, `aside`, `figure` | `View` | - | mapped | Landmark roles are not in the accessibility role list, so none is injected |
-| `ul`, `ol` | `View` | `role="list"` | mapped | No list markers and no numbering |
+| `ul`, `ol` | `View` | `role="list"` | mapped | The user-agent sheet gives the list its marker type (`disc`, `circle`, `square` by depth; `decimal` for `ol`); the items draw it ([`list-style.md`](../../design/list-style.md)) |
 | `p` | `Text` | `role="paragraph"` | mapped | the role lets the user-agent sheet give it a margin ([`ua-audit.md`](../../reference/ua-audit.md)) |
-| `li` | `View` | `role="listitem"` | mapped | |
+| `li` | `View` | `role="listitem"` | mapped | Draws the inherited `list-style-type` marker outside its box; numbered by position among the list's items |
 | `span`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |

@@ -24,6 +24,8 @@ add_library(tessera_style STATIC
     gradient_radial.cpp
     gradient_conic.cpp
     property_background.cpp
+    list_style.cpp
+    property_list_style.cpp
     property_text_decoration.cpp
     text_decoration.cpp
     color_names.cpp
