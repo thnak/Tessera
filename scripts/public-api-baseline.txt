@@ -3120,6 +3120,13 @@ header include/tessera/ui/style/layout_digest.hpp
 function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::is_layout_property
 function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::layout_digest
 
+header include/tessera/ui/style/list_style.hpp
+enum include/tessera/ui/style/list_style.hpp tessera::ui::style::ListStyleType
+function include/tessera/ui/style/list_style.hpp tessera::ui::style::is_bullet_marker
+function include/tessera/ui/style/list_style.hpp tessera::ui::style::is_supported_list_style_position
+function include/tessera/ui/style/list_style.hpp tessera::ui::style::list_marker_text
+function include/tessera/ui/style/list_style.hpp tessera::ui::style::parse_list_style_type
+
 header include/tessera/ui/style/media_query.hpp
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaCondition
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaContext
