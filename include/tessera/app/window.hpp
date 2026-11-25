@@ -5,6 +5,7 @@
 #include "tessera/app/host.hpp"
 #include "tessera/app/lifecycle_sink.hpp"
 #include "tessera/app/window_device.hpp"
+#include "tessera/diagnostics/memory.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
@@ -181,6 +182,13 @@ struct WindowFrameStats {
     std::uint64_t vector_gpu_fallbacks = 0;
     std::uint32_t idle_waits = 0;
     std::uint32_t input_events = 0;
+    // Memory at the end of the run: the process's resident set (0 and invalid where the OS gives no
+    // answer) and the device allocator's bytes by purpose (all zero on a backend that does not
+    // track them). `diagnostics::format_memory_report` renders both. `blocks` far above
+    // `allocations` is memory a driver pinned for nothing; it is how the 68 MB-for-6 MB block
+    // default was found.
+    diagnostics::ProcessMemory process_memory;
+    diagnostics::GpuMemory gpu_memory;
     // Caret visibility flips produced by a blink tick (two per visible+hidden period). A flip
     // requests exactly one frame, so this also counts the caret's frames.
     std::uint32_t caret_blinks = 0;

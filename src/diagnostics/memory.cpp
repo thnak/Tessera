@@ -2,6 +2,7 @@
 
 #include "tessera/diagnostics/memory.hpp"
 
+#include <cstdio>
 #include <string>
 
 #if defined(_WIN32)
@@ -161,6 +162,37 @@ void GpuMemoryGauges::publish(const GpuMemory& memory) noexcept {
         registry_->set(category_ids_[i], memory.category_bytes[i]);
         registry_->set(category_peak_ids_[i], memory.category_peak_bytes[i]);
     }
+}
+
+std::string format_memory_report(const ProcessMemory& process, const GpuMemory& gpu) {
+    constexpr double kMb = 1024.0 * 1024.0;
+    constexpr double kKb = 1024.0;
+    std::string text;
+    char line[160];
+    if (process.valid) {
+        std::snprintf(line, sizeof(line), "process resident=%.1fMB peak=%.1fMB\n",
+                      static_cast<double>(process.resident_bytes) / kMb,
+                      static_cast<double>(process.peak_resident_bytes) / kMb);
+    } else {
+        std::snprintf(line, sizeof(line), "process resident=unavailable\n");
+    }
+    text += line;
+    std::snprintf(
+        line, sizeof(line), "gpu buffers=%.2fMB images=%.2fMB allocations=%.2fMB blocks=%.2fMB\n",
+        static_cast<double>(gpu.buffer_bytes) / kMb, static_cast<double>(gpu.image_bytes) / kMb,
+        static_cast<double>(gpu.allocation_bytes) / kMb,
+        static_cast<double>(gpu.block_bytes) / kMb);
+    text += line;
+    for (std::size_t i = 0; i < kGpuMemoryCategoryCount; ++i) {
+        if (gpu.category_bytes[i] == 0 && gpu.category_peak_bytes[i] == 0) {
+            continue;
+        }
+        std::snprintf(line, sizeof(line), "gpu.%s live=%.1fKB peak=%.1fKB\n", kCategoryNames[i],
+                      static_cast<double>(gpu.category_bytes[i]) / kKb,
+                      static_cast<double>(gpu.category_peak_bytes[i]) / kKb);
+        text += line;
+    }
+    return text;
 }
 
 CacheGauges::CacheGauges(MetricsRegistry& registry, std::string_view name)

@@ -150,6 +150,12 @@ void test_two_windows_share_one_device() {
     expect(second_stats.available, "the second window is available");
     expect(first_stats.presented > 0, "the first window presented a frame");
     expect(second_stats.presented > 0, "the second window presented a frame");
+    // The run reports memory: the OS answers on every lane this test runs on, and a window that
+    // presented holds at least its glyph atlas or vertex buffer in the allocator's accounting.
+    expect(first_stats.process_memory.valid && first_stats.process_memory.resident_bytes > 0,
+           "a run reports the process's resident memory");
+    expect(first_stats.gpu_memory.block_bytes >= first_stats.gpu_memory.allocation_bytes,
+           "the allocator's blocks cover its allocations");
 }
 
 void test_closing_one_leaves_the_other() {

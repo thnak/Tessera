@@ -692,6 +692,7 @@ class include/tessera/diagnostics/memory.hpp tessera::diagnostics::MemoryGauges
 struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::CacheStats
 struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::GpuMemory
 struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::ProcessMemory
+function include/tessera/diagnostics/memory.hpp tessera::diagnostics::format_memory_report
 function include/tessera/diagnostics/memory.hpp tessera::diagnostics::sample_process_memory
 constant include/tessera/diagnostics/memory.hpp tessera::diagnostics::kGpuMemoryCategoryCount
 

@@ -209,6 +209,10 @@ resident) for 6.2 MB of live resources. `preferredLargeHeapBlockSize = 16 MiB` c
 ours is ~36 MB in the default heap (about 11 MB of small allocations, a 4 MB CPU atlas page, the
 rest driver allocations), the 16 MB block and the swapchain. `rhi_memory` pins the block cap.
 
+`WindowFrameStats` carries the numbers (`process_memory`, `gpu_memory`, sampled once at the end of a
+`run()`), `diagnostics::format_memory_report` renders them, and a `tessera new` app prints them with
+`--memory` (for example `demo --frames 120 --memory`). Read `blocks` against `allocations` first.
+
 Cache-line layout - false sharing between counters that different threads write, and hot structs
 that straddle a line - is its own note: [`cache-lines.md`](cache-lines.md).
 

@@ -82,6 +82,7 @@ std::string main_source(const Options& options) {
     text += "#endif\n";
     text += "\n";
     text += "#include \"tessera/app/window.hpp\"\n";
+    text += "#include \"tessera/diagnostics/memory.hpp\"\n";
     text += "#include \"tessera/harness/image_compare.hpp\"\n";
     text += "#include \"tessera/ui/scene/node.hpp\"\n";
     text += "#include \"tessera/ui/scene/update_scheduler.hpp\"\n";
@@ -138,17 +139,20 @@ std::string main_source(const Options& options) {
     text += "    std::string capture;\n";
     text += "    std::string font = resolve_font();\n";
     text += "    int frames = 0;\n";
+    text += "    bool memory = false;\n";
     text += "    for (int index = 1; index < argc; ++index) {\n";
     text += "        const std::string arg(argv[index]);\n";
     text += "        if (arg == \"--capture\" && index + 1 < argc) {\n";
     text += "            capture = argv[++index];\n";
     text += "        } else if (arg == \"--frames\" && index + 1 < argc) {\n";
     text += "            frames = std::atoi(argv[++index]);\n";
+    text += "        } else if (arg == \"--memory\") {\n";
+    text += "            memory = true;\n";
     text += "        } else if (arg == \"--font\" && index + 1 < argc) {\n";
     text += "            font = argv[++index];\n";
     text += "        } else if (arg == \"--help\" || arg == \"-h\") {\n";
     text += "            std::cout << \"usage: " + options.app_name +
-            " [--capture out.png] [--frames N] [--font path]\\n\";\n";
+            " [--capture out.png] [--frames N] [--memory] [--font path]\\n\";\n";
     text += "            return 0;\n";
     text += "        } else {\n";
     text += "            std::cerr << \"" + options.app_name +
@@ -238,6 +242,11 @@ std::string main_source(const Options& options) {
     text += "        host.run(static_cast<std::uint32_t>(frames));\n";
     text += "    std::cout << \"" + options.app_name + ": frames=\" << stats.frames\n";
     text += "              << \" presented=\" << stats.presented << \"\\n\";\n";
+    text += "    if (memory) {\n";
+    text +=
+        "        std::cout << tessera::diagnostics::format_memory_report(stats.process_memory,\n";
+    text += "                                                                stats.gpu_memory);\n";
+    text += "    }\n";
     text += "    return 0;\n";
     text += "}\n";
     return text;

@@ -107,6 +107,13 @@ private:
     std::array<std::size_t, kGpuMemoryCategoryCount> category_peak_ids_{};
 };
 
+// The two snapshots as text, one `key=value` line each, for a CLI flag or a log: `process`
+// (resident and peak, MB), `gpu` (live buffer/image bytes, allocator blocks and allocations, MB)
+// and one `gpu.<category>` line per category with live bytes above zero (KB, live and peak). The
+// blocks line is the one to read first: blocks far above allocations are pinned system memory
+// nobody uses. Allocates (it builds a string); call it at a checkpoint, never per frame.
+[[nodiscard]] std::string format_memory_report(const ProcessMemory& process, const GpuMemory& gpu);
+
 // One cache's counters, in the one shape every cache reports (issue #706, memory-model-v1 section
 // 9: "cache hit/miss/eviction/size"). The caches in the tree each grew their own `Stats` struct
 // with overlapping-but-not-identical fields; this is the common projection, so a diagnostic can
