@@ -198,6 +198,17 @@ the mean allocation count of one steady-state frame per scene and scenario, from
 may fall (`--update`) and may not rise. The current numbers and the gap to the spec's "zero in a steady
 frame" are in [`performance-cpu-benchmark.md`](performance-cpu-benchmark.md).
 
+**Where a window's resident memory goes** (measured 2026-11-25 on a Windows dGPU laptop, a
+two-button `tessera new` counter, Release, Vulkan, 900x620 logical at 1.5 scale). Task Manager's
+"Memory" is the private working set. A Vulkan program that only creates an instance and one device
+already holds ~54 MB of working set and ~44 MB private on that machine (the driver, loaded twice by
+the loader), so the floor is not ours. Tessera's own share was dominated by one setting: VMA's
+default block size made the allocator reserve 68 MB of host-visible blocks (pinned by the driver, so
+resident) for 6.2 MB of live resources. `preferredLargeHeapBlockSize = 16 MiB` cut the blocks to
+16 MB and the private working set from 106 MB to 84 MB (working set 147 to 124 MB). What is left of
+ours is ~36 MB in the default heap (about 11 MB of small allocations, a 4 MB CPU atlas page, the
+rest driver allocations), the 16 MB block and the swapchain. `rhi_memory` pins the block cap.
+
 Cache-line layout - false sharing between counters that different threads write, and hot structs
 that straddle a line - is its own note: [`cache-lines.md`](cache-lines.md).
 

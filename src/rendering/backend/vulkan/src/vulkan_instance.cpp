@@ -427,6 +427,11 @@ void VulkanDevice::create_allocator() {
     create_info.physicalDevice = physical_device_;
     create_info.device = device_;
     create_info.vulkanApiVersion = VK_API_VERSION_1_3;
+    // The default (a fraction of a heap, 32 MiB on the first block of a large heap) is sized for
+    // games. A host-visible block is pinned system memory on most drivers, so a window with a few
+    // MiB of live resources held ~68 MiB of it (measured on a two-button demo). 16 MiB keeps the
+    // first blocks at 2 MiB and larger resources get dedicated or doubled blocks.
+    create_info.preferredLargeHeapBlockSize = 16ULL * 1024ULL * 1024ULL;
     check_vk(vmaImportVulkanFunctionsFromVolk(&create_info, &functions),
              "vmaImportVulkanFunctionsFromVolk");
     create_info.pVulkanFunctions = &functions;
