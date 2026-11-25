@@ -924,14 +924,9 @@ header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue
 struct include/tessera/hal/window.hpp tessera::hal::AccessibilityRoot
-struct include/tessera/hal/window.hpp tessera::hal::CutoutInfo
-struct include/tessera/hal/window.hpp tessera::hal::FoldInfo
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
 struct include/tessera/hal/window.hpp tessera::ui::InputEvent
-enum include/tessera/hal/window.hpp tessera::hal::FoldOcclusion
-enum include/tessera/hal/window.hpp tessera::hal::FoldOrientation
-enum include/tessera/hal/window.hpp tessera::hal::FoldState
 enum include/tessera/hal/window.hpp tessera::hal::WindowEventCategory
 enum include/tessera/hal/window.hpp tessera::hal::WindowEventType
 enum include/tessera/hal/window.hpp tessera::hal::WindowSystem
@@ -939,7 +934,6 @@ function include/tessera/hal/window.hpp tessera::hal::create_window
 function include/tessera/hal/window.hpp tessera::hal::window_event_category
 function include/tessera/hal/window.hpp tessera::hal::window_event_coalesces
 function include/tessera/hal/window.hpp tessera::hal::window_event_order_rank
-constant include/tessera/hal/window.hpp tessera::hal::kMaxCutouts
 constant include/tessera/hal/window.hpp tessera::hal::kWindowEventTypeCount
 constant include/tessera/hal/window.hpp tessera::hal::kWindowMetricsSizeBudget
 
@@ -954,6 +948,14 @@ function include/tessera/hal/window_backdrop.hpp tessera::hal::backdrop_material
 function include/tessera/hal/window_backdrop.hpp tessera::hal::resolve_window_backdrop
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_from_name
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_name
+
+header include/tessera/hal/window_cutout_fold.hpp
+struct include/tessera/hal/window_cutout_fold.hpp tessera::hal::CutoutInfo
+struct include/tessera/hal/window_cutout_fold.hpp tessera::hal::FoldInfo
+enum include/tessera/hal/window_cutout_fold.hpp tessera::hal::FoldOcclusion
+enum include/tessera/hal/window_cutout_fold.hpp tessera::hal::FoldOrientation
+enum include/tessera/hal/window_cutout_fold.hpp tessera::hal::FoldState
+constant include/tessera/hal/window_cutout_fold.hpp tessera::hal::kMaxCutouts
 
 header include/tessera/hal/window_desc.hpp
 struct include/tessera/hal/window_desc.hpp tessera::hal::AccessibilityHostHandle
