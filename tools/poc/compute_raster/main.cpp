@@ -483,6 +483,8 @@ struct Options {
     bool validate = false;
     bool keep_pixels = false; // RunResult carries both images (the SVG mode's --dump)
     bool each = false;        // also compare every dashed shape of the dash scene on its own
+    int passes =
+        4; // timing only: 1 clear, 2 + stroke, 3 + bin, 4 + fine (the pixels are wrong below 4)
 };
 
 // How a scene is animated after the static frame: every path gets its own transform per frame, and
@@ -653,16 +655,20 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
         bind_all(*clear);
         list.dispatch(static_cast<std::uint32_t>((nodes_base + 255) / 256), 1, 1);
         list.compute_barrier();
-        if (encoded.stroke_count > 0) {
+        if (options.passes >= 2 && encoded.stroke_count > 0) {
             bind_all(*expand);
             list.dispatch((encoded.stroke_count + 255) / 256, 1, 1);
             list.compute_barrier();
         }
-        bind_all(*bin);
-        list.dispatch((encoded.seg_count + 255) / 256, 1, 1);
-        list.compute_barrier();
-        bind_all(*fine);
-        list.dispatch((options.width + 15) / 16, (options.height + 15) / 16, 1);
+        if (options.passes >= 3) {
+            bind_all(*bin);
+            list.dispatch((encoded.seg_count + 255) / 256, 1, 1);
+            list.compute_barrier();
+        }
+        if (options.passes >= 4) {
+            bind_all(*fine);
+            list.dispatch((options.width + 15) / 16, (options.height + 15) / 16, 1);
+        }
         if (with_copy) {
             list.copy_buffer(*out_buffer, *readback, pixel_bytes);
             list.copy_buffer(*work_buffer, *counter_readback, 4);
@@ -981,6 +987,8 @@ int main(int argc, char** argv) {
             }
         } else if (arg == "--each") {
             options.each = true;
+        } else if (arg == "--passes" && i + 1 < argc) {
+            options.passes = std::atoi(argv[++i]);
         } else if (arg == "--validate") {
             options.validate = true;
         } else if (arg == "--iterations" && i + 1 < argc) {

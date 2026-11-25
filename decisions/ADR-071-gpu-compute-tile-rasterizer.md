@@ -169,8 +169,14 @@ GPUs. The cost follows the bin nodes, not the segment count or the empty slots: 
 flattened segment), and the row-node bound never tripped (262k). So the automatic route now also
 bounds nodes per pixel (`max_nodes_per_kilopixel` = 250, `row_node_bound()`): a filled icon passes
 (0.03 to 0.35 nodes per pixel), a stroked one does not (0.8 to 7.7). The line is inside the unmeasured
-gap between 0.35 and 0.8 and sits on the CPU side. Open: a cheaper join for the many tiny turns of a
-flattened curve, which would let stroked icons onto the GPU.
+gap between 0.35 and 0.8 and sits on the CPU side. The pass split (`compute_raster_spike --passes N`, cumulative passes, iGPU, GPU timestamps) says the
+fine pass is the cost: the lucide settings gear at 128 / 256 px takes 0.220 / 0.569 ms in the fine pass
+against 0.032 / 0.044 for the stroke pass and 0.024 / 0.052 for bin; a filled gear of the same size
+takes 0.024 / 0.058 in the fine pass. Cause: the fine pass is one thread per pixel and each thread
+walks every node of its (path, row) list, so its cost is pixels times nodes per row (about 270 nodes
+a row for the stroked icon against 4 for the filled one). Open: accumulate coverage per row (area and
+cover, one prefix sum) so each node is visited once per row instead of once per pixel; that helps
+every scene with long rows, not only stroked icons, and shrinks the 4K fine pass too.
 
 **The WGSL twin** (`src/rendering/backend/webgpu/shaders/path_raster.wgsl`, the `webgpu` source of the
 manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL
