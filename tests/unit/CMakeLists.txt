@@ -407,6 +407,17 @@ target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME layout_gate COMMAND layout_gate_tests)
 
+# The retained layout input's reuse (src/app/layout_input_reuse.hpp): a text change the layout pass
+# never saw must not survive into the next pass.
+add_executable(layout_input_reuse_tests
+    layout_input_reuse_tests.cpp
+    layout_gate_scene.cpp)
+
+target_link_libraries(layout_input_reuse_tests PRIVATE tessera_app tessera_runtime)
+target_compile_features(layout_input_reuse_tests PRIVATE cxx_std_23)
+
+add_test(NAME layout_input_reuse COMMAND layout_input_reuse_tests)
+
 # The scoped scene sync (issue #735, slice B): a walk that visits only the restyled subtrees must
 # leave the scene in exactly the state the full walk does, including the `glass_subtree` refold on
 # every ancestor.
