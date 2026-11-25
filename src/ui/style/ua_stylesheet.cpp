@@ -29,6 +29,12 @@ std::string_view ua_stylesheet_text() noexcept {
     // sheet sets `font: -webkit-small-control`, which resets it to `normal`), so a page with
     // `line-height: 1.5` on the body still has 20px buttons (found by the showcase parity check).
     //
+    // `pre`, `blockquote`, `hr` (issue #541): Chrome's `pre` is a block with a 1em vertical margin
+    // (the monospace face and `white-space: pre` are the alias's own defaults, not the sheet's);
+    // `blockquote` has `margin: 1em 40px`; `hr` is a zero-height box whose 1px `inset` border is
+    // drawn as a dark top and a light bottom edge, with a 0.5em vertical margin. They match through
+    // the tag the alias keeps (`alias_tag`), because none of them has a role.
+    //
     // `ul`/`ol` (issue #606): Chrome's `margin: 1em 0` and 40px start padding. The marker itself
     // is not drawn (a named exception).
     return "View { display: block; }\n"
@@ -42,6 +48,11 @@ std::string_view ua_stylesheet_text() noexcept {
            "Text[role=\"paragraph\"] { display: block; margin: 1em 0; }\n"
            "Text[role=\"link\"] { color: #0000ee; text-decoration: underline; }\n"
            "View[role=\"list\"] { margin: 1em 0; padding-left: 40px; }\n"
+           "pre { display: block; margin: 1em 0; }\n"
+           "blockquote { margin: 1em 40px; }\n"
+           "hr { height: 0; margin: 0.5em 0; border-top-width: 1px; border-top-style: solid; "
+           "border-top-color: #9a9a9a; border-bottom-width: 1px; border-bottom-style: solid; "
+           "border-bottom-color: #eeeeee; }\n"
            "Button, TextInput, TextArea { line-height: normal; }\n"
            "Button { display: flex; flex-direction: row; align-items: center; "
            "justify-content: center; text-align: center; padding: 2px 7px; "

@@ -89,15 +89,21 @@ struct RecordedText {
 
 class RecordingSink final : public PaintSink {
 public:
-    void fill_rect(const Rect&, const Color&) override {}
+    void fill_rect(const Rect& rect, const Color& color) override {
+        fills.emplace_back(rect, color);
+        order.push_back('f');
+    }
     void fill_rounded_rect(const Rect&, const Color&, float) override {}
     void push_clip(const RoundedClip&) override {}
     void pop_clip() override {}
     void draw_text(const TextDraw& run) override {
+        order.push_back('t');
         texts.push_back(RecordedText{run.rect, std::string(run.text), run.font_weight, run.italic,
                                      run.color, run.baseline});
     }
     std::vector<RecordedText> texts;
+    std::vector<std::pair<Rect, Color>> fills;
+    std::string order;
 };
 
 struct Scene {
@@ -166,6 +172,51 @@ void test_one_line_golden() {
         expect(sink.texts[1].rect.x == 10.0f + 31 * kAdvance,
                "the link run starts at the boundary");
         expect(!sink.texts[0].italic && !sink.texts[1].italic, "upright runs by default");
+    }
+}
+
+// ADR-059 group A (issue #541): the `mark`, `u`, `s`, `sub` and `sup` defaults reach the paint.
+void test_mark_background() {
+    Scene scene = make_scene();
+    scene.styles.set(
+        4, styled({{"font-size", "16"}, {"color", "#000000"}, {"background-color", "#ffff00"}}));
+    RecordingSink sink;
+    paint_scene(*scene.root, scene.styles, sink, PaintContext{});
+    expect(sink.fills.size() == 1, "one background fill for the marked span");
+    if (sink.fills.size() == 1) {
+        const auto& [rect, color] = sink.fills[0];
+        expect(rect.x == 10.0f + 31 * kAdvance && rect.width == 5 * kAdvance,
+               "the fill covers exactly the span run");
+        expect(color.r == 1.0f && color.g == 1.0f && color.b == 0.0f, "the mark colour");
+    }
+    expect(sink.order == "tft", "the background paints behind its own glyphs: " + sink.order);
+}
+
+void test_decoration_and_shift() {
+    Scene scene = make_scene();
+    scene.styles.set(4, styled({{"font-size", "16"},
+                                {"color", "#000000"},
+                                {"text-decoration-line", "underline"},
+                                {"vertical-align", "sub"}}));
+    RecordingSink sink;
+    paint_scene(*scene.root, scene.styles, sink, PaintContext{});
+    expect(sink.fills.size() == 1, "an underlined span draws one rule, the plain run none");
+    expect(sink.texts.size() == 2, "both runs are drawn");
+    if (sink.texts.size() == 2 && sink.fills.size() == 1) {
+        expect(sink.texts[1].rect.y > sink.texts[0].rect.y, "sub lowers its run");
+        expect(sink.fills[0].first.x == sink.texts[1].rect.x &&
+                   sink.fills[0].first.width == sink.texts[1].rect.width,
+               "the rule spans the span run only");
+    }
+    scene.styles.set(4, styled({{"font-size", "16"},
+                                {"color", "#000000"},
+                                {"text-decoration-line", "line-through"},
+                                {"vertical-align", "super"}}));
+    RecordingSink raised;
+    paint_scene(*scene.root, scene.styles, raised, PaintContext{});
+    expect(raised.fills.size() == 1 && raised.texts.size() == 2, "a struck span draws one rule");
+    if (raised.texts.size() == 2) {
+        expect(raised.texts[1].rect.y < raised.texts[0].rect.y, "sup raises its run");
     }
 }
 
@@ -263,6 +314,8 @@ void test_transform_skips_span_bounds() {
 
 int main() {
     test_one_line_golden();
+    test_mark_background();
+    test_decoration_and_shift();
     test_italic_and_wrap();
     test_hit_test_routes_click_to_span();
     test_transform_skips_span_bounds();

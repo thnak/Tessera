@@ -40,7 +40,7 @@ bool value_is(const style::ComputedStyle& computed, const char* property,
 // cascade.
 style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
                                  std::vector<style::AttributeView> attributes = {},
-                                 bool component_host = false) {
+                                 bool component_host = false, std::string_view alias_tag = {}) {
     const style::PreparedStyleSheet authored = style::prepare_stylesheet(author);
     std::array<style::StylesheetSource, 2> sources{
         style::StylesheetSource{"user-agent", &style::ua_prepared_stylesheet(),
@@ -53,6 +53,7 @@ style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
     style::StyleNode node;
     node.tag = tag; // a view: the callers pass string literals
     node.component_host = component_host;
+    node.alias_tag = alias_tag;
     node.attributes = std::move(attributes);
     node.parent = &root;
     root.children.push_back(&node);
@@ -123,6 +124,23 @@ int main() {
     const style::ComputedStyle list = compute_for("View", "", {{"role", "list"}});
     ok &= value_is(list, "padding-left", "40px");
     ok &= value_is(list, "margin-top", "1em");
+
+    // Group A tags (issue #541) match through the tag the alias keeps: a block `pre`, the
+    // `blockquote` indent and the `hr` rule. A plain Text or View is untouched.
+    const style::ComputedStyle pre = compute_for("Text", "", {}, false, "pre");
+    ok &= value_is(pre, "display", "block");
+    ok &= value_is(pre, "margin-top", "1em");
+    const style::ComputedStyle quote = compute_for("View", "", {}, false, "blockquote");
+    ok &= value_is(quote, "margin-left", "40px");
+    ok &= value_is(quote, "margin-top", "1em");
+    const style::ComputedStyle rule = compute_for("View", "", {}, false, "hr");
+    ok &= value_is(rule, "height", "0");
+    ok &= value_is(rule, "border-top-width", "1px");
+    ok &= value_is(rule, "border-top-color", "#9a9a9a");
+    ok &= value_is(rule, "border-bottom-color", "#eeeeee");
+    ok &= value_is(rule, "margin-top", "0.5em");
+    ok &= expect(view.find("margin-left") == nullptr || *view.find("margin-left") == "0",
+                 "a plain View keeps no blockquote margin");
 
     // Controls have a size, a border and the browser's control font; without it a bare TextInput
     // is zero wide (the audit's finding).

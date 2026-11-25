@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -39,6 +40,9 @@ struct SpanRunStyle {
     // `vertical-align` baseline shift in px, positive raising the run (not inherited).
     TextRuleStyle rules;
     float shift = 0.0f;
+    // The span's own `background-color` (not inherited; `mark`), transparent when unset. It fills
+    // the line box of each slice, so adjacent slices of one span abut.
+    rhi::Color background{0.0f, 0.0f, 0.0f, 0.0f};
     // Union of the painted rectangles of this span, in absolute paint coordinates; `painted` is
     // false until the first slice is emitted.
     rhi::Rect rect;
@@ -127,6 +131,11 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         run.color = detail::current_color(span_style);
         run.color.a *= opacity;
         run.rules = resolve_text_rules(span_style, run_text, run.color, opacity);
+        if (const std::optional<rhi::Color> fill =
+                detail::color_value(span_style, "background-color", run.color)) {
+            run.background = *fill;
+            run.background.a *= opacity;
+        }
         // Spans paint at the parent's size (their metric fields are ignored), so the em-relative
         // shifts are taken against that size, not the span's own `font-size`.
         if (const std::string* shift_value = span_style.find("vertical-align")) {
@@ -180,6 +189,10 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                 draw.baseline = std::round(line_top + line.baseline - shift);
                 if (index < span_count) {
                     union_rect(styles[index], draw.rect);
+                }
+                if (index < span_count && span_style.background.a > 0.0f && width > 0.0f) {
+                    sink.fill_rect({std::round(x), std::round(line_top), width, line.height},
+                                   span_style.background);
                 }
                 if (!painted.empty() && draw.color.a > 0.0f) {
                     sink.draw_text(draw);

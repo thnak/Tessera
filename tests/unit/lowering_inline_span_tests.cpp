@@ -279,7 +279,131 @@ void test_alias_tag_conformance() {
 
 } // namespace
 
+// ADR-059 group A (issue #541): the text and break tags are mapped, each with its injected default.
+std::string style_of(const ir::Node& node, const char* property) {
+    const auto found = node.style.find(property);
+    return found == node.style.end() ? std::string("<unset>") : expr_text(found->second.get());
+}
+
+std::string literal(const char* value) {
+    return std::string("{\"kind\":\"literal\",\"value\":\"") + value + "\"}";
+}
+
+void test_group_a_spans() {
+    struct Case {
+        const char* tag;
+        const char* property;
+        const char* value;
+    };
+    constexpr Case kCases[] = {
+        {"u", "text-decoration-line", "underline"}, {"s", "text-decoration-line", "line-through"},
+        {"mark", "background-color", "#ffff00"},    {"mark", "color", "#000000"},
+        {"kbd", "font-family", "monospace"},        {"cite", "font-style", "italic"},
+        {"sub", "vertical-align", "sub"},           {"sup", "vertical-align", "super"},
+        {"small", "font-size", "0.83em"},
+    };
+    for (const Case& test : kCases) {
+        const std::string where = std::string("`<") + test.tag + ">`: ";
+        const std::string source =
+            std::string("<Text>a <") + test.tag + ">x</" + test.tag + "></Text>";
+        const auto fixture = parse(component("", source, "props: P"));
+        const auto result = lower(*fixture);
+        check(result.has_value(),
+              where + "lowers inside a Text: " + describe_errors(*fixture, result));
+        if (!result || result->component.root.children.size() != 2) {
+            check(false, where + "has two runs");
+            continue;
+        }
+        const ir::Node& span = result->component.root.children[1];
+        check_eq(style_of(span, test.property), literal(test.value), where + "injected default");
+        check_eq(expr_text(span.props.at("tag").get()), literal(test.tag), where + "keeps its tag");
+    }
+    const auto abbr = parse(component("", "<Text>a <abbr>x</abbr></Text>", "props: P"));
+    const auto abbr_result = lower(*abbr);
+    check(abbr_result.has_value(), "abbr lowers: " + describe_errors(*abbr, abbr_result));
+}
+
+void test_explicit_decoration_wins() {
+    const auto fixture = parse(component(
+        "", "<Text>a <u style={{ textDecorationLine: \"none\" }}>x</u></Text>", "props: P"));
+    const auto result = lower(*fixture);
+    check(result.has_value(),
+          "an authored decoration on u lowers: " + describe_errors(*fixture, result));
+}
+
+void test_break_and_rule() {
+    const auto in_text = parse(component("", "<Text>a<br />b</Text>", "props: P"));
+    const auto in_text_result = lower(*in_text);
+    check(in_text_result.has_value(),
+          "br inside a Text lowers: " + describe_errors(*in_text, in_text_result));
+    if (in_text_result && in_text_result->component.root.children.size() == 3) {
+        const ir::Node& br = in_text_result->component.root.children[1];
+        check_eq(expr_text(br.text.get()), literal("\\n"), "a br inside a Text is a line feed run");
+        check_eq(expr_text(br.props.at("tag").get()), literal("br"), "br keeps its tag");
+    } else {
+        check(false, "a<br/>b is three runs");
+    }
+
+    const auto alone = parse(component("", "<br />", "props: P"));
+    const auto alone_result = lower(*alone);
+    check(alone_result.has_value(), "a lone br lowers: " + describe_errors(*alone, alone_result));
+    if (alone_result) {
+        check_eq(std::string(node_kind(alone_result->component.root)), "Text",
+                 "a lone br is a Text");
+        check_eq(expr_text(alone_result->component.root.text.get()), literal(""),
+                 "a lone br is empty");
+    }
+
+    const auto children = parse(component("", "<br>x</br>", "props: P"));
+    check(!lower(*children).has_value(), "br takes no children");
+    const auto rule_children = parse(component("", "<hr>x</hr>", "props: P"));
+    check(!lower(*rule_children).has_value(), "hr takes no children");
+
+    const auto rule = parse(component("", "<hr />", "props: P"));
+    const auto rule_result = lower(*rule);
+    check(rule_result.has_value(), "hr lowers: " + describe_errors(*rule, rule_result));
+    if (rule_result) {
+        check_eq(std::string(node_kind(rule_result->component.root)), "View", "hr is a View");
+        check_eq(expr_text(rule_result->component.root.props.at("tag").get()), literal("hr"),
+                 "hr keeps its tag");
+    }
+}
+
+void test_pre_quote_blockquote() {
+    const auto pre = parse(component("", "<pre>a  b</pre>", "props: P"));
+    const auto pre_result = lower(*pre);
+    check(pre_result.has_value(), "pre lowers: " + describe_errors(*pre, pre_result));
+    if (pre_result) {
+        check_eq(style_of(pre_result->component.root, "white-space"), literal("pre"),
+                 "pre preserves white space");
+        check_eq(style_of(pre_result->component.root, "font-family"), literal("monospace"),
+                 "pre is monospace");
+    }
+    const auto quote = parse(component("", "<q>hi</q>", "props: P"));
+    const auto quote_result = lower(*quote);
+    check(quote_result.has_value(), "q lowers: " + describe_errors(*quote, quote_result));
+    if (quote_result) {
+        check_eq(expr_text(quote_result->component.root.text.get()), literal("\u201Chi\u201D"),
+                 "q wraps its content in curly quotes");
+    }
+    const auto in_span = parse(component("", "<Text>say <q>hi</q></Text>", "props: P"));
+    const auto in_span_result = lower(*in_span);
+    check(in_span_result.has_value(),
+          "q inside a Text lowers: " + describe_errors(*in_span, in_span_result));
+    const auto block = parse(component("", "<blockquote>quoted</blockquote>", "props: P"));
+    const auto block_result = lower(*block);
+    check(block_result.has_value(), "blockquote lowers: " + describe_errors(*block, block_result));
+    if (block_result) {
+        check_eq(std::string(node_kind(block_result->component.root)), "View",
+                 "blockquote is a View");
+    }
+}
+
 int main() {
+    test_group_a_spans();
+    test_explicit_decoration_wins();
+    test_break_and_rule();
+    test_pre_quote_blockquote();
     test_link_span();
     test_emphasis_defaults();
     test_explicit_style_wins();
