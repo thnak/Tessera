@@ -5,5 +5,7 @@ A small screen used by the codegen CLI sample and the Big Step C acceptance: `us
 handlers and a conditional child. `Demo.cpp` / `Demo.hpp` are the developer-owned class beside the
 generated base (ADR-040).
 
-Open this folder in the Studio (`tessera.json` names `Demo.tsx`), or see
+It has no `tessera.json` on purpose: a manifest's `app.namespace` is the automation-id salt, and the
+codegen CLI and integration tests build this screen unsalted. The Studio opens the folder anyway
+(a lone `Demo.tsx` needs no manifest). See
 [click-demo](../click-demo/README.md) for the native app that drives it.
