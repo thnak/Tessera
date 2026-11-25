@@ -5,6 +5,7 @@
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
+#include "tessera/ui/style/list_style.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
 #include "tessera/ui/style/text_decoration.hpp"
 
@@ -158,6 +159,25 @@ const char* text_decoration_value_error(std::string_view property, std::string_v
 bool validate_property_value(const Declaration& declaration, std::string_view property,
                              std::vector<StyleDiagnostic>& out) {
     const std::string value = lower(declaration.value);
+    if (property == "list-style-type" || property == "list-style-position") {
+        // A `var()` reference is substituted after this check; judge the resolved text then.
+        if (trim(value).find("var(") != std::string_view::npos) {
+            return true;
+        }
+        const bool ok = property == "list-style-type" ? parse_list_style_type(value).has_value()
+                                                      : is_supported_list_style_position(value);
+        if (!ok) {
+            out.push_back(StyleDiagnostic{
+                StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
+                property == "list-style-type"
+                    ? "list-style-type takes none, disc, circle, square, decimal, lower-alpha, "
+                      "upper-alpha, lower-roman or upper-roman; other counter styles are not drawn"
+                    : "only list-style-position: outside is supported; inside would flow the "
+                      "marker "
+                      "into the first line"});
+        }
+        return ok;
+    }
     if (property.starts_with("text-decoration-") || property == "vertical-align") {
         // A `var()` reference is substituted after this check; judge the resolved text then.
         if (trim(value).find("var(") != std::string_view::npos) {

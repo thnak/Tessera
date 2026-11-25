@@ -68,8 +68,10 @@ lowers to `"text": { "kind": "template", "parts": ["Count: ", { "kind": "ref", "
 
 A span is a `Text` element written as a child of a `Text`. It has no box: it is a run of the parent's
 paragraph with its own visual style, an optional `onClick` and an optional role. The lowercase aliases
-`span`, `b`, `strong`, `i`, `em`, `code` and `a` resolve to spans (default styles and the `a` role
-in [`html-aliases.md`](html-aliases.md) section 2).
+`span`, `b`, `strong`, `i`, `em`, `code`, `a`, `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr`,
+`cite`, `q` and `br` resolve to spans (default styles and the `a` role in
+[`html-aliases.md`](html-aliases.md) section 2). A span may also set `background-color` (`mark`): it
+fills the line box of each slice of the run, behind the glyphs, and is not inherited.
 
 - **One paragraph.** The parent concatenates the span text in source order, measures and wraps it as a
   single run with the parent's own style and metrics, and paints the result. A line break may fall

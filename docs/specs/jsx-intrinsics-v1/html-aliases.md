@@ -13,9 +13,10 @@ against it.
    unknown. Component names stay uppercase (`TESSERA_JSX_SUBSET_COMPONENT_NAME`), so there is no collision.
 2. **The alias adds no style of its own.** Its look comes from the user-agent stylesheet
    ([ADR-063](../../../decisions/ADR-063-browser-matching-user-agent-defaults.md),
-   [`ua-audit.md`](../../reference/ua-audit.md)), which reproduces the browser defaults (`h1` large and bold, `div` a block, `ul` indented) and is overridden by any author rule. List markers are the one named exception.
-   The one exception is the inline-emphasis group of section 2 (`b`, `strong`, `i`, `em`, `code`):
-   those tags inject only the run style that names their emphasis, because a span with no visual
+   [`ua-audit.md`](../../reference/ua-audit.md)), which reproduces the browser defaults (`h1` large and bold, `div` a block, `ul` indented) and is overridden by any author rule.
+   The one exception is the inline-emphasis group of section 2 (`b`, `strong`, `i`, `em`, `code`,
+   and the ADR-059 group A tags `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `cite`, `pre`):
+   those tags inject only the run style that names their meaning, because a span with no visual
    difference would make the tag meaningless. The injected style is a default: an explicit
    `className`/`style` of the same property wins, and the non-metric rule of
    [`elements-basic.md`](elements-basic.md) section 2.1 still applies.
@@ -40,9 +41,9 @@ against it.
 | HTML tag | Intrinsic | Injected | Status | Notes |
 |---|---|---|---|---|
 | `div`, `section`, `article`, `main`, `header`, `footer`, `nav`, `aside`, `figure` | `View` | - | mapped | Landmark roles are not in the accessibility role list, so none is injected |
-| `ul`, `ol` | `View` | `role="list"` | mapped | No list markers and no numbering |
+| `ul`, `ol` | `View` | `role="list"` | mapped | The user-agent sheet gives the list its marker type (`disc`, `circle`, `square` by depth; `decimal` for `ol`); the items draw it ([`list-style.md`](../../design/list-style.md)) |
 | `p` | `Text` | `role="paragraph"` | mapped | the role lets the user-agent sheet give it a margin ([`ua-audit.md`](../../reference/ua-audit.md)) |
-| `li` | `View` | `role="listitem"` | mapped | |
+| `li` | `View` | `role="listitem"` | mapped | Draws the inherited `list-style-type` marker outside its box; numbered by position among the list's items |
 | `span`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |
@@ -53,6 +54,19 @@ against it.
 | `input` | `TextInput` | by `type` | mapped | Section 3.2 |
 | `textarea` | `TextArea` | - | mapped | Section 3.3 |
 | `img` | `Image` | - | mapped | Section 3.4 |
+| `u` | `Text` | `style.text-decoration-line: underline` | mapped | Inline span inside `Text` ([`text-decoration.md`](../../design/text-decoration.md)) |
+| `s` | `Text` | `style.text-decoration-line: line-through` | mapped | Inline span inside `Text` |
+| `mark` | `Text` | `style.background-color: #ffff00`, `style.color: #000000` | mapped | Inline span inside `Text`; the span fills its run's line box |
+| `kbd` | `Text` | `style.font-family: monospace` | mapped | Inline span inside `Text`; family recorded, no metric change (as `code`) |
+| `cite` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text` |
+| `abbr` | `Text` | - | mapped | Inline span inside `Text`; `title` is `HTML_ATTR`, so there is no dotted underline |
+| `q` | `Text` | - | mapped | Lowering wraps the children in U+201C and U+201D, the quotes a browser generates for `en` |
+| `sub`, `sup` | `Text` | `style.vertical-align: sub` / `super`, `style.font-size: 0.83em` | partial | Inline span inside `Text`. Deviation that cannot be closed in V1: a span keeps the parent's size ([`elements-basic.md`](elements-basic.md) section 2.1), so inside a `Text` the run is shifted but not shrunk; written as a node of its own the size applies |
+| `small` | `Text` | `style.font-size: 0.83em` | partial | Same deviation: inside a `Text` the size is the parent's |
+| `br` | `Text` | - | mapped | Void (`TESSERA_IR_UNSUPPORTED` with children). Inside a `Text` it is a span whose text is a line feed, a forced break that survives `white-space: normal`; written as a node of its own it is an empty `Text` |
+| `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
+| `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |
+| `blockquote` | `View` | - | mapped | The user-agent sheet gives it `margin: 1em 40px` |
 
 The emphasis rows inject a **default run style**, not a wrapper element style: a user `className` or
 `style` of the same property wins, and only the properties of [`elements-basic.md`](elements-basic.md)
@@ -121,7 +135,7 @@ to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 suggestion `onClick` [Q11]. As a child of `Text`, `a` is an inline span: the injected `role="link"`
 plus `onClick` make the run a clickable, accessible link.
 
-### 3.6 Inline spans (`span`, `b`, `strong`, `i`, `em`, `code`, `a` inside `Text`)
+### 3.6 Inline spans (`span`, `b`, `strong`, `i`, `em`, `code`, `a`, `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr`, `cite`, `q`, `br` inside `Text`)
 
 Inside `Text` these tags accept the `Text` attribute set: `className`, `style`, `role`, the `aria-*`
 attributes, `onClick` and `key`. `id` is accepted as common metadata. `ref`, `tabIndex`,
@@ -157,10 +171,6 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 
 | Tags | Alternative |
 |---|---|
-| `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr` | Inline rich text beyond the emphasis aliases is outside V1: a `Text` with `className` (for example a class that sets `font-weight`) |
-| `br` | End the `Text` and start a new one in a column `View`, or put `\n` in a string expression (line breaking follows `white-space`) |
-| `hr` | A `View` with a border style |
-| `pre`, `blockquote`, `q`, `cite` | `Text` with `className` (`white-space: pre` for `pre`) |
 | `form` | **Planned** (#544). Until then `TextInput` `onSubmit` plus `Button` `onClick`; the library `Form` and `Field` |
 | `select`, `option`, `optgroup`, `datalist` | **Planned** (#544). Until then library `Select` |
 | `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | **Planned**, implemented completely (#543, ADR-059 owner answer 3). Until then `View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data |

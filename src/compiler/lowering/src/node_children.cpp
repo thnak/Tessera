@@ -360,11 +360,39 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
     if (kind == schema::ChildrenKind::Template) {
         return lower_item_template(state, element, node);
     }
+    // ADR-059 group A: `br` and `hr` are void elements.
+    if (element.tag == "br" || element.tag == "hr") {
+        if (!element.children.empty()) {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                      "`<" + element.tag + ">` is a void element and accepts no children",
+                      element.children.front()->span);
+            return false;
+        }
+        if (element.tag == "br") {
+            // Inside a Text a break is a forced line end that survives `white-space: normal`; as a
+            // node of its own it is an empty Text (one empty line box).
+            node.text = ir::make_literal(std::string(state.span_depth > 0 ? "\n" : ""));
+        }
+        return true;
+    }
     // ErrorBoundary requires one element child and rejects fragments (elements-other.md 4).
     const bool reject_fragments = kind == schema::ChildrenKind::One;
     std::vector<ChildItem> items;
     if (!flatten_children(state, element, items, reject_fragments)) {
         return false;
+    }
+    // `q`: a browser draws the open and close quote of the content (a generated ::before/::after);
+    // they become two literal runs, so a dynamic child still reads as one paragraph.
+    jsx::JsxNode open_quote;
+    jsx::JsxNode close_quote;
+    if (element.tag == "q") {
+        for (jsx::JsxNode* quote : {&open_quote, &close_quote}) {
+            quote->kind = jsx::JsxKind::Text;
+            quote->span = element.span;
+            quote->text = quote == &open_quote ? "\u201C" : "\u201D";
+        }
+        items.insert(items.begin(), ChildItem{ChildItem::Kind::Text, &open_quote, nullptr});
+        items.push_back(ChildItem{ChildItem::Kind::Text, &close_quote, nullptr});
     }
     switch (kind) {
     case schema::ChildrenKind::None:

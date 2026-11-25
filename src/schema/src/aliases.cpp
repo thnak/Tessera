@@ -180,25 +180,32 @@ constexpr AliasAttr kAnchorAttrs[] = {
 
 // --- tag table ------------------------------------------------------------------------------
 
-// Injected default run styles of the emphasis aliases (html-aliases.md section 2, elements-basic.md
-// section 2.1). Grouped by tag: `alias_style_defaults` returns the contiguous group. These are
-// defaults, not wrapper styles: an explicit className/style of the same property wins in the
-// cascade.
+// Injected default run styles of the emphasis and group A aliases (html-aliases.md section 2,
+// elements-basic.md section 2.1). Grouped by tag: `alias_style_defaults` returns the contiguous
+// group. These are defaults, not wrapper styles: an explicit className/style of the same property
+// wins in the cascade.
 constexpr AliasStyle kAliasStyles[] = {
-    {"b", "font-weight", "700"},      {"code", "font-family", "monospace"},
-    {"em", "font-style", "italic"},   {"i", "font-style", "italic"},
+    {"b", "font-weight", "700"},
+    {"cite", "font-style", "italic"},
+    {"code", "font-family", "monospace"},
+    {"em", "font-style", "italic"},
+    {"i", "font-style", "italic"},
+    {"kbd", "font-family", "monospace"},
+    {"mark", "background-color", "#ffff00"},
+    {"mark", "color", "#000000"},
+    {"pre", "font-family", "monospace"},
+    {"pre", "white-space", "pre"},
+    {"s", "text-decoration-line", "line-through"},
+    {"small", "font-size", "0.83em"},
     {"strong", "font-weight", "700"},
+    {"sub", "font-size", "0.83em"},
+    {"sub", "vertical-align", "sub"},
+    {"sup", "font-size", "0.83em"},
+    {"sup", "vertical-align", "super"},
+    {"u", "text-decoration-line", "underline"},
 };
 
 // Section 5 alternatives, one text per group.
-constexpr std::string_view kAltInline =
-    "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets "
-    "`font-weight`)";
-constexpr std::string_view kAltBreak =
-    "End the `Text` and start a new one in a column `View`, or put a line break in a string "
-    "expression";
-constexpr std::string_view kAltRule = "A `View` with a border style";
-constexpr std::string_view kAltQuote = "`Text` with `className` (`white-space: pre` for `pre`)";
 constexpr std::string_view kAltForm =
     "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` "
     "after V1";
@@ -212,6 +219,12 @@ constexpr std::string_view kAltProgress = "Library `Progress` (after V1)";
 constexpr std::string_view kAltDocument =
     "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them";
 
+// A row with no injected props, attribute rewrites or type map.
+constexpr AliasRow plain(std::string_view tag, std::string_view target, AliasStatus status,
+                         std::string_view note) {
+    return AliasRow{tag, target, status, {}, {}, {}, false, "", note};
+}
+
 constexpr AliasRow kAliases[] = {
     // Section 2: mapped and partial.
     {"div", "View", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
@@ -220,24 +233,10 @@ constexpr AliasRow kAliases[] = {
     {"main", "View", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     {"header", "View", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     {"footer", "View", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
-    {"nav",
-     "View",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "landmark roles are not in the accessibility role list, so none is injected"},
-    {"aside",
-     "View",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "landmark roles are not in the accessibility role list, so none is injected"},
+    plain("nav", "View", AliasStatus::Mapped,
+          "landmark roles are not in the accessibility role list, so none is injected"),
+    plain("aside", "View", AliasStatus::Mapped,
+          "landmark roles are not in the accessibility role list, so none is injected"),
     {"figure", "View", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     {"ul",
      "View",
@@ -259,61 +258,16 @@ constexpr AliasRow kAliases[] = {
      "no list markers and no numbering"},
     {"li", "View", AliasStatus::Mapped, rows(kInjectRoleListItem), {}, {}, false, "", ""},
     {"span", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
-    {"b",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "inline span; injects font-weight: 700"},
-    {"strong",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "inline span; injects font-weight: 700"},
-    {"i",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "inline span; injects font-style: italic"},
-    {"em",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "inline span; injects font-style: italic"},
-    {"code",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "inline span; injects font-family: monospace (no font selection yet, so no metric change)"},
+    plain("b", "Text", AliasStatus::Mapped, "inline span; injects font-weight: 700"),
+    plain("strong", "Text", AliasStatus::Mapped, "inline span; injects font-weight: 700"),
+    plain("i", "Text", AliasStatus::Mapped, "inline span; injects font-style: italic"),
+    plain("em", "Text", AliasStatus::Mapped, "inline span; injects font-style: italic"),
+    plain(
+        "code", "Text", AliasStatus::Mapped,
+        "inline span; injects font-family: monospace (no font selection yet, so no metric change)"),
     {"p", "Text", AliasStatus::Mapped, rows(kInjectRoleParagraph), {}, {}, false, "", ""},
-    {"label",
-     "Text",
-     AliasStatus::Mapped,
-     {},
-     {},
-     {},
-     false,
-     "",
-     "does not focus its control; `htmlFor` is rejected [Q11]"},
+    plain("label", "Text", AliasStatus::Mapped,
+          "does not focus its control; `htmlFor` is rejected [Q11]"),
     {"figcaption", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     // clang-format off
     {"h1", "Text", AliasStatus::Mapped, rows(kInjectHeading[0]), {}, {}, false, "", kHeadingNote},
@@ -352,22 +306,39 @@ constexpr AliasRow kAliases[] = {
      "`type` must be a string literal and is removed; [Q19] `autoComplete` tokens"},
     {"textarea", "TextArea", AliasStatus::Mapped, {}, rows(kTextAreaAttrs), {}, false, "", ""},
     {"img", "Image", AliasStatus::Mapped, {}, rows(kImgAttrs), {}, false, "", ""},
+    plain("u", "Text", AliasStatus::Mapped, "inline span; injects text-decoration-line: underline"),
+    plain("s", "Text", AliasStatus::Mapped,
+          "inline span; injects text-decoration-line: line-through"),
+    plain("small", "Text", AliasStatus::Partial,
+          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
+          "metrics); injects font-size: 0.83em"),
+    plain("mark", "Text", AliasStatus::Mapped,
+          "inline span; injects a yellow background and black text"),
+    plain(
+        "kbd", "Text", AliasStatus::Mapped,
+        "inline span; injects font-family: monospace (no font selection yet, so no metric change)"),
+    plain("sub", "Text", AliasStatus::Partial,
+          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
+          "metrics); injects vertical-align: sub and font-size: 0.83em"),
+    plain("sup", "Text", AliasStatus::Partial,
+          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
+          "metrics); injects vertical-align: super and font-size: 0.83em"),
+    plain("abbr", "Text", AliasStatus::Mapped,
+          "inline span; `title` is rejected, so no dotted underline"),
+    plain("cite", "Text", AliasStatus::Mapped, "inline span; injects font-style: italic"),
+    plain("q", "Text", AliasStatus::Mapped,
+          "inline span; lowering wraps the content in the curly quotes a browser draws"),
+    plain("br", "Text", AliasStatus::Mapped,
+          "void; inside a `Text` it is a forced line break, as a node of its own it is an empty "
+          "`Text`"),
+    plain("hr", "View", AliasStatus::Mapped, "void; the user-agent sheet draws the 2px inset rule"),
+    plain("pre", "Text", AliasStatus::Mapped,
+          "injects white-space: pre and font-family: monospace; the user-agent sheet makes it a "
+          "block"),
+    plain("blockquote", "View", AliasStatus::Mapped,
+          "the user-agent sheet gives it the 1em 40px margin"),
 
     // Section 5: no mapping.
-    {"u", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"s", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"small", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"mark", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"kbd", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"sub", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"sup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"abbr", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"br", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltBreak, ""},
-    {"hr", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltRule, ""},
-    {"pre", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltQuote, ""},
-    {"blockquote", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltQuote, ""},
-    {"q", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltQuote, ""},
-    {"cite", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltQuote, ""},
     {"form", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltForm, ""},
     {"select", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
     {"option", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
@@ -447,8 +418,8 @@ constexpr bool alias_rows_are_valid(std::span<const AliasRow> list) {
 }
 
 static_assert(alias_rows_are_valid(kAliases), "alias rows are unique and well-formed");
-// html-aliases.md section 2 (32 mapped or partial tags) and section 5 (69 unmapped tags).
-static_assert(std::size(kAliases) == 101, "32 mapped or partial tags plus 69 unmapped tags");
+// html-aliases.md section 2 (46 mapped or partial tags) and section 5 (55 unmapped tags).
+static_assert(std::size(kAliases) == 101, "46 mapped or partial tags plus 55 unmapped tags");
 
 constexpr bool alias_styles_are_grouped(std::span<const AliasStyle> list) {
     for (std::size_t i = 1; i < list.size(); ++i) {
@@ -461,7 +432,7 @@ constexpr bool alias_styles_are_grouped(std::span<const AliasStyle> list) {
 
 static_assert(alias_styles_are_grouped(std::span<const AliasStyle>(kAliasStyles)),
               "alias style defaults are grouped by tag for the subspan lookup");
-static_assert(std::size(kAliasStyles) == 5, "b/strong/i/em/code default styles");
+static_assert(std::size(kAliasStyles) == 18, "emphasis and group A default styles");
 
 } // namespace
 

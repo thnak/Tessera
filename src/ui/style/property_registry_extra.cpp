@@ -67,6 +67,14 @@ void PropertyRegistry::register_extension_properties() {
     properties_["text-decoration-color"] = PropertyInfo{"currentColor", true};
     properties_["text-decoration-thickness"] = PropertyInfo{"auto", true};
     properties_["vertical-align"] = PropertyInfo{"baseline", false};
+    // List markers (docs/design/list-style.md). Both inherit, so a `ul` rule reaches its `li`
+    // children. The initial type is `none`, not CSS's `disc`: the engine has no `display:
+    // list-item`, so a marker is drawn only where a rule asks for one (the user-agent sheet does
+    // for `ul`/`ol`), and a `role="listitem"` View in a custom list stays bare.
+    properties_["list-style-type"] = PropertyInfo{"none", true};
+    properties_["list-style-position"] = PropertyInfo{"outside", true};
+    shorthands_["list-style"] =
+        ShorthandInfo{{"list-style-type", "list-style-position"}, ShorthandKind::Pair};
     // `text-shadow` (issue #616): a paint-only list painted behind a text node's glyphs. Not
     // inherited, like `box-shadow`; the initial `none` paints nothing. Registered here rather than
     // in the physical-longhand table because that table is at its source-size baseline.

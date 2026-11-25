@@ -510,74 +510,88 @@
       "target": "Image"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "u"
+      "note": "inline span; injects text-decoration-line: underline",
+      "status": "mapped",
+      "tag": "u",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "s"
+      "note": "inline span; injects text-decoration-line: line-through",
+      "status": "mapped",
+      "tag": "s",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "small"
+      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects font-size: 0.83em",
+      "status": "partial",
+      "tag": "small",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "mark"
+      "note": "inline span; injects a yellow background and black text",
+      "status": "mapped",
+      "tag": "mark",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "kbd"
+      "note": "inline span; injects font-family: monospace (no font selection yet, so no metric change)",
+      "status": "mapped",
+      "tag": "kbd",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "sub"
+      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects vertical-align: sub and font-size: 0.83em",
+      "status": "partial",
+      "tag": "sub",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "sup"
+      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects vertical-align: super and font-size: 0.83em",
+      "status": "partial",
+      "tag": "sup",
+      "target": "Text"
     },
     {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "abbr"
+      "note": "inline span; `title` is rejected, so no dotted underline",
+      "status": "mapped",
+      "tag": "abbr",
+      "target": "Text"
     },
     {
-      "alternative": "End the `Text` and start a new one in a column `View`, or put a line break in a string expression",
-      "status": "unsupported",
-      "tag": "br"
+      "note": "inline span; injects font-style: italic",
+      "status": "mapped",
+      "tag": "cite",
+      "target": "Text"
     },
     {
-      "alternative": "A `View` with a border style",
-      "status": "unsupported",
-      "tag": "hr"
+      "note": "inline span; lowering wraps the content in the curly quotes a browser draws",
+      "status": "mapped",
+      "tag": "q",
+      "target": "Text"
     },
     {
-      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
-      "status": "unsupported",
-      "tag": "pre"
+      "note": "void; inside a `Text` it is a forced line break, as a node of its own it is an empty `Text`",
+      "status": "mapped",
+      "tag": "br",
+      "target": "Text"
     },
     {
-      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
-      "status": "unsupported",
-      "tag": "blockquote"
+      "note": "void; the user-agent sheet draws the 2px inset rule",
+      "status": "mapped",
+      "tag": "hr",
+      "target": "View"
     },
     {
-      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
-      "status": "unsupported",
-      "tag": "q"
+      "note": "injects white-space: pre and font-family: monospace; the user-agent sheet makes it a block",
+      "status": "mapped",
+      "tag": "pre",
+      "target": "Text"
     },
     {
-      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
-      "status": "unsupported",
-      "tag": "cite"
+      "note": "the user-agent sheet gives it the 1em 40px margin",
+      "status": "mapped",
+      "tag": "blockquote",
+      "target": "View"
     },
     {
       "alternative": "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` after V1",
@@ -2744,6 +2758,16 @@
       "kind": "length",
       "name": "vertical-align",
       "note": "baseline, sub, super or a length"
+    },
+    {
+      "kind": "keyword",
+      "name": "list-style-type",
+      "note": "none, disc, circle, square, decimal, lower/upper-alpha, lower/upper-roman"
+    },
+    {
+      "kind": "keyword",
+      "name": "list-style-position",
+      "note": "outside only"
     },
     {
       "kind": "keyword",

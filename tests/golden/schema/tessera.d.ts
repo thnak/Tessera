@@ -466,6 +466,48 @@ export interface imgProps extends ImageProps {
   height?: number | string;
 }
 
+export interface uProps extends TextProps {
+}
+
+export interface sProps extends TextProps {
+}
+
+export interface smallProps extends TextProps {
+}
+
+export interface markProps extends TextProps {
+}
+
+export interface kbdProps extends TextProps {
+}
+
+export interface subProps extends TextProps {
+}
+
+export interface supProps extends TextProps {
+}
+
+export interface abbrProps extends TextProps {
+}
+
+export interface citeProps extends TextProps {
+}
+
+export interface qProps extends TextProps {
+}
+
+export interface brProps extends TextProps {
+}
+
+export interface hrProps extends ViewProps {
+}
+
+export interface preProps extends TextProps {
+}
+
+export interface blockquoteProps extends ViewProps {
+}
+
 export type HTMLDivElement = ViewElement;
 export type HTMLElement = ViewElement;
 export type HTMLUListElement = ViewElement;
@@ -529,6 +571,20 @@ declare global {
       input: inputProps;
       textarea: textareaProps;
       img: imgProps;
+      u: uProps;
+      s: sProps;
+      small: smallProps;
+      mark: markProps;
+      kbd: kbdProps;
+      sub: subProps;
+      sup: supProps;
+      abbr: abbrProps;
+      cite: citeProps;
+      q: qProps;
+      br: brProps;
+      hr: hrProps;
+      pre: preProps;
+      blockquote: blockquoteProps;
     }
   }
 }

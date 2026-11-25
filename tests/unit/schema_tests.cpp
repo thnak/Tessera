@@ -67,10 +67,11 @@ void test_schema_version_and_counts() {
     check(schema::elements().size() == 13, "13 intrinsic elements (README section 3)");
     check(schema::type_records().size() == 12,
           "12 payload records (common-and-events.md section 2)");
-    check(schema::aliases().size() == 101, "27 mapped/partial and 74 unmapped aliases");
+    check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
-    // 128 since ADR-068 slice 4 added `clip-path` (issue #672).
-    check(schema::style_properties().size() == 128, "128 style longhands");
+    // 128 since ADR-068 slice 4 added `clip-path` (issue #672); 130 with `list-style-type` and
+    // `list-style-position` (issue #541).
+    check(schema::style_properties().size() == 130, "130 style longhands");
     check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
     // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
     // id-reference attributes `useId` exists to fill.

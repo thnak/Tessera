@@ -242,7 +242,7 @@ This page is the map and reading order for the framework.
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
 - [`design/layout-observation.md`](design/layout-observation.md) — size observation, read model, settle rounds, container queries (ADR-041)
-- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`
+- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`; [`design/list-style.md`](design/list-style.md) for `list-style` and the `ul`/`ol` markers
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
   locale subset, build cost, go/no-go
 - [`design/animation.md`](design/animation.md) — transitions, keyframes, springs, fixed-step

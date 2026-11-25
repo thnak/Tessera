@@ -2,8 +2,11 @@
 
 Design note for `text-decoration` (underline, overline, line-through) and `vertical-align`
 (baseline shift). Normative property rows: [`stylesheet-property-status-v1.md`](../specs/stylesheet-property-status-v1.md).
-The HTML tags that need them (`u`, `s`, `sub`, `sup`, ...) are group A of
-[ADR-059](../../decisions/ADR-059-html-tags-supported-not-rejected.md); the tag mapping is separate work.
+The HTML tags that use them (`u`, `s`, `sub`, `sup`, `mark`, ...) are group A of
+[ADR-059](../../decisions/ADR-059-html-tags-supported-not-rejected.md) and map through the alias
+defaults of [`html-aliases.md`](../specs/jsx-intrinsics-v1/html-aliases.md) section 2 (issue #541).
+Inside a `Text` a span keeps the parent's `font-size`, so `sub`, `sup` and `small` shift or decorate
+but do not shrink there (the rows are `partial` for that reason).
 
 ## 1. Properties and grammar
 

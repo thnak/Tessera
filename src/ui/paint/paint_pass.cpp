@@ -7,6 +7,7 @@
 #include "paint_frame.hpp"
 #include "paint_gradient.hpp"
 #include "paint_image.hpp"
+#include "paint_list_marker.hpp"
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text.hpp"
@@ -377,6 +378,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
     detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
     detail::paint_image_content(node, style, rect, effective_opacity, *own, stats);
+    if (rect.width > 0.0f && rect.height > 0.0f) {
+        detail::paint_list_marker(node, style, rect, effective_opacity, context, *own, stats);
+    }
 
     // The record is complete here: pops are stored as flags, so the entry never holds child ops and
     // can be committed before the child walk (a child insert may evict this very entry).
