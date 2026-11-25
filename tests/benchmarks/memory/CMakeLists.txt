@@ -65,7 +65,7 @@ if (Python3_EXECUTABLE AND NOT APPLE)
             "${PROJECT_SOURCE_DIR}/scripts/check_memory_budget.py"
             --check
             --sizes-only
-            --build-dir "${CMAKE_BINARY_DIR}")
+            --build-dir "${PROJECT_BINARY_DIR}")
     # The budget is recorded from a Release build, and the gate itself refuses to compare across
     # configurations (sizeof and allocation counts differ). The sanitizer presets are RelWithDebInfo
     # with instrumentation, so they exclude the label (CMakePresets.json) rather than re-record a
@@ -167,7 +167,7 @@ if (Python3_EXECUTABLE AND NOT APPLE)
         COMMAND "${Python3_EXECUTABLE}" -B
             "${PROJECT_SOURCE_DIR}/scripts/check_alloc_budget.py"
             --check
-            --build-dir "${CMAKE_BINARY_DIR}")
+            --build-dir "${PROJECT_BINARY_DIR}")
     # The budget is recorded from a Release build, and the gate refuses to compare across
     # configurations, so this runs only where the numbers were measured.
     set_tests_properties(alloc_budget PROPERTIES LABELS uninstrumented_baseline)

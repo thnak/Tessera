@@ -53,7 +53,7 @@ endforeach()
 # and adds the target tessera_shader_cross_<shader_id> to ALL.
 function(tessera_cross_compile_shader shader_id)
     cmake_parse_arguments(ARG "" "SOURCE_DIR;VERTEX;FRAGMENT;AUTHORED_WGSL" "" ${ARGN})
-    set(out_dir ${CMAKE_BINARY_DIR}/shaders/cross/${shader_id})
+    set(out_dir ${PROJECT_BINARY_DIR}/shaders/cross/${shader_id})
     file(MAKE_DIRECTORY ${out_dir})
     set(outputs)
 

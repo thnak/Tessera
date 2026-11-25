@@ -80,20 +80,20 @@ endif ()
 # The CLI driver is the only place that reads JSX and calls the front end; it is a separate target
 # so the tessera_codegen library keeps its IR-only dependency (docs/guides/developer-workflow.md).
 add_executable(tessera_codegen_cli
-    ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/main.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
 
-target_include_directories(tessera_codegen_cli PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+target_include_directories(tessera_codegen_cli PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
 target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_codegen
     tessera_harness
@@ -131,19 +131,19 @@ endif ()
 # type-checked on the ordinary Windows/Linux lanes: the Wasm lane builds once per push, the host lanes
 # run constantly. The sources are listed once below and shared by both branches.
 set(_tessera_diagnostics_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_entry.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_entry.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
     # The project staging every preview module shares (`wasm_project_stage.hpp`): the page hands the
     # module its files one at a time through these four exports.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
 
 if (NOT EMSCRIPTEN)
     add_library(tessera_diagnostics_entry OBJECT ${_tessera_diagnostics_sources})
     target_include_directories(tessera_diagnostics_entry
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_diagnostics_entry PRIVATE
         tessera_codegen
         tessera_ir_ids
@@ -166,7 +166,7 @@ else ()
     # explains why the flag must never leak between the two artifacts). This module never reads a file.
     add_executable(tessera_diagnostics_wasm ${_tessera_diagnostics_sources})
     target_include_directories(tessera_diagnostics_wasm
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_diagnostics_wasm PRIVATE
         tessera_codegen
         tessera_ir_ids
@@ -198,9 +198,9 @@ endif ()
 # engine to it would drag Yoga and the text stack into that artifact. The shared thing is the driver,
 # not the executable.
 set(_tessera_scene_preview_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_preview.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
     # The author-stylesheet choice (issue #390): which sheet a preview compiles, and its diagnostics.
     # One TU so `prepare_scene`, the canvas session and the input path cannot disagree.
     #
@@ -208,36 +208,36 @@ set(_tessera_scene_preview_sources
     # list names `tessera_css_module` directly. The scanner is already reachable through
     # `tessera_lowering` (which uses it for the same reason), but the preview must not depend on
     # that: a unit that includes `css_module/module_scan.hpp` says so on its own link line.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_stylesheet.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_stylesheet.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build.cpp
     # The IR -> scene walk, split out of `scene_build.cpp` when conditional and repeated children
     # (issue #389) pushed that file past the size limit: one TU per node, one per child set.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_walk.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_children.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_dynamic.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_walk.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_children.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_dynamic.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_layout.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_state.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
     # The scene-event bindings (issue #168, P4): which IR handler a node's event runs. Split out of
     # `scene_session.cpp`, which is at its size budget.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_events.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_events.cpp
     # `onSizeChange` in the preview (ADR-041 item 3, issue #694): the observations, the
     # `SizeChangeEvent` record and the settle loop's relayout hook.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_size_change.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_size_change.cpp
     # The session's behavior wiring (ADR-064 item 7, spike #658), split out when it pushed
     # `scene_session.cpp` past the source-size limit.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_override.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
     # `platform.event` (issue #446): the injector-driven lifecycle and Back/Volume delivery, shared
     # by the scripted run (`tessera_input_json`) and the canvas session.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_platform.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_platform.cpp
     # The style inspector's cascade query over a laid-out tree (issue #171): shared by the canvas
     # session's `inspect()` and the MCP `query_style` tool, which has no session and no GPU.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_style_info.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_style_info.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
 # NOT in the list above because it links `scene_frame.cpp` (it paints) and the snapshot driver must
@@ -251,17 +251,17 @@ set(_tessera_scene_preview_sources
 # edit list. They are split by the language each destination parses - JSX for `inline`, CSS for
 # `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
     # The override operations the page calls (issue #536) and their reports.
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_override.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_override_report.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_query.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_inline.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_class.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_token.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_override.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_override_report.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_patch.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_patch_query.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_patch_inline.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_patch_class.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_patch_token.cpp)
 
 # The preview's text stack (issue #387): the production FreeType/HarfBuzz/atlas path, loaded from font
 # BYTES the caller supplies (the page fetches them; the CLI reads the same shipped file).
@@ -271,7 +271,7 @@ set(_tessera_canvas_session_sources
 # the P2 snapshot driver's null-RHI claim depends on that library never appearing in its link line.
 # Every target that paints a frame adds this list; the snapshot targets do not.
 set(_tessera_preview_text_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/preview_text.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/preview_text.cpp)
 
 if (NOT EMSCRIPTEN)
     # The driver as a library, so the parity test (tests/parity) can run the very same evaluation
@@ -279,7 +279,7 @@ if (NOT EMSCRIPTEN)
     # library below and the CLI both link it; linking rather than re-listing the sources is what
     # keeps "the native half" and "the Wasm half" one build of one implementation.
     add_library(tessera_scene_preview STATIC ${_tessera_scene_preview_sources})
-    target_include_directories(tessera_scene_preview PUBLIC ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_include_directories(tessera_scene_preview PUBLIC ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview PUBLIC
         tessera_automation_scene
         # The preview drives the same `behavior::Instance` the generated base does (ADR-064 item 7),
@@ -294,12 +294,12 @@ if (NOT EMSCRIPTEN)
         tessera_style)
 
     add_library(tessera_scene_preview_entry OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
     target_include_directories(tessera_scene_preview_entry
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_entry PRIVATE tessera_scene_preview)
 
     # The GPU half as an OBJECT library too (issue #167). `scene_frame.cpp` is the file the browser
@@ -308,11 +308,11 @@ if (NOT EMSCRIPTEN)
     # it would quietly break the claim the P2 gate is about. Compiling it here keeps its RHI-only
     # code (no webgpu.h, no Vulkan header) type-checked on the ordinary Windows/Linux lanes.
     add_library(tessera_scene_frame_entry OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_frame_entry
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_entry PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -332,18 +332,18 @@ if (NOT EMSCRIPTEN)
     # "type-check the entry on every push" rule P1 and P2 followed, adapted to a header the host
     # cannot see.
     add_library(tessera_canvas_report OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         # The ABI argument parsing (issue #444) is host-buildable on purpose: it includes no
         # Emscripten and no WebGPU header, so listing it here is what makes the host lanes
         # type-check the one file a signature change lands in. `wasm_canvas_support.cpp` (issue
         # #390) is here for the same reason - `clear_canvas` and the pointer vocabulary are pure
         # over their arguments.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${_tessera_canvas_session_sources})
     target_include_directories(tessera_canvas_report
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_report PRIVATE
         tessera_automation_scene
         tessera_css_module
@@ -360,7 +360,7 @@ if (NOT EMSCRIPTEN)
     # The session paints, so it needs `scene_frame.cpp` compiled into this OBJECT library too; it is
     # deliberately not a link dependency because that target is an OBJECT library as well.
     target_sources(tessera_canvas_report PRIVATE
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
 
@@ -368,13 +368,13 @@ if (NOT EMSCRIPTEN)
     # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
     # artifacts instead of two implementations.
     add_executable(tessera_scene_preview_cli
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
     target_include_directories(tessera_scene_preview_cli
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_cli PRIVATE tessera_scene_preview)
     set_target_properties(tessera_scene_preview_cli PROPERTIES OUTPUT_NAME tessera_scene_preview)
 
@@ -387,16 +387,16 @@ if (NOT EMSCRIPTEN)
     #                               the Linux lane) or records the command stream on the null backend.
     #                               The image the browser canvas is compared against comes from here.
     add_executable(tessera_scene_frame_cli
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_main.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame_main.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_frame_cli
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_cli PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -428,9 +428,9 @@ if (NOT EMSCRIPTEN)
     # The pixel comparison, split out so `scripts/ci/scene_frame_parity.py --compare` can drive the
     # repository's one tolerance implementation instead of re-deriving SSIM/deltaE in Python.
     add_executable(tessera_scene_frame_compare
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_compare.cpp)
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame_compare.cpp)
     target_include_directories(tessera_scene_frame_compare
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_compare PRIVATE
         tessera_golden
         tessera_harness_image)
@@ -441,13 +441,13 @@ else ()
     # here reads a file either, so NODERAWFS is absent for the same documented reason
     # (docs/design/compiler-wasm.md section 2.1).
     add_executable(tessera_scene_preview_wasm
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_preview_wasm
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_wasm PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -480,40 +480,40 @@ else ()
     # `-sEXPORTED_FUNCTIONS` mirrors the P2 ABI plus the device handover, and the two functions the
     # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
     add_executable(tessera_canvas_wasm
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
         # The override layer's exports (issue #536): they change the running tree's style, so they
         # are not queries, but they never own the session either.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
         # `platform.event` (issue #446): the engine side of a device profile's buttons and events.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_platform.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_platform.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         # The ABI argument parsing (issue #444), split out of `wasm_canvas_entry.cpp` when the live
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
         # The skin's safe area as the ABI receives it (issue #171's skins slice), split out for the
         # same reason and on a real boundary: it is pure over its arguments, so the host lanes can
         # test the refusal rules without linking the GPU text stack.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
         # The project staging shared with the other two modules: `tessera_canvas_apply` evaluates the
         # project the page staged through these exports.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
         # Painting a frame into the page's canvas texture, split from the entry for the same reason
         # and on a real boundary: these functions take the device and the tree they paint, so they
         # cannot reach the module's globals, and the entry no longer has to include the WebGPU
         # target-creation header.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_paint.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_paint.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_canvas_wasm
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_wasm PRIVATE
         tessera_automation_scene
         tessera_behavior
@@ -562,7 +562,7 @@ endif ()
 # ADR-040 (issue #218): a migrated family has no compiled sample library any more. Its developer
 # class is the hand-written `tests/unit/codegen_base/fixtures/<Component>.hpp` and the generated
 # base is either the committed golden under this directory or a build-time artifact.
-set(_tessera_codegen_golden_dir ${CMAKE_SOURCE_DIR}/tests/golden/codegen)
+set(_tessera_codegen_golden_dir ${PROJECT_SOURCE_DIR}/tests/golden/codegen)
 
 # Callback-forwarding fixture (issue #286), generated from TSX in lowering_callback_forward_tests.
 # Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.g.hpp,
@@ -597,7 +597,7 @@ set(_tessera_codegen_instances_golden_dir ${_tessera_codegen_golden_dir}/instanc
 # the demo entirely and the host platforms cover it.
 if (NOT CMAKE_CROSSCOMPILING)
 set(_tessera_codegen_demo_dir ${CMAKE_CURRENT_BINARY_DIR}/samples/compiler-demo)
-set(_tessera_codegen_demo_src ${CMAKE_SOURCE_DIR}/samples/compiler-demo)
+set(_tessera_codegen_demo_src ${PROJECT_SOURCE_DIR}/samples/compiler-demo)
 add_custom_command(
     OUTPUT ${_tessera_codegen_demo_dir}/Demo.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_codegen_demo_dir}
@@ -622,7 +622,7 @@ if (TESSERA_BUILD_TESTS)
     find_package(Threads REQUIRED)
 
     add_executable(codegen_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_tests.cpp)
 
     target_link_libraries(codegen_tests PRIVATE
         tessera_codegen
@@ -632,7 +632,7 @@ if (TESSERA_BUILD_TESTS)
 
     # ADR-040 generated base (issue #157): shape, golden and determinism of the CRTP header.
     add_executable(codegen_base_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base_tests.cpp)
     target_link_libraries(codegen_base_tests PRIVATE tessera_codegen)
     target_compile_definitions(codegen_base_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
@@ -644,7 +644,7 @@ if (TESSERA_BUILD_TESTS)
     # tests/golden/codegen/services/, a NEW directory: every pre-existing `.g.hpp` stays
     # byte-identical because emission is conditional on the component having a requirement.
     add_executable(codegen_services_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_services_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_services_tests.cpp)
     target_link_libraries(codegen_services_tests PRIVATE tessera_codegen)
     target_compile_definitions(codegen_services_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
@@ -653,11 +653,11 @@ if (TESSERA_BUILD_TESTS)
     # ADR-056 slice 1 (issue #441): which cells each dynamic binding reads. The analysis lives in
     # src/ and is internal to the library, so this test adds the private source directory.
     add_executable(codegen_binding_reads_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_binding_reads_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_binding_reads_tests.cpp)
     target_link_libraries(codegen_binding_reads_tests PRIVATE tessera_codegen)
     target_include_directories(codegen_binding_reads_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/tests/unit)
+        ${PROJECT_SOURCE_DIR}/tests/unit)
     add_test(NAME codegen_binding_reads COMMAND codegen_binding_reads_tests)
 
     # Issue #834 (ADR-051 implementation note, ADR-056 decisions 1 and 5): generated record
@@ -665,10 +665,10 @@ if (TESSERA_BUILD_TESTS)
     # (`codegen_record_equality_tests --write`); a runtime test drives the generated base.
     set(_tessera_codegen_record_golden_dir ${_tessera_codegen_golden_dir}/record)
     add_executable(codegen_record_equality_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_record_equality_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_record_equality_tests.cpp)
     target_link_libraries(codegen_record_equality_tests PRIVATE tessera_codegen tessera_ir)
     target_include_directories(codegen_record_equality_tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/tests/unit)
+        ${PROJECT_SOURCE_DIR}/tests/unit)
     target_compile_definitions(codegen_record_equality_tests PRIVATE
         TESSERA_CODEGEN_RECORD_GOLDEN_DIR="${_tessera_codegen_record_golden_dir}")
     add_test(NAME codegen_record_equality COMMAND codegen_record_equality_tests)
@@ -678,10 +678,10 @@ if (TESSERA_BUILD_TESTS)
     # `tests/unit/codegen_base/fixtures/record/FormPage.hpp` over the committed golden.
     if (EXISTS ${_tessera_codegen_record_golden_dir}/FormPage.g.hpp)
         add_executable(codegen_record_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_record_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_record_runtime_tests.cpp)
         target_include_directories(codegen_record_runtime_tests PRIVATE
             ${_tessera_codegen_record_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/record)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/record)
         target_link_libraries(codegen_record_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_record_runtime_tests PRIVATE cxx_std_23)
         add_test(NAME codegen_record_runtime COMMAND codegen_record_runtime_tests)
@@ -690,10 +690,10 @@ if (TESSERA_BUILD_TESTS)
 
     # The developer class derives from the generated base and the generated thunks reach it.
     set(_tessera_codegen_base_golden_dir ${_tessera_codegen_golden_dir})
-    set(_tessera_codegen_base_dev_dir ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base)
+    set(_tessera_codegen_base_dev_dir ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base)
     if (EXISTS ${_tessera_codegen_base_golden_dir}/Sample.g.hpp)
         add_executable(codegen_base_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_runtime_tests.cpp
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base_runtime_tests.cpp
             ${_tessera_codegen_base_dev_dir}/Sample.cpp)
         target_include_directories(codegen_base_runtime_tests PRIVATE
             ${_tessera_codegen_base_golden_dir} ${_tessera_codegen_base_dev_dir})
@@ -720,7 +720,7 @@ if (TESSERA_BUILD_TESTS)
         # the set each run, each passing in isolation (issue #353). One shared resource
         # serialises only these three.
         add_test(NAME codegen_base_missing_member_fails
-            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+            COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_missing_member)
         set_tests_properties(codegen_base_missing_member_fails PROPERTIES
             PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void sync"
@@ -732,7 +732,7 @@ if (TESSERA_BUILD_TESTS)
             # build-time tool writes the base headers of the shared fixtures, and one translation unit
             # per module instantiates them against hand-written developer classes.
             add_executable(codegen_base_emit_fixtures
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_emit_fixtures.cpp)
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base_emit_fixtures.cpp)
             target_link_libraries(codegen_base_emit_fixtures PRIVATE tessera_codegen tessera_lowering
                 tessera_jsx_frontend tessera_react_rules tessera_ir)
             set(_tessera_codegen_base_fixture_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_base_fixtures)
@@ -759,18 +759,18 @@ if (TESSERA_BUILD_TESTS)
                 COMMENT "Generating ADR-040 base headers of the shared fixtures"
                 VERBATIM)
             add_library(codegen_base_fixtures_compile OBJECT
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dynamic.cpp
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dvirt.cpp
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vlist.cpp
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dynamic.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dvirt.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vlist.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
                 # The scaffold() stubs of the sample module: they must compile unedited.
                 ${_tessera_codegen_base_fixture_dir}/scaffold_sample/Sample.cpp
                 ${_tessera_codegen_base_fixture_headers})
             target_include_directories(codegen_base_fixtures_compile PRIVATE
                 # Generated parents include their children's developer headers (`#include "Card.hpp"`).
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures
                 ${_tessera_codegen_base_fixture_dir}/dynamic
                 ${_tessera_codegen_base_fixture_dir}/dvirt
                 ${_tessera_codegen_base_fixture_dir}/vlist
@@ -784,13 +784,13 @@ if (TESSERA_BUILD_TESTS)
             target_compile_features(codegen_base_fixtures_compile PRIVATE cxx_std_23)
         endif ()
         add_test(NAME codegen_base_private_field_fails
-            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+            COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_private_field)
         set_tests_properties(codegen_base_private_field_fails PROPERTIES
             PASS_REGULAR_EXPRESSION "state_count_.*private|private.*state_count_"
             RESOURCE_LOCK tessera_codegen_negative_build)
         add_test(NAME codegen_base_wrong_signature_fails
-            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+            COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_wrong_signature)
         set_tests_properties(codegen_base_wrong_signature_fails PROPERTIES
             PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click"
@@ -805,7 +805,7 @@ if (TESSERA_BUILD_TESTS)
         if (EXISTS ${_tessera_codegen_golden_dir}/services/Inbox.g.hpp AND
             TARGET tessera_appfw_core)
             add_executable(codegen_services_runtime_tests
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_services_runtime_tests.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_services_runtime_tests.cpp
                 ${_tessera_codegen_base_dev_dir}/services/Inbox.cpp)
             target_include_directories(codegen_services_runtime_tests PRIVATE
                 ${_tessera_codegen_golden_dir}/services
@@ -834,14 +834,14 @@ if (TESSERA_BUILD_TESTS)
                 target_compile_features(codegen_base_service_${_variant} PRIVATE cxx_std_23)
             endforeach ()
             add_test(NAME codegen_base_service_undeclared_fails
-                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --config $<CONFIG>
                         --target codegen_base_service_undeclared)
             set_tests_properties(codegen_base_service_undeclared_fails PROPERTIES
                 PASS_REGULAR_EXPRESSION
                     "TESSERA_CG_SERVICE_UNDECLARED: component .Inbox. needs a .useService.*declaration for this service type"
                 RESOURCE_LOCK tessera_codegen_negative_build)
             add_test(NAME codegen_base_service_not_interface_fails
-                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --config $<CONFIG>
                         --target codegen_base_service_not_interface)
             set_tests_properties(codegen_base_service_not_interface_fails PROPERTIES
                 PASS_REGULAR_EXPRESSION
@@ -860,20 +860,20 @@ if (TESSERA_BUILD_TESTS)
     # size limit, share `scene_frame_test_support.hpp`, and are linked into one executable so the
     # `scene_frame` case still proves the whole path in one run.
     add_executable(scene_frame_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_frame_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_frame_text_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_frame_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_frame_text_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_frame_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
-                ${CMAKE_SOURCE_DIR}/tests/unit)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen
+                ${PROJECT_SOURCE_DIR}/tests/unit)
     # The shipped font's absolute path: the text cases read the very bytes the page fetches, and ctest
     # may run from any directory (the same reason `TESSERA_FONT_FIXTURE` is absolutized elsewhere).
     target_compile_definitions(scene_frame_tests PRIVATE
-        TESSERA_PREVIEW_FONT_PATH="${CMAKE_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
+        TESSERA_PREVIEW_FONT_PATH="${PROJECT_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
     target_link_libraries(scene_frame_tests PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -902,11 +902,11 @@ if (TESSERA_BUILD_TESTS)
     # `scene_stylesheet_module_tests.cpp` covers the `*.module.css` that is scanned first (issue
     # #463), so the `scene_stylesheet` case still proves the whole path in one run.
     add_executable(scene_stylesheet_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_stylesheet_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_stylesheet_module_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_stylesheet_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_stylesheet_module_tests.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_stylesheet_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_stylesheet_tests PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -923,13 +923,13 @@ if (TESSERA_BUILD_TESTS)
     # only the files and stylesheets the entry reaches, import-graph sheet order, and an error that
     # names a file instead of a default one.
     add_executable(scene_project_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_project_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_project_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
     target_include_directories(scene_project_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_project_tests PRIVATE
         tessera_ir_ids
         tessera_lowering)
@@ -939,13 +939,13 @@ if (TESSERA_BUILD_TESTS)
     # compiler diagnostic as `file:line:col: error CODE: message (hint: ...)` on stderr while the
     # document and the exit code stay as they were. In-process cases plus one run of the real CLI.
     add_executable(scene_failure_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_failure_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_failure_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
     target_include_directories(scene_failure_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_failure_tests PRIVATE
         tessera_ir_ids
         tessera_lowering)
@@ -963,10 +963,10 @@ if (TESSERA_BUILD_TESTS)
     # tests/unit/CMakeLists.txt for the same reason `scene_frame` is: this lane does not edit the
     # shared registry while other lanes work in it.
     add_executable(scene_dynamic_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_dynamic_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_dynamic_tests.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_dynamic_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_dynamic_tests PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -984,10 +984,10 @@ if (TESSERA_BUILD_TESTS)
     # the hook's `ref` resolved to, and drives it with the session's own normalized input. Registered
     # here rather than in tests/unit/CMakeLists.txt for the same reason `scene_dynamic` is.
     add_executable(scene_behavior_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_behavior_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_behavior_tests.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_behavior_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_behavior_tests PRIVATE
         tessera_automation_scene
         tessera_behavior
@@ -1005,10 +1005,10 @@ if (TESSERA_BUILD_TESTS)
     # box equals a real `AppHost`'s for the same snapshot. Registered here rather than in
     # tests/unit/CMakeLists.txt for the same reason `scene_frame` is.
     add_executable(scene_fold_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_fold_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_fold_tests.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_fold_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_fold_tests PRIVATE
         tessera_behavior
         tessera_app
@@ -1055,20 +1055,20 @@ if (TESSERA_BUILD_TESTS)
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
             scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change)
         add_executable(${_canvas_test}_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
-            ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
-            ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+            ${PROJECT_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
+            ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+            ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
         if (_canvas_test STREQUAL "scene_canvas_pointer")
             # The key vocabulary the page sends (issue #388, focus) is pure over its arguments.
             target_sources(${_canvas_test}_tests PRIVATE
-                ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)
+                ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)
         endif ()
         target_include_directories(${_canvas_test}_tests
-            PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+            PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE
             tessera_automation_scene
             tessera_behavior
@@ -1093,16 +1093,16 @@ if (TESSERA_BUILD_TESTS)
     # way. Registered here rather than in tests/unit/CMakeLists.txt for the same reason
     # `scene_frame` is: this lane does not edit the shared registry while other lanes work in it.
     add_executable(scene_viewport_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_viewport_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_viewport_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_viewport_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
-                ${CMAKE_SOURCE_DIR}/tests/unit)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen
+                ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(scene_viewport_tests PRIVATE
         tessera_behavior
         tessera_app
@@ -1128,18 +1128,18 @@ if (TESSERA_BUILD_TESTS)
     # tests/unit/CMakeLists.txt for the same reason `scene_fold` is: this lane does not edit the
     # shared registry while other lanes work in it.
     add_executable(scene_skin_geometry_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/scene_skin_geometry_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_skin_geometry_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         # The ABI argument parsing, which is where the refusal lives. It is Emscripten-free and
         # WebGPU-free on purpose, so the rules are type-checked on the host lanes too.
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_skin_geometry_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_skin_geometry_tests PRIVATE
         tessera_behavior
         tessera_automation_scene
@@ -1158,12 +1158,12 @@ if (TESSERA_BUILD_TESTS)
     add_test(NAME scene_skin_geometry COMMAND scene_skin_geometry_tests)
 
     add_executable(codegen_layering_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)
 
     target_link_libraries(codegen_layering_tests PRIVATE tessera_codegen)
 
     target_compile_definitions(codegen_layering_tests PRIVATE
-        TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+        TESSERA_COMPILER_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/compiler")
 
     add_test(NAME codegen_layering COMMAND codegen_layering_tests)
 
@@ -1171,7 +1171,7 @@ if (TESSERA_BUILD_TESTS)
     # module with blobs, the warning/error matrix, and the CLI path that compiles CSS and feeds them.
     # The CLI part needs subprocess execution and skips where the platform does not have it.
     add_executable(codegen_stylesheet_embed_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_tests.cpp)
 
     target_link_libraries(codegen_stylesheet_embed_tests PRIVATE
         tessera_codegen
@@ -1189,7 +1189,7 @@ if (TESSERA_BUILD_TESTS)
     # own executable because `codegen_stylesheet_embed_tests` is at the 500-line file size limit; the
     # test name keeps that prefix so `-R codegen_stylesheet_embed` runs both.
     add_executable(codegen_stylesheet_embed_module_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_module_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_module_tests.cpp)
 
     target_link_libraries(codegen_stylesheet_embed_module_tests PRIVATE
         tessera_codegen
@@ -1206,7 +1206,7 @@ if (TESSERA_BUILD_TESTS)
     # determinism, and the CLI path that parses `assets.theme` and fails with the typed code on a
     # broken asset. The CLI part needs subprocess execution.
     add_executable(codegen_theme_embed_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_theme_embed_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_theme_embed_tests.cpp)
 
     target_link_libraries(codegen_theme_embed_tests PRIVATE
         tessera_codegen
@@ -1222,7 +1222,7 @@ if (TESSERA_BUILD_TESTS)
     # End-to-end proof: build the generated sample and inspect the attached metadata, children,
     # focusability and text through the real scene API (no GPU).
     add_executable(codegen_runtime_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_runtime_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_runtime_tests.cpp
         ${_tessera_codegen_base_dev_dir}/Sample.cpp)
 
     target_include_directories(codegen_runtime_tests PRIVATE
@@ -1238,7 +1238,7 @@ if (TESSERA_BUILD_TESTS)
 
     # Scheduled updates (issue #5): setters schedule, the flush runs update() once.
     add_executable(codegen_schedule_runtime_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_schedule_runtime_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_schedule_runtime_tests.cpp
         ${_tessera_codegen_base_dev_dir}/Sample.cpp)
 
     target_include_directories(codegen_schedule_runtime_tests PRIVATE
@@ -1255,7 +1255,7 @@ if (TESSERA_BUILD_TESTS)
     # Conditional + keyed-list codegen: goldens from hand-built IR (the `.tsx` front end cannot
     # author a list type yet) and a runtime test over the compiled generated component.
     add_executable(codegen_dynamic_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_dynamic_tests.cpp)
 
     target_link_libraries(codegen_dynamic_tests PRIVATE tessera_codegen)
 
@@ -1267,7 +1267,7 @@ if (TESSERA_BUILD_TESTS)
     # Issue #830: a derived (`listFilter`/`listSlice`) `.map` source, split from
     # `codegen_dynamic_tests` when that file reached the 500-line limit.
     add_executable(codegen_derived_source_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_derived_source_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_derived_source_tests.cpp)
 
     target_link_libraries(codegen_derived_source_tests PRIVATE tessera_codegen)
 
@@ -1277,7 +1277,7 @@ if (TESSERA_BUILD_TESTS)
     # Goldens from hand-built IR (the `.tsx` front end cannot author either yet), plus a runtime test
     # over the compiled generated component and the differential test against the IR evaluator.
     add_executable(codegen_pending_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_tests.cpp)
 
     target_link_libraries(codegen_pending_tests PRIVATE tessera_codegen)
 
@@ -1290,12 +1290,12 @@ if (TESSERA_BUILD_TESTS)
     # the old subtree survives a refresh, and a full transition cycle allocates nothing.
     if (EXISTS ${_tessera_codegen_golden_dir}/pending/Feed.g.hpp)
         add_executable(codegen_pending_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_runtime_tests.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_runtime_tests.cpp
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
 
         target_include_directories(codegen_pending_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}/pending
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending)
         target_link_libraries(codegen_pending_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_pending_runtime_tests PRIVATE cxx_std_23)
 
@@ -1307,13 +1307,13 @@ if (TESSERA_BUILD_TESTS)
         # The differential test: the IR evaluator and the generated component run one script of
         # pending-UI operations and must agree after every step (ADR-067 spike #661).
         add_executable(codegen_pending_parity_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_parity_tests.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_parity_tests.cpp
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
 
         target_include_directories(codegen_pending_parity_tests PRIVATE
             ${_tessera_codegen_golden_dir}/pending
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending
-            ${CMAKE_SOURCE_DIR}/tests/unit)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending
+            ${PROJECT_SOURCE_DIR}/tests/unit)
         target_link_libraries(codegen_pending_parity_tests PRIVATE
             tessera_scene tessera_ir_eval)
         target_compile_features(codegen_pending_parity_tests PRIVATE cxx_std_23)
@@ -1324,11 +1324,11 @@ if (TESSERA_BUILD_TESTS)
     # The developer class (tests/unit/codegen_base/fixtures/Dynamic.hpp) over the committed base.
     if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.g.hpp)
         add_executable(codegen_dynamic_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_dynamic_runtime_tests.cpp)
 
         target_include_directories(codegen_dynamic_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_dynamic_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_dynamic_runtime_tests PRIVATE cxx_std_23)
 
@@ -1341,11 +1341,11 @@ if (TESSERA_BUILD_TESTS)
     # base from the hand-built IR in codegen_dynamic_tests.
     if (EXISTS ${_tessera_codegen_golden_dir}/Filtered.g.hpp)
         add_executable(codegen_derived_source_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_derived_source_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_derived_source_runtime_tests.cpp)
 
         target_include_directories(codegen_derived_source_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_derived_source_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_derived_source_runtime_tests PRIVATE cxx_std_23)
 
@@ -1356,7 +1356,7 @@ if (TESSERA_BUILD_TESTS)
     # Component composition and the static `children` slot: goldens from hand-built IR plus a
     # runtime test over the compiled generated components (a nested instance keeps its own state).
     add_executable(codegen_composition_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_composition_tests.cpp)
 
     target_link_libraries(codegen_composition_tests PRIVATE tessera_codegen)
 
@@ -1370,11 +1370,11 @@ if (TESSERA_BUILD_TESTS)
     if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.g.hpp AND EXISTS
         ${_tessera_codegen_golden_dir}/Card.g.hpp)
         add_executable(codegen_composition_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_composition_runtime_tests.cpp)
 
         target_include_directories(codegen_composition_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_composition_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_composition_runtime_tests PRIVATE cxx_std_23)
 
@@ -1385,11 +1385,11 @@ if (TESSERA_BUILD_TESTS)
         # ADR-040 (#218): the developer classes (tests/unit/codegen_base/fixtures/Forward*.hpp) over
         # the committed bases, generated from the TSX in lowering_callback_forward_tests.
         add_executable(codegen_callback_forward_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_callback_forward_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_callback_forward_runtime_tests.cpp)
 
         target_include_directories(codegen_callback_forward_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_callback_forward_runtime_tests PRIVATE
             tessera_scene
             tessera_text_edit
@@ -1405,14 +1405,14 @@ if (TESSERA_BUILD_TESTS)
     endif ()
 
     add_executable(codegen_instances_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_instances_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_instances_tests.cpp)
 
     target_link_libraries(codegen_instances_tests PRIVATE
         tessera_codegen
         tessera_ir)
 
     target_include_directories(codegen_instances_tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/tests/unit)
+        ${PROJECT_SOURCE_DIR}/tests/unit)
 
     target_compile_definitions(codegen_instances_tests PRIVATE
         TESSERA_CODEGEN_INSTANCES_GOLDEN_DIR="${_tessera_codegen_instances_golden_dir}")
@@ -1423,19 +1423,19 @@ if (TESSERA_BUILD_TESTS)
     # fixture, then the per-binding behavior over the committed base.
     set(_tessera_codegen_mask_golden_dir ${_tessera_codegen_golden_dir}/mask)
     add_executable(codegen_mask_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_mask_tests.cpp)
     target_link_libraries(codegen_mask_tests PRIVATE tessera_codegen tessera_ir)
-    target_include_directories(codegen_mask_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/unit)
+    target_include_directories(codegen_mask_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/unit)
     target_compile_definitions(codegen_mask_tests PRIVATE
         TESSERA_CODEGEN_MASK_GOLDEN_DIR="${_tessera_codegen_mask_golden_dir}")
     add_test(NAME codegen_mask COMMAND codegen_mask_tests)
 
     if (EXISTS ${_tessera_codegen_mask_golden_dir}/Probe.g.hpp)
         add_executable(codegen_mask_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_mask_runtime_tests.cpp)
         target_include_directories(codegen_mask_runtime_tests PRIVATE
             ${_tessera_codegen_mask_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/mask)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/mask)
         target_link_libraries(codegen_mask_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_mask_runtime_tests PRIVATE cxx_std_23)
         add_test(NAME codegen_mask_runtime COMMAND codegen_mask_runtime_tests)
@@ -1444,10 +1444,10 @@ if (TESSERA_BUILD_TESTS)
     # ADR-056 slice 3: a parent schedules a child on a prop change instead of calling update().
     if (EXISTS ${_tessera_codegen_mask_golden_dir}/Top.g.hpp)
         add_executable(codegen_chain_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_chain_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_chain_runtime_tests.cpp)
         target_include_directories(codegen_chain_runtime_tests PRIVATE
             ${_tessera_codegen_mask_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/chain)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/chain)
         target_link_libraries(codegen_chain_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_chain_runtime_tests PRIVATE cxx_std_23)
         add_test(NAME codegen_chain_runtime COMMAND codegen_chain_runtime_tests)
@@ -1458,11 +1458,11 @@ if (TESSERA_BUILD_TESTS)
     if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.g.hpp AND EXISTS
         ${_tessera_codegen_instances_golden_dir}/Row.g.hpp)
         add_executable(codegen_instances_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_instances_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_instances_runtime_tests.cpp)
 
         target_include_directories(codegen_instances_runtime_tests PRIVATE
             ${_tessera_codegen_instances_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/instances)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/instances)
         target_link_libraries(codegen_instances_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_instances_runtime_tests PRIVATE cxx_std_23)
 
@@ -1471,10 +1471,10 @@ if (TESSERA_BUILD_TESTS)
         # #440: how many update() calls one state change costs. The same committed Page/Row bases
         # under a counting developer class for Row (fixtures/update_count).
         add_executable(codegen_update_fanout_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_update_fanout_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_update_fanout_tests.cpp)
 
         target_include_directories(codegen_update_fanout_tests PRIVATE
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/update_count
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/update_count
             ${_tessera_codegen_instances_golden_dir})
         target_link_libraries(codegen_update_fanout_tests PRIVATE tessera_scene)
         target_compile_features(codegen_update_fanout_tests PRIVATE cxx_std_23)
@@ -1488,11 +1488,11 @@ if (TESSERA_BUILD_TESTS)
         # the committed bases, generated from packages/tessera-ui/Button.tsx by
         # library_button_lowering_tests.
         add_executable(library_button_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/library_button_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/library_button_runtime_tests.cpp)
 
         target_include_directories(library_button_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(library_button_runtime_tests PRIVATE
             tessera_scene
             tessera_text_edit
@@ -1509,13 +1509,13 @@ if (TESSERA_BUILD_TESTS)
         # over the committed bases, generated from packages/tessera-ui/SafeArea.tsx by
         # library_safe_area_lowering_tests.
         add_executable(library_safe_area_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/library_safe_area_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/library_safe_area_runtime_tests.cpp)
 
         target_include_directories(library_safe_area_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_compile_definitions(library_safe_area_runtime_tests PRIVATE
-            TESSERA_SAFE_AREA_CSS="${CMAKE_SOURCE_DIR}/packages/tessera-ui/safe-area.css")
+            TESSERA_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css")
         target_link_libraries(library_safe_area_runtime_tests PRIVATE
             tessera_app
             tessera_runtime
@@ -1529,7 +1529,7 @@ if (TESSERA_BUILD_TESTS)
     endif ()
 
     add_executable(codegen_size_change_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_size_change_tests.cpp)
 
     target_link_libraries(codegen_size_change_tests PRIVATE
         tessera_codegen)
@@ -1543,7 +1543,7 @@ if (TESSERA_BUILD_TESTS)
     # that reads `useBreakpoint()` gets the field, the equality-gated host setter and the accessor;
     # a component that reads none gets no surface, so every existing golden stays byte-identical.
     add_executable(codegen_environment_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_environment_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_environment_tests.cpp)
 
     target_link_libraries(codegen_environment_tests PRIVATE
         tessera_codegen)
@@ -1554,7 +1554,7 @@ if (TESSERA_BUILD_TESTS)
     # environment field at the `createContext` default, its typed setter, and the provider's
     # `apply_props()` push into the consuming instance.
     add_executable(codegen_context_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_context_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_context_tests.cpp)
 
     target_link_libraries(codegen_context_tests PRIVATE
         tessera_codegen)
@@ -1566,7 +1566,7 @@ if (TESSERA_BUILD_TESTS)
     # the owner calls, and one read accessor per output; a component that calls none gets no
     # surface, so every existing golden stays byte-identical.
     add_executable(codegen_behaviors_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_behaviors_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_behaviors_tests.cpp)
 
     target_link_libraries(codegen_behaviors_tests PRIVATE
         tessera_codegen)
@@ -1582,11 +1582,11 @@ if (TESSERA_BUILD_TESTS)
     # merely a string the golden test greps.
     if (EXISTS ${_tessera_codegen_golden_dir}/Pressable.g.hpp)
         add_executable(codegen_behaviors_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_behaviors_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_behaviors_runtime_tests.cpp)
 
         target_include_directories(codegen_behaviors_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/pressable)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/pressable)
         target_link_libraries(codegen_behaviors_runtime_tests PRIVATE
             tessera_scene
             tessera_behavior)
@@ -1600,11 +1600,11 @@ if (TESSERA_BUILD_TESTS)
     if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.g.hpp AND EXISTS
         ${_tessera_codegen_golden_dir}/WatchPage.g.hpp)
         add_executable(codegen_size_change_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_size_change_runtime_tests.cpp)
 
         target_include_directories(codegen_size_change_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/watch)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/watch)
         target_link_libraries(codegen_size_change_runtime_tests PRIVATE
             tessera_scene
             tessera_layout)
@@ -1617,7 +1617,7 @@ if (TESSERA_BUILD_TESTS)
     # cannot author a virtual collection yet) and an integration test that scripts a scroll through
     # the `tessera_virtual` geometry and checks the realized item range.
     add_executable(codegen_virtual_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_virtual_tests.cpp)
 
     target_link_libraries(codegen_virtual_tests PRIVATE
         tessera_codegen)
@@ -1630,7 +1630,7 @@ if (TESSERA_BUILD_TESTS)
     # Dynamic virtual geometry: the re-seed path, the measurement-invalidation rule and the
     # literal-only structural props (one virtual collection geometry, not the whole template).
     add_executable(codegen_virtual_geometry_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_tests.cpp)
 
     target_link_libraries(codegen_virtual_geometry_tests PRIVATE
         tessera_codegen)
@@ -1648,10 +1648,10 @@ if (TESSERA_BUILD_TESTS)
                  codegen_virtual_scroll_tests
                  codegen_virtual_geometry_runtime_tests)
             add_executable(${_virtual_runtime}
-                ${CMAKE_SOURCE_DIR}/tests/unit/${_virtual_runtime}.cpp)
+                ${PROJECT_SOURCE_DIR}/tests/unit/${_virtual_runtime}.cpp)
             target_include_directories(${_virtual_runtime} PRIVATE
                 ${_tessera_codegen_golden_dir}
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
             target_link_libraries(${_virtual_runtime} PRIVATE
                 tessera_scene
                 tessera_virtual)
@@ -1676,7 +1676,7 @@ if (TESSERA_BUILD_TESTS)
     # the window. `codegen_dynamic_virtual_tests --write` regenerates
     # tests/golden/codegen/dynamic/DynamicVirtual.g.hpp. The literal golden must not move.
     add_executable(codegen_dynamic_virtual_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_virtual_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_dynamic_virtual_tests.cpp)
 
     target_link_libraries(codegen_dynamic_virtual_tests PRIVATE tessera_codegen)
 
@@ -1693,7 +1693,7 @@ if (TESSERA_BUILD_TESTS)
         target_include_directories(codegen_dynamic_virtual_tests
             PRIVATE
                 ${_tessera_codegen_golden_dir}/dynamic
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_dynamic_virtual_tests PRIVATE
             tessera_scene
             tessera_virtual)
@@ -1703,7 +1703,7 @@ if (TESSERA_BUILD_TESTS)
     # embeds it as a generated `AssetBundle` and names that asset in the payload. The golden under
     # `vector/` is written by `codegen_vector_payload_tests --write`.
     add_executable(codegen_vector_payload_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_vector_payload_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_vector_payload_tests.cpp)
 
     target_link_libraries(codegen_vector_payload_tests PRIVATE
         tessera_codegen
@@ -1722,7 +1722,7 @@ if (TESSERA_BUILD_TESTS)
         target_include_directories(codegen_vector_payload_tests
             PRIVATE
                 ${_tessera_codegen_golden_dir}/vector
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_vector_payload_tests PRIVATE tessera_scene)
     endif ()
 
@@ -1731,11 +1731,11 @@ if (TESSERA_BUILD_TESTS)
     # baseline at tolerance 0. Skips cleanly without ThorVG.
     if (TARGET codegen_base_fixtures_compile AND TESSERA_ENABLE_THORVG)
         add_executable(codegen_vector_paint_golden_tests
-            ${CMAKE_SOURCE_DIR}/tests/gpu/codegen_vector_paint_golden_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/gpu/codegen_vector_paint_golden_tests.cpp)
         target_include_directories(codegen_vector_paint_golden_tests
             PRIVATE
                 ${PROJECT_SOURCE_DIR}/tools/poc/batched2d
-                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures
                 ${_tessera_codegen_base_fixture_dir}/vicon)
         # The generated base and asset bundle are written by the fixture tool's custom command.
         add_dependencies(codegen_vector_paint_golden_tests codegen_base_fixtures_compile)
@@ -1756,7 +1756,7 @@ if (TESSERA_BUILD_TESTS)
     # built-in component, lowering emits an ordinary `Component` node with the documented prop
     # records, and the static Children slot carries the caller's widget.
     add_executable(forms_lowering_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/forms_lowering_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/forms_lowering_tests.cpp)
 
     target_link_libraries(forms_lowering_tests PRIVATE
         tessera_lowering
@@ -1769,7 +1769,7 @@ if (TESSERA_BUILD_TESTS)
     # Focusable `View`/`Text` (issue #226): tabIndex/autoFocus/key and focus events through lowering,
     # codegen and the headless input router, plus the role and name diagnostics.
     add_executable(focusable_view_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/focusable_view_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/focusable_view_tests.cpp)
 
     target_link_libraries(focusable_view_tests PRIVATE
         tessera_codegen
@@ -1784,7 +1784,7 @@ if (TESSERA_BUILD_TESTS)
     # Guarded handler statements (issue #236): `guard && setter(...)` through lowering, the evaluator
     # and codegen.
     add_executable(guarded_handler_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/guarded_handler_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/guarded_handler_tests.cpp)
 
     target_link_libraries(guarded_handler_tests PRIVATE
         tessera_codegen
@@ -1800,7 +1800,7 @@ if (TESSERA_BUILD_TESTS)
     # Behavior primitives (issue #236): packages/tessera-ui/primitives/*.tsx through lowering, codegen
     # and the IR evaluator.
     add_executable(primitives_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/primitives_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/primitives_tests.cpp)
 
     target_link_libraries(primitives_tests PRIVATE
         tessera_codegen
@@ -1811,14 +1811,14 @@ if (TESSERA_BUILD_TESTS)
         tessera_ir_eval)
 
     target_compile_definitions(primitives_tests PRIVATE
-        TESSERA_PRIMITIVES_DIR="${CMAKE_SOURCE_DIR}/packages/tessera-ui/primitives")
+        TESSERA_PRIMITIVES_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui/primitives")
 
     add_test(NAME primitives COMMAND primitives_tests)
 
     # `Field` codegen: the real built-in Field IR declaration plus a form with two instances, the prop
     # matrix (value and callback props), the static Children slot, the golden and determinism.
     add_executable(forms_codegen_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/forms_codegen_tests.cpp)
 
     target_link_libraries(forms_codegen_tests PRIVATE tessera_codegen tessera_lowering)
 
@@ -1833,11 +1833,11 @@ if (TESSERA_BUILD_TESTS)
     if (EXISTS ${_tessera_codegen_golden_dir}/FormPage.g.hpp AND EXISTS
         ${_tessera_codegen_golden_dir}/FieldPage.g.hpp)
         add_executable(forms_codegen_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_runtime_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/forms_codegen_runtime_tests.cpp)
 
         target_include_directories(forms_codegen_runtime_tests PRIVATE
             ${_tessera_codegen_golden_dir}
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(forms_codegen_runtime_tests PRIVATE
             tessera_forms
             tessera_runtime
@@ -1850,7 +1850,7 @@ if (TESSERA_BUILD_TESTS)
     # `Form` binding rejection matrix: explicit controller-owned Field props, malformed seeds,
     # duplicate names, unsupported validators and nested Forms are rejected loudly.
     add_executable(forms_form_codegen_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/forms_form_codegen_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/forms_form_codegen_tests.cpp)
 
     target_link_libraries(forms_form_codegen_tests PRIVATE
         tessera_codegen
@@ -1866,22 +1866,22 @@ if (TESSERA_BUILD_TESTS)
     # document's determinism. In process, no subprocess: it runs the real `cli::run()`, so it needs
     # no %TEMP% write and works in a confined sandbox.
     add_executable(codegen_diagnostics_json_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_diagnostics_json_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_diagnostics_json_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
 
     target_include_directories(codegen_diagnostics_json_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
 
     target_link_libraries(codegen_diagnostics_json_tests PRIVATE
         tessera_codegen
@@ -1898,7 +1898,7 @@ if (TESSERA_BUILD_TESTS)
                 ${CMAKE_CURRENT_BINARY_DIR}/codegen_diagnostics_json_tests-work)
 
     add_executable(codegen_cli_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)
 
     target_link_libraries(codegen_cli_tests PRIVATE tessera_codegen)
 
@@ -1915,7 +1915,7 @@ if (TESSERA_BUILD_TESTS)
     # subject. Host-only like the CLI test above, because it runs the built CLI through `std::system`.
     if (NOT CMAKE_CROSSCOMPILING AND NOT CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
         add_executable(permissions_config_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/permissions_config_tests.cpp)
+            ${PROJECT_SOURCE_DIR}/tests/unit/permissions_config_tests.cpp)
 
         add_test(NAME permissions_config
             COMMAND permissions_config_tests $<TARGET_FILE:tessera_codegen_cli>)
@@ -1924,7 +1924,7 @@ if (TESSERA_BUILD_TESTS)
     # The demo target only exists on host builds (see the cross-compiling guard above).
     if (NOT CMAKE_CROSSCOMPILING)
         add_test(NAME sample_compile
-            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target tessera_compiler_demo)
+            COMMAND ${CMAKE_COMMAND} --build ${PROJECT_BINARY_DIR} --target tessera_compiler_demo)
         # This test drives the build directory, like the codegen_base_* negatives above: without the
         # lock a parallel ctest run has two `--build` processes in one tree and one of them loses
         # (the failure mode #353 fixed for the negatives). It never failed alone, only under

@@ -34,6 +34,7 @@ GATE_FILES = {
     "source-size": "check_source_size.py",
     "enum-size": "check_enum_size.py",
     "switch-exhaustive": "check_switch_exhaustive.py",
+    "cmake-embeddable": "check_cmake_embeddable.py",
     "public-api": "check_public_api.py",
     "pins": "check_pins.py",
     "version-policy": "check_version_policy.py",

@@ -49,9 +49,9 @@ target_sources(tessera_mcp_core PRIVATE
     # `Options::query`, the same function `tessera_codegen --diagnostics-json` runs, so the document
     # cannot drift from the CLI's (the acceptance of issue #406).
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp

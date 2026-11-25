@@ -321,7 +321,7 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_storage_tests PRIVATE tessera_appfw_storage tessera_runtime)
     target_compile_definitions(appfw_storage_tests PRIVATE
-        TESSERA_STORAGE_SCRATCH_DIR="${CMAKE_BINARY_DIR}/storage-scratch")
+        TESSERA_STORAGE_SCRATCH_DIR="${PROJECT_BINARY_DIR}/storage-scratch")
     add_test(NAME appfw_storage COMMAND appfw_storage_tests)
     # AF2 (issue #174, ADR-050 section 5 item 1): `TaskScope`'s structured cancellation. The
     # acceptance here is the roadmap row's "closing a scope cancels and drains"; the timer wake

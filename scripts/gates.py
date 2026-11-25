@@ -89,6 +89,12 @@ BASE_GATES: List[Gate] = [
         "a switch over an enum handles every enumerator or has a `default:` (issue #805)",
     ),
     Gate(
+        "cmake-embeddable",
+        "check_cmake_embeddable.py",
+        (),
+        "framework CMake does not read the top-level project's directories, so `tessera new` builds",
+    ),
+    Gate(
         "public-api",
         "check_public_api.py",
         ("--check",),

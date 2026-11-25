@@ -22,7 +22,7 @@ add_test(NAME parity_runner COMMAND parity_runner_tests)
 # The sample: the generated base is written into the build dir from Counter.tsx (ADR-040); the
 # developer class (its `add` is the C++ twin of the preview body) is committed in the sample dir.
 set(_parity_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
-set(_parity_sample_dir ${CMAKE_SOURCE_DIR}/samples/parity-demo)
+set(_parity_sample_dir ${PROJECT_SOURCE_DIR}/samples/parity-demo)
 add_custom_command(
     OUTPUT ${_parity_dir}/Counter.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_parity_dir}

@@ -11,13 +11,13 @@ add_library(tessera_corpus_measure_core STATIC
     measure_directory.cpp
     measure_pipeline.cpp
     report.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
 
 target_include_directories(tessera_corpus_measure_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
 
 target_link_libraries(tessera_corpus_measure_core
     PUBLIC tessera_jsx_frontend

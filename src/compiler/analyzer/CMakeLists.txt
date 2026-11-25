@@ -47,7 +47,7 @@ target_compile_features(tessera_jsx_frontend PUBLIC cxx_std_23)
 if (TESSERA_BUILD_TESTS)
     enable_testing()
     add_executable(compiler_limits_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/compiler_limits_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/compiler_limits_tests.cpp)
     target_link_libraries(compiler_limits_tests PRIVATE tessera_jsx_frontend)
     add_test(NAME compiler_limits COMMAND compiler_limits_tests)
 
@@ -60,17 +60,17 @@ if (TESSERA_BUILD_TESTS)
     # not parser-level), so this test links both stages. The analyzer library itself still links
     # only the front end: the rules edge is test-only.
     add_executable(jsx_diagnostics_registry_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/jsx_diagnostics_registry_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/jsx_diagnostics_registry_tests.cpp)
     target_link_libraries(jsx_diagnostics_registry_tests PRIVATE
         tessera_jsx_frontend
         tessera_react_rules)
     target_compile_definitions(jsx_diagnostics_registry_tests PRIVATE
-        TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler"
-        TESSERA_JSX_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/jsx")
+        TESSERA_COMPILER_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src/compiler"
+        TESSERA_JSX_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/jsx")
     add_test(NAME jsx_diagnostics_registry COMMAND jsx_diagnostics_registry_tests)
 
     add_executable(hook_manifest_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/hook_manifest_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/hook_manifest_tests.cpp)
     target_link_libraries(hook_manifest_tests PRIVATE tessera_jsx_frontend)
     target_compile_definitions(hook_manifest_tests PRIVATE
         TESSERA_HOOKS_MANIFEST="${CMAKE_CURRENT_SOURCE_DIR}/hooks-manifest.json")
