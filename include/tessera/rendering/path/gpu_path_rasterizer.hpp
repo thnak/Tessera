@@ -27,6 +27,9 @@ struct GpuPathRasterizerConfig {
     // pool, and a slot returns to it when its submission completes. Slots are created on demand, so
     // the pool is as large as the most jobs ever in flight at once.
     std::uint32_t max_jobs_per_batch = 8;
+    // Bound on the idle buffers the pool keeps between batches (capacity bytes); past it a returned
+    // buffer is destroyed. 16 MiB holds a few dozen 256 px rasters or two 1024 px ones.
+    std::uint64_t max_pooled_bytes = 16ULL * 1024ULL * 1024ULL;
 };
 
 enum class GpuRasterError : std::uint8_t {
@@ -46,11 +49,14 @@ enum class GpuRasterError : std::uint8_t {
 class GpuPathRasterizer {
 public:
     struct Stats {
-        std::uint64_t jobs = 0;           // rasters submitted
-        std::uint64_t flushes = 0;        // submissions
-        std::uint32_t pending = 0;        // queued, not yet flushed
-        std::uint32_t in_flight = 0;      // flushed, not yet collected
-        std::uint32_t pipeline_slots = 0; // job slots created so far
+        std::uint64_t jobs = 0;            // rasters submitted
+        std::uint64_t flushes = 0;         // submissions
+        std::uint32_t pending = 0;         // queued, not yet flushed
+        std::uint32_t in_flight = 0;       // flushed, not yet collected
+        std::uint32_t pipeline_slots = 0;  // job slots created so far
+        std::uint64_t buffers_created = 0; // device buffers allocated
+        std::uint64_t buffers_reused = 0;  // buffer requests served by the pool
+        std::uint64_t pooled_bytes = 0;    // idle buffer capacity held
     };
 
     GpuPathRasterizer(rhi::Device& device, GpuPathPipelineDescs descs,
@@ -62,6 +68,12 @@ public:
 
     // True when `device` can run this rasterizer: compute plus the buffer-to-texture copy.
     [[nodiscard]] static bool supported(const rhi::Device& device);
+
+    // Creates job slots up front so the first batch does not pay for them: building the four
+    // pipelines of a slot took about 2 ms on the RX 5300M, so eight jobs in a first frame is a
+    // 16 ms hitch. Call it at startup, off the frame path. Never shrinks or rebuilds existing
+    // slots.
+    [[nodiscard]] std::expected<void, GpuRasterError> warm(std::uint32_t slots);
 
     // Queues `shapes` (already scaled to the target) to be rasterized into `target`, a texture of
     // `extent` this device created. `target` must stay alive until the batch is collected.

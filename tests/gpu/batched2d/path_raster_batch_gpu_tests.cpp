@@ -179,7 +179,24 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
          expect(rasterizer.flush().has_value(), "second flush") && ok;
     ok =
         expect(rasterizer.stats().pipeline_slots == 3, "the second batch reuses a free slot") && ok;
+    ok = expect(rasterizer.stats().buffers_reused >= 6,
+                "the second batch takes its buffers from the pool, not the device") &&
+         ok;
     wait_collect(rasterizer, device);
+
+    // warm() builds slots ahead of the first batch and is idempotent.
+    path::GpuPathRasterizer warmed(device, descs());
+    ok = expect(warmed.warm(4).has_value() && warmed.stats().pipeline_slots == 4, "warm(4)") && ok;
+    ok = expect(warmed.warm(2).has_value() && warmed.stats().pipeline_slots == 4,
+                "warm never shrinks or rebuilds") &&
+         ok;
+    ok = expect(warmed.enqueue(std::span<const path::PathShape>(&shape, 1), *again.texture,
+                               again.extent)
+                        .has_value() &&
+                    warmed.flush().has_value() && warmed.stats().pipeline_slots == 4,
+                "a warmed rasterizer builds no slot for its first batch") &&
+         ok;
+    wait_collect(warmed, device);
 
     // A full batch is refused, not dropped.
     path::GpuPathRasterizerConfig small;

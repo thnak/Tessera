@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <exception>
 #include <utility>
@@ -22,6 +23,18 @@ constexpr std::uint32_t kMaxGroups = 65535; // the RHI's dispatch limit on every
 [[nodiscard]] std::uint32_t groups(std::uint32_t count, std::uint32_t size) {
     return (count + size - 1U) / size;
 }
+
+constexpr std::size_t kMinBufferBytes = 4096;
+
+// Which of the six storage buffers a pass reads or writes (bit n = binding n), taken from
+// shaders/path_raster.comp. Binding only these cuts 24 descriptor updates per raster to 11; a
+// binding a pass does not declare is not in its SPIR-V interface, so leaving it unwritten is valid.
+// If a pass ever starts using another buffer, this table and the shader change together, and the
+// Vulkan pixel test (validation on) fails otherwise.
+constexpr std::uint32_t kClearBindings = 1U << 2;
+constexpr std::uint32_t kStrokeBindings = (1U << 2) | (1U << 4) | (1U << 5);
+constexpr std::uint32_t kBinBindings = (1U << 0) | (1U << 1) | (1U << 2);
+constexpr std::uint32_t kFineBindings = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 3);
 
 } // namespace
 
@@ -79,11 +92,46 @@ struct GpuPathRasterizer::Impl {
         return slot;
     }
 
+    // Buffers are pooled by capacity (a power of two, at least 4 KiB): a raster takes the smallest
+    // free one that fits and the pool takes it back when the raster's flight completes, so a steady
+    // stream of icons allocates nothing. A reused buffer holds stale bytes past what a job writes;
+    // that is safe because every pass reads only what the job's push block bounds, the clear pass
+    // resets the work buffer's counter and heads, and the fine pass writes every output pixel.
+    [[nodiscard]] std::unique_ptr<rhi::Buffer> acquire_buffer(std::size_t bytes, bool read_write) {
+        auto& pool = read_write ? free_read_write : free_read_only;
+        std::size_t best = pool.size();
+        for (std::size_t index = 0; index < pool.size(); ++index) {
+            if (pool[index]->size() >= bytes &&
+                (best == pool.size() || pool[index]->size() < pool[best]->size())) {
+                best = index;
+            }
+        }
+        if (best != pool.size()) {
+            auto buffer = std::move(pool[best]);
+            pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(best));
+            pooled_bytes -= buffer->size();
+            ++buffers_reused;
+            return buffer;
+        }
+        rhi::BufferDesc desc{std::bit_ceil(std::max(bytes, kMinBufferBytes)),
+                             rhi::BufferUsage::Storage};
+        desc.gpu_read_write = read_write;
+        ++buffers_created;
+        return device.create_buffer(desc);
+    }
+
+    void release_buffer(std::unique_ptr<rhi::Buffer> buffer, bool read_write) {
+        if (!buffer || pooled_bytes + buffer->size() > config.max_pooled_bytes) {
+            return; // over the pool bound: the buffer is destroyed
+        }
+        pooled_bytes += buffer->size();
+        (read_write ? free_read_write : free_read_only).push_back(std::move(buffer));
+    }
+
     [[nodiscard]] std::unique_ptr<rhi::Buffer> storage(const std::vector<std::uint32_t>& words,
                                                        std::size_t minimum_words) {
         auto buffer =
-            device.create_buffer({std::max(words.size(), minimum_words) * sizeof(std::uint32_t),
-                                  rhi::BufferUsage::Storage});
+            acquire_buffer(std::max(words.size(), minimum_words) * sizeof(std::uint32_t), false);
         if (!words.empty()) {
             buffer->write(words.data(), words.size() * sizeof(std::uint32_t));
         }
@@ -91,25 +139,27 @@ struct GpuPathRasterizer::Impl {
     }
 
     void record_job(rhi::CommandList& list, const Slot& slot, const Job& job) {
-        const auto bind_all = [&](const rhi::ComputePipeline& pipeline) {
+        const auto bind_all = [&](const rhi::ComputePipeline& pipeline, std::uint32_t used) {
             list.bind_compute_pipeline(pipeline);
             for (std::uint32_t binding = 0; binding < job.buffers.size(); ++binding) {
-                list.bind_compute_buffer(binding, *job.buffers[binding]);
+                if ((used & (1U << binding)) != 0U) {
+                    list.bind_compute_buffer(binding, *job.buffers[binding]);
+                }
             }
             list.compute_push_constants(&job.layout.push, sizeof(job.layout.push));
         };
-        bind_all(*slot.clear);
+        bind_all(*slot.clear, kClearBindings);
         list.dispatch(groups(job.layout.push.nodes_base, kGroupSize), 1, 1);
         list.compute_barrier();
         if (job.stroke_count > 0) {
-            bind_all(*slot.stroke);
+            bind_all(*slot.stroke, kStrokeBindings);
             list.dispatch(groups(job.stroke_count, kGroupSize), 1, 1);
             list.compute_barrier();
         }
-        bind_all(*slot.bin);
+        bind_all(*slot.bin, kBinBindings);
         list.dispatch(groups(std::max(job.seg_count, 1U), kGroupSize), 1, 1);
         list.compute_barrier();
-        bind_all(*slot.fine);
+        bind_all(*slot.fine, kFineBindings);
         list.dispatch(groups(job.extent.width, kTile), groups(job.extent.height, kTile), 1);
         rhi::BufferTextureCopy copy;
         copy.region = {0, 0, job.extent.width, job.extent.height};
@@ -122,6 +172,11 @@ struct GpuPathRasterizer::Impl {
     GpuPathRasterizerConfig config;
     std::vector<std::unique_ptr<Slot>> free_slots;
     std::uint32_t slots_created = 0;
+    std::vector<std::unique_ptr<rhi::Buffer>> free_read_only;
+    std::vector<std::unique_ptr<rhi::Buffer>> free_read_write;
+    std::uint64_t pooled_bytes = 0;
+    std::uint64_t buffers_created = 0;
+    std::uint64_t buffers_reused = 0;
     std::vector<Job> pending;
     std::vector<Flight> in_flight;
     std::uint64_t jobs = 0;
@@ -167,12 +222,8 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
         Impl::Job job;
         job.buffers[0] = impl_->storage(encoded.segs, kGpuSegWords);
         job.buffers[1] = impl_->storage(encoded.paths, kGpuPathWords);
-        rhi::BufferDesc read_write{layout->work_words * sizeof(std::uint32_t),
-                                   rhi::BufferUsage::Storage};
-        read_write.gpu_read_write = true;
-        job.buffers[2] = impl_->device.create_buffer(read_write);
-        read_write.size = layout->output_words * sizeof(std::uint32_t);
-        job.buffers[3] = impl_->device.create_buffer(read_write);
+        job.buffers[2] = impl_->acquire_buffer(layout->work_words * sizeof(std::uint32_t), true);
+        job.buffers[3] = impl_->acquire_buffer(layout->output_words * sizeof(std::uint32_t), true);
         job.buffers[4] = impl_->storage(encoded.strokes, kGpuStrokeWords);
         job.buffers[5] = impl_->storage(encoded.dashes, kGpuDashWords);
         job.layout = *layout;
@@ -182,6 +233,25 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
         job.extent = extent;
         job.pitch = pitch;
         impl_->pending.push_back(std::move(job));
+    } catch (const std::exception&) {
+        return std::unexpected(GpuRasterError::device_failure);
+    }
+    return {};
+}
+
+std::expected<void, GpuRasterError> GpuPathRasterizer::warm(std::uint32_t slots) {
+    try {
+        std::vector<std::unique_ptr<Impl::Slot>> made;
+        for (std::uint32_t index = impl_->slots_created; index < slots; ++index) {
+            auto slot = impl_->take_slot();
+            if (!slot) {
+                return std::unexpected(GpuRasterError::device_failure);
+            }
+            made.push_back(std::move(slot));
+        }
+        for (auto& slot : made) {
+            impl_->free_slots.push_back(std::move(slot));
+        }
     } catch (const std::exception&) {
         return std::unexpected(GpuRasterError::device_failure);
     }
@@ -230,6 +300,12 @@ void GpuPathRasterizer::collect() {
         for (auto& slot : flights[index].slots) {
             impl_->free_slots.push_back(std::move(slot));
         }
+        for (Impl::Job& job : flights[index].jobs) {
+            for (std::size_t binding = 0; binding < job.buffers.size(); ++binding) {
+                impl_->release_buffer(std::move(job.buffers[binding]),
+                                      binding == 2 || binding == 3);
+            }
+        }
         flights.erase(flights.begin() + static_cast<std::ptrdiff_t>(index));
     }
 }
@@ -241,6 +317,9 @@ GpuPathRasterizer::Stats GpuPathRasterizer::stats() const {
     stats.pending = static_cast<std::uint32_t>(impl_->pending.size());
     stats.in_flight = static_cast<std::uint32_t>(impl_->in_flight.size());
     stats.pipeline_slots = impl_->slots_created;
+    stats.buffers_created = impl_->buffers_created;
+    stats.buffers_reused = impl_->buffers_reused;
+    stats.pooled_bytes = impl_->pooled_bytes;
     return stats;
 }
 
