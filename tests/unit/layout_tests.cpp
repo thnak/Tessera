@@ -351,6 +351,64 @@ int main() {
         return 14;
     }
 
+    // CSS size containment (issue #700). `container-type` makes a container's content-box size
+    // independent of its descendants on the contained axis; that independence is what keeps a
+    // self-referencing `@container` rule from changing the size that selected it.
+    //
+    // Every case here has an auto height, so the container fills the 200px viewport - ordinary
+    // block layout, unrelated to containment. Only the widths are the subject.
+    const LayoutInput contained{300,
+                                style({{"container-type", "inline-size"}}),
+                                {node(301, style({{"width", "400px"}, {"height", "40px"}}))}};
+    const LayoutResult contained_result = engine.layout(contained, viewport);
+    if (!expect(box_is(contained_result, 300, 0, 0, 0, 200),
+                "inline-size containment zeroes an auto width") ||
+        !expect(box_is(contained_result, 301, 0, 0, 400, 40),
+                "the child keeps its own size, overhanging rather than widening the parent")) {
+        return 15;
+    }
+
+    // The control, without which a bug that zeroed every `auto` width would pass the case above and
+    // break every ordinary page.
+    const LayoutInput uncontained{
+        310, style({}), {node(311, style({{"width", "400px"}, {"height", "40px"}}))}};
+    const LayoutResult uncontained_result = engine.layout(uncontained, viewport);
+    if (!expect(box_is(uncontained_result, 310, 0, 0, 400, 200),
+                "without container-type an auto width still sizes to content")) {
+        return 16;
+    }
+
+    // A length the author wrote is never overridden: containment removes a dependency on content,
+    // it does not replace a used value.
+    const LayoutInput authored_width{320,
+                                     style({{"container-type", "inline-size"}, {"width", "250px"}}),
+                                     {node(321, style({{"width", "400px"}, {"height", "40px"}}))}};
+    const LayoutResult authored_result = engine.layout(authored_width, viewport);
+    if (!expect(box_is(authored_result, 320, 0, 0, 250, 200),
+                "an authored width wins over containment")) {
+        return 17;
+    }
+
+    // `size` contains both axes; `inline-size` must leave the block one alone. Pinning the negative
+    // case is what stops the two keywords being treated as synonyms.
+    const LayoutInput both_axes{330,
+                                style({{"container-type", "size"}}),
+                                {node(331, style({{"width", "400px"}, {"height", "120px"}}))}};
+    const LayoutResult both_result = engine.layout(both_axes, viewport);
+    if (!expect(box_is(both_result, 330, 0, 0, 0, 0), "size containment zeroes both axes")) {
+        return 18;
+    }
+    const LayoutInput inline_only{340,
+                                  style({{"container-type", "inline-size"}}),
+                                  {node(341, style({{"width", "400px"}, {"height", "120px"}}))}};
+    const LayoutResult inline_only_result = engine.layout(inline_only, viewport);
+    // The height is NOT contained here, so it behaves like any auto-height block box and fills the
+    // viewport. This is the assertion that fails if `inline-size` is treated as `size`.
+    if (!expect(box_is(inline_only_result, 340, 0, 0, 0, 200),
+                "inline-size contains the inline axis only; the height is not zeroed")) {
+        return 19;
+    }
+
     std::cout << "layout: ok\n";
     return 0;
 }

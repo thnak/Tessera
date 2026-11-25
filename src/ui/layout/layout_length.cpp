@@ -10,6 +10,7 @@
 
 namespace tessera::ui::layout {
 
+using detail::is_keyword;
 using detail::lower;
 using detail::parse_number;
 using detail::trim;
@@ -71,6 +72,32 @@ Length parse_length(std::string_view text, const LayoutViewport& viewport) {
         return Length{Length::Kind::Points, value * 4.0f / 3.0f};
     }
     return {};
+}
+
+// The CSS initial value of `width`/`height` is `auto`, and so is an undeclared property.
+namespace {
+
+bool is_auto_dimension(const std::string* value) {
+    return value == nullptr || is_keyword(value, "auto");
+}
+
+} // namespace
+
+void apply_size_containment(YGNodeRef node, const style::ComputedStyle& style,
+                            const std::string* box_sizing) {
+    const std::string* container_type = computed_property(style, "container-type");
+    const bool contain_inline =
+        is_keyword(container_type, "inline-size") || is_keyword(container_type, "size");
+    const bool contain_block = is_keyword(container_type, "size");
+    if (is_keyword(box_sizing, "border-box")) {
+        return; // `border-box` would fold the padding into the zero and collapse the box
+    }
+    if (contain_inline && is_auto_dimension(computed_property(style, "width"))) {
+        YGNodeStyleSetWidth(node, 0.0f);
+    }
+    if (contain_block && is_auto_dimension(computed_property(style, "height"))) {
+        YGNodeStyleSetHeight(node, 0.0f);
+    }
 }
 
 } // namespace tessera::ui::layout
