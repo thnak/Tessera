@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -50,6 +51,15 @@ public:
     StyleBridgeResult sync(AnimationRuntime& runtime, const Node& root, StyleBridgeFn compute,
                            void* context, const std::vector<style::KeyframeBlock>& keyframes,
                            AnimationCallback on_complete = {});
+
+    // The same walk over `roots` and their subtrees only, for a caller that can prove every other
+    // node kept its computed style, its structure and its `visible()`. It never erases a snapshot
+    // or sweeps the idle memo: both drop what the walk did not reach, and a scoped walk reaches
+    // only the restyled subtrees. A root below a node the whole walk would not enter is skipped.
+    StyleBridgeResult sync_scoped(AnimationRuntime& runtime, std::span<const Node* const> roots,
+                                  StyleBridgeFn compute, void* context,
+                                  const std::vector<style::KeyframeBlock>& keyframes,
+                                  AnimationCallback on_complete = {});
 
     // Drops every snapshot: the next sync re-establishes the baseline and starts nothing.
     void clear() {

@@ -120,6 +120,25 @@ void Fixture::edit_container() {
     targets_.container_node->set_inline_style("width", "260px");
 }
 
+double Fixture::run_text_frames(std::size_t rounds) {
+    driver_->request_full_repaint();
+    (void)driver_->begin_frame();
+    (void)paint(false);
+    driver_->end_frame();
+    // Two different strings, because re-applying the same payload is a no-op frame.
+    static constexpr const char* kTexts[2] = {
+        "Card 0 summary title, rewritten by the benchmark to force a text remeasure",
+        "Card 0 summary title, edited again so exactly one node is damaged"};
+    const Clock::time_point begin = Clock::now();
+    for (std::size_t round = 0; round < rounds; ++round) {
+        edit_text(kTexts[round % 2]);
+        (void)driver_->begin_frame();
+        (void)paint(false);
+        driver_->end_frame();
+    }
+    return rounds == 0 ? 0.0 : milliseconds(begin, Clock::now()) / static_cast<double>(rounds);
+}
+
 Measurement Fixture::measure() {
     Measurement result;
     // The first frame of a fresh scene is the cold style+layout path. Force the redraw plan to a
@@ -143,6 +162,7 @@ Measurement Fixture::measure() {
     edit_text();
     begin = Clock::now();
     const FrameWork text_frame = driver_->begin_frame();
+    result.text_phases = driver_->phases();
     (void)paint(false);
     result.layout_paint_text_ms = milliseconds(begin, Clock::now());
     result.damage_rects_text = text_frame.render.redraw_plan.scissors.size();
@@ -174,6 +194,22 @@ Measurement Fixture::measure() {
     result.damaged_paint_nodes = damaged.paint_nodes;
     result.damaged_culled_nodes = damaged.culled_nodes;
     result.damaged_culled_subtrees = damaged.culled_subtrees;
+    driver_->end_frame();
+
+    // Repeated full repaint of a clean tree (issue #476): the first one records the retained draw
+    // lists, the second replays them. This is the frame a resize-free expose, a forced repaint or a
+    // swapchain recreate pays when nothing in the scene changed.
+    for (int repeat = 0; repeat < 2; ++repeat) {
+        driver_->request_full_repaint();
+        (void)driver_->begin_frame();
+        (void)paint(false);
+        driver_->end_frame();
+    }
+    driver_->request_full_repaint();
+    (void)driver_->begin_frame();
+    const PaintOutcome repeated = paint(false);
+    result.repeat_paint_ms = repeated.ms;
+    result.repeat_paint_nodes = repeated.paint_nodes;
     driver_->end_frame();
 
     // Glass (issue #244): the same full paint with the fixed bar blurred. The first glass frame

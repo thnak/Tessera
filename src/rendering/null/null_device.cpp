@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "null_resources.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/null/null_swapchain.hpp"
 
@@ -32,130 +33,6 @@ bool offset_region_fits(rhi::Offset2D offset, const rhi::Scissor& region, rhi::E
     return static_cast<std::uint64_t>(offset.x) + region.width <= extent.width &&
            static_cast<std::uint64_t>(offset.y) + region.height <= extent.height;
 }
-
-class NullBuffer final : public rhi::Buffer {
-public:
-    NullBuffer(std::size_t size, rhi::BufferUsage usage)
-        : data_(size, 0),
-          usage_(usage) {}
-
-    [[nodiscard]] std::size_t size() const override {
-        return data_.size();
-    }
-    [[nodiscard]] rhi::BufferUsage usage() const {
-        return usage_;
-    }
-
-    void write(const void* data, std::size_t size, std::size_t offset) override {
-        check_range(size, offset);
-        std::memcpy(data_.data() + offset, data, size);
-    }
-
-    void read(void* data, std::size_t size, std::size_t offset) const override {
-        check_range(size, offset);
-        std::memcpy(data, data_.data() + offset, size);
-    }
-
-private:
-    // Matches the Vulkan backend: a range outside the buffer is a caller bug, not a no-op.
-    void check_range(std::size_t size, std::size_t offset) const {
-        if (size > data_.size() || offset > data_.size() - size) {
-            throw std::out_of_range("NullBuffer: range exceeds the buffer size");
-        }
-    }
-
-    std::vector<std::uint8_t> data_;
-    rhi::BufferUsage usage_ = rhi::BufferUsage::Vertex;
-};
-
-class NullTexture final : public rhi::Texture {
-public:
-    explicit NullTexture(const rhi::TextureDesc& desc)
-        : desc_(desc) {
-        if (!rhi::is_supported_sample_count(desc.sample_count)) {
-            throw std::invalid_argument("NullTexture: unsupported sample count");
-        }
-        if (desc.sample_count > 1 && desc.pixels != nullptr) {
-            throw std::invalid_argument(
-                "NullTexture: pixels cannot be uploaded to a multisampled texture");
-        }
-        if (!rhi::valid_texture_levels(desc)) {
-            throw std::invalid_argument("NullTexture: invalid mip level count");
-        }
-        const std::size_t bytes = bytes_per_pixel(desc.format);
-        data_.assign(static_cast<std::size_t>(desc.extent.width) * desc.extent.height * bytes, 0);
-        if (desc.pixels != nullptr && bytes != 0) {
-            const std::size_t row_pitch = desc.row_pitch != 0
-                                              ? desc.row_pitch
-                                              : static_cast<std::size_t>(desc.extent.width) * bytes;
-            for (std::uint32_t row = 0; row < desc.extent.height; ++row) {
-                std::memcpy(data_.data() +
-                                static_cast<std::size_t>(row) * desc.extent.width * bytes,
-                            static_cast<const std::uint8_t*>(desc.pixels) + row * row_pitch,
-                            static_cast<std::size_t>(desc.extent.width) * bytes);
-            }
-        }
-    }
-
-    [[nodiscard]] rhi::Extent2D extent() const override {
-        return desc_.extent;
-    }
-    [[nodiscard]] rhi::TextureFormat format() const override {
-        return desc_.format;
-    }
-    [[nodiscard]] std::uint32_t sample_count() const override {
-        return desc_.sample_count;
-    }
-    [[nodiscard]] std::uint32_t levels() const override {
-        return desc_.levels;
-    }
-    void write(const void* data, std::size_t size) override {
-        if (desc_.levels > 1) {
-            throw std::invalid_argument("NullTexture: mipmapped textures are immutable");
-        }
-        if (desc_.sample_count > 1) {
-            throw std::invalid_argument("NullTexture: multisampled textures cannot be uploaded");
-        }
-        if (data == nullptr || size != data_.size()) {
-            return;
-        }
-        std::memcpy(data_.data(), data, size);
-    }
-    void write_region(const rhi::TextureRegion& region, const void* data,
-                      std::size_t row_pitch) override {
-        if (desc_.levels > 1) {
-            throw std::invalid_argument("NullTexture: mipmapped textures are immutable");
-        }
-        if (desc_.sample_count > 1) {
-            throw std::invalid_argument("NullTexture: multisampled textures cannot be uploaded");
-        }
-        const std::size_t bytes = bytes_per_pixel(desc_.format);
-        const std::size_t pitch = rhi::checked_region_pitch(desc_.extent, bytes, region, row_pitch);
-        if (region.empty()) {
-            return;
-        }
-        if (data == nullptr) {
-            throw std::invalid_argument("NullTexture: region upload without data");
-        }
-        const std::size_t row_bytes = static_cast<std::size_t>(region.width) * bytes;
-        for (std::uint32_t row = 0; row < region.height; ++row) {
-            std::memcpy(
-                data_.data() +
-                    (static_cast<std::size_t>(region.y + row) * desc_.extent.width + region.x) *
-                        bytes,
-                static_cast<const std::uint8_t*>(data) + static_cast<std::size_t>(row) * pitch,
-                row_bytes);
-        }
-    }
-
-private:
-    static std::size_t bytes_per_pixel(rhi::TextureFormat format) {
-        return format == rhi::TextureFormat::R8Unorm ? 1 : 4;
-    }
-
-    rhi::TextureDesc desc_;
-    std::vector<std::uint8_t> data_;
-};
 
 class NullRenderTarget final : public rhi::RenderTarget {
 public:
@@ -246,6 +123,14 @@ public:
     // tests exercise the path on any machine, and it is paired with that record so "supported" is
     // never an unobserved claim; a test asserts the recorded slot and size.
     [[nodiscard]] bool supports_storage_buffers() const override {
+        return true;
+    }
+
+    // Null parity for the buffer-to-texture copy (RHI 1.17, ADR-072). The null buffers and textures
+    // keep real bytes, so the copy moves them (and validates exactly what Vulkan validates); it is
+    // paired with a record (NullBufferTextureCopy) so "supported" is never an unobserved claim.
+    // Compute stays unsupported, so a staging buffer is the source a null test can fill.
+    [[nodiscard]] bool supports_buffer_texture_copy() const override {
         return true;
     }
 
@@ -452,6 +337,51 @@ void NullCommandList::blit_target(const rhi::RenderTarget& source,
     ++stats_.blits;
     stats_.command_order.push_back(NullCommandKind::Blit);
     mark_target_content(destination);
+}
+
+void NullCommandList::copy_buffer_to_texture(const rhi::Buffer& source, rhi::Texture& destination,
+                                             const rhi::BufferTextureCopy& copy) {
+    // Validating-backend parity: the same refusals the Vulkan backend makes, in the same order.
+    if (in_pass_) {
+        throw std::logic_error("null copy_buffer_to_texture: render pass is still active");
+    }
+    const auto* buffer = dynamic_cast<const NullBuffer*>(&source);
+    auto* texture = dynamic_cast<NullTexture*>(&destination);
+    if (buffer == nullptr || texture == nullptr) {
+        throw std::invalid_argument(
+            "null copy_buffer_to_texture: the buffer or the texture belongs to another backend");
+    }
+    if (buffer->usage() != rhi::BufferUsage::Staging &&
+        buffer->usage() != rhi::BufferUsage::Storage) {
+        throw std::invalid_argument(
+            "null copy_buffer_to_texture: the source must be a Staging or Storage buffer");
+    }
+    if (texture->sample_count() != 1) {
+        throw std::invalid_argument(
+            "null copy_buffer_to_texture: multisampled textures cannot be copied into");
+    }
+    if (texture->levels() != 1) {
+        throw std::invalid_argument(
+            "null copy_buffer_to_texture: mipmapped textures are immutable");
+    }
+    const std::size_t pitch = rhi::checked_buffer_texture_copy(texture->extent(), texture->format(),
+                                                               copy, buffer->size());
+    if (copy.region.empty()) {
+        return;
+    }
+    // Repack the rows into a tight rectangle, then write it as a region write.
+    const std::size_t row_bytes =
+        static_cast<std::size_t>(copy.region.width) * rhi::texture_format_bytes(texture->format());
+    std::vector<std::uint8_t> rows(row_bytes * copy.region.height);
+    for (std::uint32_t row = 0; row < copy.region.height; ++row) {
+        buffer->read(rows.data() + static_cast<std::size_t>(row) * row_bytes, row_bytes,
+                     copy.buffer_offset + static_cast<std::size_t>(row) * pitch);
+    }
+    texture->write_region(copy.region, rows.data(), 0);
+    stats_.command_order.push_back(NullCommandKind::CopyBufferToTexture);
+    stats_.buffer_texture_copies.push_back(
+        NullBufferTextureCopy{copy.region, copy.buffer_offset, pitch, buffer->size(),
+                              buffer->usage(), texture->extent(), texture->format()});
 }
 
 void NullCommandList::submit() {

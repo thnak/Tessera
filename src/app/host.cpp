@@ -424,6 +424,7 @@ ui::frame::FramePaint AppHost::paint(ui::paint::PaintSink& sink, bool force) {
 }
 
 void AppHost::end_frame() {
+    impl_->note_frame_end();
     impl_->dirty.clear(impl_->root, ui::Dirty::All);
 }
 

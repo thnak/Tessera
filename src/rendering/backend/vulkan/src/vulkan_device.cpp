@@ -146,8 +146,17 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
         // by the CPU every frame (the clip record list), so it keeps host-sequential-write access
         // and is mapped once at creation; the per-frame-buffer contract keeps a write from racing a
         // submission that still reads it.
-        buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        // RHI 1.17 (ADR-072): also a transfer source, so `copy_buffer_to_texture` reads it.
+        buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         allocation_info.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        if (desc.gpu_read_write) {
+            // RHI 1.16 (issue #683): a compute pass writes it and a copy reads it back, so it lives
+            // in device memory and is not host-mapped.
+            buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+            allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+            allocation_info.flags = 0;
+        }
         break;
     }
 

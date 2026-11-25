@@ -28,6 +28,18 @@ std::uint64_t scene_structure_epoch() noexcept {
     return g_structure_epoch.load(std::memory_order_relaxed);
 }
 
+namespace {
+std::atomic<std::uint64_t> g_visibility_epoch{0};
+} // namespace
+
+std::uint64_t scene_visibility_epoch() noexcept {
+    return g_visibility_epoch.load(std::memory_order_relaxed);
+}
+
+void note_scene_visibility_change() noexcept {
+    g_visibility_epoch.fetch_add(1, std::memory_order_relaxed);
+}
+
 // The first-line layout of `Node` (see the member block in node.hpp) as compile-time facts: every
 // field the whole-scene passes read at each node ends inside the first 64 bytes, and the first
 // on-demand field starts exactly at the second line. A new member placed on line 0 by mistake, or

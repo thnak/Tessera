@@ -7,6 +7,7 @@
 
 #include "layout_measure.hpp"
 #include "layout_retained.hpp"
+#include "tessera/ui/text/text_measure_cache.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -43,26 +44,44 @@ void collect_grid_items(const RetainedNode& retained, float x, float y,
 void collect_retained_boxes(const RetainedNode& retained, float parent_x, float parent_y,
                             const RetainedTreeState& state, LayoutResult& result) {
     YGNodeRef node = retained.node;
-    const float left = YGNodeLayoutGetLeft(node);
-    const float top = YGNodeLayoutGetTop(node);
-    const float x = parent_x + left;
-    const float y = parent_y + top;
-    const auto inset = [node](YGEdge edge) {
-        return YGNodeLayoutGetPadding(node, edge) + YGNodeLayoutGetBorder(node, edge);
-    };
-    LayoutBox box{
-        retained.id, rhi::Rect{x, y, YGNodeLayoutGetWidth(node), YGNodeLayoutGetHeight(node)},
-        LayoutInsets{inset(YGEdgeLeft), inset(YGEdgeTop), inset(YGEdgeRight), inset(YGEdgeBottom)}};
-    TextFitInputs inputs;
-    inputs.text = retained.text;
-    inputs.style = &retained.text_style;
-    inputs.text_wrap = retained.text_wrap;
-    inputs.display_none = retained.display_none;
-    inputs.pad_left = retained.pad_left;
-    inputs.pad_top = retained.pad_top;
-    inputs.pad_right = retained.pad_right;
-    inputs.pad_bottom = retained.pad_bottom;
-    box.text_fit = measure_text_fit(inputs, box.bounds, *state.cache);
+    if (!retained.box_valid || YGNodeGetHasNewLayout(node)) {
+        const auto inset = [node](YGEdge edge) {
+            return YGNodeLayoutGetPadding(node, edge) + YGNodeLayoutGetBorder(node, edge);
+        };
+        retained.box_left = YGNodeLayoutGetLeft(node);
+        retained.box_top = YGNodeLayoutGetTop(node);
+        retained.box_width = YGNodeLayoutGetWidth(node);
+        retained.box_height = YGNodeLayoutGetHeight(node);
+        retained.box_insets = LayoutInsets{inset(YGEdgeLeft), inset(YGEdgeTop), inset(YGEdgeRight),
+                                           inset(YGEdgeBottom)};
+        retained.box_valid = true;
+        YGNodeSetHasNewLayout(node, false);
+    }
+    const float x = parent_x + retained.box_left;
+    const float y = parent_y + retained.box_top;
+    LayoutBox box{retained.id, rhi::Rect{x, y, retained.box_width, retained.box_height},
+                  retained.box_insets};
+    const std::uint64_t generation = state.cache->generation();
+    if (retained.fit_valid && retained.fit_generation == generation &&
+        retained.fit_width == box.bounds.width && retained.fit_height == box.bounds.height) {
+        box.text_fit = retained.fit_result;
+    } else {
+        TextFitInputs inputs;
+        inputs.text = retained.text;
+        inputs.style = &retained.text_style;
+        inputs.text_wrap = retained.text_wrap;
+        inputs.display_none = retained.display_none;
+        inputs.pad_left = retained.pad_left;
+        inputs.pad_top = retained.pad_top;
+        inputs.pad_right = retained.pad_right;
+        inputs.pad_bottom = retained.pad_bottom;
+        box.text_fit = measure_text_fit(inputs, box.bounds, *state.cache);
+        retained.fit_valid = true;
+        retained.fit_result = box.text_fit;
+        retained.fit_width = box.bounds.width;
+        retained.fit_height = box.bounds.height;
+        retained.fit_generation = generation;
+    }
     result.boxes.push_back(box);
 
     if (retained.grid) {

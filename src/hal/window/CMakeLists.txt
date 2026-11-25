@@ -67,6 +67,11 @@ add_library(tessera_hal_window STATIC)
 # The pure display-refresh value rules (validation, "unknown", explicit-option precedence and the
 # X11 mode math) live here on every platform, so the platform files only read the OS value and hand
 # it over. Tests compile this file directly, without a window or a display.
+if (WIN32)
+    # The Win32 half of the same primitive: a manual-reset event the message wait joins.
+    target_sources(tessera_hal_window PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/wake_source_win32.cpp)
+endif ()
+
 target_sources(tessera_hal_window PRIVATE
     # The cross-thread wake a parked UI thread joins (issue #842): an `eventfd` on POSIX, null
     # where the platform has no such primitive (the host then keeps its bounded sleep). Pure POSIX,

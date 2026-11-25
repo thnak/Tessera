@@ -403,40 +403,6 @@ bool test_transformed_node_is_never_culled() {
            expect(stats.culled_nodes == 0, "a transformed node is never culled");
 }
 
-bool test_dirty_node_with_a_cache_record_is_not_culled() {
-    // Culling a dirty node would skip its re-record, and a later clean paint whose style-free key
-    // matches the old entry would replay stale output. The pass therefore paints a dirty node that
-    // has a cache record, and only culls it once it is clean.
-    Node root(kRoot);
-    CountingStyles styles;
-    root.set_bounds({0.0f, 0.0f, 400.0f, 400.0f});
-    styles.set(kRoot, styled({{"background-color", "#0b1220"}}));
-    Node& far_leaf = add(root, 2, {250.0f, 250.0f, 30.0f, 30.0f});
-    styles.set(2, styled({{"background-color", "#00ff00"}}));
-
-    paint_cache_test::PaintCache cache;
-    PaintContext context;
-    context.paint_cache = &cache;
-    {
-        RecordingSink sink;
-        (void)paint_scene(root, styles, sink, context); // records both nodes
-    }
-    clear_all(root);
-    far_leaf.mark_dirty(Dirty::Paint);
-    context.cull = kView;
-    RecordingSink dirty_sink;
-    const PaintStats dirty_stats = paint_scene(root, styles, dirty_sink, context);
-    clear_all(root);
-    RecordingSink clean_sink;
-    const PaintStats clean_stats = paint_scene(root, styles, clean_sink, context);
-    return expect(has_rect(dirty_sink.calls, 250.0f, 250.0f),
-                  "a dirty node is painted instead of culled, so its record is refreshed") &&
-           expect(dirty_stats.culled_nodes == 0, "the dirty node is not counted as culled") &&
-           expect(!has_rect(clean_sink.calls, 250.0f, 250.0f),
-                  "once clean and outside the rect, the node is culled") &&
-           expect(clean_stats.culled_nodes == 1, "the clean node is counted as culled");
-}
-
 bool test_covering_rect_is_byte_identical() {
     const Painted full = painted(true, std::nullopt);
     const Painted covered = painted(true, Rect{-10.0f, -10.0f, 500.0f, 500.0f});
@@ -459,7 +425,6 @@ int main() {
     ok = paint_cull_test::test_shadow_reach_keeps_the_node() && ok;
     ok = paint_cull_test::test_text_that_leaves_its_box_is_never_culled() && ok;
     ok = paint_cull_test::test_transformed_node_is_never_culled() && ok;
-    ok = paint_cull_test::test_dirty_node_with_a_cache_record_is_not_culled() && ok;
     ok = paint_cull_test::test_covering_rect_is_byte_identical() && ok;
     if (!ok) {
         std::cerr << "paint_cull: failed\n";

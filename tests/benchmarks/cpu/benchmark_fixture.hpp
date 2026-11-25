@@ -45,7 +45,12 @@ struct Measurement {
     double full_paint_ms = 0.0;
     double layout_paint_text_ms = 0.0;
     double layout_paint_container_ms = 0.0;
+    // The phases of the one-text-change frame (the incremental frame this scene is measured for).
+    FramePhases text_phases;
     // Glass scenario (issue #244): a full paint of the reference scene with the glass bar active.
+    // Full repaint of an unchanged tree after the retained draw lists exist (issue #476).
+    double repeat_paint_ms = 0.0;
+    std::size_t repeat_paint_nodes = 0;
     double glass_paint_ms = 0.0;
     std::size_t glass_backdrops = 0;
     // Damaged scenario (issue #474): paint only, after a one-node edit, through `begin_damaged`.
@@ -106,6 +111,10 @@ public:
     Fixture& operator=(const Fixture&) = delete;
 
     [[nodiscard]] Measurement measure();
+    // The one-text-change frame repeated `rounds` times on a scene that has already had its first
+    // frame, for a sampling profiler (`--profile`): the cold first frame is excluded so the samples
+    // describe the incremental path. Returns the mean frame time in milliseconds.
+    [[nodiscard]] double run_text_frames(std::size_t rounds);
     [[nodiscard]] std::size_t nodes() const noexcept {
         return targets_.nodes;
     }

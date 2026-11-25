@@ -13,6 +13,7 @@
 #include "layout_cold.hpp"
 #include "layout_retained.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/layout_signature.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 #include "tessera/ui/text/text_measure_cache.hpp"
 
@@ -222,6 +223,21 @@ void edit(Scene& scene, Rng& rng, std::uint32_t frame) {
     }
 }
 
+// Stamps every node's `subtree_signature`, the way a caller that retains its input does, so the
+// retained tree may skip a subtree whose signature it already holds. Restamped after every edit: a
+// stale stamp is the caller's bug, not something the tree can detect.
+void stamp(LayoutInput& root, const LayoutViewport& viewport) {
+    tessera::ui::layout::LayoutSignatureBuilder builder(viewport);
+    const auto visit = [&builder](auto&& self, LayoutInput& input) -> void {
+        builder.enter(input);
+        for (LayoutInput& child : input.children) {
+            self(self, child);
+        }
+        input.subtree_signature = builder.leave(input.children.size());
+    };
+    visit(visit, root);
+}
+
 bool same_boxes(const LayoutResult& retained, const LayoutResult& cold, std::uint32_t frame) {
     if (retained.boxes.size() != cold.boxes.size()) {
         std::cerr << "  frame " << frame << ": box count " << retained.boxes.size() << " vs "
@@ -263,6 +279,7 @@ int main() {
         if (frame > 0) {
             edit(scene, rng, frame);
         }
+        stamp(scene.root, viewport);
         const LayoutResult retained_result = retained.layout(scene.root, viewport, cache);
         const LayoutResult cold_result =
             layout_cold(scene.root, viewport, viewport.width, viewport.height, cache,
@@ -278,6 +295,18 @@ int main() {
         (void)retained.layout(scene.root, viewport, cache);
     }
     if (!expect(retained.style_applications() == before, "a steady frame re-applied a style")) {
+        return 1;
+    }
+    // The randomized frames above ran with stamped signatures and still matched a cold layout; the
+    // steady frames must have skipped whole subtrees (the root's signature is unchanged, so the
+    // tree is entered once per frame and no child is walked).
+    if (!expect(retained.skipped_subtrees() > 0, "no subtree was ever skipped")) {
+        return 1;
+    }
+    const std::size_t skipped = retained.skipped_subtrees();
+    (void)retained.layout(scene.root, viewport, cache);
+    if (!expect(retained.skipped_subtrees() == skipped + 1,
+                "an unchanged, signed tree was not skipped at its root")) {
         return 1;
     }
 
@@ -335,6 +364,122 @@ int main() {
             layout_cold(contents.root, viewport, viewport.width, viewport.height, cache,
                         /*as_grid_item=*/false);
         if (!same_boxes(retained_contents, cold_contents, kFrames + 3)) {
+            return 1;
+        }
+    }
+
+    // The retained tree matches the i-th input child to the node it synced to last pass before it
+    // asks the id map, so every way the child list can move under that guess has to still equal a
+    // from-scratch layout: a rotation, a removal in the middle, the container turning into a text
+    // leaf (its children destroyed) and back into a container with the very same child ids, and a
+    // reversal.
+    {
+        const auto box = [](std::uint64_t id, const char* width) {
+            return node(id, style({{"width", width}, {"height", "20px"}}));
+        };
+        const auto page = [&](std::vector<LayoutInput> kids, const char* text) {
+            LayoutInput container = node(5,
+                                         style({{"display", "flex"},
+                                                {"flex-direction", "row"},
+                                                {"width", "300px"},
+                                                {"height", "40px"}}),
+                                         std::move(kids));
+            container.text = text;
+            return node(1,
+                        style({{"display", "flex"},
+                               {"flex-direction", "column"},
+                               {"width", "600px"},
+                               {"height", "200px"}}),
+                        {std::move(container)});
+        };
+        RetainedTree moving;
+        const auto check_step = [&](const LayoutInput& scene_input, std::uint32_t step) {
+            const LayoutResult warm = moving.layout(scene_input, viewport, cache);
+            const LayoutResult cold =
+                layout_cold(scene_input, viewport, viewport.width, viewport.height, cache,
+                            /*as_grid_item=*/false);
+            return same_boxes(warm, cold, 10000 + step);
+        };
+        const auto kids = [&](std::initializer_list<std::pair<std::uint64_t, const char*>> list) {
+            std::vector<LayoutInput> out;
+            for (const auto& [id, width] : list) {
+                out.push_back(box(id, width));
+            }
+            return out;
+        };
+        const std::vector<LayoutInput> steps[] = {
+            kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), // base
+            kids({{7, "50px"}, {8, "60px"}, {6, "40px"}}), // rotated
+            kids({{7, "50px"}, {6, "40px"}}),              // one removed from the middle
+            kids({}),                                      // emptied
+            kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), // back, same ids, new nodes
+            kids({{8, "60px"}, {7, "50px"}, {6, "40px"}}), // reversed
+        };
+        std::uint32_t step = 0;
+        for (const std::vector<LayoutInput>& children : steps) {
+            if (!check_step(page(children, ""), step++)) {
+                return 1;
+            }
+        }
+        // The container becomes a text leaf: its children are destroyed with the guess list, then
+        // the same ids come back under a container again.
+        if (!check_step(page({}, "label"), step++) ||
+            !check_step(page(kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), ""), step++) ||
+            !check_step(page(kids({{6, "40px"}, {7, "50px"}, {8, "60px"}}), ""), step++)) {
+            return 1;
+        }
+    }
+
+    // The box walk reuses what it read off Yoga for a node whose `hasNewLayout` is clear. Siblings
+    // shift and a percentage padding re-resolves when an unrelated node's width changes, without
+    // those nodes' own styles moving, so each such change has to reach the walk through Yoga's
+    // flag.
+    {
+        const auto cell = [](std::uint64_t id, const char* width) {
+            return node(id, style({{"width", width}, {"height", "20px"}}));
+        };
+        LayoutInput padded = node(30,
+                                  style({{"display", "flex"},
+                                         {"flex-direction", "row"},
+                                         {"padding-left", "10%"},
+                                         {"padding-top", "5%"},
+                                         {"height", "60px"}}),
+                                  {cell(31, "30px"), cell(32, "30px")});
+        const auto page = [&](const char* first_width, const char* container_width) {
+            LayoutInput row = node(10,
+                                   style({{"display", "flex"},
+                                          {"flex-direction", "row"},
+                                          {"width", "500px"},
+                                          {"height", "80px"}}),
+                                   {cell(11, first_width), cell(12, "70px"), cell(13, "80px")});
+            LayoutInput wrap = node(20,
+                                    style({{"display", "flex"},
+                                           {"flex-direction", "column"},
+                                           {"width", container_width}}),
+                                    {padded});
+            return node(1,
+                        style({{"display", "flex"},
+                               {"flex-direction", "column"},
+                               {"width", "600px"},
+                               {"height", "300px"}}),
+                        {std::move(row), std::move(wrap)});
+        };
+        RetainedTree walking;
+        std::uint32_t step = 0;
+        const auto check_page = [&](const LayoutInput& scene_input) {
+            const LayoutResult warm = walking.layout(scene_input, viewport, cache);
+            const LayoutResult cold =
+                layout_cold(scene_input, viewport, viewport.width, viewport.height, cache,
+                            /*as_grid_item=*/false);
+            return same_boxes(warm, cold, 20000 + step++);
+        };
+        // Three identical passes (the second and third read cached boxes), then the first cell
+        // grows so its siblings shift; then the container narrows so the percentage padding
+        // re-resolves; then everything returns; then one more steady pass.
+        if (!check_page(page("40px", "200px")) || !check_page(page("40px", "200px")) ||
+            !check_page(page("40px", "200px")) || !check_page(page("90px", "200px")) ||
+            !check_page(page("90px", "120px")) || !check_page(page("40px", "200px")) ||
+            !check_page(page("40px", "200px"))) {
             return 1;
         }
     }

@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.15**
-  (`0x0001000f`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.17**
+  (`0x00010011`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -80,6 +80,15 @@ RHI versioning and capabilities (ADR-049):
   about to draw with reads a storage buffer before binding one (ADR-068 slice 3, issue #671). The
   default is false, which is the answer for every pipeline created without
   `PipelineDesc::storage_buffer`, so no existing backend or caller changes.
+  1.16 adds compute (issue #683, [ADR-071](../../../decisions/ADR-071-gpu-compute-tile-rasterizer.md)):
+  `ComputePipelineDesc`/`ComputePipeline`, `BufferDesc::gpu_read_write` (a device-memory storage buffer
+  shaders write), the `CommandList` calls `bind_compute_pipeline`, `bind_compute_buffer`,
+  `compute_push_constants`, `dispatch`, `compute_barrier` and `copy_buffer`, and the capability that gates
+  them, `Device::supports_compute()`. Every new virtual has a default (false / throws), so no existing
+  backend or caller changes; Vulkan implements it, the null and WebGPU backends answer false.
+  1.17 adds `CommandList::copy_buffer_to_texture` and `Device::supports_buffer_texture_copy()`
+  ([ADR-072](../../../decisions/ADR-072-rhi-copy-buffer-to-texture.md), section 5.7); Vulkan and the null
+  backend answer true, WebGPU and Metal false until their slices land.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -428,6 +437,30 @@ a texture regression and a vertex-buffer regression were indistinguishable (issu
   a real GPU agree and the row can be enforced. The allocator's own `block_bytes` is deliberately not
   the budgeted row: it is driver-specific and would make the gate flaky.
 
+### 5.7 Buffer to texture copy (RHI 1.17)
+
+`copy_buffer_to_texture(source, destination, BufferTextureCopy{region, buffer_offset, buffer_row_pitch})`
+copies bytes into a texture rectangle inside the command list, so a compute pass's output reaches a
+texture a draw samples with no CPU round trip and no extra submission
+([ADR-072](../../../decisions/ADR-072-rhi-copy-buffer-to-texture.md)).
+
+- **Bytes are verbatim.** The buffer holds the texture's own layout (`R8G8B8A8Unorm`: R, G, B, A;
+  `R8Unorm`: one byte); a shader writes the channel order and transfer function the texture expects.
+- **Source:** a `Staging` or `Storage` buffer (a `gpu_read_write` one is the compute output).
+  **Destination:** a one-sample, one-level texture.
+- **Layout:** rows are `buffer_row_pitch` bytes apart starting at `buffer_offset`. The offset is a
+  multiple of 4; the pitch a multiple of `kTextureCopyRowAlignment` (256, WebGPU's `bytesPerRow`, the
+  strictest backend) and at least one row. 0 means `aligned_texture_copy_pitch(width, format)`.
+- **Order:** after the compute work recorded before it (the backend inserts the barrier), before any
+  draw recorded after it. It is not recorded inside a render pass (`std::logic_error`).
+- **Errors:** the region outside the texture is `std::out_of_range`; a bad pitch or offset, a buffer
+  too short for the rows, a wrong usage, or a multisampled/mipmapped destination is
+  `std::invalid_argument`; a stale device epoch or a backend without the capability is
+  `std::runtime_error`. An empty region copies nothing. `checked_buffer_texture_copy`
+  (`texture_region.hpp`) is the one shared check, so every backend refuses the same inputs.
+- **Tests:** `buffer_texture_copy_null` (validation matrix, record, order) and
+  `buffer_texture_copy` (staging, storage and compute-fed pixels read back on a real device).
+
 ## 6. Lifetime and threading
 - The device owns GPU objects; users own handles and destroy them before the device.
 - Resources referenced by in-flight frames retire after their completion value; never destroy
@@ -469,6 +502,8 @@ The null backend implements the same object/command API with no GPU. It records:
 - push-constant size
 - draw calls/vertices
 - copies/submits, including the region and destination offset of `copy_target_region`
+- `copy_buffer_to_texture` (RHI 1.17): the source usage, destination extent, region, offset and
+  effective pitch; the bytes really land in the null texture
 - every recorded operation in command order (`NullCommandStats::command_order`), so a structural
   test can assert a sequence - the composite seam's attachment -> copy -> sample -> composite - and
   not only counts

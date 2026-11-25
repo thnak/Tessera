@@ -2,6 +2,7 @@
 
 add_library(tessera_paint STATIC
     background_layer_cache.cpp
+    paint_box.cpp
     paint_cache.cpp
     paint_pass.cpp
     paint_image.cpp
@@ -18,6 +19,7 @@ add_library(tessera_paint STATIC
     paint_text_spans.cpp
     scene_style_provider.cpp
     scene_style_sync.cpp
+    subtree_paint_cache.cpp
     paint_gradient.cpp
     paint_vector.cpp
     text_layout_cache.cpp)

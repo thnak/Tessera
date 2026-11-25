@@ -29,6 +29,7 @@
 #pragma GCC diagnostic ignored "-Wmismatched-new-delete"
 #endif
 
+#include "frame_alloc_sites.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/runtime/clock.hpp"
@@ -52,16 +53,19 @@ namespace {
 bool g_counting = false;
 std::size_t g_allocations = 0;
 
-void count() {
+void count(std::size_t size) {
     if (g_counting) {
         ++g_allocations;
+        if (tessera::probe::g_track_sites) {
+            tessera::probe::record_site(size);
+        }
     }
 }
 
 } // namespace
 
 void* operator new(std::size_t size) {
-    count();
+    count(size);
     if (void* p = std::malloc(size == 0 ? 1 : size)) {
         return p;
     }
@@ -69,7 +73,7 @@ void* operator new(std::size_t size) {
 }
 
 void* operator new(std::size_t size, std::align_val_t alignment) {
-    count();
+    count(size);
     return tessera::detail::aligned_allocate(size, alignment);
 }
 
@@ -279,7 +283,30 @@ bool expect(bool condition, const char* scene, const char* action, std::size_t a
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // `alloc_per_frame_tests --sites <card-grid|scrolling-list|animated>
+    // <idle|paint-dirty|layout-dirty>` prints the top allocation call chains of one row instead of
+    // running the gate (issue #701).
+    if (argc == 4 && std::strcmp(argv[1], "--sites") == 0) {
+        SceneKind kind = SceneKind::CardGrid;
+        for (SceneKind candidate :
+             {SceneKind::CardGrid, SceneKind::ScrollingList, SceneKind::Animated}) {
+            if (std::strcmp(argv[2], name_of(candidate)) == 0) {
+                kind = candidate;
+            }
+        }
+        Action action = Action::Idle;
+        for (Action candidate : {Action::Idle, Action::PaintDirty, Action::LayoutDirty}) {
+            if (std::strcmp(argv[3], name_of(candidate)) == 0) {
+                action = candidate;
+            }
+        }
+        tessera::probe::g_track_sites = true;
+        (void)measure(kind, action, 200, 10, 20);
+        tessera::probe::g_track_sites = false;
+        tessera::probe::print_sites();
+        return 0;
+    }
     // The budgets are the numbers measured on each lane when this test landed, and they live in
     // `tests/golden/perf/alloc_budget.json` so a reviewer sees the number a change moves. They are
     // NOT the same on MSVC and GCC (the standard library's block count differs), so the table is

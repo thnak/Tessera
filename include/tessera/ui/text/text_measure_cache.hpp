@@ -5,6 +5,7 @@
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 
@@ -34,6 +35,12 @@ public:
 
     std::size_t invalidate(std::string_view text);
     void clear();
+
+    // Bumped by every `invalidate` and `clear`, whether or not an entry was removed. A holder of a
+    // result derived from `measure` (the layout engine's per-node text-fit fact) compares it to
+    // know the result may no longer match what `measure` would return now. Eviction does not bump
+    // it: it only forgets a value the measurer would produce again unchanged.
+    [[nodiscard]] std::uint64_t generation() const;
 
     [[nodiscard]] std::size_t size() const;
     [[nodiscard]] std::size_t capacity() const;

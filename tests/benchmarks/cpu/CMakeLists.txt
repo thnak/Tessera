@@ -33,6 +33,12 @@ target_link_libraries(tessera_benchmark PRIVATE
     tessera_scene
     tessera_runtime)
 
+# Issue #200 (held animations): the measurement that justified the change, kept as a guard.
+add_executable(held_animation_probe held_animation_probe.cpp)
+target_link_libraries(held_animation_probe PRIVATE tessera_app tessera_runtime)
+target_compile_features(held_animation_probe PRIVATE cxx_std_23)
+add_test(NAME held_animation COMMAND held_animation_probe 100)
+
 add_test(
     NAME cpu_benchmark
     COMMAND tessera_benchmark

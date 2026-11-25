@@ -74,6 +74,7 @@ struct TextMeasureCache::Impl {
     std::list<Entry> entries;
     std::unordered_map<Key, std::list<Entry>::iterator, KeyHash> index;
     Stats stats;
+    std::uint64_t generation = 0;
 };
 
 TextMeasureCache::TextMeasureCache(std::shared_ptr<const TextMeasurer> measurer,
@@ -117,6 +118,7 @@ TextMetrics TextMeasureCache::measure(std::string_view text, const TextStyle& st
 }
 
 std::size_t TextMeasureCache::invalidate(std::string_view text) {
+    ++impl_->generation;
     std::size_t removed = 0;
     for (auto it = impl_->entries.begin(); it != impl_->entries.end();) {
         if (it->key.text == text) {
@@ -131,7 +133,12 @@ std::size_t TextMeasureCache::invalidate(std::string_view text) {
     return removed;
 }
 
+std::uint64_t TextMeasureCache::generation() const {
+    return impl_->generation;
+}
+
 void TextMeasureCache::clear() {
+    ++impl_->generation;
     impl_->entries.clear();
     impl_->index.clear();
     impl_->stats = Stats{};

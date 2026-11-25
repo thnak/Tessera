@@ -199,6 +199,10 @@ struct PaintOp {
         DrawVector,
         DrawImage,
         DrawBackdrop,
+        // Recorded only by a Recorder built with `record_pops` (the subtree draw list, which must
+        // carry its own pops); a per-node record stores pops as flags and never holds these.
+        PopClip,
+        PopTransform,
     };
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
@@ -284,6 +288,11 @@ struct PaintCacheSignature {
 // pushed clip is folded in with extend_paint_clip_hash().
 inline constexpr std::uint64_t kPaintClipHashSeed = 1469598103934665603ull;
 
+// Exact signature equality (floats by value, so NaN never matches): shared with the subtree draw
+// list, whose root key is a PaintCacheSignature.
+[[nodiscard]] bool same_paint_signature(const PaintCacheSignature& lhs,
+                                        const PaintCacheSignature& rhs);
+
 [[nodiscard]] std::uint64_t extend_paint_clip_hash(std::uint64_t seed, const RoundedClip& clip);
 
 // Emits recorded ops into `sink` in order. Text/vector/image ops rebuild their draw structs from
@@ -312,6 +321,16 @@ public:
     // Drops one node's entry without a lookup (a caller that knows the style changed).
     void erase(NodeId node);
 
+    // Whether the cache holds an entry for `node`, and whether it holds none at all. The paint
+    // pass uses them to tell a dirty node whose record could go stale (it has one) from a dirty
+    // node that can be culled freely (it has none, which is every node of a cold first frame).
+    [[nodiscard]] bool contains(NodeId node) const {
+        return entries_.find(node) != entries_.end();
+    }
+    [[nodiscard]] bool empty() const {
+        return entries_.empty();
+    }
+
     // Drops every entry and counts one invalidation (style/tree generation change).
     void invalidate();
     // Drops every entry without counting an invalidation.
@@ -334,7 +353,7 @@ public:
     // between the prefix and the pops.
     class Recorder final : public PaintSink {
     public:
-        explicit Recorder(PaintSink& target);
+        explicit Recorder(PaintSink& target, bool record_pops = false);
 
         void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
         void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
@@ -364,6 +383,7 @@ public:
         void record(PaintOp op);
 
         PaintSink& target_;
+        bool record_pops_ = false;
         std::vector<PaintOp> ops_;
         // The gradient payloads the recorded ops reference by index (issue #731). Empty for a node
         // that paints no gradient, so the common record allocates nothing for it.

@@ -26,6 +26,7 @@ The refactor introduces one owner above the windows and moves everything device-
 | `DeviceRecoveryController` | **shared** | device loss is a property of the device, not of a window |
 | `Batched2DRenderer` | **shared** | it owns the vertex ring, the offscreen pool and the glass pipelines, all device-scoped |
 | `TextStack` (face, rasterizer, shaper, `TextRenderer`, glyph atlas) | **shared** | the atlas is the single largest per-device allocation, and a face is immutable |
+| `VectorStack` (SVG document cache, path texture cache, GPU path rasterizer; ADR-071) | **shared** | built from the app's asset bundles against the device and the swapchain format; one cache means one decode and one texture per icon for every window |
 | pipelines (main, present, LCD, glass blur/composite), white texture | **shared** | they are created against the swapchain *format*, which every window in a group shares |
 | `RuntimeLoop` | **shared** | one tick drives every window; the loop is the app's clock, not a window's |
 | `FramePacer` | **shared** | one present deadline for the app, so two windows cannot drift into two pacing regimes |

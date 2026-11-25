@@ -104,6 +104,12 @@ void reset(RetainedTreeState& state) {
 // stale-low count would make Yoga lay out a `display: contents` node as a real box.
 void reconcile_children(RetainedTreeState& state, RetainedNode& retained) {
     YGNodeRef node = retained.node;
+    // A steady frame keeps every child in place. Checking that first is one pass; the removal scan
+    // below searches `desired` for every existing child, which is quadratic in a container with
+    // thousands of children (a 2.3k-row list spent ~4 percent of the incremental frame there).
+    if (retained.children == retained.desired) {
+        return;
+    }
     for (std::size_t i = retained.children.size(); i-- > 0;) {
         RetainedNode* child = retained.children[i];
         if (std::find(retained.desired.begin(), retained.desired.end(), child) !=
@@ -147,6 +153,7 @@ void set_measure(RetainedTreeState& state, RetainedNode& retained, RetainedMeasu
             destroy_subtree(state, child);
         }
         retained.children.clear();
+        retained.source.clear(); // its entries were just destroyed
         YGNodeSetContext(retained.node, &retained);
         YGNodeSetMeasureFunc(retained.node,
                              next == RetainedMeasure::Grid ? measure_grid : measure_text);
@@ -166,6 +173,7 @@ void apply_node_style(RetainedTreeState& state, RetainedNode& retained, const La
         apply_block_child_style(retained.node); // `margin: 0 auto` fill, no shrink (issue #611)
     }
     retained.style_digest = style::layout_digest(input.style);
+    retained.fit_valid = false; // text style, padding and `display` all feed the text-fit fact
     retained.block_parent = block_parent;
     retained.grid = is_grid_container(input.style);
     retained.display_none = is_keyword(input.style.find("display"), "none");
@@ -181,19 +189,29 @@ void apply_node_style(RetainedTreeState& state, RetainedNode& retained, const La
     ++state.style_applications;
 }
 
-RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent);
+RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent,
+                        RetainedNode* hint = nullptr);
 
 // The container half of `sync_node`: sync every child, order them by CSS `order`, and reconcile.
 void sync_children(RetainedTreeState& state, RetainedNode& retained, const LayoutInput& input) {
     retained.desired.clear();
+    std::size_t index = 0;
     for (const LayoutInput& child : input.children) {
-        if (RetainedNode* synced = sync_node(state, child, retained.block)) {
-            retained.desired.push_back(synced);
-        }
+        RetainedNode* const hint =
+            index < retained.source.size() ? retained.source[index] : nullptr;
+        RetainedNode* const synced = sync_node(state, child, retained.block, hint);
         if (state.restart) {
             return;
         }
+        if (index < retained.source.size()) {
+            retained.source[index] = synced;
+        } else {
+            retained.source.push_back(synced);
+        }
+        ++index;
+        retained.desired.push_back(synced);
     }
+    retained.source.resize(index);
     // CSS `order` (stylesheet-v1 section 11, issue #213): ascending `order`, ties keeping source
     // order. A stable insertion sort, in place: `std::stable_sort` would allocate a scratch buffer
     // on the frame path, and a container's child count is small.
@@ -209,19 +227,36 @@ void sync_children(RetainedTreeState& state, RetainedNode& retained, const Layou
     reconcile_children(state, retained);
 }
 
-RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent) {
+RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool block_parent,
+                        RetainedNode* hint) {
     if (state.restart) {
         return nullptr;
     }
     RetainedNode* retained = nullptr;
-    const auto found = state.nodes.find(input.id);
-    if (found != state.nodes.end()) {
+    // Ids are unique in `state.nodes`, so a hint carrying the input's id is the very node the map
+    // would return.
+    if (hint != nullptr && hint->id == input.id) {
+        retained = hint;
+    } else if (const auto found = state.nodes.find(input.id); found != state.nodes.end()) {
         retained = found->second.get();
+    }
+    if (retained != nullptr) {
         if (retained->visited == state.pass) {
             // Two input nodes share an id, so the id -> node map cannot represent this tree. The
             // pass is discarded rather than producing boxes for the wrong node.
             state.restart = true;
             return nullptr;
+        }
+        // The caller vouches (`LayoutInput::subtree_signature`) that nothing under this input
+        // differs, in any field layout reads, from what this subtree was last synced from. The
+        // style digest, text, wrap flag, child count and order are all inside that signature, so
+        // the walk would find nothing to do. `block_parent` comes from the parent, not the subtree.
+        if (state.may_skip && input.subtree_signature != 0 &&
+            retained->subtree_signature == input.subtree_signature &&
+            retained->block_parent == block_parent) {
+            retained->visited = state.pass;
+            ++state.skipped_subtrees;
+            return retained;
         }
     } else {
         auto created = std::make_unique<RetainedNode>();
@@ -246,6 +281,9 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
     if (retained->text_wrap != input.text_wrap) {
         retained->text_wrap = input.text_wrap;
         text_changed = true;
+    }
+    if (text_changed) {
+        retained->fit_valid = false;
     }
 
     // How this node is measured, mirroring `build_tree`: a grid container is a measured leaf over
@@ -274,16 +312,19 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
             retained->grid_signature = signature;
             YGNodeMarkDirty(retained->node);
         }
+        retained->subtree_signature = input.subtree_signature;
         return retained;
     }
     if (retained->measure == RetainedMeasure::Text) {
         if (text_changed) {
             YGNodeMarkDirty(retained->node);
         }
+        retained->subtree_signature = input.subtree_signature;
         return retained;
     }
 
     sync_children(state, *retained, input);
+    retained->subtree_signature = input.subtree_signature;
     return retained;
 }
 
@@ -335,6 +376,7 @@ LayoutResult RetainedTree::layout(const LayoutInput& root, const LayoutViewport&
             entry.second->style_digest = 0;
         }
     }
+    state.may_skip = !viewport_changed;
     state.viewport = viewport;
     state.primed = true;
     state.restart = false;
@@ -371,7 +413,7 @@ LayoutResult RetainedTree::layout(const LayoutInput& root, const LayoutViewport&
                           retained_root->rtl ? YGDirectionRTL : YGDirectionLTR);
 
     LayoutResult result;
-    result.boxes.reserve(16);
+    result.boxes.reserve(state.nodes.size());
     const float origin_x =
         page ? root_auto_margin_offset(retained_root->node, viewport.width) : 0.0f;
     collect_retained_boxes(*retained_root, origin_x, 0.0f, state, result);
@@ -388,6 +430,10 @@ std::size_t RetainedTree::style_applications() const {
 
 std::size_t RetainedTree::rebuilds() const {
     return state_ != nullptr ? state_->rebuilds : 0;
+}
+
+std::size_t RetainedTree::skipped_subtrees() const {
+    return state_ != nullptr ? state_->skipped_subtrees : 0;
 }
 
 } // namespace tessera::ui::layout::detail

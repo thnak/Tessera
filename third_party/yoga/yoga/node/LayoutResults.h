@@ -22,7 +22,12 @@ namespace facebook::yoga {
 struct LayoutResults {
   // This value was chosen based on empirical data:
   // 98% of analyzed layouts require less than 8 entries.
-  static constexpr int32_t MaxCachedMeasurements = 8;
+  //
+  // Tessera patch: upstream is 8. A container with thousands of children that a dirty ancestor
+  // re-measures under about ten different constraints per frame (flex-basis, grow and stretch
+  // passes) cycles an 8-slot cache forever, so every pass misses and walks every child again; at
+  // 12k nodes that was ~11.7k cache hits and ~3.6 ms per frame. 16 slots hold the whole set.
+  static constexpr int32_t MaxCachedMeasurements = 16;
 
   uint32_t computedFlexBasisGeneration = 0;
   FloatOptional computedFlexBasis = {};

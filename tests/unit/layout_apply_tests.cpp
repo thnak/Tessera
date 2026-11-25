@@ -6,6 +6,7 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 namespace {
 
@@ -138,6 +139,32 @@ int main() {
         !expect(twice.extra == 1, "duplicate id counts the second box extra") ||
         !expect(rect_is(panel_ref, 30, 40, 60, 70), "duplicate id keeps the last box")) {
         return 8;
+    }
+
+    // The resized list: a pure move is not a size change, a size change lists the topmost node
+    // only (its descendants are covered by the subtree walk), and the vector is cleared per call.
+    std::vector<const Node*> resized{&root};
+    const LayoutResult moved{{LayoutBox{1, {0.0f, 0.0f, 400.0f, 300.0f}},
+                              LayoutBox{2, {50.0f, 60.0f, 60.0f, 70.0f}},
+                              LayoutBox{3, {55.0f, 67.0f, 50.0f, 10.0f}}}};
+    (void)tessera::ui::layout::apply_layout(moved, root, resized);
+    if (!expect(resized.empty(), "a move without a size change lists nothing")) {
+        return 9;
+    }
+    const LayoutResult grown{{LayoutBox{1, {0.0f, 0.0f, 400.0f, 300.0f}},
+                              LayoutBox{2, {50.0f, 60.0f, 90.0f, 70.0f}},
+                              LayoutBox{3, {55.0f, 67.0f, 80.0f, 10.0f}}}};
+    (void)tessera::ui::layout::apply_layout(grown, root, resized);
+    if (!expect(resized.size() == 1 && resized[0] == &panel_ref,
+                "only the topmost resized node is listed")) {
+        return 10;
+    }
+    const LayoutResult leaf_only{{LayoutBox{1, {0.0f, 0.0f, 400.0f, 300.0f}},
+                                  LayoutBox{2, {50.0f, 60.0f, 90.0f, 70.0f}},
+                                  LayoutBox{3, {55.0f, 67.0f, 20.0f, 10.0f}}}};
+    (void)tessera::ui::layout::apply_layout(leaf_only, root, resized);
+    if (!expect(resized.size() == 1 && resized[0] == &label_ref, "a resized leaf is listed")) {
+        return 11;
     }
 
     std::cout << "layout_apply: ok\n";

@@ -6,6 +6,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "window_internal.hpp"
+#include "window_vector.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +55,11 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
         *device, *pipeline, *white, rendering::gpu::Batched2DConfig{4096, true, false},
         rendering::gpu::GlassPipelines{glass.blur.get(), glass.composite.get()});
     detail::TextStack text(*device, options.font_path);
-    ui::paint::Batched2DSink sink(renderer, text.renderer.get(), text.shaper.get());
+    detail::VectorStack vectors(*device, format, options.vector_assets, options.vector_bundles,
+                                false);
+    ui::paint::Batched2DSink sink(renderer, text.renderer.get(), text.shaper.get(),
+                                  vectors.available() ? vectors.config(options.dpi_scale)
+                                                      : ui::paint::VectorPaintConfig{});
 
     runtime::ManualClock clock;
     runtime::RuntimeLoop loop(clock);

@@ -11,11 +11,16 @@ LayoutScheduler::LayoutScheduler(LayoutEngine& engine)
     : engine_(&engine) {}
 
 const LayoutResult& LayoutScheduler::update(const LayoutInput& root, const LayoutViewport& viewport,
-                                            [[maybe_unused]] bool needs_layout) {
+                                            bool needs_layout) {
     // The signature is authoritative; `needs_layout` only documents caller intent. A paint-only
     // style change can raise layout dirt while the inputs that decide boxes are unchanged, and
     // that report is safe to drop. The hash walk is allocation-free (layout_signature.hpp).
-    const std::uint64_t signature = layout_signature(root, viewport);
+    return update(root, viewport, needs_layout, layout_signature(root, viewport));
+}
+
+const LayoutResult& LayoutScheduler::update(const LayoutInput& root, const LayoutViewport& viewport,
+                                            [[maybe_unused]] bool needs_layout,
+                                            std::uint64_t signature) {
     if (valid_ && signature_valid_ && signature == signature_) {
         ++cache_hits_;
         return last_;

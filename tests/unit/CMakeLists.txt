@@ -407,6 +407,17 @@ target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME layout_gate COMMAND layout_gate_tests)
 
+# The retained layout input's reuse (src/app/layout_input_reuse.hpp): a text change the layout pass
+# never saw must not survive into the next pass.
+add_executable(layout_input_reuse_tests
+    layout_input_reuse_tests.cpp
+    layout_gate_scene.cpp)
+
+target_link_libraries(layout_input_reuse_tests PRIVATE tessera_app tessera_runtime)
+target_compile_features(layout_input_reuse_tests PRIVATE cxx_std_23)
+
+add_test(NAME layout_input_reuse COMMAND layout_input_reuse_tests)
+
 # The scoped scene sync (issue #735, slice B): a walk that visits only the restyled subtrees must
 # leave the scene in exactly the state the full walk does, including the `glass_subtree` refold on
 # every ancestor.
@@ -2193,6 +2204,15 @@ target_link_libraries(transition_wiring_tests PRIVATE tessera_frame tessera_runt
 
 add_test(NAME transition_wiring COMMAND transition_wiring_tests)
 
+# The scoped interaction sync and transition bridge walk only the restyled roots, and fall back to
+# the whole tree after a visible() flip or a shape change (issue #735).
+add_executable(scoped_style_sync_tests
+    scoped_style_sync_tests.cpp)
+
+target_link_libraries(scoped_style_sync_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME scoped_style_sync COMMAND scoped_style_sync_tests)
+
 add_executable(lowering_expression_tests
     lowering_expression_tests.cpp)
 
@@ -2512,6 +2532,17 @@ target_link_libraries(paint_pass_tests PRIVATE
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
 
+# Retained draw list per clean subtree (issue #476 slice 1): a clean subtree replays as one flat list
+# byte-identically, a change under it or another cull rect never replays a stale one, and budget 0
+# turns it off. Pure CPU.
+add_executable(subtree_paint_cache_tests
+    subtree_paint_cache_tests.cpp)
+
+target_link_libraries(subtree_paint_cache_tests PRIVATE
+    tessera_paint)
+
+add_test(NAME subtree_paint_cache COMMAND subtree_paint_cache_tests)
+
 # Paint-pass culling (issue #487): a node whose painted reach misses PaintContext::cull skips its
 # style read and emission, a clip-bounded subtree is skipped whole, and the pixels inside the rect
 # (deterministic CPU canvas) and the emitted commands are identical to an unculled paint. Text that
@@ -2524,6 +2555,16 @@ target_link_libraries(paint_cull_tests PRIVATE
     tessera_software)
 
 add_test(NAME paint_cull COMMAND paint_cull_tests)
+
+# The cache half of the cull rules (issue #257), split from paint_cull_tests for the size limit.
+add_executable(paint_cull_records_tests
+    paint_cull_records_tests.cpp)
+
+target_link_libraries(paint_cull_records_tests PRIVATE
+    tessera_paint
+    tessera_software)
+
+add_test(NAME paint_cull_records COMMAND paint_cull_records_tests)
 
 # The paint side of layout's text-fit hint (issue #490): `Node::text_fits_box` lets the paint-pass cull
 # bound a plain-text payload by its box, so a fitting text node outside the rect is skipped and counted.

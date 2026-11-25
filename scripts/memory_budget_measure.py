@@ -75,6 +75,8 @@ DETERMINISTIC_ROWS = (
     "sizeof_paint_data",
     "sizeof_computed_style",
     "sizeof_node_id",
+    "sizeof_layout_input",
+    "sizeof_layout_box",
     "sizeof_paint_op",
     "sizeof_paint_record",
     "sizeof_background_layer_list",

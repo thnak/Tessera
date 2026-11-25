@@ -2419,7 +2419,13 @@ void calculateLayout(
           0, // tree root
           gCurrentGenerationCount.load(std::memory_order_relaxed))) {
     node->setPosition(node->getLayout().direction(), ownerWidth, ownerHeight);
-    roundLayoutResultsToPixelGrid(node, 0.0f, 0.0f);
+    // Tessera patch: with a point scale factor of zero the rounding writes nothing and only
+    // recurses, which reads every node of the tree after every pass (a cache miss per node on a
+    // 12k-node tree). Tessera builds every node from one unrounded config, so the root's factor
+    // is every node's.
+    if (node->getConfig()->getPointScaleFactor() != 0.0f) {
+      roundLayoutResultsToPixelGrid(node, 0.0f, 0.0f);
+    }
   }
 
   Event::publish<Event::LayoutPassEnd>(node, {&markerData});

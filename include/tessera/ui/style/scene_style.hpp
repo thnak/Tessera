@@ -178,6 +178,14 @@ private:
     std::vector<const Node*> restyled_roots_;
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
+    // The node of each slot, in the same traversal order, and the slot a pre-order walk is expected
+    // to ask for next. `resolve` is called for every node of a whole-scene walk in tree order, so
+    // checking `slot_nodes_[cursor_]` first answers it with one comparison against a contiguous
+    // array, and the node-keyed hash lookup is only paid when the walk skips or jumps.
+    std::vector<const Node*> slot_nodes_;
+    std::size_t cursor_ = 0;
+    static constexpr std::size_t kNoSlot = static_cast<std::size_t>(-1);
+    [[nodiscard]] std::size_t slot_of(const Node& node) const;
     std::uint64_t structure_epoch_ = 0;
     ContainerSizeFn container_size_ = nullptr;
     void* container_context_ = nullptr;

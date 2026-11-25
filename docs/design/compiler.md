@@ -247,7 +247,7 @@ Interpolation and update path: text expressions (templates with substitutions, p
 conditionals and numeric/binary/call expressions with a printable C++ type) are emitted as a
 generated `apply_state()`: it hashes each interpolated value with the shared FNV-1a helpers and only
 when a hash differs rebuilds the string, stores it in `text_node_N_value_`, and calls
-`set_paint_data(PaintData{...})` â€” so the node marks `Paint|Render` only, never `Layout`. `build()`
+`set_paint_data(PaintData{...})` — so the node marks `Paint|Render` only, never `Layout`. `build()`
 stores each interpolated node's pointer and ends with `apply_state()`. Scheduled updates (issue #5):
 each component owns a `tessera::ui::UpdateTicket`, `attach_scheduler()`/`detach_scheduler()` (owned
 instances attach after their owner, so a parent flushes first), `schedule_update()` and one
@@ -445,7 +445,7 @@ metadata. Codegen emits:
   `build_item_<template>` / `apply_item_<template>` pair as an eager list;
 - `apply_virtual_<collection>(first, last)`: the host passes the half-open realized range it
   computed with `tessera::ui::virtualization::ItemGeometry` (the runtime owns prefix sums, estimates,
-  refinement and scroll anchoring â€” codegen does not reimplement geometry). The method clamps the
+  refinement and scroll anchoring — codegen does not reimplement geometry). The method clamps the
   range to the data source only, hashes the window's keys first
   (unchanged window â‡’ no allocation, no node access), detaches the current window, reconciles it by
   key (a surviving key reuses its subtree and content hash), builds new items with their **absolute

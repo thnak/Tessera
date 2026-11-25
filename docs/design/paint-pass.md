@@ -224,8 +224,8 @@ Region semantics:
 - `make_redraw_plan` regions are pairwise disjoint (`DamageAccumulator::add` AABB-merges touching
   rectangles, and `begin_damaged` requires disjoint regions). A caller-supplied plan with overlapping
   regions emits the overlapped pixels once per covering region: deterministic, not a renderer plan.
-- A full-redraw plan is byte-identical to the full-frame overload: the decorator is bypassed, so
-  commands outside the target or outside `plan.scissors` are still emitted.
+- A full-redraw plan matches the full-frame overload inside the target: the decorator is bypassed, so
+  commands outside `plan.scissors` are still emitted, but `cull_paint` (default) skips off-screen nodes (#257).
 - Clipping is geometric: every emitted command covers only pixels inside a region, so a caller may
   feed this sink directly; passing the same plan to `begin_damaged` only re-clips (harmless).
 - Rounded rects: a contained one keeps its radius; a partially covered one becomes the plain

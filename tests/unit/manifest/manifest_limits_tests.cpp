@@ -56,13 +56,16 @@ void test_bounds(Checker& checker) {
     expect_error(checker, tessera::schema::parse_manifest(with_stages(R"("stages":["geometry"])")),
                  ValidationErrorCode::UnknownStage, "$.shaders[0].stages[0]",
                  "geometry stage is unknown");
-    expect_error(checker, tessera::schema::parse_manifest(with_stages(R"("stages":["compute"])")),
-                 ValidationErrorCode::ComputeStageUnsupported, "$.shaders[0].stages[0]",
-                 "compute stage is rejected");
+    expect_ok(checker, tessera::schema::parse_manifest(with_stages(R"("stages":["compute"])")),
+              "a compute stage alone is accepted");
     expect_error(checker,
                  tessera::schema::parse_manifest(with_stages(R"("stages":["vertex","compute"])")),
                  ValidationErrorCode::ComputeStageUnsupported, "$.shaders[0].stages[1]",
                  "compute after vertex is rejected");
+    expect_error(checker,
+                 tessera::schema::parse_manifest(with_stages(R"("stages":["compute","fragment"])")),
+                 ValidationErrorCode::ComputeStageUnsupported, "$.shaders[0].stages[0]",
+                 "compute before fragment is rejected");
     expect_error(checker,
                  tessera::schema::parse_manifest(replace_first(kMinimalManifest,
                                                                R"("vulkan":["minimal.frag"])",
@@ -145,8 +148,10 @@ void test_strict_json(Checker& checker) {
                                                  std::string(1, static_cast<char>(0xFF)) + R"("})"),
                  ValidationErrorCode::InvalidJson, "$", "invalid UTF-8");
 
-    const auto first = tessera::schema::parse_manifest(with_stages(R"("stages":["compute"])"));
-    const auto second = tessera::schema::parse_manifest(with_stages(R"("stages":["compute"])"));
+    const auto first =
+        tessera::schema::parse_manifest(with_stages(R"("stages":["vertex","compute"])"));
+    const auto second =
+        tessera::schema::parse_manifest(with_stages(R"("stages":["vertex","compute"])"));
     checker.check(first.has_value() == second.has_value(), "error determinism: value presence");
     checker.check(!first && !second && first.error() == second.error(),
                   "error determinism: identical errors");

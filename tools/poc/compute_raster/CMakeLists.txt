@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MIT
+
+# ADR-071 spike (issue #683): a GPU compute path rasterizer (fills, plus round-join/cap strokes expanded on the GPU), measured at 4K against the
+# ThorVG CPU raster. Off by default (TESSERA_BUILD_COMPUTE_RASTER_SPIKE); it changes no default and
+# is not registered with ctest. The shaders are compiled by this rule alone, so they are outside the
+# shader manifest (they are evidence, not production shaders).
+
+if (NOT Vulkan_GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "compute_raster spike needs glslc (Vulkan SDK)")
+endif()
+
+# The production shader (it moved to the Vulkan backend with the manifest entry `path_raster`); the
+# spike keeps compiling its own copies of the four passes into this directory.
+set(SPIKE_SHADER ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders/path_raster.comp)
+set(SPIKE_GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${SPIKE_GEN})
+set(SPIKE_HEADERS)
+foreach (pass IN ITEMS CLEAR STROKE BIN FINE)
+    string(TOLOWER ${pass} lower)
+    set(header ${SPIKE_GEN}/raster_${lower}_spv.h)
+    add_custom_command(
+        OUTPUT ${header}
+        COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3 -DPASS_${pass}=1
+                ${SPIKE_SHADER} -o ${header}
+        DEPENDS ${SPIKE_SHADER}
+        COMMENT "glslc raster.comp (${pass})"
+        VERBATIM)
+    list(APPEND SPIKE_HEADERS ${header})
+endforeach()
+
+add_executable(compute_raster_spike main.cpp ${SPIKE_HEADERS})
+target_include_directories(compute_raster_spike PRIVATE ${SPIKE_GEN})
+target_link_libraries(compute_raster_spike PRIVATE tessera_rhi_vulkan tessera_path)
+target_compile_features(compute_raster_spike PRIVATE cxx_std_23)
+target_compile_definitions(compute_raster_spike PRIVATE _CRT_SECURE_NO_WARNINGS)

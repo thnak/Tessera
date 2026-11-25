@@ -17,6 +17,7 @@
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/text_measure.hpp"
+#include "tessera/ui/text/text_measure_cache.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -225,6 +226,60 @@ bool test_padding_alone_can_make_the_text_overflow() {
                   "padding narrows the content box the text must stay inside");
 }
 
+// --- The retained tree remembers the fact between passes ---------------------------------------
+//
+// A steady frame repeats the fact for every text node, so the retained tree keeps it and re-derives
+// it only when something it depends on moved. These pin each input that must invalidate it.
+
+bool test_a_remembered_fact_follows_the_text_the_style_and_the_box() {
+    const LayoutEngine engine;
+    const LayoutInput fits = root({text_leaf(2, "hi", false, "120px", "24px")});
+    if (!expect(fit_of(engine, fits) == TextFit::Fits, "first pass fits") ||
+        !expect(fit_of(engine, fits) == TextFit::Fits, "an unchanged second pass still fits")) {
+        return false;
+    }
+    // The text changes under the same id: 10 characters are 80 px, the box is 40 px wide.
+    const LayoutInput longer = root({text_leaf(2, "abcdefghij", false, "40px", "24px")});
+    if (!expect(fit_of(engine, longer) == TextFit::Overflows, "a longer text overflows")) {
+        return false;
+    }
+    // The same text and box with a larger font: 10 characters at 4 px each fit 40 px, at 8 px not.
+    LayoutInput small_font = text_leaf(2, "abcdefghij", false, "40px", "24px");
+    small_font.style.set("font-size", "8px");
+    if (!expect(fit_of(engine, root({small_font})) == TextFit::Fits, "a smaller font fits")) {
+        return false;
+    }
+    if (!expect(fit_of(engine, longer) == TextFit::Overflows, "the font coming back overflows")) {
+        return false;
+    }
+    // Only the box grows; the text and the style are identical to the pass before.
+    const LayoutInput roomy = root({text_leaf(2, "abcdefghij", false, "120px", "24px")});
+    if (!expect(fit_of(engine, roomy) == TextFit::Fits, "a wider box fits")) {
+        return false;
+    }
+    // Only the wrap opt-in moves: wrapped at 40 px the run is two lines, taller than 24 px.
+    const LayoutInput wrapped = root({text_leaf(2, "abcdefghij", true, "40px", "24px")});
+    return expect(fit_of(engine, wrapped) == TextFit::Overflows, "the wrap opt-in is respected");
+}
+
+bool test_clearing_the_cache_makes_the_next_pass_measure_again() {
+    const LayoutEngine engine;
+    const LayoutInput scene = root({text_leaf(2, "hi", false, "120px", "24px")});
+    if (!expect(fit_of(engine, scene) == TextFit::Fits, "first pass fits") ||
+        !expect(fit_of(engine, scene) == TextFit::Fits, "second pass fits")) {
+        return false;
+    }
+    const auto cache = engine.text_cache();
+    const std::uint64_t before = cache->generation();
+    cache->clear();
+    if (!expect(cache->generation() > before, "clear bumps the generation")) {
+        return false;
+    }
+    // A remembered fact from before the clear is no longer trusted, so the pass asks the cache.
+    return expect(fit_of(engine, scene) == TextFit::Fits, "the pass after a clear still fits") &&
+           expect(cache->stats().misses > 0, "and it measured again instead of replaying");
+}
+
 // --- apply_layout copies the fact onto the node ------------------------------------------------
 
 bool test_apply_layout_copies_and_clears_the_hint() {
@@ -269,6 +324,9 @@ int main() {
     ok = layout_text_fit_test::test_a_text_leaf_with_a_tight_line_height_is_unknown() && ok;
     ok = layout_text_fit_test::test_the_content_box_subtracts_padding_but_not_border() && ok;
     ok = layout_text_fit_test::test_padding_alone_can_make_the_text_overflow() && ok;
+    ok =
+        layout_text_fit_test::test_a_remembered_fact_follows_the_text_the_style_and_the_box() && ok;
+    ok = layout_text_fit_test::test_clearing_the_cache_makes_the_next_pass_measure_again() && ok;
     ok = layout_text_fit_test::test_apply_layout_copies_and_clears_the_hint() && ok;
     if (!ok) {
         std::cerr << "layout_text_fit: failed\n";

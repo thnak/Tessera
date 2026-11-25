@@ -4,7 +4,10 @@
 
 #include "tessera/ui/layout/layout_engine.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace tessera::ui::layout {
 
@@ -28,6 +31,48 @@ namespace tessera::ui::layout {
 // inputs; the only gap is the 64-bit hash collision probability (2^-64 for distinct inputs).
 [[nodiscard]] std::uint64_t layout_signature(const LayoutInput& root,
                                              const LayoutViewport& viewport) noexcept;
+
+// The same signature, built while the caller walks the tree. A caller that is already visiting
+// every node to build the `LayoutInput` (the host's `fill_layout_input`) gets the signature without
+// a second pass over nodes that are no longer in cache, which is what the separate walk cost at 12k
+// nodes. `layout_signature` is defined through this class, so the two cannot disagree.
+//
+// Call `enter` once the node's own fields (id, style, text, wrap) are final and before its
+// children, then `leave` with the number of children actually kept after the last one. Nodes are
+// visited in pre-order, exactly the order `layout_signature` walks `children`.
+//
+// The signature is hierarchical: a node's signature is its own fields folded with its children's
+// signatures, in order. `leave` returns the node's subtree signature, so a caller that keeps it
+// (`LayoutInput::subtree_signature`) can skip a whole unchanged subtree on a later pass and call
+// `reuse` with the stored value instead of visiting it. A reused subtree contributes exactly what
+// visiting it would have.
+class LayoutSignatureBuilder {
+public:
+    explicit LayoutSignatureBuilder(const LayoutViewport& viewport) noexcept;
+
+    void enter(const LayoutInput& node) noexcept;
+    // Returns the signature of the node just left; never zero, so zero can mean "not computed".
+    std::uint64_t leave(std::size_t child_count) noexcept;
+    // A subtree the caller did not visit, whose signature it kept from an earlier pass.
+    void reuse(std::uint64_t subtree_signature) noexcept;
+
+    [[nodiscard]] std::uint64_t value() const noexcept {
+        return value_;
+    }
+
+private:
+    void fold_child(std::uint64_t subtree_signature) noexcept;
+    [[nodiscard]] std::uint64_t& top() noexcept;
+
+    // Open nodes, innermost last. Inline up to a depth no real UI reaches; deeper trees spill to a
+    // vector, so a pass allocates nothing in practice and is still correct for any depth.
+    static constexpr std::size_t kInlineDepth = 64;
+    std::array<std::uint64_t, kInlineDepth> inline_ = {};
+    std::vector<std::uint64_t> spill_;
+    std::size_t depth_ = 0;
+    std::uint64_t viewport_state_ = 0;
+    std::uint64_t value_ = 0;
+};
 
 // The layout half of one computed style, as a digest: exactly the `kLayoutProperties` entries
 // `layout_signature` folds in, and nothing else. Computed once and cached on the style's shared

@@ -115,6 +115,7 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
       damage_(&damage),
       dirty_(&dirty),
       config_(config) {
+    subtree_cache_.set_config({512, config_.draw_list_cache_bytes});
     if (!std::isfinite(config_.dpi_scale) || config_.dpi_scale <= 0.0f) {
         throw std::invalid_argument("frame pipeline dpi scale must be finite and positive");
     }
@@ -150,6 +151,8 @@ FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
 
 FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool interpolate) {
     alpha_ = std::isfinite(alpha) ? std::clamp(alpha, 0.0, 1.0) : 0.0;
+    interpolated_valid_ =
+        false; // the cached blend is per tick (samples and alpha both change here)
     interpolate_ = interpolate && config_.interpolation;
     damage_->clear();
     // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
@@ -177,6 +180,9 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
             if (target == nullptr) {
                 continue;
             }
+            if (sample.held) {
+                continue; // a held fill-forwards value: nothing changed (issue #200)
+            }
             const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
             if (dirty != Dirty::Clean) {
                 target->mark_dirty(dirty);
@@ -193,7 +199,9 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     // Rotate the paint-only tick samples. Only declarations paint reads are captured (transform,
     // opacity, colors); layout and text properties stay discrete in the style/layout path, so this
     // never requests layout work and never moves a box.
-    previous_samples_ = std::move(current_samples_);
+    // swap, not move-assign: the moved-from map would drop its bucket array and the next capture
+    // would allocate a fresh one every frame (#701).
+    previous_samples_.swap(current_samples_);
     current_samples_.clear();
     if (interpolate_) {
         for (const animation::AnimationSample& sample : result.animation.samples) {
@@ -252,8 +260,12 @@ InterpolationPaintView FramePipeline::interpolation_view() const {
     if (!interpolate_ || current_samples_.empty()) {
         return {};
     }
-    return InterpolationPaintView(
-        interpolate_paint_samples(previous_samples_, current_samples_, alpha_));
+    if (!interpolated_valid_) {
+        interpolate_paint_samples_into(interpolated_samples_, previous_samples_, current_samples_,
+                                       alpha_);
+        interpolated_valid_ = true;
+    }
+    return InterpolationPaintView(&interpolated_samples_);
 }
 
 void FramePipeline::invalidate_paint_cache() {
@@ -262,9 +274,14 @@ void FramePipeline::invalidate_paint_cache() {
     // deliberately cannot see a computed style, so the whole generation goes; re-recording is the
     // only way to guarantee the next frame is byte-identical to an uncached paint.
     paint_cache_.invalidate();
+    subtree_cache_.clear();
     // `background_layers_` is deliberately NOT reset here: it is keyed by style identity, and a
     // restyle hands the node a new entries block, so it can never serve a pre-restyle parse. The
     // entries it still holds for retired identities are bounded by the cache's own LRU budget.
+}
+
+paint::SubtreePaintCacheStats FramePipeline::subtree_cache_stats() const {
+    return subtree_cache_.stats();
 }
 
 const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
@@ -379,6 +396,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
+        context.subtree_cache = &subtree_cache_;
     }
     if (!view.empty()) {
         context.view = &view;
@@ -403,14 +421,19 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
+        context.subtree_cache = &subtree_cache_;
+        // Only a full repaint records and replays lists: a partial one culls to the damage box,
+        // which differs every frame, so a list keyed on it would never hit (issue #476). It still
+        // drops the lists of the dirty subtrees it visits.
+        context.retain_draw_list = plan.full_redraw;
     }
     if (!view.empty()) {
         context.view = &view;
     }
     if (config_.cull_paint) {
         // The painted region is the plan's scissors; anything that cannot touch it is skipped
-        // (issue #487). A full-redraw plan yields nullopt here, so its paint is unclipped and
-        // unculled, byte-identical to the full paint overload above.
+        // (issue #487). A full-redraw plan culls to the whole target (issue #257), so off-screen
+        // nodes are skipped on a full repaint too; its sink stays unclipped.
         context.cull = detail::plan_cull_rect(plan, config_.dpi_scale);
     }
     if (plan.full_redraw) {

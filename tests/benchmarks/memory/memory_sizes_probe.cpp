@@ -31,6 +31,7 @@
 #include "tessera/runtime/frame_counters.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/overlay/placement.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -139,6 +140,11 @@ void sizes() {
     row("sizeof_paint_data", sizeof(ui::PaintData));
     row("sizeof_computed_style", sizeof(style::ComputedStyle));
     row("sizeof_node_id", sizeof(ui::NodeId));
+    // The layout engine's per-node input and output records, one of each per node per layout pass
+    // (object-size rules in docs/guides/code-style.md). Pinned so a member added to either shows
+    // up.
+    row("sizeof_layout_input", sizeof(ui::layout::LayoutInput));
+    row("sizeof_layout_box", sizeof(ui::layout::LayoutBox));
     // The paint cache's recorded op (issue #731). It was 2376 bytes while every payload sat inline;
     // the cache charges `ops.capacity() * sizeof(PaintOp)` against a 2 MiB budget, so this number
     // decides how many nodes the cache can hold.

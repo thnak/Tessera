@@ -151,6 +151,11 @@ public:
     // atlas pages are not evicted while still referenced by this frame.
     void begin_text_frame();
 
+    // The window's device scale changes with its monitor, so the vector raster extent follows it
+    // per frame instead of being fixed when the sink was built.
+    void set_vector_device_scale(float device_scale) {
+        vector_.device_scale = device_scale;
+    }
     [[nodiscard]] const VectorPaintStats& vector_stats() const {
         return vector_stats_;
     }

@@ -5,6 +5,10 @@ add_library(tessera_path STATIC
     path_scale.cpp
     path_texture_cache.cpp
     path_texture_key.cpp
+    gpu_path_encoder.cpp
+    gpu_path_flatten.cpp
+    gpu_path_rasterizer.cpp
+    raster_route.cpp
     svg_document_cache.cpp
     svg_loader.cpp
     svg_texture.cpp)
@@ -69,7 +73,17 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(path_texture_cache_tests PRIVATE tessera_path)
     add_test(NAME path_texture_cache COMMAND path_texture_cache_tests)
 
+    add_executable(raster_route_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/raster_route_tests.cpp)
+    target_link_libraries(raster_route_tests PRIVATE tessera_path)
+    add_test(NAME raster_route COMMAND raster_route_tests)
+
     set(TESSERA_SVG_FIXTURE_DIR "${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+
+    add_executable(gpu_path_encoder_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/gpu_path_encoder_tests.cpp)
+    target_link_libraries(gpu_path_encoder_tests PRIVATE tessera_path)
+    add_test(NAME gpu_path_encoder COMMAND gpu_path_encoder_tests)
 
     add_executable(svg_loader_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/svg_loader_tests.cpp)

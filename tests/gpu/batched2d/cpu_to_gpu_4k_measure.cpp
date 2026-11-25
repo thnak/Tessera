@@ -17,6 +17,7 @@
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -295,6 +296,20 @@ int main(int argc, char** argv) {
         measure_downscale_box(frame);
         measure_nearest_exactness(*device);
         measure_encode_hypothesis();
+
+        // Per-step create_texture timers (issue #697, work item 1): the direct attribution of the
+        // tail, read from the device's own counters over every create above.
+        if (const auto timings = tessera::rendering::vulkan::texture_create_timings(*device)) {
+            const auto ms = [](std::uint64_t ns) { return static_cast<double>(ns) / 1.0e6; };
+            const double calls = timings->calls > 0 ? static_cast<double>(timings->calls) : 1.0;
+            std::cout << "\n[create_texture per-step timers, " << timings->calls << " calls]\n";
+            std::printf("vmaCreateImage            avg=%8.3f  max=%8.3f ms\n",
+                        ms(timings->image_ns) / calls, ms(timings->image_ns_max));
+            std::printf("staging write (memcpy)    avg=%8.3f  max=%8.3f ms\n",
+                        ms(timings->staging_write_ns) / calls, ms(timings->staging_write_ns_max));
+            std::printf("submit_upload             avg=%8.3f  max=%8.3f ms\n",
+                        ms(timings->submit_ns) / calls, ms(timings->submit_ns_max));
+        }
 
         // 6. Per-frame budget summary.
         std::cout << "\n[budget: what one animated 4K vector frame costs on this path]\n";

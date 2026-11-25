@@ -20,6 +20,20 @@ using tessera::ui::layout::LayoutScheduler;
 using tessera::ui::layout::LayoutViewport;
 using tessera::ui::style::ComputedStyle;
 
+// The signature built while visiting the tree, the way a caller that fills the input does.
+std::uint64_t built_signature(const LayoutInput& root, const LayoutViewport& viewport) {
+    tessera::ui::layout::LayoutSignatureBuilder builder(viewport);
+    const auto visit = [&builder](auto&& self, const LayoutInput& input) -> void {
+        builder.enter(input);
+        for (const LayoutInput& child : input.children) {
+            self(self, child);
+        }
+        (void)builder.leave(input.children.size());
+    };
+    visit(visit, root);
+    return builder.value();
+}
+
 bool expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "layout_signature: " << message << "\n";
@@ -292,6 +306,75 @@ int main() {
     check(tessera::ui::layout::layout_signature(order_a, probe_viewport) ==
               tessera::ui::layout::layout_signature(order_b, probe_viewport),
           "signature ignores declaration insertion order");
+
+    // The builder a caller runs while it fills the tree is the same signature, and it is as
+    // sensitive: it moves for a text change, a style change, a reorder and a dropped child.
+    check(built_signature(scene, viewport) ==
+              tessera::ui::layout::layout_signature(scene, viewport),
+          "the builder equals the walking signature");
+    LayoutInput fused = make_scene();
+    const std::uint64_t fused_before = built_signature(fused, viewport);
+    fused.children.pop_back();
+    check(built_signature(fused, viewport) != fused_before, "the builder sees a dropped child");
+    check(built_signature(order_a, probe_viewport) == built_signature(order_b, probe_viewport),
+          "the builder ignores declaration insertion order");
+    LayoutInput text_a = node(9, {});
+    text_a.text = "abcdefghij";
+    LayoutInput text_b = node(9, {});
+    text_b.text = "abcdefghik";
+    check(built_signature(text_a, probe_viewport) != built_signature(text_b, probe_viewport),
+          "the builder sees a change in the last byte of a text that is not a multiple of 8");
+    {
+        // A precomputed signature drives the scheduler exactly like the walking overload.
+        LayoutEngine local_engine;
+        LayoutScheduler local(local_engine);
+        const std::uint64_t built = built_signature(scene, viewport);
+        (void)local.update(scene, viewport, true, built);
+        (void)local.update(scene, viewport, true, built);
+        check(local.layout_runs() == 1 && local.cache_hits() == 1,
+              "a precomputed signature hits the cache on the second update");
+        check(local.signature() == tessera::ui::layout::layout_signature(scene, viewport),
+              "and it is the walking signature");
+    }
+
+    {
+        // A subtree the caller skips and replays from its stored signature contributes exactly what
+        // visiting it would have, and `leave` returns the value a caller stores for that.
+        LayoutInput tree = make_scene();
+        const auto record = [&](auto&& self, LayoutInput& input,
+                                tessera::ui::layout::LayoutSignatureBuilder& builder) -> void {
+            builder.enter(input);
+            for (LayoutInput& child : input.children) {
+                self(self, child, builder);
+            }
+            input.subtree_signature = builder.leave(input.children.size());
+        };
+        tessera::ui::layout::LayoutSignatureBuilder full(viewport);
+        record(record, tree, full);
+        check(full.value() == tessera::ui::layout::layout_signature(tree, viewport),
+              "a builder that stores subtree signatures still equals the walking signature");
+        check(tree.subtree_signature != 0, "a stored subtree signature is never zero");
+        if (!tree.children.empty()) {
+            tessera::ui::layout::LayoutSignatureBuilder skipping(viewport);
+            skipping.enter(tree);
+            for (const LayoutInput& child : tree.children) {
+                skipping.reuse(child.subtree_signature);
+            }
+            skipping.leave(tree.children.size());
+            check(skipping.value() == full.value(),
+                  "replaying every child's stored signature equals visiting them");
+        }
+        LayoutInput deep = node(1, {});
+        LayoutInput* tail = &deep;
+        for (std::uint64_t id = 2; id < 200; ++id) {
+            tail->children.push_back(node(id, {}));
+            tail = &tail->children.back();
+        }
+        tessera::ui::layout::LayoutSignatureBuilder deep_builder(viewport);
+        record(record, deep, deep_builder);
+        check(deep_builder.value() == tessera::ui::layout::layout_signature(deep, viewport),
+              "a tree deeper than the inline stack still hashes the same as the walking signature");
+    }
 
     if (failures != 0) {
         std::cerr << "layout_signature: " << failures << " failure(s)\n";

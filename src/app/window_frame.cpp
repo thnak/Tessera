@@ -18,6 +18,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scale/render_target_extent.hpp"
 #include "window_impl.hpp"
+#include "window_vector.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -118,6 +119,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     stats.content_scale_x = transform.x;
     stats.content_scale_y = transform.y;
     sink()->begin_text_frame();
+    // The vector raster extent follows this window's scale, which changes with its monitor.
+    sink()->set_vector_device_scale(device_scale);
     // A presented frame is a full redraw (swapchain images are not preserved); glass limits are the
     // style sync's.
     ui::paint::PaintContext context;
@@ -128,6 +131,11 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     context.lcd_text =
         lcd_pipeline() != nullptr && aa_policy.text_mode == ui::scale::TextAaMode::LcdWhenEligible;
     host->paint_scene(*sink(), context);
+    // The last SVG acquire of this frame has happened: submit the queued GPU rasters now, so they
+    // are ahead of the draw list that samples their textures.
+    if (detail::VectorStack* const vectors = vector(); vectors != nullptr) {
+        vectors->flush();
+    }
     renderer()->end();
     if (msaa) {
         // A 4x target's multisample image is not a copy/blit source, so the frame is presented
@@ -156,6 +164,15 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     in_flight[slot] = std::move(commands);
     slot = (slot + 1) % detail::kFramesInFlight;
     ++stats.frames;
+    if (detail::VectorStack* const vectors = vector(); vectors != nullptr) {
+        // `slot` now names the older frame; a texture evicted during this frame is only destroyed
+        // once that frame finished, because it may still sample it.
+        vectors->end_frame(!in_flight[slot] || in_flight[slot]->is_complete());
+        const auto cache = vectors->stats();
+        stats.vector_gpu_rasterizations = cache.gpu_rasterizations;
+        stats.vector_gpu_fallbacks = cache.gpu_fallbacks;
+    }
+    stats.vector_draws = sink()->vector_stats().draws;
 
     const auto present = swapchain->present(*image);
     if (present || present.error() == rhi::SwapchainError::Suboptimal) {

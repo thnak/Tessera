@@ -41,6 +41,11 @@ struct LayoutInput {
     // wrap decision paint will, so the caller forwards it here. It is part of the layout-input
     // signature because it changes the fact, which is part of the layout result.
     bool text_wrap = false;
+    // The signature of this subtree as the last pass that visited it computed it (zero: never).
+    // A caller that retains the input between passes keeps it so an unchanged subtree can be
+    // skipped (`LayoutSignatureBuilder::reuse`). It is derived data and is not part of the input's
+    // meaning; `layout_signature` ignores it.
+    std::uint64_t subtree_signature = 0;
 };
 
 struct LayoutViewport {

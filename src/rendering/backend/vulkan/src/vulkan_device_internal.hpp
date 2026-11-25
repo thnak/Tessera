@@ -6,6 +6,7 @@
 // RHI wrapper classes, CommandResources, and InjectedDeviceFault). Do not include it directly.
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -118,10 +119,40 @@ public:
     std::unique_ptr<rhi::RenderTarget>
     create_render_target(const rhi::RenderTargetDesc& desc) override;
     std::unique_ptr<rhi::CommandList> create_command_list() override;
+    // RHI 1.16 (issue #683): compute needs the same UPDATE_AFTER_BIND storage-buffer support the
+    // clip-record set does, so the capability is that probe's answer.
+    [[nodiscard]] bool supports_compute() const override {
+        return storage_buffer_capacity_ > 0;
+    }
+    // RHI 1.17 (ADR-072): a transfer command every Vulkan device has.
+    [[nodiscard]] bool supports_buffer_texture_copy() const override {
+        return true;
+    }
+    std::unique_ptr<rhi::ComputePipeline>
+    create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override;
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
     create_swapchain(const rhi::SwapchainDesc& desc) override;
     void wait_idle() override;
     [[nodiscard]] rhi::DeviceMemoryStats memory_statistics() const override;
+
+    // Per-step `create_texture` timers (issue #697); see TextureCreateTimings.
+    struct TextureTimer {
+        std::atomic<std::uint64_t> calls{0};
+        std::atomic<std::uint64_t> image_ns{0};
+        std::atomic<std::uint64_t> image_ns_max{0};
+        std::atomic<std::uint64_t> staging_write_ns{0};
+        std::atomic<std::uint64_t> staging_write_ns_max{0};
+        std::atomic<std::uint64_t> submit_ns{0};
+        std::atomic<std::uint64_t> submit_ns_max{0};
+        static void add(std::atomic<std::uint64_t>& total, std::atomic<std::uint64_t>& max,
+                        std::uint64_t ns) noexcept {
+            total.fetch_add(ns, std::memory_order_relaxed);
+            std::uint64_t seen = max.load(std::memory_order_relaxed);
+            while (ns > seen && !max.compare_exchange_weak(seen, ns, std::memory_order_relaxed)) {
+            }
+        }
+    };
+    mutable TextureTimer texture_timer_;
 
     // ---- D7 device-loss state -------------------------------------------------------------
     // Losses detected by submit/wait/acquire/present are recorded here; they never throw across

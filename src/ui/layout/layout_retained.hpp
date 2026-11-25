@@ -87,6 +87,31 @@ struct RetainedNode {
     float pad_right = 0.0f;
     float pad_bottom = 0.0f;
 
+    // The text-fit fact of the last box walk and what it was measured against. A steady frame
+    // repeats it for every text node, and re-deriving it hashes the text and the style through the
+    // measure cache each time. The fact is a function of this node's text, text style, padding and
+    // box size plus the cache's contents, so it stays valid until one of those moves: the style or
+    // text writes below clear `fit_valid`, the box size is compared, and `fit_generation` is the
+    // cache's `generation()`. Mutable because the box walk reads the tree as const.
+    // The box the last walk read off Yoga, relative to the parent: position, size and the padding +
+    // border insets. Yoga raises `hasNewLayout` on a node at the end of every layout visit - cached
+    // or not - and a node it did not visit keeps its layout, so a cleared flag means these twelve
+    // values are still exactly what the getters would return. The walk clears the flag after it
+    // reads (`YGNodeSetHasNewLayout`, the documented protocol); a new node starts with it set.
+    // Mutable because the box walk reads the tree as const.
+    mutable bool box_valid = false;
+    mutable float box_left = 0.0f;
+    mutable float box_top = 0.0f;
+    mutable float box_width = 0.0f;
+    mutable float box_height = 0.0f;
+    mutable LayoutInsets box_insets;
+
+    mutable bool fit_valid = false;
+    mutable TextFit fit_result = TextFit::Unknown;
+    mutable float fit_width = 0.0f;
+    mutable float fit_height = 0.0f;
+    mutable std::uint64_t fit_generation = 0;
+
     // A grid container is a Yoga leaf whose measure callback runs `GridEngine` over the whole
     // subtree, so the tree owns that subtree's input and refreshes it only when its signature
     // changes. Nothing else points into it.
@@ -98,9 +123,21 @@ struct RetainedNode {
     // a steady frame allocates nothing.
     std::vector<RetainedNode*> children;
     std::vector<RetainedNode*> desired;
+    // The node each input child synced to last pass, in input order (`children` is in layout order,
+    // which `order` permutes). A steady frame hands the same children in the same order, so the
+    // i-th input child is checked against `source[i]` by id before the id-keyed map is asked: an
+    // integer compare instead of a hash lookup per node. Every entry is a live node - it was in the
+    // last pass's `desired`, which reconcile keeps - and the list is emptied wherever children are
+    // destroyed wholesale (`set_measure`).
+    std::vector<RetainedNode*> source;
 
     // The layout pass that last reached this node; anything older has left the input tree.
     std::uint64_t visited = 0;
+    // `LayoutInput::subtree_signature` of the input this node's subtree was last synced from (zero:
+    // unsigned or never synced). An input that arrives with the same signature, the same
+    // `block_parent` and an unchanged viewport is the subtree already in the tree, so the pass
+    // does not walk it.
+    std::uint64_t subtree_signature = 0;
 };
 
 struct RetainedTreeState {
@@ -119,6 +156,11 @@ struct RetainedTreeState {
     bool restart = false;
     std::size_t style_applications = 0;
     std::size_t rebuilds = 0;
+    // Subtrees a pass skipped because their signature matched the retained one.
+    std::size_t skipped_subtrees = 0;
+    // False on a pass whose viewport changed: every style is re-applied then, so nothing is
+    // skipped.
+    bool may_skip = false;
 };
 
 class RetainedTree {
@@ -138,6 +180,7 @@ public:
     [[nodiscard]] std::size_t node_count() const;
     [[nodiscard]] std::size_t style_applications() const;
     [[nodiscard]] std::size_t rebuilds() const;
+    [[nodiscard]] std::size_t skipped_subtrees() const;
 
 private:
     std::unique_ptr<RetainedTreeState> state_;

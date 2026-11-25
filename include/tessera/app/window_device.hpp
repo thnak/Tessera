@@ -59,6 +59,7 @@ class WindowHost;
 
 namespace detail {
 class TextStack;
+class VectorStack;
 } // namespace detail
 
 // What a shared `WindowDevice` is created with (issue #228, docs/design/multi-window.md). It is the
@@ -176,6 +177,11 @@ public:
     }
     [[nodiscard]] ui::paint::Batched2DSink* sink() noexcept {
         return sink_.get();
+    }
+    // The shared SVG stack, or null when the app named no vector assets (or the build has no SVG
+    // backend). The sink's vector draws are no-ops then.
+    [[nodiscard]] detail::VectorStack* vector() noexcept {
+        return vector_.get();
     }
     [[nodiscard]] rhi::Pipeline* pipeline() noexcept {
         return pipeline_.get();
@@ -324,6 +330,8 @@ private:
     std::unique_ptr<rhi::Texture> white_;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer_;
     std::unique_ptr<detail::TextStack> text_;
+    // Borrowed by the sink, so declared before it: destroyed after it.
+    std::unique_ptr<detail::VectorStack> vector_;
     std::unique_ptr<ui::paint::Batched2DSink> sink_;
 
     // `TextureFormat` has no `Undefined` enumerator, so "no format yet" is a separate flag rather

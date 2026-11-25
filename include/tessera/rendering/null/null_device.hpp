@@ -44,6 +44,19 @@ struct NullStorageBufferBind {
     std::size_t size = 0;
 };
 
+// One copy_buffer_to_texture() request (RHI 1.17, ADR-072), as validated: the region, the effective
+// pitch and the buffer's identity. The null backend does move the bytes (its buffers and textures
+// keep them), and this record is what a structural test asserts besides.
+struct NullBufferTextureCopy {
+    rhi::TextureRegion region;
+    std::size_t buffer_offset = 0;
+    std::size_t buffer_row_pitch = 0;
+    std::size_t buffer_size = 0;
+    rhi::BufferUsage buffer_usage = rhi::BufferUsage::Staging;
+    rhi::Extent2D texture_extent;
+    rhi::TextureFormat texture_format = rhi::TextureFormat::R8G8B8A8Unorm;
+};
+
 // Every recorded operation, in command-buffer order. The counters below answer "how many"; this log
 // answers "in what order", which is what the composite seam has to pin (attachment -> copy ->
 // sample -> composite) and what a counter cannot express.
@@ -57,6 +70,7 @@ enum class NullCommandKind : std::uint8_t {
     Draw,
     CopyTargetRegion,
     Blit,
+    CopyBufferToTexture,
     Submit,
 };
 
@@ -79,6 +93,9 @@ struct NullCommandStats {
     // copy_target_region() calls recorded, with one entry each in target_region_copies.
     std::uint32_t region_copies = 0;
     std::vector<NullTargetRegionCopy> target_region_copies;
+    // copy_buffer_to_texture() calls recorded, in order (RHI 1.17). An empty region is valid and
+    // records nothing.
+    std::vector<NullBufferTextureCopy> buffer_texture_copies;
     std::vector<NullSampledTargetBind> sampled_targets;
     std::vector<NullStorageBufferBind> storage_buffer_records;
     // Ordered log of everything the list recorded.
@@ -136,6 +153,8 @@ public:
                             rhi::Offset2D destination_offset = {}) override;
     void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
                      rhi::Filter filter) override;
+    void copy_buffer_to_texture(const rhi::Buffer& source, rhi::Texture& destination,
+                                const rhi::BufferTextureCopy& copy) override;
     void submit() override;
     void submit_async() override;
     [[nodiscard]] bool is_complete() const override;

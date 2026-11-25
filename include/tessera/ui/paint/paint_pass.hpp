@@ -6,6 +6,7 @@
 #include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/paint/subtree_paint_cache.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
 #include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/scene_style.hpp"
@@ -123,6 +124,13 @@ public:
 struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
     PaintCache* paint_cache = nullptr;
+    // Retained draw list per clean subtree (issue #476, subtree_paint_cache.hpp). Used only when
+    // the per-node cache is also in use; null paints every subtree by walking it.
+    SubtreePaintCache* subtree_cache = nullptr;
+    // Whether this paint may record and replay subtree lists. A paint that does not (a partial
+    // repaint culled to a moving damage box) must still be given the store: every dirty subtree it
+    // visits drops its list, so a later full repaint cannot replay a list that predates the change.
+    bool retain_draw_list = true;
     // Memoises the `background-image` parse per style identity (issue #733 item 2): the value is
     // re-parsed for every painted node on every frame otherwise. Null parses per call, which is the
     // uncached path and produces identical output.

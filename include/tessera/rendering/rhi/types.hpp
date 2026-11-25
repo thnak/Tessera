@@ -295,7 +295,25 @@ struct DeviceDesc {
 struct BufferDesc {
     std::size_t size = 0;
     BufferUsage usage = BufferUsage::Vertex;
+    // RHI 1.16 (issue #683): a `Storage` buffer that shaders write as well as read, kept in device
+    // memory. It is not host-mappable (`Buffer::write`/`read` throw std::runtime_error): fill it
+    // from a compute pass and read it back with `CommandList::copy_buffer` into a `Readback`
+    // buffer. Ignored for every other usage. A device without compute ignores it too, and the
+    // buffer is then the plain read-only storage buffer.
+    bool gpu_read_write = false;
 };
+
+// A compute pipeline (RHI 1.16, issue #683). SPIR-V is the only source form, like `PipelineDesc`;
+// the entry point is `main`. The pipeline owns one descriptor set of `storage_buffer_count`
+// read/write storage buffers at bindings 0..count-1, bound with `bind_compute_buffer`.
+struct ComputePipelineDesc {
+    const std::uint32_t* spirv = nullptr;
+    std::size_t spirv_size = 0;             // bytes
+    std::uint32_t storage_buffer_count = 0; // 1..kMaxComputeStorageBuffers
+    std::uint32_t push_constant_size = 0;   // bytes, a multiple of 4
+};
+
+inline constexpr std::uint32_t kMaxComputeStorageBuffers = 8;
 
 struct TextureDesc {
     Extent2D extent;

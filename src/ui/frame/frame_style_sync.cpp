@@ -17,6 +17,7 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/style/interaction_style.hpp"
 
 #include <algorithm>
@@ -86,14 +87,32 @@ paint::SceneStyleSyncResult FramePipeline::sync_style_scoped(Node& root,
     // Interaction state and the transition/animation bridge still walk the whole tree: both diff
     // against a per-node snapshot, so scoping them needs the same "unchanged" proof per node that
     // the scene sync gets from the gate. Kept whole here so this slice changes one walk, not three.
-    sync_interaction_style(root, &interaction_style_thunk, &styles, &interaction_sync_memo_);
-    style_bridge_snapshot_ =
-        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
-                                 style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
+    const std::vector<style::KeyframeBlock>& keyframes =
+        style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes;
+    const bool scoped_walks = whole_walk_done_ &&
+                              whole_walk_structure_epoch_ == scene_structure_epoch() &&
+                              whole_walk_visibility_epoch_ == scene_visibility_epoch();
+    if (scoped_walks) {
+        sync_interaction_style_scoped(roots, &interaction_style_thunk, &styles,
+                                      &interaction_sync_memo_);
+        style_bridge_snapshot_ = style_bridge_state_.sync_scoped(
+            *animations_, roots, &interaction_style_thunk, &styles, keyframes);
+    } else {
+        sync_interaction_style(root, &interaction_style_thunk, &styles, &interaction_sync_memo_);
+        style_bridge_snapshot_ = style_bridge_state_.sync(
+            *animations_, root, &interaction_style_thunk, &styles, keyframes);
+        note_whole_walk();
+    }
     if (!style_bridge_snapshot_.ids.empty()) {
         loop_->request_frame();
     }
     return result;
+}
+
+void FramePipeline::note_whole_walk() const {
+    whole_walk_done_ = true;
+    whole_walk_structure_epoch_ = scene_structure_epoch();
+    whole_walk_visibility_epoch_ = scene_visibility_epoch();
 }
 
 paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
@@ -133,6 +152,7 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
     style_bridge_snapshot_ =
         style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
                                  style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
+    note_whole_walk();
     if (!style_bridge_snapshot_.ids.empty()) {
         // The transition or animation starts now, after this tick already decided whether the loop
         // may idle: ask for the next frame so the first sample is rendered.
@@ -155,6 +175,7 @@ void FramePipeline::sample_started_animations(Node& root) {
             continue;
         }
         capture_paint_sample(current_samples_, *target, sample.declarations);
+        interpolated_valid_ = false;
         if (const auto captured = current_samples_.find(sample.target);
             captured != current_samples_.end() && !previous_samples_.contains(sample.target)) {
             previous_samples_[sample.target] = captured->second;

@@ -101,12 +101,31 @@ tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 # bind_storage_buffer reaches the shader on a real device. Pairs with fullscreen.vert.
 tessera_add_spv_c(storage_probe.frag TESSERA_STORAGE_PROBE_FRAG_SPV)
 
+# GPU path rasterizer (ADR-071, issue #683): one compute source, four passes selected by a define
+# (clear, stroke expansion, bin, fine). Compiled here so the manifest check and glslc validate it in
+# every Vulkan build; embedded by path_raster_pipeline_desc().
+set(TESSERA_PATH_RASTER_SPV)
+foreach (pass IN ITEMS CLEAR STROKE BIN FINE)
+    string(TOLOWER ${pass} pass_lower)
+    set(pass_output ${TESSERA_SHADER_GEN_DIR}/path_raster_${pass_lower}_spv.h)
+    add_custom_command(
+        OUTPUT ${pass_output}
+        COMMAND ${TESSERA_SHADER_MANIFEST_CHECK} ${TESSERA_SHADER_MANIFEST}
+        COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DPASS_${pass}=1
+                ${TESSERA_SHADER_DIR}/path_raster.comp -o ${pass_output}
+        DEPENDS ${TESSERA_SHADER_DIR}/path_raster.comp ${TESSERA_SHADER_MANIFEST} ${TESSERA_SHADER_MANIFEST_CHECK_DEP}
+        COMMENT "validate shader manifest; glslc path_raster.comp (${pass}) -> ${pass_output}"
+        VERBATIM)
+    list(APPEND TESSERA_PATH_RASTER_SPV ${pass_output})
+endforeach()
+
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
             ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_LCD_VERT_SPV}
             ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
             ${TESSERA_GLASS_BLUR_FRAG_SPV}
-            ${TESSERA_STORAGE_PROBE_FRAG_SPV})
+            ${TESSERA_STORAGE_PROBE_FRAG_SPV}
+            ${TESSERA_PATH_RASTER_SPV})
 
 set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device.cpp
@@ -124,6 +143,8 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_texture.cpp
     src/vulkan_texture_array.cpp
     src/vulkan_storage_buffer.cpp
+    src/vulkan_compute.cpp
+    src/vulkan_buffer_texture_copy.cpp
     src/vulkan_mipmaps.cpp
     src/vulkan_pipeline.cpp
     src/vulkan_validation.cpp
@@ -131,6 +152,8 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/batched2d_pipeline.cpp
     src/glass_blur_pipeline.cpp
     src/storage_probe_pipeline.cpp
+    src/path_raster_pipeline.cpp
+    ${TESSERA_PATH_RASTER_SPV}
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${TESSERA_BATCHED2D_LCD_FRAG_SPV}

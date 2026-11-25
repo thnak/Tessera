@@ -5,6 +5,13 @@ add_executable(rhi_null_tests
 target_link_libraries(rhi_null_tests PRIVATE tessera_rhi_null)
 add_test(NAME rhi_null COMMAND rhi_null_tests)
 
+# RHI 1.17 `copy_buffer_to_texture` (ADR-072) on the null backend: the validation matrix, the record and
+# the command order. The pixels are read back by buffer_texture_copy_tests on a real device.
+add_executable(buffer_texture_copy_null_tests
+    rhi/buffer_texture_copy_null_tests.cpp)
+target_link_libraries(buffer_texture_copy_null_tests PRIVATE tessera_rhi_null)
+add_test(NAME buffer_texture_copy_null COMMAND buffer_texture_copy_null_tests)
+
 add_executable(rhi_buffer_bounds_tests
     rhi/rhi_buffer_bounds_tests.cpp)
 target_link_libraries(rhi_buffer_bounds_tests PRIVATE tessera_rhi_null)
@@ -195,6 +202,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(path_texture_measure PRIVATE
         tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
     target_compile_definitions(path_texture_measure PRIVATE
+        TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+
+    # Manual measurement tool (not a CTest): where the CPU and GPU route of PathTextureCache cross
+    # over, per fixture and size (ADR-071).
+    add_executable(path_route_measure
+        batched2d/path_route_measure.cpp)
+    target_link_libraries(path_route_measure PRIVATE
+        tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
+    target_compile_definitions(path_route_measure PRIVATE
         TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
 
     # Manual measurement tool (not a CTest): CPU raster + upload cost at 4K, the numbers behind the
@@ -501,6 +517,52 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # RHI 1.17 `copy_buffer_to_texture` (ADR-072): staging, storage and compute-fed sources read back
+    # through the pipeline. The compute case reuses the compute probe shader, compiled below, and is
+    # compiled out where glslc is absent. Skips without a Vulkan device.
+    add_executable(buffer_texture_copy_tests
+        batched2d/buffer_texture_copy_tests.cpp)
+    target_link_libraries(buffer_texture_copy_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    if (Vulkan_GLSLC_EXECUTABLE)
+        target_compile_definitions(buffer_texture_copy_tests PRIVATE TESSERA_HAS_COPY_PROBE)
+        target_include_directories(buffer_texture_copy_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        add_dependencies(buffer_texture_copy_tests compute_dispatch_tests)
+    endif()
+    add_test(NAME buffer_texture_copy COMMAND buffer_texture_copy_tests)
+    set_tests_properties(buffer_texture_copy PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # GPU path rasterizer (ADR-071) through the production encoder and pipelines, handed to a texture
+    # with copy_buffer_to_texture (ADR-072). Skips without a Vulkan device or without compute.
+    add_executable(path_raster_gpu_tests
+        batched2d/path_raster_gpu_tests.cpp)
+    target_link_libraries(path_raster_gpu_tests PRIVATE tessera_gpu tessera_path tessera_rhi_vulkan)
+    add_test(NAME path_raster_gpu COMMAND path_raster_gpu_tests)
+    set_tests_properties(path_raster_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # GpuPathRasterizer batching: several rasters, one submission, slot reuse. Skips like the above.
+    add_executable(path_raster_batch_gpu_tests
+        batched2d/path_raster_batch_gpu_tests.cpp)
+    target_link_libraries(path_raster_batch_gpu_tests PRIVATE tessera_gpu tessera_path tessera_rhi_vulkan)
+    add_test(NAME path_raster_batch_gpu COMMAND path_raster_batch_gpu_tests)
+    set_tests_properties(path_raster_batch_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # PathTextureCache with the GPU rasterizer attached: routing, flush_gpu, fallback, eviction of a
+    # queued raster. Skips without Vulkan, compute or ThorVG.
+    add_executable(path_texture_cache_gpu_tests
+        batched2d/path_texture_cache_gpu_tests.cpp)
+    target_link_libraries(path_texture_cache_gpu_tests PRIVATE tessera_gpu tessera_path tessera_rhi_vulkan)
+    add_test(NAME path_texture_cache_gpu COMMAND path_texture_cache_gpu_tests)
+    set_tests_properties(path_texture_cache_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
     # target, blur it horizontally into a second pooled target that samples the copy, then resume
     # and composite the blurred result. Expected pixels come from the CPU glass kernel.
@@ -673,6 +735,27 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(vulkan_async_upload_tests PRIVATE tessera_rhi_vulkan)
     add_test(NAME vulkan_async_upload COMMAND vulkan_async_upload_tests)
     set_tests_properties(vulkan_async_upload PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # RHI 1.16 compute (issue #683): a dispatch, a barrier and a readback copy on a real device. The
+    # probe shader is compiled by this rule alone, so it needs no shader-manifest entry.
+    if (Vulkan_GLSLC_EXECUTABLE)
+        set(TESSERA_COMPUTE_PROBE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/compute_probe_comp_spv.h)
+        add_custom_command(
+            OUTPUT ${TESSERA_COMPUTE_PROBE_HEADER}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3
+                    ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_probe.comp -o ${TESSERA_COMPUTE_PROBE_HEADER}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_probe.comp
+            COMMENT "glslc compute_probe.comp"
+            VERBATIM)
+        add_executable(compute_dispatch_tests
+            rhi/compute_dispatch_tests.cpp ${TESSERA_COMPUTE_PROBE_HEADER})
+        target_include_directories(compute_dispatch_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        target_link_libraries(compute_dispatch_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
+        add_test(NAME compute_dispatch COMMAND compute_dispatch_tests)
+        set_tests_properties(compute_dispatch PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    endif()
 
     add_executable(vulkan_async_submit_tests
         vulkan/vulkan_async_submit_tests.cpp)
@@ -894,6 +977,21 @@ if (TARGET tessera_app_window)
         tessera_app_window
         tessera_scale)
     add_test(NAME app_window_render_scale COMMAND app_window_render_scale_tests)
+
+    # The SVG stack on the real window path (ADR-071): an asset bundle given through WindowOptions is
+    # painted by a scene node, every frame a new raster that routes to the GPU rasterizer, flushed
+    # ahead of the draw list - validation-clean with two frames in flight.
+    add_executable(app_window_vector_tests
+        app_window_vector_tests.cpp)
+    target_compile_definitions(app_window_vector_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_vector_tests PRIVATE
+        tessera_app_window
+        tessera_path)
+    add_test(NAME app_window_vector COMMAND app_window_vector_tests)
+    set_tests_properties(app_window_vector PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     set_tests_properties(app_window_render_scale PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")

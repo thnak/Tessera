@@ -36,6 +36,9 @@ struct Budget {
     // deterministic counter, so it is compared with the whole-tree count (12000) as the regression
     // it catches: a paint that walks everything again cannot pass.
     std::uint64_t max_damaged_paint_nodes = 0;
+    // Issue #257: the nodes that resolve a style in the FULL paint. A full repaint culls to the
+    // viewport, so this is the visible part of the tree; a paint that walks all 12000 again fails.
+    std::uint64_t max_full_paint_nodes = 0;
     std::uint64_t max_damage_rects = 0;
     std::uint64_t max_draw_calls = 0;
     std::uint64_t max_quads = 0;

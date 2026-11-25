@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/hal/wake_source.hpp"
 #include "tessera/hal/window.hpp"
 
 #include <X11/Xlib.h>
@@ -9,6 +10,7 @@
 #ifdef CursorShape
 #undef CursorShape
 #endif
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -365,6 +367,71 @@ int main() {
     }
 
     window.reset();
+
+    // The completion wake (issue #842): a worker's wake ends an idle park in well under a frame,
+    // not at the timeout; a burst is one wake; and with no wake an idle window still times out.
+    {
+        tessera::hal::WindowDesc wake_desc = desc;
+        wake_desc.title = "Tessera X11 wake test " + suffix;
+        auto wake_window = tessera::hal::create_window(wake_desc);
+        const auto wake = tessera::hal::create_wake_source();
+        if (!expect(wake_window != nullptr && wake != nullptr,
+                    "the wake window and source exist")) {
+            XCloseDisplay(display);
+            return 30;
+        }
+        wake_window->set_wake_source(wake.get());
+        std::array<WindowEvent, 16> drained{};
+        (void)wake_window->wait_for_events(0.1); // settle the initial configure/expose events
+        (void)wake_window->poll_events(drained);
+
+        double start = tessera::hal::steady_now_seconds();
+        bool woke = wake_window->wait_for_events(0.05);
+        double elapsed = tessera::hal::steady_now_seconds() - start;
+        if (!expect(!woke && elapsed >= 0.03, "an idle wait with a wake source still times out")) {
+            XCloseDisplay(display);
+            return 31;
+        }
+
+        constexpr int kTrials = 20;
+        std::array<double, kTrials> latency{};
+        for (int trial = 0; trial < kTrials; ++trial) {
+            double woke_at = 0.0;
+            std::thread waker([&]() {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                woke_at = tessera::hal::steady_now_seconds();
+                wake->wake();
+                wake->wake();
+                wake->wake();
+            });
+            woke = wake_window->wait_for_events(5.0);
+            const double returned_at = tessera::hal::steady_now_seconds();
+            waker.join();
+            if (!expect(woke, "a worker wake ends the park")) {
+                XCloseDisplay(display);
+                return 32;
+            }
+            latency[static_cast<std::size_t>(trial)] = returned_at - woke_at;
+            start = tessera::hal::steady_now_seconds();
+            woke = wake_window->wait_for_events(0.02);
+            elapsed = tessera::hal::steady_now_seconds() - start;
+            if (!expect(!woke && elapsed >= 0.01, "a burst of wakes is one wake")) {
+                XCloseDisplay(display);
+                return 33;
+            }
+        }
+        std::sort(latency.begin(), latency.end());
+        std::cout << "window_x11: wake-to-return latency median " << latency[kTrials / 2] * 1000.0
+                  << " ms, max " << latency.back() * 1000.0 << " ms over " << kTrials
+                  << " trials\n";
+        // A generous bound: the point is "milliseconds, not the 250 ms clamp", and a loaded CI box
+        // must not make it flaky.
+        if (!expect(latency.back() < 0.1, "every wake lands within 100 ms")) {
+            XCloseDisplay(display);
+            return 34;
+        }
+        wake_window->set_wake_source(nullptr);
+    }
 
     // Invalid descriptors are rejected without creating a native window.
     tessera::hal::WindowDesc invalid = desc;

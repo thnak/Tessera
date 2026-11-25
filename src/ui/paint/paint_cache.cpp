@@ -26,9 +26,7 @@ bool same_matrix(const rhi::Mat3& lhs, const rhi::Mat3& rhs) {
     return true;
 }
 
-// Exact equality, including floats: the record is replayed verbatim, so an epsilon match would be a
-// silent output change. NaN can never match itself, which keeps a non-finite node a stable miss.
-bool same_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& rhs) {
+bool same_signature_impl(const PaintCacheSignature& lhs, const PaintCacheSignature& rhs) {
     return lhs.node == rhs.node && same_rect(lhs.bounds, rhs.bounds) &&
            same_matrix(lhs.transform, rhs.transform) && lhs.scrollable_x == rhs.scrollable_x &&
            lhs.scrollable_y == rhs.scrollable_y && lhs.scroll_x == rhs.scroll_x &&
@@ -85,6 +83,12 @@ std::size_t op_bytes(const PaintOp& op) {
 }
 
 } // namespace
+
+// Exact equality, including floats: the record is replayed verbatim, so an epsilon match would be a
+// silent output change. NaN can never match itself, which keeps a non-finite node a stable miss.
+bool same_paint_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& rhs) {
+    return same_signature_impl(lhs, rhs);
+}
 
 std::uint64_t extend_paint_clip_hash(std::uint64_t seed, const RoundedClip& clip) {
     seed = mix(seed, float_bits(clip.rect.x));
@@ -191,12 +195,19 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
         case PaintOp::Kind::DrawBackdrop:
             sink.draw_backdrop(std::get<DrawBackdropOp>(op.payload).draw);
             break;
+        case PaintOp::Kind::PopClip:
+            sink.pop_clip();
+            break;
+        case PaintOp::Kind::PopTransform:
+            sink.pop_transform();
+            break;
         }
     }
 }
 
-PaintCache::Recorder::Recorder(PaintSink& target)
-    : target_(target) {}
+PaintCache::Recorder::Recorder(PaintSink& target, bool record_pops)
+    : target_(target),
+      record_pops_(record_pops) {}
 
 void PaintCache::Recorder::record(PaintOp op) {
     ops_.push_back(std::move(op));
@@ -261,6 +272,9 @@ void PaintCache::Recorder::push_clip(const RoundedClip& clip) {
 }
 
 void PaintCache::Recorder::pop_clip() {
+    if (record_pops_) {
+        record(PaintOp{PaintOp::Kind::PopClip, FillRectOp{}});
+    }
     target_.pop_clip();
 }
 
@@ -279,6 +293,9 @@ void PaintCache::Recorder::push_transform(const rhi::Mat3& transform) {
 }
 
 void PaintCache::Recorder::pop_transform() {
+    if (record_pops_) {
+        record(PaintOp{PaintOp::Kind::PopTransform, FillRectOp{}});
+    }
     target_.pop_transform();
 }
 
@@ -367,7 +384,7 @@ const PaintRecord* PaintCache::find(const PaintCacheSignature& signature,
         return nullptr;
     }
     const auto found = entries_.find(signature.node);
-    if (found == entries_.end() || !same_signature(found->second.signature, signature) ||
+    if (found == entries_.end() || !same_paint_signature(found->second.signature, signature) ||
         !(found->second.payload == payload)) {
         ++counters_.misses;
         return nullptr;

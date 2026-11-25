@@ -19,6 +19,34 @@ namespace {
 
 using rendering::rhi::Mat3;
 
+// Fixed-capacity list: transform arguments and origin tokens are a handful long, and a heap
+// vector per parsed function was an allocation on every animated frame (#701). Pushes past the
+// capacity are counted but dropped, so a caller rejecting a too-long list still sees the true size.
+template<typename T, std::size_t N> class SmallList {
+public:
+    void push_back(T value) {
+        if (count_ < N) {
+            items_[count_] = std::move(value);
+        }
+        ++count_;
+    }
+    [[nodiscard]] std::size_t size() const noexcept {
+        return count_;
+    }
+    [[nodiscard]] bool empty() const noexcept {
+        return count_ == 0;
+    }
+    const T& operator[](std::size_t i) const {
+        return items_[i];
+    }
+
+private:
+    T items_[N]{};
+    std::size_t count_ = 0;
+};
+
+using Arguments = SmallList<std::string_view, 8>;
+
 constexpr float kPi = 3.14159265358979323846f;
 
 bool parse_float(std::string_view text, float& value) {
@@ -92,8 +120,8 @@ bool parse_angle(std::string_view text, float& radians) {
     return false;
 }
 
-std::vector<std::string_view> split_arguments(std::string_view text) {
-    std::vector<std::string_view> arguments;
+Arguments split_arguments(std::string_view text) {
+    Arguments arguments;
     std::size_t start = 0;
     for (std::size_t i = 0; i <= text.size(); ++i) {
         if (i == text.size() || text[i] == ',') {
@@ -116,8 +144,8 @@ Mat3 matrix(float a, float b, float c, float d, float e, float f) {
     return result;
 }
 
-bool parse_translate(const std::string& name, const std::vector<std::string_view>& args,
-                     float width, float height, Mat3& out) {
+bool parse_translate(const std::string& name, const Arguments& args, float width, float height,
+                     Mat3& out) {
     float x = 0.0f;
     float y = 0.0f;
     if (name == "translate") {
@@ -138,7 +166,7 @@ bool parse_translate(const std::string& name, const std::vector<std::string_view
     return true;
 }
 
-bool parse_scale(const std::string& name, const std::vector<std::string_view>& args, Mat3& out) {
+bool parse_scale(const std::string& name, const Arguments& args, Mat3& out) {
     float x = 1.0f;
     float y = 1.0f;
     if (name == "scale") {
@@ -162,7 +190,7 @@ bool parse_scale(const std::string& name, const std::vector<std::string_view>& a
     return true;
 }
 
-bool parse_skew(const std::string& name, const std::vector<std::string_view>& args, Mat3& out) {
+bool parse_skew(const std::string& name, const Arguments& args, Mat3& out) {
     float x = 0.0f;
     float y = 0.0f;
     if (name == "skew") {
@@ -183,8 +211,8 @@ bool parse_skew(const std::string& name, const std::vector<std::string_view>& ar
     return true;
 }
 
-bool parse_function(const std::string& name, const std::vector<std::string_view>& args, float width,
-                    float height, Mat3& out) {
+bool parse_function(const std::string& name, const Arguments& args, float width, float height,
+                    Mat3& out) {
     if (name == "translate" || name == "translatex" || name == "translatey") {
         return parse_translate(name, args, width, height, out);
     }
@@ -236,7 +264,7 @@ bool parse_origin_component(const std::string& token, float reference, bool hori
 }
 
 bool resolve_origin(std::string_view origin, float width, float height, float& ox, float& oy) {
-    std::vector<std::string> parts;
+    SmallList<std::string, 3> parts;
     std::size_t start = std::string_view::npos;
     for (std::size_t i = 0; i <= origin.size(); ++i) {
         const bool space =
@@ -305,8 +333,7 @@ std::optional<Mat3> compute_transform(std::string_view transform, std::string_vi
         if (close == std::string_view::npos) {
             return std::nullopt;
         }
-        const std::vector<std::string_view> args =
-            split_arguments(text.substr(i + 1, close - i - 1));
+        const Arguments args = split_arguments(text.substr(i + 1, close - i - 1));
         Mat3 next;
         if (!parse_function(name, args, width, height, next)) {
             return std::nullopt;

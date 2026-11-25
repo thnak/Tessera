@@ -49,6 +49,9 @@ struct FramePipelineConfig {
     // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
     // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
     bool paint_cache = true;
+    // Retained draw list per clean subtree (issue #476), sized by the runtime config key
+    // `drawListCacheBudgetMb`; 0 turns it off and the output is unchanged (byte-identical).
+    std::size_t draw_list_cache_bytes = 32u * 1024u * 1024u;
     // Glass cost limits (docs/specs/glass-v1.md sections 5 and 8), from the runtime config keys
     // `glassMaxBlurRadius` and `glassMaxBackdropArea`. They are carried into both the style sync
     // (the 3 sigma damage dependency) and the paint context (the emitted sigma / half-resolution
@@ -59,8 +62,10 @@ struct FramePipelineConfig {
     // key turns both stages off for a full-work comparison. On by default. When the redraw plan is
     // partial, the damage-clipped `paint_frame` overload hands the paint pass the bounding box of
     // the plan's scissors as `PaintContext::cull`, so nodes that cannot reach any painted pixel
-    // skip style resolution and emission. A full-redraw plan never culls (its paint is unclipped),
-    // which is why a full repaint stays byte-identical.
+    // skip style resolution and emission. A full-redraw plan culls to the whole target (issue
+    // #257): its sink stays unclipped, and what it drops cannot reach a pixel of the target, so the
+    // output inside the viewport is unchanged. The full `paint_frame` overload (no plan) never
+    // culls.
     bool cull_paint = true;
 };
 
@@ -154,9 +159,11 @@ public:
     // exactly what the layout-unchanged gate proves, so the host calls this only on a frame the
     // gate accepted. An empty `roots` is a no-op.
     //
-    // The transition/animation bridge still walks the whole tree: it diffs every node's style
-    // against its previous snapshot, and a scoped walk there would need the same "unchanged"
-    // proof per node. That is a separate slice.
+    // The interaction sync and the transition/animation bridge walk only `roots` too, once a whole
+    // walk has run and neither the scene's shape nor any node's `visible()` has changed since (the
+    // two process-wide epochs): those walks skip invisible subtrees and keep per-node memos, so
+    // those are the only two things besides a style change that could owe a node outside `roots`
+    // anything. Until then, and after either epoch moves, they walk the whole tree.
     paint::SceneStyleSyncResult sync_style_scoped(Node& root, paint::StyleProvider& styles,
                                                   std::span<const Node* const> roots,
                                                   const FrameTick& tick, bool force = false) const;
@@ -193,8 +200,9 @@ public:
                            bool force = false) const;
 
     // Damage-clipped variant: paints only the parts of the scene inside `plan`'s scissor regions.
-    // A full-redraw plan forwards to the unclipped sink, so its commands are byte-identical to the
-    // full paint above (its scissor list is ignored). An empty partial plan paints nothing, even
+    // A full-redraw plan forwards to the unclipped sink, so inside the target its commands are the
+    // full paint above (its scissor list is ignored); with `cull_paint` the nodes that cannot reach
+    // the target are skipped first (issue #257). An empty partial plan paints nothing, even
     // with `force`. A partial plan clips every command per region, in region order: a command fully
     // inside a region is unchanged, a partially covered one is trimmed to the intersection, and one
     // outside every region is dropped, so paint order is preserved. `FramePaint::stats` are the
@@ -229,6 +237,7 @@ public:
     // `hits` equals the visible node count and the `recorded_draws` delta is zero. The returned
     // reference is owned by the pipeline and refreshed by every call; read it after paint_frame().
     [[nodiscard]] const paint::PaintCacheStats& paint_cache_stats() const;
+    [[nodiscard]] paint::SubtreePaintCacheStats subtree_cache_stats() const;
 
     // True when the most recent finish_frame() reported should_render and tick() has not run since.
     [[nodiscard]] bool frame_due() const {
@@ -267,6 +276,7 @@ public:
         if (!enabled) {
             previous_samples_.clear();
             current_samples_.clear();
+            interpolated_valid_ = false;
         }
     }
     // Adaptive quality's effects position (#147): paint optional effects in their cheaper form.
@@ -312,6 +322,7 @@ private:
     bool frame_due_ = false;
     // Paint records for the tree this pipeline paints; mutable because painting is const.
     mutable paint::PaintCache paint_cache_;
+    mutable paint::SubtreePaintCache subtree_cache_;
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     // Parsed `background-image` layer lists, keyed by style identity (issue #733 item 2). Mutable
     // and owned here for the same reason as the paint cache: it must outlive one frame for a
@@ -320,6 +331,10 @@ private:
     mutable paint::BackgroundLayerCache background_layers_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
+    // The blend of the two for this tick, built once and borrowed by every paint view of the tick
+    // (a render builds up to three views), so a steady animation allocates nothing for it.
+    mutable PaintSamples interpolated_samples_;
+    mutable bool interpolated_valid_ = false;
     // Computed-style -> transitions/animations (issue #271). Mutable because `sync_style` is const
     // by contract (it resolves style, it does not change the frame decision) but the bridge has to
     // retain a per-node style snapshot between style stages.
@@ -342,6 +357,11 @@ private:
     mutable style::SyncMemo scene_sync_memo_;
     mutable style::SyncMemo interaction_sync_memo_;
     mutable animation::StyleBridgeResult style_bridge_snapshot_;
+    // The epochs at the last whole interaction/bridge walk; a scoped walk needs both unchanged.
+    void note_whole_walk() const;
+    mutable bool whole_walk_done_ = false;
+    mutable std::uint64_t whole_walk_structure_epoch_ = 0;
+    mutable std::uint64_t whole_walk_visibility_epoch_ = 0;
     const std::vector<style::KeyframeBlock>* style_keyframes_ = nullptr;
     // Painted corners (x0,y0..x3,y3, device px) of each transform-sampled node at the last frame
     // that added its box to damage; the reference the suppression distance is measured from.

@@ -80,6 +80,13 @@ public:
     }
     std::size_t poll_events(std::span<WindowEvent> events) override;
     bool wait_for_events(double timeout_seconds) override;
+    // The completion wake the idle wait joins (issue #842); borrowed from the host.
+    void set_wake_source(WakeSource* source) override {
+        wake_ = source;
+    }
+    [[nodiscard]] WakeSource* wake_source() const noexcept override {
+        return wake_;
+    }
     void show() override;
     void hide() override;
     void request_redraw() override;
@@ -116,6 +123,7 @@ private:
     HWND hwnd_ = nullptr;
     HANDLE wait_timer_ = nullptr;
     bool wait_timer_failed_ = false;
+    WakeSource* wake_ = nullptr; // issue #842; null keeps the timer + message wait
     DWORD owner_thread_ = GetCurrentThreadId();
     EventQueue events_;
     Win32InputTranslator input_;
@@ -395,10 +403,26 @@ bool Win32Window::wait_for_events(double timeout_seconds) {
             due.QuadPart = -std::max<LONGLONG>(1, static_cast<LONGLONG>(remaining * 1.0e7));
             timer_armed = SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) != FALSE;
         }
-        const DWORD result =
-            timer_armed ? MsgWaitForMultipleObjectsEx(1, &timer, wait_ms + kTimerBoundPaddingMs,
-                                                      QS_ALLINPUT, 0)
-                        : MsgWaitForMultipleObjectsEx(0, nullptr, wait_ms, QS_ALLINPUT, 0);
+        // The completion wake joins the handle list (#842): a worker's post ends the park here
+        // instead of waiting out the host's clamp. Handle order is timer, then wake.
+        HANDLE handles[2];
+        DWORD handle_count = 0;
+        if (timer_armed) {
+            handles[handle_count++] = timer;
+        }
+        DWORD wake_index = WAIT_FAILED;
+        if (wake_ != nullptr && wake_->os_event() != nullptr) {
+            wake_index = handle_count;
+            handles[handle_count++] = static_cast<HANDLE>(wake_->os_event());
+        }
+        const DWORD result = MsgWaitForMultipleObjectsEx(
+            handle_count, handle_count > 0 ? handles : nullptr,
+            timer_armed ? wait_ms + kTimerBoundPaddingMs : wait_ms, QS_ALLINPUT, 0);
+        if (wake_index != WAIT_FAILED && result == WAIT_OBJECT_0 + wake_index) {
+            wake_->drain();
+            pump_messages();
+            return true; // A completion is queued: the loop drains it on this thread.
+        }
         if (result == WAIT_FAILED) {
             // A broken message queue must not spin; idle out the remaining budget once.
             wait_until_seconds(deadline);

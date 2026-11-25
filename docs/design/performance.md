@@ -63,11 +63,11 @@ behavior**, not a utilization percentage. Platform GPU-load queries are diagnost
 
 ### 2.1 What does *not* determine utilization
 
-- `fixedTimestepHz` â€” simulation only; a 60 Hz tick with a static screen renders nothing.
-- `maxFps=0` â€” "no cap", not "render as much as possible". On-demand still idles.
-- `powerPolicy=performance` â€” explicit continuous mode, not the default.
-- A GPU utilization percentage â€” not a control signal; frame budgets are.
-- A dirty flag alone â€” work still stops at the next clean frame; damage/caches bound the cost.
+- `fixedTimestepHz` — simulation only; a 60 Hz tick with a static screen renders nothing.
+- `maxFps=0` — "no cap", not "render as much as possible". On-demand still idles.
+- `powerPolicy=performance` — explicit continuous mode, not the default.
+- A GPU utilization percentage — not a control signal; frame budgets are.
+- A dirty flag alone — work still stops at the next clean frame; damage/caches bound the cost.
 
 ## 3. Budgets
 
@@ -92,16 +92,17 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 
 | Item | Cost | Enforced by |
 |---|---|---|
-| `ui::Node` (plain View) | 304 bytes (Release; 312 in MSVC Debug), budget `kNodeSizeBudget` = 312 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285; the members were grouped by alignment in the security review, finding C4, which removed 8 bytes of internal padding) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
+| `ui::Node` (plain View) | 320 bytes (Release; larger in MSVC Debug, where the layout asserts are skipped), budget `kNodeSizeBudget` = 320 (336 after the `::part()` metadata pointer, issue #235; 320 with the flags word of #285; 312 after the member regrouping of the security review, finding C4; 328 with the cached paint box of #735; 320 again after the `NodeScroll`/`NodeMetadata` split of #817) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
 | ARIA table (first `aria-*`) | 520 bytes, once per node | lazy; `node_size` test counts allocations; `aria_table_bytes` row |
 | Inline-style table (first declaration) | 520 bytes, once per node | lazy; `node_size` test; `inline_style_table_bytes` row |
-| Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row || Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use. The paint cache's recorded op is 104 bytes, down from 2376 while every draw payload sat inline (issue #731 made the payload a `std::variant` and moved the gradient shapes to `PaintRecord::gradients`, so the 2 MiB budget holds 1159 entries instead of 104) | lazy; `node_size` test; `sizeof_paint_data`, `paint_slot_bytes` and `sizeof_paint_op` rows; `paint_op_size` test |
+| Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row |
+| Paint payload (text/image node) | 520 bytes plus its string; 528 allocated on first use. The paint cache's recorded op is 104 bytes, down from 2376 while every draw payload sat inline (issue #731 made the payload a `std::variant` and moved the gradient shapes to `PaintRecord::gradients`, so the 2 MiB budget holds 1159 entries instead of 104) | lazy; `node_size` test; `sizeof_paint_data`, `paint_slot_bytes` and `sizeof_paint_op` rows; `paint_op_size` test |
 | Resolved `background-image` | `BackgroundLayerList` 1672 bytes, down from 4552 because `GradientValue` carried all three gradient shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so `GradientValue` is 200. `resolve_layers` returns one by value per painted node | `background_layer_size` test (`static_assert`), `sizeof_background_layer_list` row |
 | `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
 | `ComputedStyle` (first property) | 128 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
-| Internal padding (issue #731) | `PaceDecision` 24→16, `AdaptiveQualitySample` 32→24, `OverlayPlacement` 48→40 and `PaintData` 536→528 by ordering members widest-first. The other padding rows are **accepted**: `KeyframeTiming` (64), `AnimationEntry` (216), `BidiVisualRun` (24), `PaintImageStyle`/`PaintVectorStyle` (56), `PaintOutsets` (20) and `TextConstraints` (8) carry only *tail* padding, which no reorder can remove | `padding_size` test (`static_assert`), `sizeof_pace_decision`, `sizeof_adaptive_quality_sample`, `sizeof_overlay_placement` and `sizeof_paint_data` rows |
-| Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
+| Internal padding (issue #731) | `PaceDecision` 24→16, `AdaptiveQualitySample` 32→24, `OverlayPlacement` 48→40 and `PaintData` 536→528 (520 after #734) by ordering members widest-first. The other padding rows are **accepted**: `KeyframeTiming` (64), `AnimationEntry` (216), `BidiVisualRun` (24), `PaintImageStyle`/`PaintVectorStyle` (56), `PaintOutsets` (20) and `TextConstraints` (8) carry only *tail* padding, which no reorder can remove | `padding_size` test (`static_assert`), `sizeof_pace_decision`, `sizeof_adaptive_quality_sample`, `sizeof_overlay_placement` and `sizeof_paint_data` rows |
+| Resident bytes per plain node (20k-node tree) | 437 on Windows x64 (364 when first recorded), 327 on Linux x64 (when recorded), budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
 | Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test, `node_dirty_scratch_bytes` row (warn) |
 | Headless generated-UI sample | build and layout about 0.6 MB, first paint about 0.9 MB, 300 click + repaint cycles 0 to 45 KB, process peak about 8.7 MB (budgets 8 MiB, 8 MiB, 1 MiB and 64 MiB) | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
 
@@ -123,21 +124,21 @@ trustworthy:
   invariant rather than noise cover. These are the rows a regression arrives through: a node that
   grows 16 bytes costs 160 KB on a 10k-node screen and shows up nowhere else. Two qualifications,
   both recorded rather than papered over. The budget pins one **build configuration** (Release), and
-  the gate refuses to compare a measurement from another one: MSVC Debug measures `sizeof(Node)` 312,
-  `sizeof(PaintData)` 536, `paint_slot_bytes` 624 and two allocations for a plain node against
-  Release's 304/512/520/1, so a Debug number is a different claim, not a regression. And
+  the gate refuses to compare a measurement from another one: MSVC Debug measures a larger `sizeof(Node)`,
+  `sizeof(PaintData)` and `paint_slot_bytes` and two allocations for a plain node against
+  Release's 320/520/528/1, so a Debug number is a different claim, not a regression. And
   `sizeof(ComputedStyle)` is deliberately *not* pinned: it is a `std::map` handle, 16 bytes on MSVC
   and 48 on libstdc++, so pinning it would record a standard-library difference as a memory budget.
-  The portable per-node style cost is the recorded first-insert size (96 bytes on both lanes, 208 in
+  The portable per-node style cost is the recorded first-insert size (128 bytes on both lanes, 208 in
   MSVC Debug to match the configuration rule).
 - **`warn` -- resident memory.** RSS is an OS reading of a heap: it moves with page granularity,
-  allocator behaviour, ASLR and machine load, and the two lanes disagree by 11% (364 vs 327 bytes per
-  node) with an identical `sizeof(Node)` of 304. A gate that fails at random gets deleted, and
+  allocator behaviour, ASLR and machine load, and the two lanes disagree by double digits (437 vs 327 bytes per
+  node in the last recorded runs) with an identical `sizeof(Node)` of 320. A gate that fails at random gets deleted, and
   deleting it is worse than the trend line, so those rows are measured and reported on every run
   inside a wide band and never block. The generous bound that *does* block a leak is in the CTest
   tests above (`memory_steady_state`, `generated_ui_memory`).
-- **`unmeasured` -- declared, with a reason and no number.** Android PSS and the GPU/VMA category
-  split cannot be measured by this repository's lanes, and the validator rejects a budget on an
+- **`unmeasured` -- declared, with a reason and no number.** Android PSS cannot be measured by this
+  repository's lanes, and the validator rejects a budget on an
   `unmeasured` entry: a plausible number for a quantity nobody measured reads as evidence and
   ratchets a fiction. See the next two paragraphs.
 
@@ -157,10 +158,16 @@ and 17.6 MiB at 4x MSAA. A texture upload also holds a staging buffer of the sam
 copy finishes. `diagnostics::GpuMemoryGauges` publishes the four numbers as `gpu.buffer_bytes`,
 `gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`.
 
-The **VMA category split is not ratcheted either**: the null backend, which every deterministic
-measurement here uses, reports zero allocator bytes by design (and `rhi_memory` asserts that zero),
-so there is no null-backend number to pin; `rhi_memory` on the Vulkan lane is the enforcement that
-exists. The swapchain category is driver-owned and not counted at all.
+The **VMA category split is ratcheted on lavapipe**: the null backend reports zero allocator bytes by
+design, so `gpu_memory_probe` runs the Vulkan backend on lavapipe and the `enforce` rows
+`gpu_vma_category_bytes` and `gpu_category_peak_after_free_bytes` pin it (2 195 456 bytes each when
+recorded); `rhi_memory` asserts the per-resource costs. The swapchain category is driver-owned and not
+counted at all. Real-GPU block growth is not measured by this (spikes of 60-93 ms in `create_texture` on two AMD GPUs are
+tracked on #697). The Vulkan device now times the three slow steps of every `create_texture`
+(`vulkan::texture_create_timings`: `vmaCreateImage`, the staging memcpy, `submit_upload`), and
+`cpu_to_gpu_4k_measure` prints them. On an RTX 4060 (Windows, Release) there is no spike at all:
+4K `vmaCreateImage` averages 0.12 ms (max 2.4 ms) and the staging write 0.7 ms, so the tail is an AMD
+behaviour and the policy of #697 cannot be validated on this vendor.
 
 A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
 screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
@@ -183,6 +190,13 @@ the cheap `memory_sizes` CTest; `memory_budget` runs the checker against it in a
 build tree. `scripts/gates.py` runs `--no-build`, which validates the budget file's shape in the
 aggregator job, where there is no build directory -- the same split as the preview budget, which
 runs in its lane rather than in the aggregator.
+
+**Allocations per frame** are a second ratchet, `tests/golden/perf/alloc_budget.json`, checked by
+`scripts/check_alloc_budget.py` (issue #701, [ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)):
+the mean allocation count of one steady-state frame per scene and scenario, from a replaced global
+`operator new`, with one table per compiler lane because MSVC and libstdc++ allocate differently. A row
+may fall (`--update`) and may not rise. The current numbers and the gap to the spec's "zero in a steady
+frame" are in [`performance-cpu-benchmark.md`](performance-cpu-benchmark.md).
 
 Cache-line layout - false sharing between counters that different threads write, and hot structs
 that straddle a line - is its own note: [`cache-lines.md`](cache-lines.md).
@@ -243,7 +257,7 @@ Actions, in order:
 
 Step 2 moves the adaptive `renderScale`; the monitor-derived device scale is a separate value that
 quantizes onto a fixed ladder and keys text/glyph rasterization ([`window-resize.md`](window-resize.md)
-Â§2.3). Adaptive quality never changes the device scale, so a quality adjustment does not
+§2.3). Adaptive quality never changes the device scale, so a quality adjustment does not
 re-rasterize glyphs or resize the text atlas.
 
 Never:
@@ -260,14 +274,14 @@ All adaptive changes must be reversible and visible in diagnostics.
 The decision layer, the step-2 render-target consumer and the step-3 present cap are implemented. A
 downgrade now changes pixels and the present rate: the window renders the scene into a smaller target,
 resamples it up on present, and lowers the pacer's cap to the next refresh divisor. Step 1 (effects)
-and step 4 (pause non-essential animations) are implemented as the two ends of the ladder (see the decisions below); step 5 (report) is as well.
+and step 4 (pause non-essential animations) are implemented as the two ends of the ladder (see the decisions below); step 5 (report) is as well, so all six ladder positions are live.
 
-**Decisions for steps 1 and 4 ([#147](https://github.com/thnak/Tessera/issues/147)), not yet implemented.** An *optional effect* is a member of a fixed paint-kind allowlist (drop shadows, blurs, gradient oversampling); the allowlist is runtime-owned, adds no CSS surface and does not reuse `prefers-reduced-motion`, which keeps its accessibility meaning. A *non-essential animation* is one that animates only paint-only properties; `transform` and `opacity` keep running. Pausing freezes the animation at its current value, resumes from there when quality recovers, does not keep the loop awake while frozen, and is counted in a `FrameDiagnostics` counter. Each step fires only after the steps above it, and recovery restores it. The controller side is implemented: `quality_step` is the ladder position, `AdaptiveQualitySample::effects_reduced` (position >= 1) and `animations_paused` (last position) are set at every later position and clear on recovery, and `FrameDiagnostics` counts both flips (`adaptive_effect_changes`, `adaptive_animation_pause_changes`). `effects_reduced` is consumed: `PaintContext::reduce_effects` (set by `FramePipeline::set_reduce_effects`, driven by `AppHost` on a flip, which also requests a full repaint) caps a blurred box-shadow at `kReducedBlurLayers` (2) layers with the same box and reach, so damage stays valid; the flag is part of the paint-cache key, so recovery re-records the full stack. Blurred box-shadow is the only member of the allowlist today (the renderer has no other effect). `animations_paused` is consumed too: `AppHost` calls `AnimationRuntime::set_suspend_non_essential` on a flip and wakes the loop. An entry is non-essential (`AnimationEntry::non_essential`, computed at `start()` by `is_non_essential_animation`) when every animated property is paint-only and neither `transform` nor `opacity`; mixed animations are essential. A suspended entry keeps its elapsed time (it resumes where it stopped), stops counting toward `keep_awake`, and is separate from the app's own `paused` flag, so recovery never resumes an app-paused animation. Springs are not classified and keep running. Steps 1-5 of the ladder are now all implemented. **Empty stages are stepped over.** A ladder position with nothing to act on would cost a whole miss run and cooldown for no relief, so `AdaptiveQualityController::observe` takes an `AdaptiveQualityStageProbe` and, on the observation that already changes position, steps over an effects position when no node has a blurred outer shadow (`Node::PaintOutsets::blurred`, set by the style sync) and steps back over it on recovery, all inside one change and one cooldown. The probe is read only at that moment, never per frame, so a shadow appearing or vanishing cannot cause a change by itself. The pause position is still entered when no non-essential animation exists (it is free, and an animation started later is frozen at once); `AnimationRuntime::non_essential_active` is its probe. A scene with no blurred shadow therefore reaches the first `renderScale` step after one miss run, as before the ladder grew its ends.
+**Decisions for steps 1 and 4 ([#147](https://github.com/thnak/Tessera/issues/147)), implemented as described.** An *optional effect* is a member of a fixed paint-kind allowlist (drop shadows, blurs, gradient oversampling); the allowlist is runtime-owned, adds no CSS surface and does not reuse `prefers-reduced-motion`, which keeps its accessibility meaning. A *non-essential animation* is one that animates only paint-only properties; `transform` and `opacity` keep running. Pausing freezes the animation at its current value, resumes from there when quality recovers, does not keep the loop awake while frozen, and is counted in a `FrameDiagnostics` counter. Each step fires only after the steps above it, and recovery restores it. The controller side is implemented: `quality_step` is the ladder position, `AdaptiveQualitySample::effects_reduced` (position >= 1) and `animations_paused` (last position) are set at every later position and clear on recovery, and `FrameDiagnostics` counts both flips (`adaptive_effect_changes`, `adaptive_animation_pause_changes`). `effects_reduced` is consumed: `PaintContext::reduce_effects` (set by `FramePipeline::set_reduce_effects`, driven by `AppHost` on a flip, which also requests a full repaint) caps a blurred box-shadow at `kReducedBlurLayers` (2) layers with the same box and reach, so damage stays valid; the flag is part of the paint-cache key, so recovery re-records the full stack. Blurred box-shadow is the only member of the allowlist today (the renderer has no other effect). `animations_paused` is consumed too: `AppHost` calls `AnimationRuntime::set_suspend_non_essential` on a flip and wakes the loop. An entry is non-essential (`AnimationEntry::non_essential`, computed at `start()` by `is_non_essential_animation`) when every animated property is paint-only and neither `transform` nor `opacity`; mixed animations are essential. A suspended entry keeps its elapsed time (it resumes where it stopped), stops counting toward `keep_awake`, and is separate from the app's own `paused` flag, so recovery never resumes an app-paused animation. Springs are not classified and keep running. Steps 1-5 of the ladder are now all implemented. **Empty stages are stepped over.** A ladder position with nothing to act on would cost a whole miss run and cooldown for no relief, so `AdaptiveQualityController::observe` takes an `AdaptiveQualityStageProbe` and, on the observation that already changes position, steps over an effects position when no node has a blurred outer shadow (`Node::PaintOutsets::blurred`, set by the style sync) and steps back over it on recovery, all inside one change and one cooldown. The probe is read only at that moment, never per frame, so a shadow appearing or vanishing cannot cause a change by itself. The pause position is still entered when no non-essential animation exists (it is free, and an animation started later is frozen at once); `AnimationRuntime::non_essential_active` is its probe. A scene with no blurred shadow therefore reaches the first `renderScale` step after one miss run, as before the ladder grew its ends.
 
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
 (frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`,
-`frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic â€” no clock, no RNG, no
-locale, no allocation, not even at construction (the type is trivially copyable) â€” so an observation
+`frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic — no clock, no RNG, no
+locale, no allocation, not even at construction (the type is trivially copyable) — so an observation
 sequence always yields the same decision sequence. It stays the **only** hysteresis authority: the
 consumers read `AdaptiveQualitySample::render_scale` and `AdaptiveQualitySample::present_cap_hz` and
 never re-implement a threshold, a step or a cooldown.
@@ -277,7 +291,7 @@ never re-implement a threshold, a step or a cooldown.
 | Downgrade run | 4 consecutive missed budgets | one slow frame is noise; four at 60 Hz is ~66 ms of sustained overrun |
 | Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
 | Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
-| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 Â§8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
+| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 §8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
 | Present-cap floor | 10 Hz | below it an interactive UI stops being interactive; step 4 is the right lever there |
 
 Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;
@@ -291,7 +305,7 @@ by `WindowHost`. The sample's source is the device's GPU timestamp probe: when
 `rhi::Device::timestamp_capability()` reports timestamps usable on the frame-submission queue
 family, the controller sees the GPU interval of a completed submission; otherwise (the null
 backend, a device without timestamp queries, a zero or non-finite period) it sees the frame's CPU
-cost through present. The probe is the only authority â€” no layer above the RHI infers the answer
+cost through present. The probe is the only authority — no layer above the RHI infers the answer
 from a backend name. A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
 `adaptive_quality_changes()`, `adaptive_quality_downgrades()`, `adaptive_present_cap_changes()`), so
 a downgrade is visible without sampling frame time, and it survives `AppHost::resize()`, which only
@@ -305,15 +319,15 @@ Vulkan device owns one bounded ring of timestamp pairs (`kGpuTimestampSlots = 8`
 with the device; a submission uses `slot % 8`, and `WindowHost` reuses a frame slot only after the
 previous submission on it reported completion through the existing non-blocking
 `CommandList::is_complete()` poll. The pair is therefore read only for a completed submission,
-with `vkGetQueryPoolResults` and no `WAIT_BIT` â€” a host query, never a fence wait or
+with `vkGetQueryPoolResults` and no `WAIT_BIT` — a host query, never a fence wait or
 `vkDeviceWaitIdle` (ADR-021). A value is unreadable until its submission completes, so the sample
 lags at most two frames; `CommandList::gpu_frame_time_ms()` converts it with the device's
 `timestampPeriod` and rejects a zero, a 64-bit wrap and an absurd (> 10 s) delta. The selection
 rule is pure and tested with a fake capability (`tessera/runtime/frame_time_source.hpp`): a
 present and plausible GPU interval wins, anything else keeps the CPU time.
 
-`FrameDiagnostics` records the source of every observation â€” `frame_time_source()`,
-`gpu_frame_time_samples()`, `cpu_frame_time_samples()` â€” and `WindowFrameStats` reports
+`FrameDiagnostics` records the source of every observation — `frame_time_source()`,
+`gpu_frame_time_samples()`, `cpu_frame_time_samples()` — and `WindowFrameStats` reports
 `frame_time_source`, `gpu_frame_time_samples` and `gpu_frame_time_fallbacks`, so the first frames
 after startup and any skipped or stale read are visible as fallbacks instead of being silently
 reported as GPU numbers. The controller's thresholds, ladder and actions are unchanged; only the
@@ -337,11 +351,11 @@ A cap that is already a divisor moves to the *next* one (`refresh/2` -> `refresh
 itself. On a 60 Hz display with no cap the sequence is 60, 30, 20, 15, 12 Hz; on 144 Hz it is 144,
 72, 48, 36, 28.8 Hz. The floor stops the walk rather than clamping to a rate the display cannot hit,
 so every value after a downgrade is a real `refresh/k`. An upgrade restores the previous step's cap
-because the cap is the same pure function of the step â€” there is no separate "previous divisor"
+because the cap is the same pure function of the step — there is no separate "previous divisor"
 state that could drift from the ladder.
 
 **How it is applied.** `WindowHost` calls `apply_present_cap()` after each frame observation, which
-feeds the decided cap to `FramePacer::update()` â€” the pacer's existing rate-change path, the same
+feeds the decided cap to `FramePacer::update()` — the pacer's existing rate-change path, the same
 mechanism a scripted refresh change uses. `update()` resyncs the next deadline to one new interval
 after the change instant, so the cap takes effect at the next frame boundary with no burst of
 catch-up frames, no stall at the old cadence, no blocking wait and no swapchain recreation. A cap
@@ -350,7 +364,7 @@ the HAL query (`hal::Window::display_refresh_hz()`, resolved once into
 `WindowOptions::refresh_hz`; an explicit non-zero option wins, 0 = unknown), as specified in
 [`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2. With no refresh there is
 no divisor, so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing
-([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) â€” the fallback is the existing
+([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) — the fallback is the existing
 behaviour, not a new one. Diagnostics: `WindowFrameStats::present_cap_hz`,
 `present_interval_seconds` and `present_cap_changes`.
 
@@ -364,17 +378,17 @@ target = max(1, floor(P * s)) per axis
 and the present resamples that target up to `P` with a filtered blit. `P` is the window's logical
 extent times the device scale, rounded up to whole pixels, so the adaptive multiplier is a resample
 of exactly what the window already presented. The base is the *presented* extent rather than the
-unrounded logical Ã— device product on purpose: the physical grid is a whole number of pixels, and
+unrounded logical × device product on purpose: the physical grid is a whole number of pixels, and
 using it makes `s = 1.0` exactly identity on every DPI, including fractional ones. The two axes are
 computed (and can round) independently, and the content transform the paint uses is the exact
 extent ratio `target / P`, so the resample always covers the whole image.
 
 **What it never touches.** The device scale (the monitor-derived value quantized onto the render-scale
-ladder, [`window-resize.md`](window-resize.md) Â§2.3), and therefore everything keyed by it: glyph
-rasterization, the text atlas, and caret/metrics values. Layout does not change either â€” the scene is
+ladder, [`window-resize.md`](window-resize.md) §2.3), and therefore everything keyed by it: glyph
+rasterization, the text atlas, and caret/metrics values. Layout does not change either — the scene is
 laid out, style-resolved and painted in CSS pixels exactly as before; only the mapping from those
 coordinates to the smaller target changes. The frame's content scale composes this adaptive ratio
-with the window's device scale (`ui::scale::content_scale_for`, `display-aware-rendering.md` Â§6), so
+with the window's device scale (`ui::scale::content_scale_for`, `display-aware-rendering.md` §6), so
 a downgrade only multiplies the device factor by the quality factor. The window and its swapchain
 keep the physical size, so a quality change never resizes the OS window or recreates the swapchain.
 
@@ -384,7 +398,7 @@ resample is recorded in the same submission as the paint. There is no mid-frame 
 allocation in the steady state, and no GPU wait.
 
 **The bit-identical guarantee at scale 1.0.** When `s = 1.0` the target extent equals `P`, so the
-frame takes the existing direct path â€” no offscreen target is created and no resample runs â€” and the
+frame takes the existing direct path — no offscreen target is created and no resample runs — and the
 presented image is byte-for-byte the full-quality frame the tree produced before this consumer
 existed. The committed goldens and the frame-pipeline/app-window-capture tests therefore pass
 unchanged, and they are the acceptance for this slice.
@@ -424,165 +438,18 @@ the driver stays on the direct path instead of dropping frames.
 
 ### 9.1 CPU benchmark and the render-thread trigger
 
-`tessera_benchmark` (`tests/benchmarks/cpu/`, CTest name `cpu_benchmark`, issue #241) is the
-GPU-free CPU benchmark behind the V1 single-UI-thread decision of
-[ADR-021](../../decisions/ADR-021-async-runtime.md). It builds a deterministic 12 000-node scene
-from a fixed generator (containers, text, raster-image nodes, scrolling regions and one virtualized
-list that realizes 27 of 100 000 items) and drives the production headless frame path: style, Yoga
-layout, scene-style sync, damage/redraw planning, and paint into draw lists. Every paint command is
-recorded through the null RHI (`Batched2DRenderer`). There is no GPU, window, system font, network
-or clock input: text measurement is the engine's deterministic stub, so the only machine dependence
-is CPU speed.
+The GPU-free `tessera_benchmark` (`cpu_benchmark`, issue #241) drives the production headless frame
+path on a deterministic 12 000-node scene; budgets live in `tests/golden/perf/cpu_benchmark.txt` and
+allocations per frame in `tests/golden/perf/alloc_budget.json` (#701). The full write-up, the current
+numbers and the history of each cull and style optimization are in
+[`performance-cpu-benchmark.md`](performance-cpu-benchmark.md). Summary of the 2026-11-24 run (MSVC
+Release, 12 000 nodes, median): first style + layout 222.6 ms, layout + paint after one change 15-19 ms,
+damaged-frame paint 0.17 ms (6 nodes), **full paint 5.7 ms** (232 visible nodes; it was 89.6 ms until
+#257 made a full repaint cull to the viewport, on by default). The render-thread trigger
+(`paint_time_ms` above about 4 ms or 30% of `frameBudgetMs` at 10k nodes) is marginally exceeded, and
+only for a scene whose 12 000 nodes are all visible would a full paint still cost the whole tree. The V1
+design (single UI thread, no worker recording) is unchanged.
 
-Reference measurement (Windows 11, AMD Ryzen 5 4600H, 12 logical cores, MSVC 19.51, Release Ninja,
-DPI scale 1, 7 measured runs after 2 warm-up runs; median and p95):
-
-| Metric at 12 000 nodes | Reference median (p95) | Committed budget |
-|---|---|---|
-| First style + layout | 739 ms (757 ms) | 4500 ms |
-| Full paint into draw lists | 75 ms (78 ms) | 500 ms |
-| Layout + paint after changing one text node | 296 ms (301 ms) | 1800 ms |
-| Layout + paint after changing one container's size | 296 ms (313 ms) | 1800 ms |
-| Redraw plan regions (max of the three frames) | 2 | 8 |
-| Draw calls / quads emitted (of produced) / draw-list primitives | 19 / 33 (65) / 9596 | 64 / 128 / 12000 |
-
-The budget file is `tests/golden/perf/cpu_benchmark.txt`; each time budget is about six times the
-reference median, which keeps roughly a factor of two on top of a presumed 3x-slower two-core
-gating runner. It catches order-of-magnitude regressions and does not rank machines. Every run
-prints the full table (times, damage count, draw calls, primitive count) into the CTest log, so CI
-history shows the trend.
-
-**The style pass after the security review (findings P1 and P3).** Two allocation defects dominated
-the style stage, and both are now fixed:
-
-- `PropertyRegistry::apply_initial_values` materialized every initial longhand through
-  `ComputedStyle::set`/`contains`, each of which built a fresh `std::string` via
-  `normalize_property`. One node's style cost roughly 250 heap operations before any cascade work,
-  times every node on every style pass. The registry's own names are already normalized, so the
-  pass now uses `set_normalized`/`contains_normalized` and skips the lower-casing copy (P1).
-- `SelectorIndex::match` allocated a candidates vector, a `seen` `vector<bool>` sized to the whole
-  index, and a result vector on every call, then deduped with a linear scan. It now writes into a
-  caller-owned buffer and reuses a stamp array, so a repeated match allocates nothing (P3);
-  `tests/unit/selector_match_tests.cpp` pins that with a replaced global `operator new`.
-
-Measured on the reference machine above, same scene and preset: first style + layout went from
-**449 ms to 384 ms** (a 14.5 % reduction), and the damaged-frame paint from 3.50 ms to 3.31 ms.
-
-**The style representation (issue #735, slices E and F).** A `ComputedStyle` used to hold every
-one of the ~100 longhands with an initial value as its own `std::string` pair (~6.5 KB per node), and
-`perf` put its `lower_bound` and `memcmp` at **53 % of LLC misses** on a size-change frame. Now
-`PropertyRegistry` builds one immutable `StyleDefaults` table from its own merged property list, a
-computed style stores only the entries that differ from it (slice F), and every registered longhand
-gets a stable small id in sorted-name order that indexes that table: one probe, one array read. The contracts are unchanged (`find` returns the effective value,
-`contains` only what the style holds itself, `properties()` the full sorted effective style as a
-view that allocates nothing, `identity()`/`cached_digest()` still live with the shared entries;
-`tests/unit/style_delta_tests.cpp` pins each). With `frame_alloc_probe --computecheck`, one computed
-style went from **99 allocations / 28 678 bytes to 43 / 11 848** at depth 2 and from **147 / 43 813
-to 64 / 18 240** at depth 3, and a real computed style now holds **33 of its 101 effective entries**.
-
-**Glass scenario (issue #244, [`glass-v1.md`](../specs/glass-v1.md) section 9).** The same full
-paint with the reference dashboard's fixed top bar blurred (`backdrop-filter: blur(16px)` through an
-inline style; no node is added, so the tree is still 12 000 nodes). The paint records one backdrop
-composite - region plan, region copy, both `glass_blur` passes and the composite - through the null
-RHI, so this is the **CPU record cost of glass**, the same quantity `glass_ms` reports
-([`glass-v1.md`](../specs/glass-v1.md) section 8.1), not its GPU cost. Measured on the reference
-machine in one run (median, p95):
-
-| Metric at 12 000 nodes | Same run | Committed budget |
-|---|---|---|
-| Full paint into draw lists, no glass | 86.1 ms (88.0 ms) | 500 ms |
-| Full paint with one glass bar | 86.7 ms (89.8 ms) | 500 ms |
-| Backdrops recorded by the glass frame | 1 | 1 (exact) |
-
-The composite costs about 0.6% of the paint, inside the paint's own run-to-run spread: it adds a
-bounded number of commands (one copy, two fullscreen draws, two sampled binds) instead of per-node
-work. Compare the two numbers of a single run rather than against the table above, whose rows were
-recorded on an earlier, quieter machine state. `max_glass_paint_ms` therefore guards the same
-order of magnitude as `max_full_paint_ms`: it catches a regression that turns glass into per-pixel
-CPU work, not the GPU blur, which the exact-pixel tests and the (unbudgeted) GPU timings cover.
-
-**CPU culling (issue #474, [`dirty-rendering.md`](dirty-rendering.md) section 6.4).** The same
-reference scene produces 65 quads per full paint; with `Batched2DConfig::cull_draws` on (the
-default) 32 of them cannot touch the viewport scissor and are dropped before staging, so 33 reach
-the vertex buffer in 19 draw calls instead of 44 - the counters are deterministic, and a dropped
-quad no longer splits a batch. The separate damaged-frame scenario (one text edit painted through
-`begin_damaged`) measures the partial path: 1 damage region, 2 quads, 2 draw calls, and the damage
-bounding box culls none of them, because the paint pass already clips emission to the plan's
-regions. Measured on the reference machine (MSVC Release, median of 7 runs) in two runs: full paint
-43.2 and 46.3 ms, damaged paint 44.0 and 46.7 ms. The paint is therefore still dominated by walking
-the 12 000 nodes, not by staging their quads: the cull removes vertex work the GPU scissor would
-have thrown away, and the traversal does not shrink. That is the argument for culling in the paint
-pass itself, which #487 implements (measured next). `max_quads` and the new `max_damaged_quads` gate
-the two counters, and `max_damaged_paint_ms` guards the damaged row at the same order of magnitude as
-`max_full_paint_ms`.
-
-**Paint-pass cull (issue #487, [`dirty-rendering.md`](dirty-rendering.md) section 6.8).** The damaged
-frame above now shrinks its traversal: `FramePipelineConfig::cull_paint` (default on, from the runtime
-`cullDraws` key) hands the paint pass the redraw plan's scissor bounding box, and a node whose painted
-reach misses it skips its style read and its own emission. Measured on the reference machine (MSVC
-Release, median of 7 runs, two consecutive runs each; the only difference between the arms is
-`cull_paint`): damaged paint **45.5 / 45.0 ms -> 41.1 / 39.3 ms**, and its deterministic counter drops
-from **12 000 to 9 353 painted nodes** (2 397 culled, 2 clip-bounded subtrees skipped whole, draw calls
-2 -> 1), while the full paint, which never sets the rect, is unchanged (46.0 / 44.5 ms vs 45.4 /
-44.4 ms). The time win is smaller than the node count suggests because 78% of the tree is text leaves:
-an unclipped text payload can paint outside its own box (a wrapped line advances past the content
-box), so a text node was only culled as part of a clipping subtree, and the nodes still painted were
-exactly the ones a box test cannot bound. `max_damaged_paint_nodes` (10 000) gated the counter: a trip
-back to the whole tree fails it.
-
-**Text-fit hint (issue #490, [`dirty-rendering.md`](dirty-rendering.md) section 6.8).** That
-conservative rule is now lifted where layout can prove it is unnecessary. `LayoutBox::text_fit` is a
-three-state fact (`Unknown`/`Fits`/`Overflows`) the layout engine computes in `collect_boxes` from the
-same inputs paint uses: the border box minus the style's `padding-*` longhands (not
-`LayoutBox::content_insets`, which also counts the border), paint's own wrap decision
-(`PaintData::wrap == PaintWrap::Wrap` AND `white-space` wraps, forwarded on `LayoutInput::text_wrap`),
-and the engine's `TextMeasureCache`. `apply_layout` copies `Fits` onto the node as
-`Node::text_fits_box()` (one flag bit, no `sizeof(Node)` growth), and `own_emission_bounded` trusts it
-only for a payload that is still the plain text layout measured - no spans, no decoration, no
-`max_lines`, no font-size/weight override - and only when paint's rect is at least the layout box.
-Measured on the reference machine (MSVC Release, median of 7 runs): the damaged frame's deterministic
-counter drops from **9 353 to 5 painted nodes** (11 721 culled, 2 clip-bounded subtrees skipped whole),
-and damaged paint falls from 37.6 ms to **3.3-7.2 ms** across runs. The full paint is unchanged at
-12 000 nodes, because the cull only applies to a damaged plan. `max_damaged_paint_nodes` is now **6**,
-the smallest integer with headroom above 5: a platform difference in the culled set cannot fail the
-gate, while a trip back to the whole tree still does.
-
-**Texture arrays (issue #480 part 2, [`renderer.md`](renderer.md) "Texture arrays").** The batch key
-is `(scissor, texture)`, so a texture change ends the batch. The issue gated descriptor indexing on
-measuring that share first, and `texture_batch_measure` (`tests/gpu/batched2d/`, a manual tool, not a
-CTest) does it: a 24-row dashboard - image, caption, image, body line per row - painted through the
-production paint path, plus a same-geometry control arm where each image quad is a solid fill of the
-same rect, so the quad count, vertex count and paint traversal are identical and only the texture
-identity differs. Measured on the reference machine (RTX 4060, MSVC Release, steady-state second
-frame):
-
-| Arm | Draw calls | Vertices | Batch splits |
-|---|---|---|---|
-| interleaved, one set per texture | 144 | 6510 | 143 texture + 1 flush |
-| interleaved, texture array | 1 | 6510 | 1 flush |
-| control (images as fills) | 96 | 6222 | 95 texture + 1 flush |
-
-**143 of 144 draw calls were texture switches (99%)**, against the issue's 19-draw-call reference
-scene: that scene is the exception, not the rule, so part 2 was worth its complexity. The array path
-is byte-identical to the one-set path (0 differing bytes of 1 228 800), which is the whole contract -
-it changes how the same texels are addressed, never which ones. The command-recording time is
-unchanged within the run-to-run spread (0.7-1.2 ms for the whole frame on both paths): the win is
-draw calls and the per-draw descriptor bind, not CPU recording. `max_draw_calls` (64) in the committed
-budget still gates the reference scene, which does not interleave textures.
-
-**Trigger.** Revisit the V1 decision of no render thread and no worker recording when
-`paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
-recorded paint is 75 ms in the #241 measurement (43-46 ms for a full paint on the same machine in the
-#474/#487 runs), about eleven to nineteen times the 4 ms trigger and 2.6-4.5x the 60 Hz frame budget
-(16.7 ms), so the trigger is currently exceeded; issue #241 records the measurement and the V1
-design is unchanged pending that discussion. The paint number is draw-list building only: glyph
-rasterization is excluded because the benchmark runs without a font, and a full paint still paints
-all 12 000 nodes because the paint-pass cull only applies to a damaged plan. "First style + layout"
-includes the
-full CSS cascade; a computed style is a delta over the registry's shared initial values (issue #735,
-slices E and F), so 12 000 computed styles cost a few megabytes and layout and paint measure their
-own work instead of re-copying ~90 default longhands per node. Do not claim parallelism without a
-measured gain on this benchmark.
 
 ## 10. Open questions
 
@@ -590,11 +457,19 @@ measured gain on this benchmark.
 - Thermal/power-source signals and whether to use them at all (no decision yet; HAL `PowerState` in [`hal.md`](hal.md) exposes them).
 - ~~Per-monitor render scale and mixed-DPI multi-window.~~ Decided: one render scale per window in
   V1, derived from that window's `WindowMetrics` and recomputed only on a DPI or monitor change
-  ([`window-resize.md`](window-resize.md) Â§2.3). Per-monitor scale is deferred until multi-window
+  ([`window-resize.md`](window-resize.md) §2.3). Per-monitor scale is deferred until multi-window
   or per-display rendering is scheduled or a mixed-DPI app needs it.
 - How much adaptive quality is acceptable without visual regression.
-- Benchmark harness and baseline budgets per scene class.
-- **Should `SceneStyleTree::compute` memoize per style generation?** It re-cascades the whole
-  ancestor chain per node, and one frame resolves each node's style up to five times (layout input,
-  scene-style sync, interaction style, animation style bridge, paint). A per-generation table would
-  make that one cascade per node; the invalidation condition is `PaintCache::invalidate`'s.
+- Benchmark harness and baseline budgets per scene class: the harness, the CPU budget file, the
+  allocation ratchet and the memory ratchet exist for the one reference scene; per-scene-class budgets
+  (animated, scrolling, text-heavy) exist only for allocations so far.
+- ~~Should `SceneStyleTree::compute` memoize per style generation?~~ Decided and implemented (#711,
+  `SceneStyleTree::begin_memo`/`end_memo`): one cascade per node per generation.
+- ~~Should a full paint cull against the viewport by default (#257)?~~ Decided: yes, on by default
+  (`cull_paint`), full paint 89.6 -> 5.7 ms on the reference scene. Open remainder: a screen where all
+  12 000 nodes are visible still paints the whole tree, which is where ADR-021's worker recording
+  would have to be re-opened.
+- Which of the open V1 performance items are release blockers: #842 (a worker completion wakes the parked UI thread on Linux and Windows; the Android advisory
+  lane still waits out the clamp), #697, #476 (retained draw
+  list and layer cache; `layerCacheBudgetMb` is parsed but unused) and #683 (GPU vector rasterizer, a
+  spike with no ADR yet).

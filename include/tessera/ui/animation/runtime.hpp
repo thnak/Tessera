@@ -56,12 +56,21 @@ struct AnimationEntry {
     // Computed once at start(): every animated property is paint-only and non-essential
     // (property_dirty.hpp). Only such entries freeze under suspend_non_essential().
     bool non_essential = false;
+    // Set on an entry in the fill list once the tick that first sampled it has reported it, so a
+    // held value is not announced as a change on every later tick (issue #200).
+    bool fill_reported = false;
 };
 
 struct AnimationSample {
     AnimationId id = 0;
     std::uint64_t target = 0;
     std::vector<style::Declaration> declarations;
+    // True for a fill-forwards value the runtime already reported on an earlier tick and that
+    // cannot have changed since (its elapsed time is pinned). The sample is still delivered,
+    // because style overlays are rebuilt from the samples each sync, but it is not a reason to mark
+    // the node dirty: a held animation must not turn every frame into a repaint of its node (issue
+    // #200).
+    bool held = false;
 };
 
 struct AnimationTickResult {

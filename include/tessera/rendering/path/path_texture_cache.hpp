@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "tessera/rendering/path/gpu_path_rasterizer.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
+#include "tessera/rendering/path/raster_route.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
 #include <cstdint>
@@ -71,6 +73,9 @@ public:
         std::uint64_t uploads = 0;         // rhi::Texture creations
         std::uint64_t invalidations = 0;   // loss/notify/invalidate_all events
         std::uint64_t forced_releases = 0; // parked textures destroyed early to stay bounded
+        std::uint64_t gpu_rasterizations =
+            0; // misses queued on the GPU rasterizer (not in `rasterizations`)
+        std::uint64_t gpu_fallbacks = 0; // GPU route chosen but refused (too dense, device error)
         std::uint32_t entries = 0;
         std::uint32_t retired = 0; // evicted textures parked until end_frame()
         std::uint64_t bytes = 0;   // sum of entry pixel bytes
@@ -96,6 +101,22 @@ public:
     // and D7 generation handling are identical to the single-shape form.
     [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
     acquire(const PathTextureKey& key, std::span<const PathShape> shapes);
+
+    // Routes large rasters to the GPU rasterizer (ADR-071) instead of ThorVG. `gpu` is not owned
+    // and must outlive the cache; nullptr (the default) keeps every miss on the CPU. The policy
+    // (`choose_raster_route`) keeps small icons and dense scenes on the CPU, and any GPU refusal
+    // falls back to the CPU for that request, so a hit or a miss never fails because of the GPU.
+    //
+    // A GPU miss returns a texture whose pixels do not exist until `flush_gpu()` has submitted the
+    // batch: call it once per frame after the last `acquire()` and before submitting the draw list
+    // that samples the textures. `end_frame()` flushes anything left, so a forgotten call costs a
+    // frame of transparent textures, not a dangling one.
+    void set_gpu_rasterizer(GpuPathRasterizer* gpu, RasterRouteConfig route = {});
+
+    // Submits the queued GPU rasters in one command list and returns without waiting. On failure
+    // the queued entries are dropped from the cache, so the next acquire() rasterizes them on the
+    // CPU.
+    [[nodiscard]] std::expected<void, PathTextureError> flush_gpu();
 
     // Frame boundary: destroys textures that were evicted while their draws could still be pending.
     // Call after the frame's commands that used this cache's textures have been submitted and are

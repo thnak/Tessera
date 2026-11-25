@@ -157,14 +157,19 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
         entry.callback(entry.id);
     }
 
+    result.samples.reserve(entries_.size() + fills_.size());
     for (const AnimationEntry& entry : entries_) {
         AnimationSample sample = sample_entry(entry, entry.elapsed);
         result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
         result.samples.push_back(std::move(sample));
     }
-    for (const AnimationEntry& fill : fills_) {
+    for (AnimationEntry& fill : fills_) {
         AnimationSample sample = sample_entry(fill, fill.elapsed);
-        result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+        sample.held = fill.fill_reported;
+        if (!sample.held) {
+            result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+            fill.fill_reported = true;
+        }
         result.samples.push_back(std::move(sample));
     }
 
