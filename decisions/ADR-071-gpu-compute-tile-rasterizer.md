@@ -164,11 +164,13 @@ material-symbols, carbon, solar, fluent-emoji-flat, twemoji) through the same to
 filled icons are 0.8 to 1.4 at 32 to 64 px and 0.3 to 0.9 from 128 px, so the 128 px line holds
 for them (a filled mdi icon at 128 px: 0.07 ms on the GPU against 0.11 on ThorVG). Stroked icons
 with round joins and caps (lucide, tabler) lose at every size, 1.4 to 3.4 times ThorVG, on both
-GPUs. The cause is in the encoder: every flattened segment of a curve gets a stroke record with a
-full round-join wedge, so the lucide settings gear (two shapes) encodes 4,200 segments at 32 px and
-24,000 at 256 px where a filled icon of the same size has about 100 to 250. The row-node bound never
-trips (8k to 81k against 262k). Open: a join wedge sized by the turn angle (a flattened curve turns a
-few degrees per segment, so most wedges are empty), which needs a per-record stride in the stroke pass.
+GPUs. The cost follows the bin nodes, not the segment count or the empty slots: filled icons have 73 to
+1,800 row nodes at 32 to 256 px, the lucide and tabler icons 4,500 to 81,000 (a round-join wedge per
+flattened segment), and the row-node bound never tripped (262k). So the automatic route now also
+bounds nodes per pixel (`max_nodes_per_kilopixel` = 250, `row_node_bound()`): a filled icon passes
+(0.03 to 0.35 nodes per pixel), a stroked one does not (0.8 to 7.7). The line is inside the unmeasured
+gap between 0.35 and 0.8 and sits on the CPU side. Open: a cheaper join for the many tiny turns of a
+flattened curve, which would let stroked icons onto the GPU.
 
 **The WGSL twin** (`src/rendering/backend/webgpu/shaders/path_raster.wgsl`, the `webgpu` source of the
 manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL

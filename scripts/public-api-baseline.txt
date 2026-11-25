@@ -1433,6 +1433,7 @@ enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::R
 enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteMode
 enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteReason
 function include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::choose_raster_route
+function include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::row_node_bound
 
 header include/tessera/rendering/path/svg_document_cache.hpp
 class include/tessera/rendering/path/svg_document_cache.hpp tessera::rendering::path::SvgDocumentCache

@@ -39,6 +39,12 @@ struct RasterRouteConfig {
     // 145k nodes ran 10.1 ms against ThorVG's 11.1 ms (break-even), 360k ran 34 ms against 23 ms.
     // 0 disables the check.
     std::uint64_t max_row_nodes = 262'144;
+    // Bin nodes per 1000 pixels. The cost of the GPU raster follows the nodes, the ThorVG cost does
+    // not. Iconify icons on the iGPU (2026-11-25, 32 to 256 px): filled icons have 0.03 to 0.35
+    // nodes per pixel and the GPU wins from 128 px; round-join strokes (lucide, tabler) have 0.8
+    // to 7.7 and lose 1.4 to 3.4 times at every size. The line sits at 0.25, inside the unmeasured
+    // gap, on the side that keeps the CPU (the default). 0 disables the check.
+    std::uint64_t max_nodes_per_kilopixel = 250;
 };
 
 // What the device and the encoded scene say about one raster request.
@@ -53,6 +59,11 @@ struct RasterRouteDecision {
     RasterRoute route = RasterRoute::cpu;
     RasterRouteReason reason = RasterRouteReason::forced_cpu;
 };
+
+// The largest `row_nodes` the automatic route sends to the GPU for a width x height raster: the
+// tighter of `max_row_nodes` and the density bound. 0 means no bound.
+[[nodiscard]] std::uint64_t row_node_bound(std::uint32_t width, std::uint32_t height,
+                                           const RasterRouteConfig& config);
 
 [[nodiscard]] RasterRouteDecision choose_raster_route(const RasterRouteInput& input,
                                                       const RasterRouteConfig& config = {});

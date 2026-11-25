@@ -228,8 +228,9 @@ struct PathTextureCache::Impl {
         if (!texture) {
             return std::nullopt;
         }
-        const std::uint64_t max_nodes =
-            route.mode == RasterRouteMode::gpu_when_possible ? 0 : route.max_row_nodes;
+        const std::uint64_t max_nodes = route.mode == RasterRouteMode::gpu_when_possible
+                                            ? 0
+                                            : row_node_bound(extent.width, extent.height, route);
         auto queued = gpu->enqueue(shapes, *texture, extent, max_nodes);
         if (!queued.has_value() && queued.error() == GpuRasterError::batch_full) {
             // The batch is full: submit it and queue this one in the next.

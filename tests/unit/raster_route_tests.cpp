@@ -48,8 +48,19 @@ int main() {
            "over the node bound goes CPU");
     path::RasterRouteConfig unlimited;
     unlimited.max_row_nodes = 0;
+    unlimited.max_nodes_per_kilopixel = 0;
     expect(path::choose_raster_route(input(1024, 10'000'000), unlimited).route == RasterRoute::gpu,
            "0 disables the density check");
+
+    // Density: a filled icon (about 1000 nodes at 256 px) goes, a round-join stroked one (81000)
+    // does not, and a 1 px bound shows the density check is what refuses it.
+    expect(path::choose_raster_route(input(256, 1'789)).route == RasterRoute::gpu,
+           "a filled icon is sparse");
+    const auto stroked = path::choose_raster_route(input(256, 81'104));
+    expect(stroked.route == RasterRoute::cpu && stroked.reason == RasterRouteReason::too_dense,
+           "a round-join stroked icon is too dense");
+    expect(path::row_node_bound(256, 256, {}) == 16'384, "256 px: 0.25 nodes per pixel");
+    expect(path::row_node_bound(1024, 1024, {}) == 262'144, "the fixed bound is the tighter one");
 
     // No capability, no GPU, whatever the mode asks for (except it never reaches the GPU).
     path::RasterRouteConfig force_gpu;
