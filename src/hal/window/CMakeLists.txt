@@ -120,6 +120,8 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_messages_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_dpi_win.cpp
+        # The idle park of wait_for_events, outside window.cpp's size budget.
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_wait_win.cpp
         # OS appearance preferences (issue #187): SPI_GETCLIENTAREAANIMATION and AppsUseLightTheme,
         # in their own TU so neither window.cpp nor window_display_win.cpp grows.
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_appearance_win.cpp
