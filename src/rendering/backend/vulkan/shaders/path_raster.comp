@@ -38,7 +38,17 @@ layout(std430, binding = 4) readonly buffer Strokes { uint strokes[]; };
 layout(std430, binding = 5) readonly buffer Dashes { uint dashes[]; };
 #endif
 
+// One record per raster of the batch (20 words), written by the host (gpu_path_encoder.hpp,
+// PathRasterJob). Words 0-11 are the sizes of that raster; 12-17 are where its data starts inside the
+// shared buffers, so a batch of N icons is one dispatch of each pass with the job as the second (the
+// fine pass: third) grid dimension, instead of 4 dispatches and 24 bindings per icon.
+layout(std430, binding = 6) readonly buffer Jobs { uint jobs[]; };
+
 layout(push_constant) uniform Push {
+    uint job_base; // first record of the dispatch, for a batch split across dispatches
+} pcb;
+
+struct Job {
     uint width;
     uint height;
     uint path_count;
@@ -46,12 +56,35 @@ layout(push_constant) uniform Push {
     uint node_capacity;
     uint nodes_base;
     uint fill_count;   // segments in the segs buffer; ids past it live in work at exp_base
-    uint exp_base;     // first word of the GPU-expanded stroke segments inside work
+    uint exp_base;     // first word of the GPU-expanded stroke segments inside the job's work region
     uint stroke_count;
     uint arc_edges;    // J: arc edges per join wedge or cap (a full circle is 2 * J)
     uint out_stride;   // words between output rows: width, or the copy pitch / 4 for a texture handoff
     uint spare;
-} pc;
+};
+
+// The raster this invocation works on, and where its slices of the shared buffers start (in words).
+Job pc;
+uint SB;
+uint PB;
+uint WB;
+uint OB;
+uint KB;
+uint DB;
+
+// The job index is a workgroup id (the local size is 1 in that dimension), so every invocation of a
+// group reads the same record and the loads below can stay uniform instead of per lane.
+void load_job(uint index) {
+    uint b = (pcb.job_base + index) * 20u;
+    pc = Job(jobs[b], jobs[b + 1u], jobs[b + 2u], jobs[b + 3u], jobs[b + 4u], jobs[b + 5u],
+             jobs[b + 6u], jobs[b + 7u], jobs[b + 8u], jobs[b + 9u], jobs[b + 10u], jobs[b + 11u]);
+    SB = jobs[b + 12u];
+    PB = jobs[b + 13u];
+    WB = jobs[b + 14u];
+    OB = jobs[b + 15u];
+    KB = jobs[b + 16u];
+    DB = jobs[b + 17u];
+}
 
 const uint kNil = 0xFFFFFFFFu;
 
@@ -66,9 +99,9 @@ struct Xf {
 Xf path_xf(uint path) {
     uint b = path * 16u;
     Xf m;
-    m.abcd = vec4(uintBitsToFloat(paths[b]), uintBitsToFloat(paths[b + 1u]),
-                  uintBitsToFloat(paths[b + 2u]), uintBitsToFloat(paths[b + 3u]));
-    m.ef = vec2(uintBitsToFloat(paths[b + 4u]), uintBitsToFloat(paths[b + 5u]));
+    m.abcd = vec4(uintBitsToFloat(paths[PB + b]), uintBitsToFloat(paths[PB + b + 1u]),
+                  uintBitsToFloat(paths[PB + b + 2u]), uintBitsToFloat(paths[PB + b + 3u]));
+    m.ef = vec2(uintBitsToFloat(paths[PB + b + 4u]), uintBitsToFloat(paths[PB + b + 5u]));
     return m;
 }
 
@@ -78,18 +111,19 @@ vec2 xf_apply(Xf m, vec2 p) {
 
 // A segment id below fill_count is a fill edge from the CPU; the rest were expanded from strokes.
 uint seg_word(uint s, uint k) {
-    return s < pc.fill_count ? segs[s * 8u + k] : work[pc.exp_base + (s - pc.fill_count) * 8u + k];
+    return s < pc.fill_count ? segs[SB + s * 8u + k] : work[WB + pc.exp_base + (s - pc.fill_count) * 8u + k];
 }
 #endif
 
 #ifdef PASS_CLEAR
 void main() {
+    load_job(gl_WorkGroupID.y);
     uint i = gl_GlobalInvocationID.x;
     uint total = 1u + pc.path_count * pc.height;
     if (i == 0u) {
-        work[0] = 0u;
+        work[WB + 0] = 0u;
     } else if (i < total) {
-        work[i] = kNil;
+        work[WB + i] = kNil;
     }
 }
 #endif
@@ -97,11 +131,11 @@ void main() {
 #ifdef PASS_STROKE
 void put_edge(uint slot, vec2 a, vec2 b, uint path) {
     uint o = pc.exp_base + slot * 8u;
-    work[o] = floatBitsToUint(a.x);
-    work[o + 1u] = floatBitsToUint(a.y);
-    work[o + 2u] = floatBitsToUint(b.x);
-    work[o + 3u] = floatBitsToUint(b.y);
-    work[o + 4u] = path;
+    work[WB + o] = floatBitsToUint(a.x);
+    work[WB + o + 1u] = floatBitsToUint(a.y);
+    work[WB + o + 2u] = floatBitsToUint(b.x);
+    work[WB + o + 3u] = floatBitsToUint(b.y);
+    work[WB + o + 4u] = path;
 }
 
 // Apex p, first rim point p + a, then the rim arc turning counter-clockwise by sweep, then back to p.
@@ -263,23 +297,24 @@ void emit_piece(uint slot, vec2 pa, vec2 pb, vec2 d1, float hw, bool join_start,
 }
 
 void main() {
+    load_job(gl_WorkGroupID.y);
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.stroke_count) {
         return;
     }
     uint r = i * 16u;
-    vec2 p0 = vec2(uintBitsToFloat(strokes[r]), uintBitsToFloat(strokes[r + 1u]));
-    vec2 p1 = vec2(uintBitsToFloat(strokes[r + 2u]), uintBitsToFloat(strokes[r + 3u]));
-    uint path = strokes[r + 4u];
-    float hw = uintBitsToFloat(strokes[r + 5u]);
-    uint flags = strokes[r + 6u]; // 1 end of an open contour, 2 has a previous vertex, 4 contour start, 8 contour end
-    uint join_kind = strokes[r + 7u]; // 0 round, 1 bevel, 2 miter
-    vec2 prev_point = vec2(uintBitsToFloat(strokes[r + 8u]), uintBitsToFloat(strokes[r + 9u]));
-    float miter_limit = uintBitsToFloat(strokes[r + 10u]);
-    uint cap_kind = strokes[r + 11u]; // 0 round, 1 butt, 2 square
-    float s0 = uintBitsToFloat(strokes[r + 12u]); // path length up to p0
-    uint slot = strokes[r + 13u];                 // first edge slot of this record
-    uint pieces = strokes[r + 14u];               // dash pieces this record has room for (1 = solid)
+    vec2 p0 = vec2(uintBitsToFloat(strokes[KB + r]), uintBitsToFloat(strokes[KB + r + 1u]));
+    vec2 p1 = vec2(uintBitsToFloat(strokes[KB + r + 2u]), uintBitsToFloat(strokes[KB + r + 3u]));
+    uint path = strokes[KB + r + 4u];
+    float hw = uintBitsToFloat(strokes[KB + r + 5u]);
+    uint flags = strokes[KB + r + 6u]; // 1 end of an open contour, 2 has a previous vertex, 4 contour start, 8 contour end
+    uint join_kind = strokes[KB + r + 7u]; // 0 round, 1 bevel, 2 miter
+    vec2 prev_point = vec2(uintBitsToFloat(strokes[KB + r + 8u]), uintBitsToFloat(strokes[KB + r + 9u]));
+    float miter_limit = uintBitsToFloat(strokes[KB + r + 10u]);
+    uint cap_kind = strokes[KB + r + 11u]; // 0 round, 1 butt, 2 square
+    float s0 = uintBitsToFloat(strokes[KB + r + 12u]); // path length up to p0
+    uint slot = strokes[KB + r + 13u];                 // first edge slot of this record
+    uint pieces = strokes[KB + r + 14u];               // dash pieces this record has room for (1 = solid)
     uint wedge = pc.arc_edges + 2u;
     uint stride = 7u + 2u * wedge;
     vec2 d = p1 - p0;
@@ -290,7 +325,7 @@ void main() {
     }
     vec2 d1 = d / len;
     uint db = path * 12u;
-    uint dn = dashes[db]; // dash entries (alternating on / off), 0 = solid
+    uint dn = dashes[DB + db]; // dash entries (alternating on / off), 0 = solid
     if (dn == 0u) {
         emit_piece(slot, p0, p1, d1, hw, (flags & 2u) != 0u, (flags & 1u) != 0u, prev_point,
                    1e30, join_kind, miter_limit, cap_kind, path);
@@ -299,14 +334,14 @@ void main() {
     // Dashes: walk the pattern across [s0, s0 + len]. The pattern phase is (s + offset) mod period, so
     // an animated offset is one float per path; the CPU split every segment to at most one period, so
     // `pieces` (on-entries + 1) always covers what a segment can hold.
-    float offset = uintBitsToFloat(dashes[db + 1u]);
-    float period = uintBitsToFloat(dashes[db + 2u]);
+    float offset = uintBitsToFloat(dashes[DB + db + 1u]);
+    float period = uintBitsToFloat(dashes[DB + db + 2u]);
     float s1 = s0 + len;
     float ph = mod(s0 + offset, period);
     uint k = 0u;
     float c0 = 0.0;
     for (; k < dn; ++k) {
-        float v = uintBitsToFloat(dashes[db + 4u + k]);
+        float v = uintBitsToFloat(dashes[DB + db + 4u + k]);
         if (ph < c0 + v) {
             break;
         }
@@ -320,7 +355,7 @@ void main() {
     float q = s0;
     uint used = 0u;
     for (uint guard = 0u; guard < 96u && q < s1 - 1e-4 && used < pieces; ++guard) {
-        float v = uintBitsToFloat(dashes[db + 4u + k]);
+        float v = uintBitsToFloat(dashes[DB + db + 4u + k]);
         float rem = c0 + v - ph;
         float qe = min(q + rem, s1);
         if (rem > 1e-3 && (k & 1u) == 0u) {
@@ -354,6 +389,7 @@ void main() {
 
 #ifdef PASS_BIN
 void main() {
+    load_job(gl_WorkGroupID.y);
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.seg_count) {
         return;
@@ -370,12 +406,12 @@ void main() {
     int row0 = max(int(floor(ymin)), 0);
     int row1 = min(int(ceil(ymax)) - 1, int(pc.height) - 1);
     for (int row = row0; row <= row1; ++row) {
-        uint node = atomicAdd(work[0], 1u);
+        uint node = atomicAdd(work[WB + 0], 1u);
         if (node < pc.node_capacity) {
             uint head_index = 1u + path * pc.height + uint(row);
-            uint previous = atomicExchange(work[head_index], node);
-            work[pc.nodes_base + node * 2u] = i;
-            work[pc.nodes_base + node * 2u + 1u] = previous;
+            uint previous = atomicExchange(work[WB + head_index], node);
+            work[WB + pc.nodes_base + node * 2u] = i;
+            work[WB + pc.nodes_base + node * 2u + 1u] = previous;
         }
     }
 }
@@ -432,6 +468,7 @@ float segment_area(vec2 a, vec2 b, float px, float py) {
 }
 
 void main() {
+    load_job(gl_WorkGroupID.z);
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
     if (x >= pc.width || y >= pc.height) {
@@ -442,23 +479,23 @@ void main() {
     vec4 dst = vec4(0.0);
     for (uint p = 0u; p < pc.path_count; ++p) {
         uint base = p * 16u;
-        if (int(x) < int(paths[base + 8u]) || int(x) >= int(paths[base + 10u]) ||
-            int(y) < int(paths[base + 9u]) || int(y) >= int(paths[base + 11u])) {
+        if (int(x) < int(paths[PB + base + 8u]) || int(x) >= int(paths[PB + base + 10u]) ||
+            int(y) < int(paths[PB + base + 9u]) || int(y) >= int(paths[PB + base + 11u])) {
             continue;
         }
         Xf m = path_xf(p);
         float w = 0.0;
-        uint node = work[1u + p * pc.height + y];
+        uint node = work[WB + 1u + p * pc.height + y];
         while (node != kNil) {
-            uint s = work[pc.nodes_base + node * 2u];
+            uint s = work[WB + pc.nodes_base + node * 2u];
             vec2 a = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 0u)), uintBitsToFloat(seg_word(s, 1u))));
             vec2 b = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 2u)), uintBitsToFloat(seg_word(s, 3u))));
             w += segment_area(a, b, px, py);
-            node = work[pc.nodes_base + node * 2u + 1u];
+            node = work[WB + pc.nodes_base + node * 2u + 1u];
         }
         float t = abs(w);
         float cov;
-        if (paths[base + 6u] == 0u) {
+        if (paths[PB + base + 6u] == 0u) {
             cov = min(t, 1.0);
         } else {
             float f = mod(t, 2.0);
@@ -467,7 +504,7 @@ void main() {
         if (cov <= 0.0) {
             continue;
         }
-        uint packed = paths[base + 7u];
+        uint packed = paths[PB + base + 7u];
         vec4 c = vec4(float(packed & 255u), float((packed >> 8) & 255u),
                       float((packed >> 16) & 255u), float(packed >> 24)) / 255.0;
         vec4 src = vec4(c.rgb * c.a, c.a) * cov;
@@ -475,6 +512,6 @@ void main() {
     }
     vec3 rgb = dst.a > 0.0 ? dst.rgb / dst.a : vec3(0.0);
     uvec4 q = uvec4(clamp(vec4(rgb, dst.a) * 255.0 + 0.5, 0.0, 255.0));
-    pixels[y * pc.out_stride + x] = q.r | (q.g << 8) | (q.b << 16) | (q.a << 24);
+    pixels[OB + y * pc.out_stride + x] = q.r | (q.g << 8) | (q.b << 16) | (q.a << 24);
 }
 #endif

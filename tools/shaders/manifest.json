@@ -164,23 +164,13 @@
         { "group": 0, "binding": 2, "type": "storage_buffer", "name": "work" },
         { "group": 0, "binding": 3, "type": "storage_buffer", "name": "pixels" },
         { "group": 0, "binding": 4, "type": "storage_buffer", "name": "strokes" },
-        { "group": 0, "binding": 5, "type": "storage_buffer", "name": "dashes" }
+        { "group": 0, "binding": 5, "type": "storage_buffer", "name": "dashes" },
+        { "group": 0, "binding": 6, "type": "storage_buffer", "name": "jobs" }
       ],
       "pushConstants": {
-        "size": 48,
+        "size": 4,
         "fields": [
-          { "name": "width", "type": "uint", "offset": 0 },
-          { "name": "height", "type": "uint", "offset": 4 },
-          { "name": "path_count", "type": "uint", "offset": 8 },
-          { "name": "seg_count", "type": "uint", "offset": 12 },
-          { "name": "node_capacity", "type": "uint", "offset": 16 },
-          { "name": "nodes_base", "type": "uint", "offset": 20 },
-          { "name": "fill_count", "type": "uint", "offset": 24 },
-          { "name": "exp_base", "type": "uint", "offset": 28 },
-          { "name": "stroke_count", "type": "uint", "offset": 32 },
-          { "name": "arc_edges", "type": "uint", "offset": 36 },
-          { "name": "out_stride", "type": "uint", "offset": 40 },
-          { "name": "spare", "type": "uint", "offset": 44 }
+          { "name": "job_base", "type": "uint", "offset": 0 }
         ]
       },
       "tests": [

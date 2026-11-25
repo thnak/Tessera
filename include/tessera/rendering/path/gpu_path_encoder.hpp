@@ -60,7 +60,7 @@ void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> ma
 // `phase` holds one entry per path.
 void write_dash_offsets(EncodedGpuScene& encoded, std::span<const float> phase);
 
-// The shader's push block, mirrored. 48 bytes, the `path_raster` manifest entry's push constants.
+// The sizes of one raster, mirrored from the shader's `Job`: the first 12 words of a job record.
 struct PathRasterPush {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
@@ -77,6 +77,23 @@ struct PathRasterPush {
 };
 static_assert(sizeof(PathRasterPush) == 48);
 
+// One record of the `jobs` buffer (binding 6): a raster's sizes plus where its slices start inside
+// the shared segs / paths / work / output / strokes / dashes buffers, in 32-bit words. A batch of N
+// rasters is N records and one dispatch of each pass; a single raster is one record with every
+// base 0 (`single_raster_job`).
+inline constexpr std::size_t kPathRasterJobWords = 20;
+struct PathRasterJob {
+    PathRasterPush push;
+    std::uint32_t seg_base = 0;
+    std::uint32_t path_base = 0;
+    std::uint32_t work_base = 0;
+    std::uint32_t out_base = 0;
+    std::uint32_t stroke_base = 0;
+    std::uint32_t dash_base = 0;
+    std::uint32_t spare[2] = {0, 0};
+};
+static_assert(sizeof(PathRasterJob) == kPathRasterJobWords * sizeof(std::uint32_t));
+
 struct PathRasterLayout {
     PathRasterPush push;
     std::size_t work_words = 0;   // size of the gpu_read_write work buffer, in 32-bit words
@@ -87,6 +104,8 @@ struct PathRasterLayout {
 // `out_stride_words` apart (0 = tightly packed; pass `aligned_texture_copy_pitch(width) / 4` when
 // the output feeds `copy_buffer_to_texture`). `max_scale` is the same bound given to the encoder.
 // Returns nothing when a size does not fit the shader's 32-bit indices.
+[[nodiscard]] PathRasterJob single_raster_job(const PathRasterLayout& layout);
+
 [[nodiscard]] std::optional<PathRasterLayout>
 plan_path_raster(const EncodedGpuScene& encoded, std::uint32_t width, std::uint32_t height,
                  std::uint32_t out_stride_words = 0, float max_scale = 1.0f);

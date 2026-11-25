@@ -22,11 +22,10 @@ struct GpuPathPipelineDescs {
 };
 
 struct GpuPathRasterizerConfig {
-    // Rasters one flush() can carry. A compute pipeline owns its one descriptor set, so two jobs of
-    // a submission cannot share a pipeline object (RHI 1.16): each job takes a slot of four from a
-    // pool, and a slot returns to it when its submission completes. Slots are created on demand, so
-    // the pool is as large as the most jobs ever in flight at once.
-    std::uint32_t max_jobs_per_batch = 8;
+    // Rasters one flush() can carry. They share one dispatch of each pass (the shader's job table),
+    // so a larger batch costs almost nothing per raster; the bound only limits the memory a batch
+    // holds and how long a result can wait for the flush.
+    std::uint32_t max_jobs_per_batch = 32;
     // Bound on the idle buffers the pool keeps between batches (capacity bytes); past it a returned
     // buffer is destroyed. 16 MiB holds a few dozen 256 px rasters or two 1024 px ones.
     std::uint64_t max_pooled_bytes = 16ULL * 1024ULL * 1024ULL;
@@ -53,7 +52,7 @@ public:
         std::uint64_t flushes = 0;         // submissions
         std::uint32_t pending = 0;         // queued, not yet flushed
         std::uint32_t in_flight = 0;       // flushed, not yet collected
-        std::uint32_t pipeline_slots = 0;  // job slots created so far
+        std::uint32_t pipeline_slots = 0;  // pipeline sets created (one per batch in flight)
         std::uint64_t buffers_created = 0; // device buffers allocated
         std::uint64_t buffers_reused = 0;  // buffer requests served by the pool
         std::uint64_t pooled_bytes = 0;    // idle buffer capacity held
@@ -69,10 +68,9 @@ public:
     // True when `device` can run this rasterizer: compute plus the buffer-to-texture copy.
     [[nodiscard]] static bool supported(const rhi::Device& device);
 
-    // Creates job slots up front so the first batch does not pay for them: building the four
-    // pipelines of a slot took about 2 ms on the RX 5300M, so eight jobs in a first frame is a
-    // 16 ms hitch. Call it at startup, off the frame path. Never shrinks or rebuilds existing
-    // slots.
+    // Creates pipeline sets up front, one per batch that can be in flight at once, so the first
+    // batch does not pay for them: building the four pipelines of a set took about 2 ms on the RX
+    // 5300M. Call it at startup, off the frame path. Never shrinks or rebuilds existing sets.
     [[nodiscard]] std::expected<void, GpuRasterError> warm(std::uint32_t slots);
 
     // Queues `shapes` (already scaled to the target) to be rasterized into `target`, a texture of

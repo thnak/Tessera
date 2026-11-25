@@ -91,6 +91,11 @@ constexpr std::uint32_t kHeight = 40;
     read_write.size = layout->output_words * sizeof(std::uint32_t);
     const auto output = device.create_buffer(read_write);
 
+    const path::PathRasterJob job_record = path::single_raster_job(*layout);
+    const auto jobs = storage(std::vector<std::uint32_t>(path::kPathRasterJobWords, 0), 1);
+    jobs->write(&job_record, sizeof(job_record));
+    const std::uint32_t job_base = 0;
+
     const auto clear =
         device.create_compute_pipeline(vk::path_raster_pipeline_desc(vk::PathRasterPass::Clear));
     const auto expand =
@@ -116,7 +121,8 @@ constexpr std::uint32_t kHeight = 40;
         list->bind_compute_buffer(3, *output);
         list->bind_compute_buffer(4, *strokes);
         list->bind_compute_buffer(5, *dashes);
-        list->compute_push_constants(&layout->push, sizeof(layout->push));
+        list->bind_compute_buffer(6, *jobs);
+        list->compute_push_constants(&job_base, sizeof(job_base));
     };
     const auto groups = [](std::uint32_t count, std::uint32_t size) {
         return (count + size - 1) / size;

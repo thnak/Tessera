@@ -1356,16 +1356,19 @@ struct include/tessera/rendering/null/null_swapchain.hpp tessera::rendering::nul
 
 header include/tessera/rendering/path/gpu_path_encoder.hpp
 struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::EncodedGpuScene
+struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::PathRasterJob
 struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::PathRasterLayout
 struct include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::PathRasterPush
 function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::encode_gpu_scene
 function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::plan_path_raster
+function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::single_raster_job
 function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::write_dash_offsets
 function include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::write_path_records
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuDashWords
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuPathWords
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuSegWords
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuStrokeWords
+constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kPathRasterJobWords
 
 header include/tessera/rendering/path/gpu_path_rasterizer.hpp
 class include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathRasterizer

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 //
-// GpuPathRasterizer (ADR-071): several rasters queued, one flush, one submission. Three solid
-// rectangles of different colors and sizes are rasterized into three textures in a single batch,
-// drawn side by side and read back; then a second batch checks that the job slots (a compute
-// pipeline owns its descriptor set, so a slot cannot be rebound while in flight) are reused once
-// the first flight completed. Skips without a Vulkan device or without compute.
+// GpuPathRasterizer (ADR-071): several rasters queued, one flush, one submission, one dispatch of
+// each compute pass for all of them (the shader's job table). Three rectangles and a stroked line
+// of different sizes are rasterized into four textures in a single batch, drawn side by side and
+// read back; later batches check that the pipeline set and the buffers are reused once the first
+// flight completed, that two flights in flight need two sets (a set's descriptors are rewritten by
+// every bind), and that warm() and the batch bound behave. Skips without a Vulkan device or without
+// compute.
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
@@ -29,7 +31,7 @@ namespace gpu = tessera::rendering::gpu;
 namespace path = tessera::rendering::path;
 namespace vk = tessera::rendering::vulkan;
 
-constexpr std::uint32_t kTargetWidth = 128;
+constexpr std::uint32_t kTargetWidth = 160;
 constexpr std::uint32_t kTargetHeight = 32;
 
 [[nodiscard]] bool expect(bool condition, const std::string& message) {
@@ -126,30 +128,42 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     rasterizer.collect();
 }
 
+[[nodiscard]] path::PathShape stroked_line() {
+    path::PathShape shape;
+    shape.path.segments.push_back({path::SegmentKind::move_to, {2, 6}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::line_to, {26, 6}, {}, {}});
+    path::StrokeStyle stroke;
+    stroke.color = {255, 255, 0, 255};
+    stroke.width = 4.0f;
+    stroke.cap = path::LineCap::butt;
+    shape.paint.stroke = stroke;
+    return shape;
+}
+
 [[nodiscard]] bool run(rhi::Device& device) {
     path::GpuPathRasterizer rasterizer(device, descs());
-    const std::array<rhi::Extent2D, 3> extents{{{32, 32}, {24, 16}, {30, 20}}};
-    const std::array<std::array<std::uint8_t, 3>, 3> colors{
-        {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}}};
+    // Different sizes, and one raster with a stroke, so the batch's dispatch grid (the largest
+    // raster by the job count) has threads past a raster's own extent and the stroke pass has jobs
+    // with no stroke at all.
+    const std::array<rhi::Extent2D, 4> extents{{{32, 32}, {24, 16}, {30, 20}, {28, 12}}};
+    const std::array<path::PathShape, 4> shapes{box(32, 32, 255, 0, 0), box(24, 16, 0, 255, 0),
+                                                box(30, 20, 0, 0, 255), stroked_line()};
 
     std::vector<Raster> rasters;
     bool ok = true;
     for (std::size_t i = 0; i < extents.size(); ++i) {
         rasters.push_back(blank_texture(device, extents[i]));
-        const path::PathShape shape =
-            box(static_cast<float>(extents[i].width), static_cast<float>(extents[i].height),
-                colors[i][0], colors[i][1], colors[i][2]);
-        const auto queued = rasterizer.enqueue(std::span<const path::PathShape>(&shape, 1),
+        const auto queued = rasterizer.enqueue(std::span<const path::PathShape>(&shapes[i], 1),
                                                *rasters.back().texture, extents[i]);
         ok = expect(queued.has_value(), "enqueue " + std::to_string(i)) && ok;
     }
-    ok = expect(rasterizer.stats().pending == 3 && rasterizer.stats().flushes == 0,
+    ok = expect(rasterizer.stats().pending == 4 && rasterizer.stats().flushes == 0,
                 "nothing is submitted before flush") &&
          ok;
     ok = expect(rasterizer.flush().has_value(), "flush") && ok;
-    ok = expect(rasterizer.stats().flushes == 1 && rasterizer.stats().jobs == 3 &&
-                    rasterizer.stats().pipeline_slots == 3,
-                "three rasters, one submission, three slots") &&
+    ok = expect(rasterizer.stats().flushes == 1 && rasterizer.stats().jobs == 4 &&
+                    rasterizer.stats().pipeline_slots == 1,
+                "four rasters, one submission, one pipeline set") &&
          ok;
     wait_collect(rasterizer, device);
     ok = expect(rasterizer.stats().in_flight == 0, "a finished flight is collected") && ok;
@@ -164,37 +178,55 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     ok = expect(is(pixels, 90, 10, 0, 0, 255) && is(pixels, 80 + 29, 19, 0, 0, 255),
                 "third raster is its blue rectangle") &&
          ok;
+    ok = expect(is(pixels, 120 + 14, 5, 255, 255, 0) && is(pixels, 120 + 14, 7, 255, 255, 0) &&
+                    is(pixels, 120 + 14, 3, 0, 0, 0) && is(pixels, 120 + 14, 9, 0, 0, 0),
+                "fourth raster is its stroked line: the stroke pass ran for that job only") &&
+         ok;
     ok = expect(is(pixels, 40 + 24, 8, 0, 0, 0) && is(pixels, 50, 16, 0, 0, 0),
                 "pixels past each raster's own extent are untouched") &&
          ok;
 
-    // A second batch reuses the slots of the first, which completed: no new pipelines.
-    const path::PathShape shape = box(24.0f, 16.0f, 255, 255, 0);
+    // A second batch reuses the pipeline set and the buffers of the first, which completed.
+    const path::PathShape yellow = box(24.0f, 16.0f, 255, 255, 0);
     auto again = blank_texture(device, {24, 16});
-    ok = expect(
-             rasterizer
-                 .enqueue(std::span<const path::PathShape>(&shape, 1), *again.texture, again.extent)
-                 .has_value(),
-             "second enqueue") &&
+    ok = expect(rasterizer
+                    .enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
+                             again.extent)
+                    .has_value(),
+                "second enqueue") &&
          expect(rasterizer.flush().has_value(), "second flush") && ok;
-    ok =
-        expect(rasterizer.stats().pipeline_slots == 3, "the second batch reuses a free slot") && ok;
-    ok = expect(rasterizer.stats().buffers_reused >= 6,
+    ok = expect(rasterizer.stats().pipeline_slots == 1, "the second batch reuses the set") && ok;
+    ok = expect(rasterizer.stats().buffers_reused >= 7,
                 "the second batch takes its buffers from the pool, not the device") &&
          ok;
     wait_collect(rasterizer, device);
 
-    // warm() builds slots ahead of the first batch and is idempotent.
+    // Two batches in flight at once need two pipeline sets: a set's descriptors are rewritten by
+    // every bind, so a running batch's set is not handed out.
+    path::GpuPathRasterizer overlapped(device, descs());
+    for (int batch = 0; batch < 2; ++batch) {
+        ok = expect(overlapped
+                            .enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
+                                     again.extent)
+                            .has_value() &&
+                        overlapped.flush().has_value(),
+                    "overlapped batch") &&
+             ok;
+    }
+    ok = expect(overlapped.stats().pipeline_slots == 2, "two batches in flight, two sets") && ok;
+    wait_collect(overlapped, device);
+
+    // warm() builds sets ahead of the first batch and is idempotent.
     path::GpuPathRasterizer warmed(device, descs());
-    ok = expect(warmed.warm(4).has_value() && warmed.stats().pipeline_slots == 4, "warm(4)") && ok;
-    ok = expect(warmed.warm(2).has_value() && warmed.stats().pipeline_slots == 4,
+    ok = expect(warmed.warm(2).has_value() && warmed.stats().pipeline_slots == 2, "warm(2)") && ok;
+    ok = expect(warmed.warm(1).has_value() && warmed.stats().pipeline_slots == 2,
                 "warm never shrinks or rebuilds") &&
          ok;
-    ok = expect(warmed.enqueue(std::span<const path::PathShape>(&shape, 1), *again.texture,
+    ok = expect(warmed.enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
                                again.extent)
                         .has_value() &&
-                    warmed.flush().has_value() && warmed.stats().pipeline_slots == 4,
-                "a warmed rasterizer builds no slot for its first batch") &&
+                    warmed.flush().has_value() && warmed.stats().pipeline_slots == 2,
+                "a warmed rasterizer builds no set for its first batch") &&
          ok;
     wait_collect(warmed, device);
 
@@ -202,13 +234,13 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     path::GpuPathRasterizerConfig small;
     small.max_jobs_per_batch = 1;
     path::GpuPathRasterizer tiny(device, descs(), small);
-    ok = expect(
-             tiny.enqueue(std::span<const path::PathShape>(&shape, 1), *again.texture, again.extent)
-                 .has_value(),
-             "first job fits") &&
+    ok = expect(tiny.enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
+                             again.extent)
+                    .has_value(),
+                "first job fits") &&
          ok;
     const auto refused =
-        tiny.enqueue(std::span<const path::PathShape>(&shape, 1), *again.texture, again.extent);
+        tiny.enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture, again.extent);
     ok = expect(!refused.has_value() && refused.error() == path::GpuRasterError::batch_full,
                 "a second job in a one-job batch is refused with batch_full") &&
          ok;

@@ -89,17 +89,42 @@ renderer yet:
 - `path_raster` in the shader manifest (compute stage, accepted alone; see
   [shader-manifest-v1.md](../docs/specs/shader-manifest-v1.md) section 8) and
   `src/rendering/backend/vulkan/shaders/path_raster.comp`, four passes selected by a define, exposed
-  by `vulkan::path_raster_pipeline_desc(PathRasterPass)`. The output row stride is a push constant
-  (`out_stride`), so the buffer can be laid out for `copy_buffer_to_texture` (ADR-072).
+  by `vulkan::path_raster_pipeline_desc(PathRasterPass)`. Every raster is a record of a `jobs` buffer
+  (binding 6, `PathRasterJob`, 20 words): its sizes (including `out_stride`, so the buffer can be laid
+  out for `copy_buffer_to_texture`, ADR-072) and the word offsets of its slices of the shared
+  buffers. The push constant is one word (`job_base`). A batch of N rasters is one dispatch of each
+  pass with the job as the second grid dimension (the fine pass: third).
 - `path::gpu_scene_from_shapes`, `encode_gpu_scene`, `write_path_records`, `write_dash_offsets` and
   `plan_path_raster` (`include/tessera/rendering/path/gpu_path_*.hpp`): the CPU half, pure data and
   unit-tested without a device (`gpu_path_encoder`). The spike now links it, so its ThorVG
   comparison measures the production encoder (same diffs as before the move).
 - `path_raster_gpu`: shapes -> encoder -> four passes -> `copy_buffer_to_texture` -> drawn texture,
   on a real device, with a padded copy pitch.
+- `GpuPathRasterizer` (`include/tessera/rendering/path/gpu_path_rasterizer.hpp`): the recorder.
+  `enqueue` encodes a raster on the CPU, `flush` packs the queued rasters into shared buffers and
+  submits them in one command list without waiting (four dispatches and one copy per raster), `collect`
+  returns the buffers and the pipeline set once the GPU is done. Buffers are pooled by capacity and
+  bounded (`max_pooled_bytes`), a pipeline set is one per batch in flight (a compute pipeline owns its
+  descriptor set, RHI 1.16, so a running batch's set cannot be rebound), and `warm()` builds sets at
+  startup (a set is about 2 ms of pipeline creation). Test: `path_raster_batch_gpu`.
+- `choose_raster_route` (`raster_route.hpp`): the CPU/GPU policy as a pure function (size line,
+  bin-node bound), tested without a device.
 
-Still open: the renderer-side recorder that owns the buffers and dispatches the passes, the
-`PathTextureCache` GPU path and its CPU fallback policy, and the WebGPU port of the shader.
+Measured on the RX 5300M and the iGPU (2026-11-25, 32 rasters per flush, CPU encode, submit and wait
+included): one raster per submission cost 0.70 ms each at 32 to 256 px; a pass of 8 rasters with four
+dispatches each 0.15 ms (the split was 80% recording: 24 descriptor updates per raster, against 0.025
+ms of encode and buffer creation); binding only the buffers a pass uses, a buffer pool and warm
+slots, 0.10 ms; **one dispatch per pass for the whole batch, 0.040 ms at 32 px, 0.043 at 64 px and
+0.059 at 256 px** (iGPU 0.042, 0.041, 0.092), of which the CPU's share (encode plus recording) is
+0.027 ms per raster. ThorVG on the same CPU takes 0.036 ms at 32 and 64 px and 0.17 ms at 256 px, so a
+batched GPU raster is about break-even at icon size on the clock and frees the CPU, and is 3x faster
+at 256 px. The cost of reading the job record from a buffer instead of a push constant on the 4K
+scenes is 2 to 8% on the RX 5300M and 3 to 4% on the iGPU (interleaved old/new runs; single runs of
+this GPU drift by 30%, so compare interleaved).
+
+Still open: the `PathTextureCache` GPU path and where the frame flushes, and the WebGPU port of the
+shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
+spare, and the port should check the device's limit).
 
 ## Alternatives, to be measured on the same 4K scenes
 

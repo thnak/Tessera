@@ -625,8 +625,8 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
         rhi::ComputePipelineDesc desc;
         desc.spirv = spirv;
         desc.spirv_size = size;
-        desc.storage_buffer_count = 6;
-        desc.push_constant_size = sizeof(PushBlock);
+        desc.storage_buffer_count = 7;
+        desc.push_constant_size = sizeof(std::uint32_t); // job_base
         return device.create_compute_pipeline(desc);
     };
     const auto clear = make_pipeline(kClearSpv, sizeof(kClearSpv));
@@ -634,7 +634,10 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
     const auto bin = make_pipeline(kBinSpv, sizeof(kBinSpv));
     const auto fine = make_pipeline(kFineSpv, sizeof(kFineSpv));
 
-    const PushBlock push = layout->push;
+    const path::PathRasterJob job_record = path::single_raster_job(*layout);
+    const auto job_buffer = device.create_buffer({sizeof(job_record), rhi::BufferUsage::Storage});
+    job_buffer->write(&job_record, sizeof(job_record));
+    const std::uint32_t job_base = 0;
     const auto record = [&](rhi::CommandList& list, bool with_copy) {
         const auto bind_all = [&](const rhi::ComputePipeline& pipeline) {
             list.bind_compute_pipeline(pipeline);
@@ -644,7 +647,8 @@ RunResult run_scene(rhi::Device& device, const char* name, const SceneDescriptio
             list.bind_compute_buffer(3, *out_buffer);
             list.bind_compute_buffer(4, *stroke_buffer);
             list.bind_compute_buffer(5, *dash_buffer);
-            list.compute_push_constants(&push, sizeof(push));
+            list.bind_compute_buffer(6, *job_buffer);
+            list.compute_push_constants(&job_base, sizeof(job_base));
         };
         bind_all(*clear);
         list.dispatch(static_cast<std::uint32_t>((nodes_base + 255) / 256), 1, 1);

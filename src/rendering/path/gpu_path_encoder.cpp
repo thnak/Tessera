@@ -236,6 +236,12 @@ void write_dash_offsets(EncodedGpuScene& encoded, std::span<const float> phase) 
     }
 }
 
+PathRasterJob single_raster_job(const PathRasterLayout& layout) {
+    PathRasterJob job;
+    job.push = layout.push;
+    return job;
+}
+
 std::optional<PathRasterLayout> plan_path_raster(const EncodedGpuScene& encoded,
                                                  std::uint32_t width, std::uint32_t height,
                                                  std::uint32_t out_stride_words, float max_scale) {
