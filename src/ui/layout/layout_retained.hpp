@@ -133,6 +133,11 @@ struct RetainedNode {
 
     // The layout pass that last reached this node; anything older has left the input tree.
     std::uint64_t visited = 0;
+    // `LayoutInput::subtree_signature` of the input this node's subtree was last synced from (zero:
+    // unsigned or never synced). An input that arrives with the same signature, the same
+    // `block_parent` and an unchanged viewport is the subtree already in the tree, so the pass
+    // does not walk it.
+    std::uint64_t subtree_signature = 0;
 };
 
 struct RetainedTreeState {
@@ -151,6 +156,11 @@ struct RetainedTreeState {
     bool restart = false;
     std::size_t style_applications = 0;
     std::size_t rebuilds = 0;
+    // Subtrees a pass skipped because their signature matched the retained one.
+    std::size_t skipped_subtrees = 0;
+    // False on a pass whose viewport changed: every style is re-applied then, so nothing is
+    // skipped.
+    bool may_skip = false;
 };
 
 class RetainedTree {
@@ -170,6 +180,7 @@ public:
     [[nodiscard]] std::size_t node_count() const;
     [[nodiscard]] std::size_t style_applications() const;
     [[nodiscard]] std::size_t rebuilds() const;
+    [[nodiscard]] std::size_t skipped_subtrees() const;
 
 private:
     std::unique_ptr<RetainedTreeState> state_;

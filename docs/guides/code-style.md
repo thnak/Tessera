@@ -64,7 +64,7 @@ how many bytes a pass touches per object, how they are aligned, and how many obj
 | Type | Now (B) | Target (B) | Plan |
 |---|---|---|---|
 | `ui::Node` | 320 | 320 | keep; exact assert stays |
-| `layout::detail::RetainedNode` | 288 | 288 (no split) | measured on MSVC at 12 000 nodes: moving the text payload behind the hot fields (reorder only) moved nothing, so the split below is not taken: median one-text frame 9.56 vs 9.58 ms, layout engine 3.44 vs 3.42 ms, one-size frame 7.03 vs 6.88 ms (5 interleaved runs each). The retained tree is about 3.5 MB, and the layout engine's cost is Yoga, not these fields. Revisit only if a counter shows L1D or LLC misses on it |
+| `layout::detail::RetainedNode` | 296 (was 288) | 296 (no split) | measured on MSVC at 12 000 nodes: moving the text payload behind the hot fields (reorder only) moved nothing, so the split below is not taken: median one-text frame 9.56 vs 9.58 ms, layout engine 3.44 vs 3.42 ms, one-size frame 7.03 vs 6.88 ms (5 interleaved runs each). The retained tree is about 3.5 MB, and the layout engine's cost is Yoga, not these fields. Revisit only if a counter shows L1D or LLC misses on it |
 | `layout::LayoutInput` | 96 (pinned; was 88) | 96 | trim to one line, or split what only text nodes read |
 | `layout::LayoutBox` | 48 (pinned) | 32 or 64 | avoid straddling in arrays |
 | `ui::PaintData` | 520 (heap, per painted node) | 520 (no split) | counted on the 12 000-node benchmark scene: 649 text runs and 9 images carry one, so about 658 x 520 B = 0.34 MB, under 3% of the 12 MB the per-node types cost, and it is allocated per painted node, not per node. By member: `gradient` 200, `decoration` 104, `vector` 56, `image` 56, `text` 32, `text_style` 28, `spans` 24; a plain text node uses about 80 B of the 520. Splitting the cold 416 B would save at most about 0.27 MB on this scene and add an indirection to every paint read, so it is not taken. Also measured: moving `wrap`, `max_lines` and `text_align` next to `kind` (so layout's input pass reads one line instead of two, and the struct drops to 512 B) left the layout-input phase at 1.86 vs 1.89 ms, so it was not kept. Revisit for a scene where most nodes paint a gradient, with a measurement |
@@ -95,7 +95,18 @@ to 5.0 ms. On a second machine (GCC 15, Linux, a shared 16-core box, 5 interleav
 layout-input phase went from 3.56 to 0.01 ms, the one-text frame from 16.6 to 13.2 ms and the
 one-size frame from 14.4 to 10.7 ms; `perf stat` over 300 text-change frames counted 7.35 to 6.04
 billion instructions and 207 to 162 million L1D load misses (the VM exposes no LLC counter). The
-signature of the partly reused tree equalled a full rebuild's on every frame of the benchmark. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
+signature of the partly reused tree equalled a full rebuild's on every frame of the benchmark.
+
+The retained Yoga tree takes the same shortcut: `RetainedNode::subtree_signature` remembers the input
+signature a subtree was last synced from, and `sync_node` returns at once for a subtree whose input
+carries the same signature (and the same `block_parent`, with the viewport unchanged), instead of
+reading a `LayoutInput` and a `RetainedNode` per node and recomputing each style digest. That was
+the next largest L1D-miss source in a `perf record` of the text-change loop. Measured on the
+benchmark scene, Windows: layout engine 3.54 to 2.58 ms, one-text frame 7.71 to 6.78 ms, one-size
+frame 4.97 to 4.21 ms; Linux (5 interleaved runs, 300-frame `perf stat`): one-text frame 12.1 to 10.5
+ms, layout engine 6.6 to 4.6 ms, instructions 6.07 to 5.41 billion and L1D load misses 161 to 125
+million. A caller must restamp the signatures it hands in (a stale one is the caller's bug), which
+`layout_retained_tests` does after every randomized edit while still matching a cold layout. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
 visible.
 
 ### Checking a change

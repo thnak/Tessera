@@ -247,6 +247,17 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
             state.restart = true;
             return nullptr;
         }
+        // The caller vouches (`LayoutInput::subtree_signature`) that nothing under this input
+        // differs, in any field layout reads, from what this subtree was last synced from. The
+        // style digest, text, wrap flag, child count and order are all inside that signature, so
+        // the walk would find nothing to do. `block_parent` comes from the parent, not the subtree.
+        if (state.may_skip && input.subtree_signature != 0 &&
+            retained->subtree_signature == input.subtree_signature &&
+            retained->block_parent == block_parent) {
+            retained->visited = state.pass;
+            ++state.skipped_subtrees;
+            return retained;
+        }
     } else {
         auto created = std::make_unique<RetainedNode>();
         created->node = YGNodeNewWithConfig(unrounded_config());
@@ -301,16 +312,19 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
             retained->grid_signature = signature;
             YGNodeMarkDirty(retained->node);
         }
+        retained->subtree_signature = input.subtree_signature;
         return retained;
     }
     if (retained->measure == RetainedMeasure::Text) {
         if (text_changed) {
             YGNodeMarkDirty(retained->node);
         }
+        retained->subtree_signature = input.subtree_signature;
         return retained;
     }
 
     sync_children(state, *retained, input);
+    retained->subtree_signature = input.subtree_signature;
     return retained;
 }
 
@@ -362,6 +376,7 @@ LayoutResult RetainedTree::layout(const LayoutInput& root, const LayoutViewport&
             entry.second->style_digest = 0;
         }
     }
+    state.may_skip = !viewport_changed;
     state.viewport = viewport;
     state.primed = true;
     state.restart = false;
@@ -415,6 +430,10 @@ std::size_t RetainedTree::style_applications() const {
 
 std::size_t RetainedTree::rebuilds() const {
     return state_ != nullptr ? state_->rebuilds : 0;
+}
+
+std::size_t RetainedTree::skipped_subtrees() const {
+    return state_ != nullptr ? state_->skipped_subtrees : 0;
 }
 
 } // namespace tessera::ui::layout::detail

@@ -13,6 +13,7 @@
 #include "layout_cold.hpp"
 #include "layout_retained.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/layout_signature.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 #include "tessera/ui/text/text_measure_cache.hpp"
 
@@ -222,6 +223,21 @@ void edit(Scene& scene, Rng& rng, std::uint32_t frame) {
     }
 }
 
+// Stamps every node's `subtree_signature`, the way a caller that retains its input does, so the
+// retained tree may skip a subtree whose signature it already holds. Restamped after every edit: a
+// stale stamp is the caller's bug, not something the tree can detect.
+void stamp(LayoutInput& root, const LayoutViewport& viewport) {
+    tessera::ui::layout::LayoutSignatureBuilder builder(viewport);
+    const auto visit = [&builder](auto&& self, LayoutInput& input) -> void {
+        builder.enter(input);
+        for (LayoutInput& child : input.children) {
+            self(self, child);
+        }
+        input.subtree_signature = builder.leave(input.children.size());
+    };
+    visit(visit, root);
+}
+
 bool same_boxes(const LayoutResult& retained, const LayoutResult& cold, std::uint32_t frame) {
     if (retained.boxes.size() != cold.boxes.size()) {
         std::cerr << "  frame " << frame << ": box count " << retained.boxes.size() << " vs "
@@ -263,6 +279,7 @@ int main() {
         if (frame > 0) {
             edit(scene, rng, frame);
         }
+        stamp(scene.root, viewport);
         const LayoutResult retained_result = retained.layout(scene.root, viewport, cache);
         const LayoutResult cold_result =
             layout_cold(scene.root, viewport, viewport.width, viewport.height, cache,
@@ -278,6 +295,18 @@ int main() {
         (void)retained.layout(scene.root, viewport, cache);
     }
     if (!expect(retained.style_applications() == before, "a steady frame re-applied a style")) {
+        return 1;
+    }
+    // The randomized frames above ran with stamped signatures and still matched a cold layout; the
+    // steady frames must have skipped whole subtrees (the root's signature is unchanged, so the
+    // tree is entered once per frame and no child is walked).
+    if (!expect(retained.skipped_subtrees() > 0, "no subtree was ever skipped")) {
+        return 1;
+    }
+    const std::size_t skipped = retained.skipped_subtrees();
+    (void)retained.layout(scene.root, viewport, cache);
+    if (!expect(retained.skipped_subtrees() == skipped + 1,
+                "an unchanged, signed tree was not skipped at its root")) {
         return 1;
     }
 
