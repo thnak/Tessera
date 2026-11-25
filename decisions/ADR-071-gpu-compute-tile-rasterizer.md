@@ -156,6 +156,20 @@ runs sits at about 14 ms for a 48-icon batch against 3 to 5 ms in others, which 
 discrete GPU leaving a low power state, not our code, but it was not investigated; a batch of icons
 can appear a frame or two later than a ThorVG one on that GPU.
 
+**Iconify check (2026-11-25).** The user's note: the 4K display overloads the RX 5300M, so its numbers
+lean against the GPU route and the iGPU numbers are the fairer ones. Twelve icons from Iconify
+(`https://api.iconify.design`, 24 px viewBox, one colour; mdi, lucide, tabler, ph, fa6-solid,
+material-symbols, carbon, solar, fluent-emoji-flat, twemoji) through the same tool
+(`path_route_measure <svg files>`), GPU total over ThorVG total on the iGPU, 32 to 256 px:
+filled icons are 0.8 to 1.4 at 32 to 64 px and 0.3 to 0.9 from 128 px, so the 128 px line holds
+for them (a filled mdi icon at 128 px: 0.07 ms on the GPU against 0.11 on ThorVG). Stroked icons
+with round joins and caps (lucide, tabler) lose at every size, 1.4 to 3.4 times ThorVG, on both
+GPUs. The cause is in the encoder: every flattened segment of a curve gets a stroke record with a
+full round-join wedge, so the lucide settings gear (two shapes) encodes 4,200 segments at 32 px and
+24,000 at 256 px where a filled icon of the same size has about 100 to 250. The row-node bound never
+trips (8k to 81k against 262k). Open: a join wedge sized by the turn angle (a flattened curve turns a
+few degrees per segment, so most wedges are empty), which needs a per-record stride in the stroke pass.
+
 **The WGSL twin** (`src/rendering/backend/webgpu/shaders/path_raster.wgsl`, the `webgpu` source of the
 manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL
 only where WGSL forces it: the work buffer is `array<atomic<u32>>` (every access is an

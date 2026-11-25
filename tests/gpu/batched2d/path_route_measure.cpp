@@ -21,9 +21,12 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -79,7 +82,16 @@ struct Times {
 }
 
 void measure_fixture(rhi::Device& device, const std::string& name) {
-    const auto bytes = tessera::test::path_draw::read_svg_fixture(name);
+    // A name with a directory part is an SVG file on disk (an Iconify download, say); a bare name
+    // is a repository fixture.
+    const bool is_file = name.find_first_of("/\\") != std::string::npos;
+    std::vector<std::uint8_t> bytes;
+    if (is_file) {
+        std::ifstream input(name, std::ios::binary);
+        bytes.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    } else {
+        bytes = tessera::test::path_draw::read_svg_fixture(name);
+    }
     auto cpu_rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
     if (bytes.empty() || cpu_rasterizer == nullptr) {
         return;
@@ -121,7 +133,7 @@ void measure_fixture(rhi::Device& device, const std::string& name) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     rhi::DeviceDesc device_desc;
     device_desc.backend = rhi::Backend::Vulkan;
     try {
@@ -131,6 +143,12 @@ int main() {
             return 1;
         }
         std::cout << "device: " << "see Vulkan device line of the loader\n";
+        if (argc > 1) {
+            for (int i = 1; i < argc; ++i) {
+                measure_fixture(*device, argv[i]);
+            }
+            return 0;
+        }
         for (const char* name :
              {"icon_shapes.svg", "stroke_path.svg", "group_transform.svg", "viewbox_scale.svg"}) {
             measure_fixture(*device, name);
