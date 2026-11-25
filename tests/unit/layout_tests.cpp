@@ -357,9 +357,9 @@ int main() {
     //
     // Every case here has an auto height, so the container fills the 200px viewport - ordinary
     // block layout, unrelated to containment. Only the widths are the subject.
-    const LayoutInput contained{300,
-                                style({{"container-type", "inline-size"}}),
-                                {node(301, style({{"width", "400px"}, {"height", "40px"}}))}};
+    const LayoutInput contained =
+        node(300, style({{"container-type", "inline-size"}}),
+             {node(301, style({{"width", "400px"}, {"height", "40px"}}))});
     const LayoutResult contained_result = engine.layout(contained, viewport);
     if (!expect(box_is(contained_result, 300, 0, 0, 0, 200),
                 "inline-size containment zeroes an auto width") ||
@@ -370,8 +370,8 @@ int main() {
 
     // The control, without which a bug that zeroed every `auto` width would pass the case above and
     // break every ordinary page.
-    const LayoutInput uncontained{
-        310, style({}), {node(311, style({{"width", "400px"}, {"height", "40px"}}))}};
+    const LayoutInput uncontained =
+        node(310, style({}), {node(311, style({{"width", "400px"}, {"height", "40px"}}))});
     const LayoutResult uncontained_result = engine.layout(uncontained, viewport);
     if (!expect(box_is(uncontained_result, 310, 0, 0, 400, 200),
                 "without container-type an auto width still sizes to content")) {
