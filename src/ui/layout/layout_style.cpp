@@ -3,6 +3,7 @@
 // CSS declarations -> Yoga node style (split from layout_engine.cpp, which keeps tree building,
 // text measurement and box collection).
 
+#include "layout_length.hpp"
 #include "layout_style.hpp"
 #include "tessera/ui/scene/scroll.hpp"
 #include "tessera/ui/style/viewport_units.hpp"
@@ -27,80 +28,10 @@ using style::ComputedStyle;
 
 namespace {
 
-struct Length {
-    enum class Kind : std::uint8_t {
-        Invalid,
-        Auto,
-        Points,
-        Percent,
-    };
-
-    Kind kind = Kind::Invalid;
-    float value = 0.0f;
-};
-
-const std::string* property(const ComputedStyle& style, const char* name) {
-    return style.find(name);
-}
-
-Length parse_length(std::string_view text, const LayoutViewport& viewport) {
-    const std::string token = lower(trim(text));
-    if (token == "auto") {
-        return Length{Length::Kind::Auto, 0.0f};
-    }
-    if (token.empty()) {
-        return {};
-    }
-
-    if (token.back() == '%') {
-        float value = 0.0f;
-        if (!parse_number(std::string_view(token).substr(0, token.size() - 1), value)) {
-            return {};
-        }
-        return Length{Length::Kind::Percent, value};
-    }
-
-    std::size_t unit_start = 0;
-    while (unit_start < token.size() &&
-           (std::isdigit(static_cast<unsigned char>(token[unit_start])) != 0 ||
-            token[unit_start] == '.' || token[unit_start] == '+' || token[unit_start] == '-')) {
-        ++unit_start;
-    }
-    const std::string_view unit(token.data() + unit_start, token.size() - unit_start);
-    float value = 0.0f;
-    if (!parse_number(std::string_view(token).substr(0, unit_start), value)) {
-        return {};
-    }
-
-    if (unit.empty() || unit == "px") {
-        return Length{Length::Kind::Points, value};
-    }
-    if (unit == "rem" || unit == "em") {
-        return Length{Length::Kind::Points, value * (unit == "em" ? viewport.font_size : 16.0f)};
-    }
-    // Every viewport unit comes from the one shared table (issue #691), so layout, grid and
-    // `@media` accept exactly the same set - including `vmin`, `vmax` and the small/large/dynamic
-    // family, which used to fail to parse here even though the spec lists them as V1.
-    style::ViewportSize size = style::ViewportSize::Default;
-    style::ViewportAxis axis = style::ViewportAxis::Width;
-    if (style::parse_viewport_unit(unit, size, axis)) {
-        style::ViewportUnits units;
-        units.width = viewport.width;
-        units.height = viewport.height;
-        units.font_size = viewport.font_size;
-        return Length{Length::Kind::Points, static_cast<float>(style::resolve_viewport_length(
-                                                style::ViewportLength{size, axis, value}, units))};
-    }
-    if (unit == "pt") {
-        return Length{Length::Kind::Points, value * 4.0f / 3.0f};
-    }
-    return {};
-}
-
 void apply_dimension(YGNodeRef node, const ComputedStyle& style, const char* name,
                      const LayoutViewport& viewport, void (*set_points)(YGNodeRef, float),
                      void (*set_percent)(YGNodeRef, float), void (*set_auto)(YGNodeRef)) {
-    const std::string* value = property(style, name);
+    const std::string* value = computed_property(style, name);
     if (value == nullptr) {
         return;
     }
@@ -132,7 +63,7 @@ void apply_margin(YGNodeRef node, const ComputedStyle& style, const LayoutViewpo
     constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
                                 YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
     for (std::size_t i = 0; i < std::size(edges); ++i) {
-        const std::string* value = property(style, names[i]);
+        const std::string* value = computed_property(style, names[i]);
         if (value == nullptr) {
             continue;
         }
@@ -159,7 +90,7 @@ void apply_padding(YGNodeRef node, const ComputedStyle& style, const LayoutViewp
     constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
                                 YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
     for (std::size_t i = 0; i < std::size(edges); ++i) {
-        const std::string* value = property(style, names[i]);
+        const std::string* value = computed_property(style, names[i]);
         if (value == nullptr) {
             continue;
         }
@@ -178,9 +109,9 @@ void apply_padding(YGNodeRef node, const ComputedStyle& style, const LayoutViewp
 float inline_border_width(const ComputedStyle& style, const char* logical_width,
                           const char* logical_style, const char* physical_width,
                           const char* physical_style, const LayoutViewport& viewport) {
-    const std::string* style_value = property(style, logical_style);
+    const std::string* style_value = computed_property(style, logical_style);
     if (style_value == nullptr) {
-        style_value = property(style, physical_style);
+        style_value = computed_property(style, physical_style);
     }
     if (!is_keyword(style_value, "solid") && !is_keyword(style_value, "dotted") &&
         !is_keyword(style_value, "dashed") && !is_keyword(style_value, "double") &&
@@ -188,9 +119,9 @@ float inline_border_width(const ComputedStyle& style, const char* logical_width,
         !is_keyword(style_value, "inset") && !is_keyword(style_value, "outset")) {
         return 0.0f;
     }
-    const std::string* width_value = property(style, logical_width);
+    const std::string* width_value = computed_property(style, logical_width);
     if (width_value == nullptr) {
-        width_value = property(style, physical_width);
+        width_value = computed_property(style, physical_width);
     }
     if (width_value == nullptr) {
         return 0.0f;
@@ -207,19 +138,20 @@ float inline_border_width(const ComputedStyle& style, const char* logical_width,
 // width); a percentage inline-end padding keeps its percentage only.
 void apply_scrollbar_gutter(YGNodeRef node, const ComputedStyle& style,
                             const LayoutViewport& viewport) {
-    if (!is_keyword(property(style, "scrollbar-gutter"), "stable")) {
+    if (!is_keyword(computed_property(style, "scrollbar-gutter"), "stable")) {
         return;
     }
     const auto is_scroll = [&style](const char* name) {
-        return is_keyword(property(style, name), "scroll") ||
-               is_keyword(property(style, name), "auto");
+        return is_keyword(computed_property(style, name), "scroll") ||
+               is_keyword(computed_property(style, name), "auto");
     };
     if (!is_scroll("overflow-x") && !is_scroll("overflow-y")) {
         return;
     }
-    const bool rtl = is_keyword(property(style, "direction"), "rtl");
+    const bool rtl = is_keyword(computed_property(style, "direction"), "rtl");
     const YGEdge edge = rtl ? YGEdgeLeft : YGEdgeRight;
-    const std::string* inline_end = property(style, rtl ? "padding-left" : "padding-right");
+    const std::string* inline_end =
+        computed_property(style, rtl ? "padding-left" : "padding-right");
     const Length length = inline_end == nullptr ? Length{} : parse_length(*inline_end, viewport);
     if (length.kind == Length::Kind::Percent) {
         return;
@@ -235,12 +167,12 @@ void apply_border(YGNodeRef node, const ComputedStyle& style, const LayoutViewpo
                                       "border-bottom-style", "border-left-style"};
     constexpr YGEdge edges[] = {YGEdgeTop, YGEdgeRight, YGEdgeBottom, YGEdgeLeft};
     for (std::size_t i = 0; i < std::size(edges); ++i) {
-        if (is_keyword(property(style, styles[i]), "none") ||
-            is_keyword(property(style, styles[i]), "hidden")) {
+        if (is_keyword(computed_property(style, styles[i]), "none") ||
+            is_keyword(computed_property(style, styles[i]), "hidden")) {
             YGNodeStyleSetBorder(node, edges[i], 0.0f);
             continue;
         }
-        const std::string* value = property(style, widths[i]);
+        const std::string* value = computed_property(style, widths[i]);
         if (value == nullptr) {
             continue;
         }
@@ -252,20 +184,20 @@ void apply_border(YGNodeRef node, const ComputedStyle& style, const LayoutViewpo
 
     // A logical side only touches the Start/End edge when one of its longhands is declared; an
     // undeclared one leaves the physical Left/Right border applied above in charge.
-    const bool rtl = is_keyword(property(style, "direction"), "rtl");
+    const bool rtl = is_keyword(computed_property(style, "direction"), "rtl");
     const char* start_width = rtl ? "border-right-width" : "border-left-width";
     const char* start_style = rtl ? "border-right-style" : "border-left-style";
     const char* end_width = rtl ? "border-left-width" : "border-right-width";
     const char* end_style = rtl ? "border-left-style" : "border-right-style";
-    if (property(style, "border-inline-start-width") != nullptr ||
-        property(style, "border-inline-start-style") != nullptr) {
+    if (computed_property(style, "border-inline-start-width") != nullptr ||
+        computed_property(style, "border-inline-start-style") != nullptr) {
         YGNodeStyleSetBorder(node, YGEdgeStart,
                              inline_border_width(style, "border-inline-start-width",
                                                  "border-inline-start-style", start_width,
                                                  start_style, viewport));
     }
-    if (property(style, "border-inline-end-width") != nullptr ||
-        property(style, "border-inline-end-style") != nullptr) {
+    if (computed_property(style, "border-inline-end-width") != nullptr ||
+        computed_property(style, "border-inline-end-style") != nullptr) {
         YGNodeStyleSetBorder(node, YGEdgeEnd,
                              inline_border_width(style, "border-inline-end-width",
                                                  "border-inline-end-style", end_width, end_style,
@@ -279,7 +211,7 @@ void apply_position(YGNodeRef node, const ComputedStyle& style, const LayoutView
     constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
                                 YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
     for (std::size_t i = 0; i < std::size(edges); ++i) {
-        const std::string* value = property(style, names[i]);
+        const std::string* value = computed_property(style, names[i]);
         if (value == nullptr) {
             continue;
         }
@@ -374,7 +306,7 @@ YGFlexDirection flex_direction_from(const std::string* value) {
 } // namespace
 
 void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
-    const std::string* display = property(style, "display");
+    const std::string* display = computed_property(style, "display");
     const std::string display_value = display == nullptr ? std::string() : lower(trim(*display));
     if (display_value == "none") {
         YGNodeStyleSetDisplay(node, YGDisplayNone);
@@ -386,24 +318,24 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
             YGNodeStyleSetFlexDirection(node, YGFlexDirectionColumn);
             YGNodeStyleSetAlignItems(node, YGAlignStretch);
         } else {
-            YGNodeStyleSetFlexDirection(node,
-                                        flex_direction_from(property(style, "flex-direction")));
+            YGNodeStyleSetFlexDirection(
+                node, flex_direction_from(computed_property(style, "flex-direction")));
         }
     }
 
-    const std::string* wrap = property(style, "flex-wrap");
+    const std::string* wrap = computed_property(style, "flex-wrap");
     if (is_keyword(wrap, "wrap")) {
         YGNodeStyleSetFlexWrap(node, YGWrapWrap);
     } else if (is_keyword(wrap, "wrap-reverse")) {
         YGNodeStyleSetFlexWrap(node, YGWrapWrapReverse);
     }
 
-    YGNodeStyleSetJustifyContent(node, justify_from(property(style, "justify-content")));
-    YGNodeStyleSetAlignItems(node, align_from(property(style, "align-items")));
-    YGNodeStyleSetAlignContent(node, align_from(property(style, "align-content")));
-    YGNodeStyleSetAlignSelf(node, align_self_from(property(style, "align-self")));
+    YGNodeStyleSetJustifyContent(node, justify_from(computed_property(style, "justify-content")));
+    YGNodeStyleSetAlignItems(node, align_from(computed_property(style, "align-items")));
+    YGNodeStyleSetAlignContent(node, align_from(computed_property(style, "align-content")));
+    YGNodeStyleSetAlignSelf(node, align_self_from(computed_property(style, "align-self")));
 
-    const std::string* position = property(style, "position");
+    const std::string* position = computed_property(style, "position");
     if (is_keyword(position, "absolute") || is_keyword(position, "fixed")) {
         YGNodeStyleSetPositionType(node, YGPositionTypeAbsolute);
     } else if (is_keyword(position, "relative") || is_keyword(position, "sticky")) {
@@ -412,24 +344,24 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
         YGNodeStyleSetPositionType(node, YGPositionTypeStatic);
     }
 
-    if (is_keyword(property(style, "overflow-y"), "hidden") ||
-        is_keyword(property(style, "overflow-y"), "clip")) {
+    if (is_keyword(computed_property(style, "overflow-y"), "hidden") ||
+        is_keyword(computed_property(style, "overflow-y"), "clip")) {
         YGNodeStyleSetOverflow(node, YGOverflowHidden);
-    } else if (is_keyword(property(style, "overflow-y"), "scroll") ||
-               is_keyword(property(style, "overflow-y"), "auto")) {
+    } else if (is_keyword(computed_property(style, "overflow-y"), "scroll") ||
+               is_keyword(computed_property(style, "overflow-y"), "auto")) {
         YGNodeStyleSetOverflow(node, YGOverflowScroll);
-    } else if (is_keyword(property(style, "overflow-x"), "hidden") ||
-               is_keyword(property(style, "overflow-x"), "clip")) {
+    } else if (is_keyword(computed_property(style, "overflow-x"), "hidden") ||
+               is_keyword(computed_property(style, "overflow-x"), "clip")) {
         YGNodeStyleSetOverflow(node, YGOverflowHidden);
-    } else if (is_keyword(property(style, "overflow-x"), "scroll") ||
-               is_keyword(property(style, "overflow-x"), "auto")) {
+    } else if (is_keyword(computed_property(style, "overflow-x"), "scroll") ||
+               is_keyword(computed_property(style, "overflow-x"), "auto")) {
         YGNodeStyleSetOverflow(node, YGOverflowScroll);
     }
 
-    const std::string* direction = property(style, "direction");
+    const std::string* direction = computed_property(style, "direction");
     YGNodeStyleSetDirection(node, is_keyword(direction, "rtl") ? YGDirectionRTL : YGDirectionLTR);
 
-    const std::string* box_sizing = property(style, "box-sizing");
+    const std::string* box_sizing = computed_property(style, "box-sizing");
     YGNodeStyleSetBoxSizing(node, is_keyword(box_sizing, "border-box") ? YGBoxSizingBorderBox
                                                                        : YGBoxSizingContentBox);
 
@@ -437,6 +369,7 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
                     YGNodeStyleSetWidthAuto);
     apply_dimension(node, style, "height", viewport, YGNodeStyleSetHeight,
                     YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto);
+    apply_size_containment(node, style, box_sizing);
     apply_dimension(node, style, "min-width", viewport, YGNodeStyleSetMinWidth,
                     YGNodeStyleSetMinWidthPercent, nullptr);
     apply_dimension(node, style, "min-height", viewport, YGNodeStyleSetMinHeight,
@@ -449,16 +382,16 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
                     YGNodeStyleSetFlexBasisPercent, YGNodeStyleSetFlexBasisAuto);
 
     float number = 0.0f;
-    if (property(style, "flex-grow") != nullptr &&
-        parse_number(*property(style, "flex-grow"), number)) {
+    if (computed_property(style, "flex-grow") != nullptr &&
+        parse_number(*computed_property(style, "flex-grow"), number)) {
         YGNodeStyleSetFlexGrow(node, number);
     }
-    if (property(style, "flex-shrink") != nullptr &&
-        parse_number(*property(style, "flex-shrink"), number)) {
+    if (computed_property(style, "flex-shrink") != nullptr &&
+        parse_number(*computed_property(style, "flex-shrink"), number)) {
         YGNodeStyleSetFlexShrink(node, number);
     }
 
-    const std::string* aspect_ratio = property(style, "aspect-ratio");
+    const std::string* aspect_ratio = computed_property(style, "aspect-ratio");
     // CSS applies the ratio only while one axis is `auto`; an explicit `width` and `height` both
     // win. Yoga's flex cross-size pass lets a ratio override a definite cross size, so the ratio is
     // not installed at all when both axes are already definite (issue #215).
@@ -466,9 +399,10 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
         return length.kind == Length::Kind::Points || length.kind == Length::Kind::Percent;
     };
     const bool both_axes_defined =
-        property(style, "width") != nullptr && property(style, "height") != nullptr &&
-        is_defined_length(parse_length(*property(style, "width"), viewport)) &&
-        is_defined_length(parse_length(*property(style, "height"), viewport));
+        computed_property(style, "width") != nullptr &&
+        computed_property(style, "height") != nullptr &&
+        is_defined_length(parse_length(*computed_property(style, "width"), viewport)) &&
+        is_defined_length(parse_length(*computed_property(style, "height"), viewport));
     if (aspect_ratio != nullptr && !both_axes_defined) {
         const std::string value = trim(*aspect_ratio);
         const std::size_t slash = value.find('/');
@@ -497,7 +431,7 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
     constexpr const char* gap_names[] = {"row-gap", "column-gap"};
     constexpr YGGutter gutters[] = {YGGutterRow, YGGutterColumn};
     for (std::size_t i = 0; i < 2; ++i) {
-        const std::string* gap = property(style, gap_names[i]);
+        const std::string* gap = computed_property(style, gap_names[i]);
         if (gap == nullptr) {
             continue;
         }

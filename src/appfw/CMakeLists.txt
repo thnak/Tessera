@@ -145,6 +145,10 @@ target_link_libraries(tessera_appfw_navigation
 # (ADR-052 item 5). The build therefore has no new dependency and the Wasm lane compiles this module
 # unchanged - there is no POSIX header and no socket call anywhere in it.
 add_library(tessera_appfw_net STATIC
+    # The WinHTTP back end's mapping and URL rules (issue #835). Pure: no Windows header, so it builds
+    # and its tests run on every lane - which is the only way the Linux lane can notice a regression in
+    # the error-kind table that section 3 item 6 is about.
+    net_winhttp_map.cpp
     net_client.cpp
     net_client_hop.cpp
     net_client_impl.cpp
@@ -153,6 +157,12 @@ add_library(tessera_appfw_net STATIC
     net_state.cpp
     net_types.cpp
     net_url.cpp)
+
+if (WIN32)
+    # The code cross-check: `static_assert`s that the mapping's constants match `winhttp.h`. It has no
+    # symbols, so it contributes a compile and nothing else.
+    target_sources(tessera_appfw_net PRIVATE windows/net_winhttp_codes_check.cpp)
+endif ()
 
 target_include_directories(tessera_appfw_net PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -367,6 +377,27 @@ if (TESSERA_BUILD_TESTS)
     # opens a socket, reads a wall clock, sleeps or starts a thread. It links `tessera_runtime` for
     # `RuntimeLoop` (the "a pending request idles with zero presents" case drives the real loop) and
     # nothing else: there is no platform network library anywhere in this target.
+    # The loopback lane's server (issue #882, networking-v1 section 5). It is built always, not only
+    # in the opt-in lane: it depends on nothing but sockets, so building it costs a few milliseconds
+    # and its own tests run in normal CI. The lane gate is on the tests that drive a REAL back end,
+    # which is what needs a listening socket and a thread.
+    add_executable(appfw_loopback_server_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_loopback_server_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/support/loopback_server.cpp)
+    target_include_directories(appfw_loopback_server_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_compile_features(appfw_loopback_server_tests PRIVATE cxx_std_23)
+    if (WIN32)
+        # Winsock is the one platform library this helper needs; elsewhere the BSD sockets are in libc.
+        target_link_libraries(appfw_loopback_server_tests PRIVATE ws2_32)
+    endif ()
+    add_test(NAME appfw_loopback_server COMMAND appfw_loopback_server_tests)
+
+    add_executable(appfw_net_winhttp_map_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_winhttp_map_tests.cpp)
+    target_link_libraries(appfw_net_winhttp_map_tests PRIVATE tessera_appfw_net)
+    add_test(NAME appfw_net_winhttp_map COMMAND appfw_net_winhttp_map_tests)
+
     add_executable(appfw_net_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_main.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_state_tests.cpp

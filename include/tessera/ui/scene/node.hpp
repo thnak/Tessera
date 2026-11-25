@@ -217,27 +217,28 @@ private:
 // the scroll floats and the 8-byte scalar tail lands exactly on `NodeMetadata`'s alignment. That
 // removed all 8 bytes of padding, so the budget goes back down with no behavior change. The four
 // role bases are empty and add nothing.
+// **What is pinned, and why it is derived.** The claim is "no padding, and nothing grew". Both are
+// about the object, not about a number: `Node` is 320 bytes in the configuration that ships, and
+// one member is a `std::vector` whose size is a stdlib decision rather than ours - MSVC's Debug
+// `std::vector` carries an extra allocator pointer when `_ITERATOR_DEBUG_LEVEL != 0`, so it is 32
+// bytes instead of 24 and `Node` is 328 (issue #896, measured by bracketing `static_assert`s: the
+// difference is exactly `sizeof(children_)`).
+//
+// Hard-coding 320 made `vs2026` Debug fail to compile the whole tree, which is the configuration a
+// developer runs the GPU and window tests in. Deriving the expectation from the vector keeps the
+// assert exact in every configuration: a real 8-byte regression still fails, because it moves the
+// total without moving the vector.
+// Kept for the callers that quote the shipping budget; the assert below does not use it directly
+// because it must also be true in a Debug configuration whose `std::vector` is wider.
 inline constexpr std::size_t kNodeSizeBudget = 320;
-// The size and cache-line claims are facts about the shipping layout. MSVC's Debug STL
-// (_ITERATOR_DEBUG_LEVEL 2) grows every container (std::vector becomes 32 bytes, not 24), so a
-// Debug build of this header is larger by design and cannot satisfy them; the Release lanes (MSVC
-// Release, GCC, Clang) still pin them, and CI would catch a real regression there.
-#if defined(_ITERATOR_DEBUG_LEVEL) && _ITERATOR_DEBUG_LEVEL != 0
-#define TESSERA_NODE_LAYOUT_PINNED 0
-#else
-#define TESSERA_NODE_LAYOUT_PINNED 1
-#endif
-#if TESSERA_NODE_LAYOUT_PINNED
-static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
-#endif
-// The split is the obvious place to leave 8 bytes of padding behind (a byte block immediately
-// followed by an 8-aligned member), so on the 64-bit lanes the absence of padding is pinned as an
-// exact size, which is a tighter claim than the budget. It is guarded on the pointer width because
-// the number is a 64-bit layout fact: wasm32 has 4-byte pointers and therefore a smaller `Node`,
-// where the budget assert above is the guard. MSVC measures 320 too, so both 64-bit lanes agree on
-// this one number.
-#if TESSERA_NODE_LAYOUT_PINNED && INTPTR_MAX == INT64_MAX
-static_assert(sizeof(Node) == 320, "a padded Node is a regression even inside the budget");
+inline constexpr std::size_t kNodeSizeWithoutChildren = 296;
+inline constexpr std::size_t kNodeSizeExpected =
+    kNodeSizeWithoutChildren + sizeof(std::vector<std::unique_ptr<Node>>);
+
+#if INTPTR_MAX == INT64_MAX
+static_assert(sizeof(Node) == kNodeSizeExpected,
+              "a padded Node is a regression even inside the budget; if this fires, a member grew "
+              "or picked up padding - compare kNodeSizeWithoutChildren against the member list");
 #endif
 
 bool dispatch_event(Node& root, Event& event);

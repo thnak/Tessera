@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/rendering/gpu/clip.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
@@ -15,6 +16,7 @@ namespace tessera::rendering::gpu {
 // 16-byte aligned and three of four vertices span two lines. The vertex stream is the hottest
 // per-frame buffer in the renderer, so that doubles its store traffic. The alignment changes no
 // offset, so the attribute table and the stride below are unaffected.
+TESSERA_CACHE_LINE_BEGIN
 struct alignas(64) Vertex2D {
     float x = 0;
     float y = 0;
@@ -44,6 +46,7 @@ struct alignas(64) Vertex2D {
     // would split the batch it is meant to keep together.
     std::uint32_t texture_index = 0;
 };
+TESSERA_CACHE_LINE_END
 
 // 44 bytes of long-standing layout plus the 16-byte carve box the soft-shadow fragment stage needs,
 // plus the 4-byte texture-array index (RHI 1.7, issue #480 part 2). The carve is per primitive, so

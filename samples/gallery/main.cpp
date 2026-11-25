@@ -20,6 +20,10 @@
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
 //
+// Pages are listed in `page_table.hpp`; adding one is an entry there plus its `.tsx`/`.css`. The
+// table is also what validates `--page` and what the usage text reports, so those three cannot
+// disagree.
+//
 // Modes:
 //   gallery --capture out.png     windowless offscreen capture (any Vulkan device, lavapipe in CI)
 //   gallery --golden base.png     the same capture compared with a committed lavapipe baseline
@@ -27,12 +31,9 @@
 //                                 rewrites)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
-#include "DashPage.hpp"
-#include "FormPage.hpp"
-#include "Gallery.hpp"
-#include "SafeAreaPage.hpp"
 #include "form_module.hpp"
 #include "golden.hpp"
+#include "page_table.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/cutout.hpp"
@@ -87,7 +88,8 @@ struct Args {
 };
 
 // The scene root is the window's content node; the id is outside the generated id range.
-constexpr tessera::ui::NodeId kRootId = 900;
+// `kRootId` and `Scene` live in page_table.hpp now (issue #528): the table builds every page, so
+// the root id and the page-in-a-root shape have to be visible to it.
 
 std::optional<std::string> read_file(const char* path) {
     std::ifstream in(path, std::ios::binary);
@@ -305,20 +307,6 @@ bool write_png(const std::string& path, const tessera::app::CapturedFrame& frame
                           static_cast<int>(frame.width) * 4) != 0;
 }
 
-// One generated page in a scene root. `Page` is gallery::Gallery or
-// gallery::SafeAreaPage.
-template<typename Page> struct Scene {
-    Scene() {
-        gallery.build(root);
-        gallery.mount();
-        gallery.attach_scheduler(scheduler);
-    }
-
-    Node root{kRootId};
-    Page gallery;
-    tessera::ui::UpdateScheduler scheduler;
-};
-
 template<typename Scene>
 int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     std::string unavailable;
@@ -444,8 +432,7 @@ Args parse_args(int argc, char** argv) {
         args.text_scale == 100 || args.text_scale == 125 || args.text_scale == 150;
     const bool state_ok = args.state == "none" || args.state == "hover" || args.state == "active" ||
                           args.state == "focus";
-    const bool page_ok = args.page == "buttons" || args.page == "safe-area" ||
-                         args.page == "form" || args.page == "dash";
+    const bool page_ok = gallery::is_page(args.page);
     const std::optional<Device> device = device_for(args.device);
     if (!density_ok || !scale_ok || !state_ok || !page_ok || !device) {
         std::cerr << "gallery: invalid --density, --text-scale, --state, --page or --device\n";
@@ -471,6 +458,13 @@ int main(int argc, char** argv) {
         return 3;
     }
     if (!args.emit_module_css.empty()) {
+        // Only the form page has a CSS module (issue #463). Emitting it while another page is
+        // selected would write the form's classes under a name that says otherwise.
+        if (!gallery::page_has_module_css(args.page)) {
+            std::cerr << "gallery: --emit-module-css needs --page form (it is the only page with a "
+                         "CSS module)\n";
+            return 3;
+        }
         return gallery::write_parity_twin(resources->form_module, args.emit_module_css) ? 0 : 3;
     }
     const std::string classes = root_classes(args);
@@ -483,18 +477,9 @@ int main(int argc, char** argv) {
         }
         return run_window(args, *resources, scene);
     };
-    if (args.page == "safe-area") {
-        Scene<gallery::SafeAreaPage> scene;
-        return run(scene);
-    }
-    if (args.page == "form") {
-        Scene<gallery::FormPage> scene;
-        return run(scene);
-    }
-    if (args.page == "dash") {
-        Scene<gallery::DashPage> scene;
-        return run(scene);
-    }
-    Scene<gallery::Gallery> scene;
-    return run(scene);
+    // One branch per page, in page_table.hpp (issue #528). `args.page` was validated as a page by
+    // `parse_args`, so the optional is always set here; the fallback exists so the compiler does
+    // not have to trust that and so a future validation change cannot become a null dereference.
+    const std::optional<int> exit = gallery::run_page(args.page, run);
+    return exit.value_or(3);
 }

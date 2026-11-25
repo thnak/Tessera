@@ -24,6 +24,8 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <string_view>
+#include <vector>
 
 using namespace measure;
 
@@ -112,7 +114,23 @@ struct Scene {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const std::uint64_t bytes_4k_early = static_cast<std::uint64_t>(k4kWidth) * k4kHeight * 4U;
+
+    // `--cpu-only` runs the hypotheses that need no GPU and stops. It exists so the measurement in
+    // issue #689 (the decode-target downscale's CPU cost) can be taken on a machine with no Vulkan
+    // device - a laptop, a container, or the lavapipe lane - instead of only on the two GPUs.
+    const bool cpu_only = argc > 1 && std::string_view(argv[1]) == "--cpu-only";
+    if (cpu_only) {
+        // A deterministic pattern, so two machines measure the same work rather than the same size.
+        std::vector<std::uint8_t> source(bytes_4k_early);
+        for (std::size_t i = 0; i < source.size(); ++i) {
+            source[i] = static_cast<std::uint8_t>((i * 2654435761U) >> 24);
+        }
+        measure_downscale_box(source);
+        return 0;
+    }
+
     rhi::DeviceDesc device_desc;
     device_desc.backend = rhi::Backend::Vulkan;
 
@@ -275,6 +293,7 @@ int main() {
         measure_staging_hypothesis(*device, frame);
         measure_create_texture_tail(*device, frame);
         measure_resample_hypothesis(frame);
+        measure_downscale_box(frame);
         measure_nearest_exactness(*device);
         measure_encode_hypothesis();
 

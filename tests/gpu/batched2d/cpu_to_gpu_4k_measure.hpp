@@ -122,6 +122,19 @@ inline void print_tail(const std::string& name, const Tail& tail, std::size_t ca
                                                             std::uint32_t h);
 
 void measure_staging_hypothesis(rhi::Device& device, const std::vector<std::uint8_t>& frame);
+
+// H6: the image path's decode-target downscale in isolation (issue #689 work item 1).
+//
+// `downscale_box` (`src/rendering/image/image_resize.cpp`) is a per-output-pixel CPU loop with four
+// 64-bit sums and four integer divides, run on the decode path whenever a decode target is smaller
+// than the source. #682 measured its sibling `resample_nearest` at 0.55 GB/s; this loop does
+// strictly more per output pixel, but it had never been measured on its own, which is why the
+// decision to move it to the GPU was waiting.
+//
+// It takes no device on purpose: the point is the CPU cost of the function the image path calls, so
+// the number is available on a machine with no GPU and on the lavapipe lane, neither of which can
+// run the rest of this tool.
+void measure_downscale_box(const std::vector<std::uint8_t>& source_4k);
 void measure_resample_hypothesis(const std::vector<std::uint8_t>& frame);
 void measure_encode_hypothesis();
 void measure_nearest_exactness(rhi::Device& device);

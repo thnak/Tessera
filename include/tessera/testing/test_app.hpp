@@ -10,6 +10,11 @@
 // implementation is the `tessera_testing` target, which no shipping target links: an app's test
 // binary links it, the app does not. `docs/guides/testing-your-app.md` is the worked example.
 //
+// **Settling (issue #838).** Two pieces of wiring every app test repeated by hand now live here:
+// the `UpdateScheduler` (owned, installed on the host, attached by `mount(Component&)`) and the
+// pump loop a network or shell exchange needs (`settle()` / `run_until()`). Both are built on the
+// explicit step API below and hide nothing a test may need directly.
+//
 // **What it deliberately does not do.** It does not add a test framework. The repo has none on
 // purpose (`docs/design/testing.md` section 12: a `main()` returning nonzero and a clear message),
 // and a second convention here would be a second thing to keep working. `expect.hpp` is the
@@ -37,6 +42,7 @@
 #include "tessera/ui/automation/scene_snapshot.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstddef>
@@ -45,6 +51,14 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+// Forward declarations, not includes: the fakes' own headers name the modules they fake, and a
+// test that uses one includes that header anyway (it has to, to construct the fake). The kit only
+// borrows a pointer to call `deliver_due()`.
+namespace tessera::appfw {
+class FakeNet;
+class FakeShell;
+} // namespace tessera::appfw
 
 namespace tessera::testing {
 
@@ -57,6 +71,46 @@ struct AdvanceConfig {
     // Pumps the IO executor (`run_one` + its completion) before each tick. Off for a test that
     // wants to observe "the work is still in flight"; on for one that wants it to finish.
     bool pump_io = true;
+};
+
+// What one deterministic step of `settle` / `run_until` covers. The fixed order below is the one
+// the guide's hand-written pump loop copied; putting it in one place is what keeps every test from
+// re-deriving it (and from getting it wrong, where a wrong order shows up as a one-tick lag or a
+// completion that never drains). The field initializers keep it valid with no explicit assignment.
+struct SettleConfig {
+    // Simulated seconds per step. 1/60 matches the engine's own event pacing.
+    double tick_seconds = 1.0 / 60.0;
+    // The I/O budget of one step, both queues of `ManualIoExecutor`.
+    std::size_t io_budget = 16;
+    // The completion-queue drain budget of one step.
+    std::size_t completion_budget = 16;
+    // The upper bound on steps. `settle` returns `BoundReached` at it rather than looping forever,
+    // so a test whose exchange never resolves fails loudly at a named bound instead of hanging.
+    std::size_t max_ticks = 64;
+    // Pumps the IO executor and delivers the attached fakes before each step. Off freezes the
+    // worker half and the fakes - the queued work is the "still in flight" state the test asked to
+    // observe - while the completion queue and the loop keep draining, so a settle ends at the
+    // first step instead of reporting the frozen work as an unsettled exchange.
+    bool pump_io = true;
+};
+
+// Which bound a `settle` hit, and the counts that say what the bound cost.
+enum class SettleOutcome : std::uint8_t {
+    // Nothing was pending (executor, completion queue and timers) on the last step.
+    Settled,
+    // The configured bound was hit first. Never a silent pass: a caller that requires a settled
+    // exchange asserts on the outcome, so a service that never answers is a named failure.
+    BoundReached,
+};
+
+struct SettleResult {
+    SettleOutcome outcome = SettleOutcome::Settled;
+    // Steps run, and the totals each step reported, so a test can bound a claim ("it took one
+    // step") instead of only a pass/fail.
+    std::size_t ticks = 0;
+    std::size_t completions = 0;
+    std::size_t timers_fired = 0;
+    std::size_t io_ran = 0;
 };
 
 // One app under test: the deterministic stack, the scene, and the driving verbs.
@@ -84,7 +138,7 @@ public:
     };
 
     // Builds the stack, lays out one frame, and runs `Config`'s stylesheet. The component's build
-    // hook is not run yet: call `build()` once, or `mount()` to build and settle in one step.
+    // hook is not run yet: call `build()` once.
     //
     // Two constructors instead of `Config = {}`: a default argument would have to name the nested
     // `AdvanceConfig`'s default member initializer while `TestApp` is still incomplete, which GCC
@@ -150,6 +204,34 @@ public:
     // that forgot to can still call it.
     void build();
 
+    // --- composition: mount and attach ------------------------------------------------------
+
+    // The scheduler every generated component's update ticket attaches to, installed on the host.
+    // `TestApp` owns it so a test cannot forget the wiring: a host without a scheduler silently
+    // drops `setCount`-style updates, which a test would read as "the handler did not run".
+    [[nodiscard]] ui::UpdateScheduler& scheduler() noexcept {
+        return scheduler_;
+    }
+
+    // The one call a test's `build_scene()` needs: `component.build(root())`, `component.mount()`,
+    // then `component.attach_scheduler(scheduler())`. The three together are what a real app's
+    // mount does; forgetting the scheduler leaves a setter marking a ticket nothing ever flushes,
+    // with no hint why - which is the mistake this helper exists to make unreachable. Call it from
+    // `build_scene()`; `build()` runs `build_scene()` exactly once, so a component is never built
+    // twice.
+    template<typename Component> void mount(Component& component) {
+        component.build(root());
+        component.mount();
+        component.attach_scheduler(scheduler());
+    }
+
+    // Registers a fake that delivers on the clock (`appfw::FakeNet`, `appfw::FakeShell`): settle
+    // and the step API then call its `deliver_due()` every step, so the test never names the fake
+    // in a pump loop. Borrowed; the fake must outlive the app. The fakes already need the app's
+    // completion queue and clock as constructor arguments, so this only completes the borrowing.
+    void attach(appfw::FakeNet& fake);
+    void attach(appfw::FakeShell& fake);
+
     // --- the deterministic stack -------------------------------------------------------------
 
     [[nodiscard]] runtime::ManualClock& clock() noexcept {
@@ -187,8 +269,8 @@ public:
     // ships with the storage module; `os_events()` is the synthetic injector of os-events-v1.md
     // sections 3 and 12. The network and shell fakes already ship with their modules and need
     // constructor arguments (the completion queue and the clock), so a test that wants one
-    // constructs it from `completions()` and `clock()` and registers it through `provide()`; they
-    // are not duplicated here.
+    // constructs it from `completions()` and `clock()` and hands it to `attach(fake)`, which is
+    // what lets `settle` deliver its due work; they are not duplicated here.
     [[nodiscard]] appfw::FakeFileSystem& files() noexcept {
         return files_;
     }
@@ -214,6 +296,52 @@ public:
     // One iteration: drain completions, fire due timers, tick the loop, run one frame, paint when
     // due. Returns whether a frame was painted.
     bool pump_once();
+
+    // --- settling an exchange (issue #838) ---------------------------------------------------
+
+    // Drives the app until nothing is pending or the bound is hit, one `SettleConfig` step at a
+    // time. One step, in the fixed order: run I/O bodies and their completions, deliver what the
+    // attached fakes owe at the current instant, drain the completion queue, tick the loop (which
+    // fires due timers and drains completions again), then run one frame so the scene shows the
+    // result. Nothing is pending means: the executor holds no work or completions, the completion
+    // queue is empty, and every timer's deadline is after `now`.
+    //
+    // A body that posts new I/O still settles, because the step order re-runs it before the
+    // pending check. What cannot settle - a service suspended on a fake that was never attached,
+    // a scripted answer with a delay the test never advances past - reports `BoundReached` with
+    // the counts, which turns "the test passed on a timeout" into a named, assertable failure.
+    //
+    // Delivering a due fake posts a completion and nothing else, so an empty final step with no
+    // deliverable is the convergence signal; the loop is bounded by `max_ticks` regardless.
+    SettleResult settle(const SettleConfig& config = {});
+
+    // The `until node 9001 has text` form: one whole step per check, until `predicate` holds or
+    // `max_ticks` steps have run. The result says which, with the totals, so "the bound was hit
+    // before the node ever showed the text" is an assertion and not a hang. Steps run even when
+    // nothing is pending, because a predicate may watch simulated time or a counter rather than a
+    // queue; a predicate that never holds costs exactly `max_ticks` deterministic steps, never a
+    // hang.
+    template<typename Predicate>
+    SettleResult run_until(Predicate&& predicate, const SettleConfig& config = {}) {
+        SettleResult result;
+        result.outcome = SettleOutcome::BoundReached;
+        for (std::size_t tick = 0; tick < config.max_ticks; ++tick) {
+            const SettleResult step = settle_step(config);
+            result.ticks += step.ticks;
+            result.completions += step.completions;
+            result.timers_fired += step.timers_fired;
+            result.io_ran += step.io_ran;
+            if (static_cast<bool>(predicate())) {
+                result.outcome = SettleOutcome::Settled;
+                break;
+            }
+        }
+        return result;
+    }
+
+    // One forced frame: the settle a test wants after it changed the tree or dispatched input,
+    // where "was a frame due" is not the question being asked. `build()` runs one at construction.
+    void settle_frame();
 
     // --- input --------------------------------------------------------------------------------
 
@@ -283,7 +411,13 @@ private:
     // drift; they differ only in how many times and how far the clock moves first.
     void tick_once(const AdvanceConfig& config);
     void run_frame(bool force);
-    void settle();
+    void paint_settled_frame();
+    // The one step of `settle`; returns its counts with `outcome` reporting whether anything was
+    // pending when the step ended.
+    SettleResult settle_step(const SettleConfig& config);
+    // Delivers what every attached fake owes at the current instant; returns how many were
+    // delivered.
+    std::size_t deliver_fakes();
     void count_in(const ui::Node& node, std::uint64_t automation_id, std::size_t& count) const;
 
     Config config_;
@@ -300,6 +434,13 @@ private:
     appfw::ServiceRunner runner_;
     appfw::FakeFileSystem files_;
     hal::SyntheticEventInjector os_events_;
+    // Owned and installed on the host at construction (issue #838): the wiring a fixture used to
+    // repeat - `host().set_update_scheduler(&scheduler_)` - is done once, here, in the right order
+    // relative to the host's reduced-motion preference.
+    ui::UpdateScheduler scheduler_;
+    // Borrowed clock-driven fakes (`attach`), so settle can deliver without the test naming them.
+    std::vector<appfw::FakeNet*> fake_net_;
+    std::vector<appfw::FakeShell*> fake_shell_;
     std::size_t frames_painted_ = 0;
     std::size_t ticks_run_ = 0;
     // The frame count at the start of the current `pump_once`, so the return value is "did THIS

@@ -50,6 +50,7 @@ add_subdirectory(render)
 # Kept separate from tessera_text so the shaping/text layer stays free of scene dependencies.
 add_library(tessera_text_edit STATIC
     caret_blink.cpp
+    selection_controller.cpp
     edit_controller.cpp
     edit_history.cpp
     text_input_runtime.cpp)

@@ -212,12 +212,20 @@ int test_user_select() {
         !expect(label.text_selection_allowed(), "text stays selectable")) {
         return 8;
     }
-    // `user-select: all` is unsupported in V1: it is reported at parse time and falls back to auto.
+    // `user-select: all` is supported since issue #279: it selects the whole element on a press.
     styles.set(label, nullptr, "all");
+    sync_interaction_style(root, &stub_compute, &styles);
+    if (!expect(label.user_select() == UserSelect::All, "all selects the whole element") ||
+        !expect(label.text_selection_allowed(), "and it is selectable")) {
+        return 9;
+    }
+    // `contain` stays unsupported: it is reported at parse time and falls back to auto, which is
+    // the default selectable behaviour rather than a blocked gesture.
+    styles.set(label, nullptr, "contain");
     sync_interaction_style(root, &stub_compute, &styles);
     if (!expect(label.user_select() == UserSelect::Auto,
                 "an unsupported value falls back to auto")) {
-        return 9;
+        return 10;
     }
 
     // Inherited resolution through the real registry/cascade, and aspect-ratio staying
@@ -277,7 +285,8 @@ int test_supports() {
         !expect(!matches("(pointer-events: visiblePainted)", registry),
                 "@supports SVG-only pointer-events") ||
         !expect(matches("(user-select: text)", registry), "@supports user-select text") ||
-        !expect(!matches("(user-select: all)", registry), "@supports user-select all") ||
+        !expect(matches("(user-select: all)", registry), "@supports user-select all") ||
+        !expect(!matches("(user-select: contain)", registry), "@supports user-select contain") ||
         !expect(matches("(cursor: pointer)", registry), "@supports cursor pointer") ||
         !expect(!matches("(cursor: url(a.png))", registry), "@supports cursor url()")) {
         return 13;

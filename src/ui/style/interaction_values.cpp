@@ -78,7 +78,7 @@ bool is_supported_interaction_value(std::string_view property, std::string_view 
     }
     if (property == "user-select") {
         return equals_lower(normalized, "auto") || equals_lower(normalized, "none") ||
-               equals_lower(normalized, "text");
+               equals_lower(normalized, "text") || equals_lower(normalized, "all");
     }
     if (property == "aspect-ratio") {
         return is_aspect_ratio_value(normalized);
@@ -102,7 +102,7 @@ void report_unsupported_interaction_value(std::string_view property, std::string
     if (property == "pointer-events") {
         message += " (V1 implements auto and none; the SVG-only keywords are not supported)";
     } else if (property == "user-select") {
-        message += " (V1 implements auto, none and text)";
+        message += " (V1 implements auto, none, text and all)";
     } else {
         message += " (V1 implements auto, a positive <number> or <number> / <number>)";
     }

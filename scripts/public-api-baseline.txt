@@ -284,6 +284,20 @@ constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpDefaultPort
 constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpsDefaultPort
 constant include/tessera/appfw/net_url.hpp tessera::appfw::kMaxUrlLength
 
+header include/tessera/appfw/net_winhttp_map.hpp
+struct include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::WinHttpUrlParts
+function include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::error_kind_for_windows_error
+function include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::error_kind_for_winhttp_status
+function include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::split_winhttp_url
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpCannotConnect
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpConnectionError
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpInvalidUrl
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpNameNotResolved
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpOperationCancelled
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpSecureFailure
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpTimeout
+constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpUnrecognizedScheme
+
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
 
@@ -1760,8 +1774,13 @@ function include/tessera/testing/expect.hpp tessera::testing::print_value
 variable include/tessera/testing/expect.hpp tessera::testing::g_failures
 
 header include/tessera/testing/test_app.hpp
+class include/tessera/testing/test_app.hpp tessera::appfw::FakeNet
+class include/tessera/testing/test_app.hpp tessera::appfw::FakeShell
 class include/tessera/testing/test_app.hpp tessera::testing::TestApp
 struct include/tessera/testing/test_app.hpp tessera::testing::AdvanceConfig
+struct include/tessera/testing/test_app.hpp tessera::testing::SettleConfig
+struct include/tessera/testing/test_app.hpp tessera::testing::SettleResult
+enum include/tessera/testing/test_app.hpp tessera::testing::SettleOutcome
 
 header include/tessera/ui/accessibility/a11y_tree.hpp
 class include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::StyleProvider
@@ -1821,12 +1840,15 @@ enum include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::EventK
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_detail
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_signal_member
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::event_value
+function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_announcement_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_bounds_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_focus_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_property_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_state_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::make_visible_data_event
 function include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::set_event_text
+constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kAnnouncementAssertive
+constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kAnnouncementPolite
 constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kMaxEventTextBytes
 constant include/tessera/ui/accessibility/atspi_events.hpp tessera::ui::a11y::kMaxQueuedEvents
 
@@ -2798,6 +2820,8 @@ struct include/tessera/ui/scene/node.hpp tessera::ui::Event
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event_to
 constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeBudget
+constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeExpected
+constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeWithoutChildren
 
 header include/tessera/ui/scene/node_fwd.hpp
 class include/tessera/ui/scene/node_fwd.hpp tessera::ui::Node
@@ -3383,6 +3407,14 @@ function include/tessera/ui/text/hit_test.hpp tessera::ui::text::hit_test_point
 
 header include/tessera/ui/text/scale_glyph_atlas.hpp
 class include/tessera/ui/text/scale_glyph_atlas.hpp tessera::ui::text::ScaleGlyphAtlas
+
+header include/tessera/ui/text/selection_controller.hpp
+class include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionController
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionPoint
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionRange
+struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionTarget
+enum include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionGesture
+function include/tessera/ui/text/selection_controller.hpp tessera::ui::text::copy_text
 
 header include/tessera/ui/text/text_input_runtime.hpp
 class include/tessera/ui/text/text_input_runtime.hpp tessera::ui::text::TextInputRuntime

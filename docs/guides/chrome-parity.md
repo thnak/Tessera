@@ -23,6 +23,25 @@ footer of buttons in several variants and states.
 
 ## 2. Run it
 
+One command answers pass or fail (issue #529):
+
+```bash
+python -B scripts/ci/parity_gate.py --page form
+```
+
+It exits 0 when `structure_diff_pct` is within the threshold (0.5 % by default, the form being at
+0.12 %), 1 when it is over, and **2 when a step could not run** - a missing Playwright, a missing
+gallery binary, a capture that wrote nothing. A step that cannot run is not a pass. It prints both
+numbers and the artifact paths, so a farm agent can attach them to a PR.
+
+`differing_pixels_pct` is printed but **not gated**: it is dominated by text anti-aliasing and would
+gate the font rather than the component. `--page dash` works too (plain CSS); `--page form` writes the
+module's scoped names first (the form's stylesheet is a CSS module, #463).
+
+### The four steps it runs, by hand
+
+Kept as the fallback for when a step needs watching:
+
 ```bash
 # engine (Linux with Mesa lavapipe; the capture is 640x720)
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
@@ -31,7 +50,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
 # the form's stylesheet is a CSS module (#463): write its scoped CSS and class map for the twin
 build/dev/samples/gallery/gallery --emit-module-css out/parity
 
-# Chrome (playwright is not a repository dependency: npm install playwright)
+# Chrome (playwright is not a repository dependency: npm ci --prefix scripts/ci)
 node scripts/ci/chrome_parity.mjs --out out/parity [--chrome <path to chrome>]
 
 # compare
@@ -41,6 +60,10 @@ python scripts/ci/chrome_parity_compare.py --dir out/parity
 The comparison writes `side_by_side.png`, `diff.png`, `overlay.png` (Chrome's element boxes drawn over
 the engine capture, so a layout difference reads as an outline that does not hug its element) and
 `report.json`.
+
+**This is not a CI gate, deliberately.** It needs a browser and a lavapipe capture, so it stays a
+developer and farm tool; a lane that ran it on every PR would need Chrome on that lane. The gate's own
+logic is tested without a browser (`scripts/ci/parity_gate_tests.py`).
 
 `DashPage.tsx` covers what the form does not: round avatars, a solid hero with a coloured shadow, a rotated
 square, `letter-spacing` with `text-transform`, right-aligned numbers, `opacity`, an underline tab and table rows

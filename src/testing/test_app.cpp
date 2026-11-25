@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/appfw/net_fake.hpp"
+#include "tessera/appfw/shell_fake.hpp"
 #include "tessera/testing/test_app.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
@@ -121,6 +123,11 @@ TestApp::TestApp(Config config)
             return static_cast<app::AppHost*>(user)->handle_overlay_input(event);
         },
         &host_);
+    // Issue #838: the update scheduler is kit-owned and installed here, not in each fixture. The
+    // two-step wiring a fixture had to repeat (`host().set_update_scheduler(&scheduler_)` plus
+    // `component.attach_scheduler(...)`) is the mistake this target exists to prevent: forgetting
+    // the first half leaves a setter marking a ticket nothing ever flushes, with no hint why.
+    host_.set_update_scheduler(&scheduler_);
 }
 
 TestApp::~TestApp() = default;
@@ -147,7 +154,7 @@ void TestApp::build() {
     build_scene();
     // One settled frame so bounds, styles and hit testing are valid before the first interaction: a
     // `tap` on an unmeasured tree hits nothing and would look like a broken locator.
-    settle();
+    settle_frame();
 }
 
 double TestApp::now() const {
@@ -207,10 +214,94 @@ void TestApp::run_frame(bool force) {
     ++frames_painted_;
 }
 
-void TestApp::settle() {
+void TestApp::settle_frame() {
     // One forced frame: the settle a test wants after it changed the tree or dispatched input,
     // where "was a frame due" is not the question being asked.
     run_frame(true);
+}
+
+void TestApp::attach(appfw::FakeNet& fake) {
+    fake_net_.push_back(&fake);
+}
+
+void TestApp::attach(appfw::FakeShell& fake) {
+    fake_shell_.push_back(&fake);
+}
+
+std::size_t TestApp::deliver_fakes() {
+    std::size_t delivered = 0;
+    for (appfw::FakeNet* fake : fake_net_) {
+        delivered += fake->deliver_due();
+    }
+    for (appfw::FakeShell* fake : fake_shell_) {
+        delivered += fake->deliver_due();
+    }
+    return delivered;
+}
+
+SettleResult TestApp::settle_step(const SettleConfig& config) {
+    SettleResult result;
+    // The order is the production one, the same one `tick_once` runs and the guide's hand-written
+    // pump loop copied: the clock moves first, then I/O bodies (the worker half) and their
+    // completions (the UI half), what the fakes owe at the instant now reached, the loop (which
+    // fires due timers and drains completions itself), then one frame so the scene shows the
+    // result. Running the executor after the loop would deliver a service's result one frame
+    // late, which a test would read as a mysterious one-tick lag.
+    const double step_seconds = config.tick_seconds > 0.0 ? config.tick_seconds : (1.0 / 60.0);
+    clock_.advance(step_seconds);
+    ++ticks_run_;
+    result.ticks = 1;
+    if (config.pump_io) {
+        result.io_ran += executor_.run(config.io_budget);
+        result.io_ran += executor_.run_completions(config.io_budget);
+        result.io_ran += deliver_fakes();
+    }
+    result.completions += completions_.run(config.completion_budget);
+    const runtime::RuntimeTick tick = loop_.tick();
+    result.completions += tick.completions;
+    result.timers_fired += tick.timers_fired;
+    run_frame(false);
+    // A final unconditional drain with the same budget: delivering a due fake only posts, so the
+    // posts from this step's fakes must be drained before "nothing pending" can be claimed.
+    result.completions += completions_.run(config.completion_budget);
+    // The convergence signal, in the order the issue defines it: no completion queued (the queue's
+    // `empty()` covers queued task continuations too, so a resumed coroutine that has not run yet
+    // is still visible), no timer due at or before the instant now reached - a timer merely
+    // scheduled in the future is not pending, or a request's own timeout would keep a finished
+    // exchange from settling - and, when the worker half is being driven, nothing queued on the
+    // executor and no attached fake still holding an exchange in flight. With `pump_io` off the
+    // worker half and the fakes are frozen instead: the queued work is the "still in flight"
+    // state the test asked to observe, not unfinished business.
+    const double instant = clock_.now_seconds();
+    bool idle = completions_.empty() && timers_.next_deadline_seconds() > instant;
+    if (config.pump_io) {
+        idle = idle && executor_.pending_work() == 0 && executor_.pending_completions() == 0;
+        for (const appfw::FakeNet* fake : fake_net_) {
+            idle = idle && fake->in_flight() == 0;
+        }
+        for (const appfw::FakeShell* fake : fake_shell_) {
+            idle = idle && fake->in_flight() == 0;
+        }
+    }
+    result.outcome = idle ? SettleOutcome::Settled : SettleOutcome::BoundReached;
+    return result;
+}
+
+SettleResult TestApp::settle(const SettleConfig& config) {
+    SettleResult result;
+    const std::size_t bound = config.max_ticks;
+    for (std::size_t tick = 0; tick < bound; ++tick) {
+        const SettleResult step = settle_step(config);
+        result.ticks += step.ticks;
+        result.completions += step.completions;
+        result.timers_fired += step.timers_fired;
+        result.io_ran += step.io_ran;
+        result.outcome = step.outcome;
+        if (step.outcome == SettleOutcome::Settled) {
+            break;
+        }
+    }
+    return result;
 }
 
 bool TestApp::tap(std::uint64_t automation_id) {
@@ -235,7 +326,7 @@ bool TestApp::tap(std::uint64_t automation_id) {
         return false;
     }
     (void)pump_.pump(root_, loop_);
-    settle();
+    settle_frame();
     return true;
 }
 
@@ -266,7 +357,7 @@ bool TestApp::type_text(std::uint64_t automation_id, std::string_view text) {
         offset += length;
     }
     (void)pump_.pump(root_, loop_);
-    settle();
+    settle_frame();
     return true;
 }
 
@@ -275,7 +366,7 @@ void TestApp::send(const ui::InputEvent& event) {
         return;
     }
     (void)pump_.pump(root_, loop_);
-    settle();
+    settle_frame();
 }
 
 void TestApp::dispatch_os_events() {
@@ -302,7 +393,7 @@ void TestApp::dispatch_os_events() {
     }
     if (geometry_moved) {
         host_.set_window_metrics(os_events_.metrics());
-        settle();
+        settle_frame();
     }
 }
 
@@ -313,7 +404,7 @@ void TestApp::press(hal::SystemButton button) {
     dispatch_os_events();
     (void)os_events_.feed_input(pump_.queue());
     (void)pump_.pump(root_, loop_);
-    settle();
+    settle_frame();
 }
 
 ui::Node* TestApp::find(std::uint64_t automation_id) {

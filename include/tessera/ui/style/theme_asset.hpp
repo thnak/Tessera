@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
 #include <cstdint>
@@ -30,12 +31,16 @@ inline constexpr std::string_view kChromeForegroundValue = "#111111";
 //
 // `alignas(64)` (issue #732): two `std::string`s are exactly 64, so with the natural 8-byte
 // alignment seven of eight tokens straddle a line. The alignment changes no offset.
+// MSVC's C4324 describes that intent rather than a defect, so it is suppressed the narrow way this
+// tree already uses (`detail/cache_line.hpp`, issue #898).
+TESSERA_CACHE_LINE_BEGIN
 struct alignas(64) ThemeToken {
     std::string name;
     std::string value;
 
     friend bool operator==(const ThemeToken&, const ThemeToken&) = default;
 };
+TESSERA_CACHE_LINE_END
 
 struct Theme {
     std::string id;
@@ -117,10 +122,12 @@ struct ThemeError {
 //
 // `alignas(64)` (issue #732): two `std::string`s are exactly 64, so with the natural 8-byte
 // alignment seven of eight pins straddle a line. The alignment changes no offset.
+TESSERA_CACHE_LINE_BEGIN
 struct alignas(64) ThemePin {
     std::string theme;
     std::string pin;
 };
+TESSERA_CACHE_LINE_END
 
 // Checks every pin against the asset. A pin naming an unknown theme, a theme without a `version` or
 // a version the pin does not accept is `TESSERA_THEME_VERSION_PIN`, naming the theme and both

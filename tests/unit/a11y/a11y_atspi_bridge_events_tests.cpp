@@ -6,6 +6,7 @@
 
 #include "a11y_atspi_fixture.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -120,6 +121,37 @@ bool empty_batch(AtspiBridge& bridge) {
 
 } // namespace
 
+// A live region speaking reaches D-Bus as `Announcement` (accessibility-v1 section 8).
+//
+// The path is the whole point: the announcement has no node, so it must be emitted against the
+// application's own path, not against a node number that never existed.
+bool announcements_reach_dbus(AtspiBridge& bridge) {
+    tessera::ui::accessibility::AnnouncementQueue announcements;
+    if (!expect(announcements.announce(tessera::ui::accessibility::LiveChannel::Polite, "Saved"),
+                "the queue accepts a polite announcement")) {
+        return false;
+    }
+    if (!expect(bridge.post_announcements(announcements) == 1, "one announcement is posted")) {
+        return false;
+    }
+    if (!expect(announcements.size() == 0, "and the queue is drained")) {
+        return false;
+    }
+    std::vector<std::uint8_t> out;
+    if (!expect(bridge.emit_events(out) == 1, "one signal is emitted")) {
+        return false;
+    }
+    const auto parsed = tessera::ui::a11y::parse_message(out);
+    if (!expect(parsed.has_value(), "the announcement signal parses") ||
+        !expect_equal(parsed->header.member, "Announcement", "the member is Announcement") ||
+        !expect_equal(parsed->header.path, tessera::ui::a11y::kAccessiblePathPrefix,
+                      "and it is addressed to the application, not to a node")) {
+        return false;
+    }
+    // An empty queue posts nothing, so a caller can call this every tick without emitting noise.
+    return expect(bridge.post_announcements(announcements) == 0, "an empty queue posts nothing");
+}
+
 int main() {
     tessera::ui::a11y::BridgeConfig config;
     config.bus_address = "unix:path=/tmp/a11y";
@@ -141,6 +173,9 @@ int main() {
     }
     if (!publishes_replace_state(bridge)) {
         return 5;
+    }
+    if (!announcements_reach_dbus(bridge)) {
+        return 6;
     }
     std::cout << "a11y_atspi_bridge_events: ok\n";
     return 0;

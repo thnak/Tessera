@@ -24,6 +24,9 @@ enum class UserSelect : std::uint8_t {
     Auto,
     None,
     Text,
+    // `all`: a press selects the whole element's text instead of placing a caret (stylesheet-v1
+    // section 11, issue #279).
+    All,
 };
 
 // Scroll runtime style inputs (docs/specs/stylesheet-v1.md section 11 and

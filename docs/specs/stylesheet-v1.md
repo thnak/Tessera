@@ -341,7 +341,7 @@ Two custom properties are reserved because the framework reads them before a ren
 | `@font-face` | parse | font loading is [ADR-006](../../decisions/ADR-006-text-stack.md); V1 uses committed fonts |
 | `@keyframes` | parse | animation runtime samples at fixed timestep |
 | `@import` | build-time | resolved by the asset/build pipeline |
-| `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only. Re-resolution on a size change is the engine observer of the settle loop ([layout-observation.md](../design/layout-observation.md) section 5.4): only a crossed condition restyles |
+| `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only, and size containment applies: a contained axis left `auto` sizes from the container, not its descendants (`inline-size` contains the inline axis, `size` both), which is what keeps a self-referencing query loop-free; an authored length is never overridden. Re-resolution on a size change is the engine observer of the settle loop ([layout-observation.md](../design/layout-observation.md) section 5.4): only a crossed condition restyles |
 | `@property` | Later | parsed; typed custom properties in V1.1 |
 | `@scope` | yes | `@scope (<start>) [to (<end>)]`; a rule applies only inside the region, and `@layer`/source order are unchanged (issue #622, [`theme-scoping.md`](../design/theme-scoping.md)) |
 | `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
@@ -367,7 +367,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
-| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
+| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select` (auto/none/text/all), `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent, `light-dark()`, `color-mix()` | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
@@ -476,13 +476,13 @@ matches):**
   are unchanged: `pointer-events` is not `display`/`visibility` and never hides a node from
   assistive technology. The resolved value is copied onto the scene node by
   `style::sync_interaction_style` (`tests/unit/interaction_style_tests.cpp`).
-- `user-select: auto | none | text` (initial `auto`, inherited): `none` blocks starting a text
-  selection at the node and in its subtree (drag-select included), `text` allows it, and `auto` keeps
-  the default (static text is selectable). An editable `TextInput`/`TextArea` always allows
-  selection, whatever an ancestor's `none` says, as in CSS. The scene exposes the resolved policy as
-  `Node::text_selection_allowed()`; the static-text selection controller it gates is a later slice
-  and the editable-field path is the implemented consumer
-  (`tests/unit/interaction_style_tests.cpp`).
+- `user-select: auto | none | text | all` (initial `auto`, inherited): `none` blocks starting a text
+  selection at the node and in its subtree (drag-select included), `text` allows it, `auto` keeps the
+  default (static text is selectable), and `all` selects the whole element's text on a press. An
+  editable `TextInput`/`TextArea` always allows selection, whatever an ancestor's `none` says, as in
+  CSS. `Node::text_selection_allowed()` exposes the resolved policy and
+  `text::SelectionController` (`tests/unit/selection_controller_tests.cpp`) is the static-text
+  consumer for all four values; `tests/unit/interaction_style_tests.cpp` covers the editable one.
 - `aspect-ratio: auto | <number> | <number> / <number>` (initial `auto`, not inherited): layout maps
   a positive numeric ratio onto Yoga's aspect ratio, so a box with one `auto` dimension gets the
   other from the ratio; an explicit `width` or `height` wins over the ratio, as in CSS. Both ratio

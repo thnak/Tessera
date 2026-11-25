@@ -3,9 +3,9 @@
 How to cross-compile Tessera for Android and run its tests on an emulator. The lane is advisory
 (nightly and on demand, [`.github/workflows/android.yml`](../../.github/workflows/android.yml)) and
 Android is not a V1 platform ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md),
-Big Step F). What exists today is the **null backend** and the test executables; there is no
-`AndroidManifest.xml`, no Gradle project, no `ANativeWindow`/`NativeActivity` glue and no
-`VK_KHR_android_surface` path, so no runnable Android app can be produced yet.
+Big Step F). What exists is the **null backend**, the test executables, and the app shell's Gradle
+project (`android/`) whose Java the lane now type-checks. Missing: the `ANativeWindow`/`NativeActivity`
+glue and the `VK_KHR_android_surface` path, so no runnable app can be produced yet.
 
 ## 1. Use the NDK the workflow uses
 
@@ -262,9 +262,9 @@ stays unit-tested on every lane.
 ### 3.7 What is still missing
 
 - **Accessibility's long tail.** The role/action mapping, the pull-side provider, the Java
-  `AccessibilityNodeProvider` and `SetText` (3.9) are done. Not wired: live regions, collection
-  set-size/position, and `SetSelection` - the engine's `Action` has no caret member, so that request
-  is delegated to the platform rather than accepted and ignored.
+  `AccessibilityNodeProvider`, `SetText`, `SetSelection` and collection set-size/position (3.9) are
+  done - `SetSelection` routes through the IME's `nativeSetSelection`, so a screen reader's range and
+  a dragged handle end in one engine state. Not wired: live regions and the coalesced announcements.
 - **The IME's long tail.** `requestCursorUpdates` answers once (3.18); only the async cursor stream,
   which the engine has no notion of, remains.
 - **A generated component.** The shell's scene is hand-built: the codegen CLI runs on the host and

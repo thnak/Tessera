@@ -43,41 +43,32 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
      */
     static final int HOST_VIEW_ID = -1;
 
-    /** Matches {@code ui::a11y::kMaxChildren} and {@code hal::android::kMaxActions}. */
-    static final int MAX_CHILDREN = 64;
-    static final int MAX_ACTIONS = 8;
-
     /**
-     * Field indices into the packed {@code long[]} one {@code nativeDescribe} call fills. The native
-     * side writes exactly these slots, so the two halves of the bridge agree on a layout rather than
-     * on a sequence of calls.
+     * The packed {@code long[]} layout lives in {@link TesseraA11ySlots}, which is pure arithmetic so
+     * a plain JUnit run can pin it. Every slot index below is a short alias for clarity at the use
+     * sites; the values and the check that they agree with the native writer are in one place.
      */
-    private static final int FLAG_ENABLED = 0;
-    private static final int FLAG_FOCUSABLE = 1;
-    private static final int FLAG_CHECKABLE = 2;
-    private static final int FLAG_CHECKED = 3;
-    private static final int FLAG_SELECTED = 4;
-    private static final int FLAG_EDITABLE = 5;
-    private static final int FLAG_SCROLLABLE = 6;
-    private static final int FLAG_ACCESSIBILITY_FOCUSED = 7;
-    /** Derived: a node that offers Press is clickable. TalkBack gates activation on this flag. */
-    private static final int FLAG_CLICKABLE = 8;
-    private static final int FLAG_LONG_CLICKABLE = 9;
-    /** The node is one item of a collection, and the two slots below describe where it sits. */
-    private static final int FLAG_COLLECTION_ITEM = 10;
-    private static final int FLAG_COUNT = 11;
-    // Bounds follow the flags: x, y, width, height. Fixed point in 1/64 px, so a fractional logical
-    // position survives the crossing and rounds once, here, instead of being truncated twice.
-    private static final int BOUNDS_X = FLAG_COUNT;
-    private static final int BOUNDS_Y = FLAG_COUNT + 1;
-    private static final int BOUNDS_W = FLAG_COUNT + 2;
-    private static final int BOUNDS_H = FLAG_COUNT + 3;
-    /** 1-based position and the collection's item count, as {@code aria-posinset}/{@code aria-setsize}. */
-    private static final int POS_IN_SET_SLOT = FLAG_COUNT + 4;
-    private static final int SET_SIZE_SLOT = FLAG_COUNT + 5;
-    /** The packed array's size: flags, bounds, collection position, action count + ids, child count + ids. */
-    private static final int SLOT_COUNT =
-            FLAG_COUNT + 6 + 1 + MAX_ACTIONS + 1 + MAX_CHILDREN;
+    private static final int MAX_CHILDREN = TesseraA11ySlots.MAX_CHILDREN;
+    private static final int MAX_ACTIONS = TesseraA11ySlots.MAX_ACTIONS;
+
+    private static final int FLAG_ENABLED = TesseraA11ySlots.FLAG_ENABLED;
+    private static final int FLAG_FOCUSABLE = TesseraA11ySlots.FLAG_FOCUSABLE;
+    private static final int FLAG_CHECKABLE = TesseraA11ySlots.FLAG_CHECKABLE;
+    private static final int FLAG_CHECKED = TesseraA11ySlots.FLAG_CHECKED;
+    private static final int FLAG_SELECTED = TesseraA11ySlots.FLAG_SELECTED;
+    private static final int FLAG_EDITABLE = TesseraA11ySlots.FLAG_EDITABLE;
+    private static final int FLAG_SCROLLABLE = TesseraA11ySlots.FLAG_SCROLLABLE;
+    private static final int FLAG_ACCESSIBILITY_FOCUSED = TesseraA11ySlots.FLAG_ACCESSIBILITY_FOCUSED;
+    private static final int FLAG_CLICKABLE = TesseraA11ySlots.FLAG_CLICKABLE;
+    private static final int FLAG_LONG_CLICKABLE = TesseraA11ySlots.FLAG_LONG_CLICKABLE;
+    private static final int FLAG_COLLECTION_ITEM = TesseraA11ySlots.FLAG_COLLECTION_ITEM;
+    private static final int BOUNDS_X = TesseraA11ySlots.BOUNDS_X;
+    private static final int BOUNDS_Y = TesseraA11ySlots.BOUNDS_Y;
+    private static final int BOUNDS_W = TesseraA11ySlots.BOUNDS_W;
+    private static final int BOUNDS_H = TesseraA11ySlots.BOUNDS_H;
+    private static final int POS_IN_SET_SLOT = TesseraA11ySlots.POS_IN_SET_SLOT;
+    private static final int SET_SIZE_SLOT = TesseraA11ySlots.SET_SIZE_SLOT;
+    private static final int SLOT_COUNT = TesseraA11ySlots.slotCount();
 
     private final TesseraView view;
     private final long nativeHandle;
@@ -245,17 +236,51 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
         // selection is a UTF-8 byte offset, while both platform values are UTF-16 offsets, so the
         // selection is passed as text for the same reason a `SetText` is - the bridge cannot do the
         // conversion without the buffer, and the engine already owns one.
-        // A selection request is not something the engine's Action vocabulary can express, so it is
-        // refused rather than accepted and ignored: `super` then answers with whatever this platform
-        // version does for it, and the screen reader is not told a caret move happened.
+        // A selection request is a caret move, and the engine already owns one: the IME's own path
+        // (`TesseraInputConnection`) sets it through `nativeSetSelection`, which converts UTF-16
+        // offsets to the buffer's UTF-8 bytes and publishes the painted decoration. Routing here
+        // through the same call means a screen reader's "select from here to here" and the user
+        // dragging a handle end in exactly the same engine state - two implementations would be two
+        // places to get the surrogate-pair arithmetic wrong.
         if (action == AccessibilityNodeInfo.ACTION_SET_SELECTION) {
-            return super.performAction(virtualViewId, action, arguments);
+            final int[] range = selectionRange(arguments);
+            if (range == null) {
+                // No usable start/end pair: fall back to the platform rather than moving the caret
+                // somewhere arbitrary.
+                return super.performAction(virtualViewId, action, arguments);
+            }
+            TesseraView.nativeSetSelection(nativeHandle, range[0], range[1]);
+            return true;
         }
         final String payload = payloadFor(action, arguments);
         if (nativePerformAction(nativeHandle, virtualViewId, action, payload)) {
             return true;
         }
         return super.performAction(virtualViewId, action, arguments);
+    }
+
+    /**
+     * The {@code (start, end)} UTF-16 range an {@code ACTION_SET_SELECTION} carries, or null.
+     *
+     * <p>The platform puts them under {@link AccessibilityNodeInfo#ACTION_ARGUMENT_SELECTION_START_INT}
+     * and {@code ..._END_INT}. Either being absent is "no request" rather than "zero": a caller that
+     * named only the start has asked for something this method will not invent an end for.
+     */
+    private static int[] selectionRange(Bundle arguments) {
+        if (arguments == null) {
+            return null;
+        }
+        if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
+                || !arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)) {
+            return null;
+        }
+        final int start =
+                arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, -1);
+        final int end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, -1);
+        if (start < 0 || end < 0) {
+            return null;
+        }
+        return new int[] {start, end};
     }
 
     @Override
@@ -277,23 +302,24 @@ final class TesseraAccessibilityProvider extends AccessibilityNodeProvider {
     // --- Packed slot layout --------------------------------------------------------------------
 
     private static int actionCountIndex() {
-        return FLAG_COUNT + 4;
+        return TesseraA11ySlots.actionCountIndex();
     }
+
     private static int actionIndex(int i) {
-        return actionCountIndex() + 1 + i;
+        return TesseraA11ySlots.actionIndex(i);
     }
 
     private static int childCountIndex() {
-        return actionCountIndex() + 1 + MAX_ACTIONS;
+        return TesseraA11ySlots.childCountIndex();
     }
 
     private static int childIndex(int i) {
-        return childCountIndex() + 1 + i;
+        return TesseraA11ySlots.childIndex(i);
     }
 
     /** Fixed-point 1/64 px back to a pixel coordinate, rounding half away from zero. */
     private static int unpack(long value) {
-        return (int) Math.round(value / 64.0);
+        return TesseraA11ySlots.unpack(value);
     }
 
     // --- Native ------------------------------------------------------------------------------

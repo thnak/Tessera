@@ -112,7 +112,17 @@ _NAMESPACE_ALIAS_RE = re.compile(r"^namespace\s+([A-Za-z_]\w*)\s*=")
 #
 # `TESSERA_EMPTY_BASES` (`__declspec(empty_bases)` on MSVC, empty elsewhere) sits in the same place
 # on `ui::Node`. The scanner resolves no macro, so it is named here as the one specifier macro.
-_ALIGNAS_SPECIFIER_RE = re.compile(r"(?:alignas\s*\([^)]*\)|TESSERA_EMPTY_BASES)\s*")
+#
+# `TESSERA_CACHE_LINE_BEGIN`/`_END` (`detail/cache_line.hpp`) wrap an over-aligned type to suppress
+# MSVC's C4324 around it (issue #898). They sit on their own lines *before* the type, so without
+# naming them the scanner sees `TESSERA_CACHE_LINE_BEGIN` where it expects `struct` and the type
+# disappears from the surface - which the api gate then reports as a breaking removal, even though
+# the declaration is unchanged. Both are empty on a non-MSVC compiler, so a macro-aware scanner would
+# see the same thing.
+_ALIGNAS_SPECIFIER_RE = re.compile(
+    r"(?:alignas\s*\([^)]*\)|TESSERA_EMPTY_BASES|TESSERA_CACHE_LINE_BEGIN|TESSERA_CACHE_LINE_END)"
+    r"\s*"
+)
 _TYPE_RE = re.compile(r"^(class|struct|union|enum)\s+(?:(class|struct)\s+)?([A-Za-z_]\w*)")
 _USING_ALIAS_RE = re.compile(r"^using\s+([A-Za-z_]\w*)\s*=")
 _USING_DECL_RE = re.compile(r"^using\s+([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)+)\s*$")

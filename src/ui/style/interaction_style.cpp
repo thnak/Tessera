@@ -41,8 +41,8 @@ bool pointer_events_enabled(const std::string* value) {
     return !equals_lower(trim(*value), "none");
 }
 
-// `auto` and any unsupported form (`all`, `contain`) resolve to `Auto`, so V1 falls back to the
-// default selectable behaviour instead of blocking a gesture for a value it did not implement.
+// `auto` and any unsupported form (`contain`) resolve to `Auto`, so V1 falls back to the default
+// selectable behaviour instead of blocking a gesture for a value it did not implement.
 UserSelect user_select_value(const std::string* value) {
     if (value == nullptr) {
         return UserSelect::Auto;
@@ -53,6 +53,9 @@ UserSelect user_select_value(const std::string* value) {
     }
     if (equals_lower(normalized, "text")) {
         return UserSelect::Text;
+    }
+    if (equals_lower(normalized, "all")) {
+        return UserSelect::All;
     }
     return UserSelect::Auto;
 }
