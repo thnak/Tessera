@@ -1367,6 +1367,12 @@ constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering:
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuSegWords
 constant include/tessera/rendering/path/gpu_path_encoder.hpp tessera::rendering::path::kGpuStrokeWords
 
+header include/tessera/rendering/path/gpu_path_rasterizer.hpp
+class include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathRasterizer
+struct include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathPipelineDescs
+struct include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathRasterizerConfig
+enum include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuRasterError
+
 header include/tessera/rendering/path/gpu_path_scene.hpp
 struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuPathScene
 struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuPathShape
