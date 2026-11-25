@@ -393,6 +393,22 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     if (geometry_work) {
         restyle_and_layout();
     }
+    // The canvas colour comes from the app's root view, but it is painted over the whole window:
+    // when it changes, the damage of the one dirty node does not cover the rest.
+    if (geometry_work && state.provider != nullptr) {
+        const std::optional<rendering::rhi::Color> canvas =
+            ui::paint::canvas_background(state.root, *state.provider);
+        const auto same = [](const std::optional<rendering::rhi::Color>& lhs,
+                             const std::optional<rendering::rhi::Color>& rhs) {
+            return lhs.has_value() == rhs.has_value() &&
+                   (!lhs ||
+                    (lhs->r == rhs->r && lhs->g == rhs->g && lhs->b == rhs->b && lhs->a == rhs->a));
+        };
+        if (!same(canvas, state.canvas_color)) {
+            state.canvas_color = canvas;
+            state.damage->force_full_redraw();
+        }
+    }
     // Placed overlays need the content size and the anchor bounds, so they position after layout;
     // only a content box that actually moved costs a second pass.
     if (state.overlay_host && state.overlay_host->has_placed()) {
@@ -570,6 +586,9 @@ void AppHost::paint_scene(ui::paint::PaintSink& sink, ui::paint::PaintContext co
     const ui::frame::InterpolationPaintView animated = impl_->pipeline->interpolation_view();
     if (!animated.empty()) {
         context.view = &animated;
+    }
+    if (!context.canvas.has_value()) {
+        context.canvas = impl_->canvas_color;
     }
     ui::paint::paint_scene(impl_->root, *impl_->provider, sink, context);
 }

@@ -2605,6 +2605,17 @@ target_link_libraries(paint_opacity_tests PRIVATE
 
 add_test(NAME paint_opacity COMMAND paint_opacity_tests)
 
+# The canvas background: the app root view's opaque colour is laid over the whole window, as a
+# browser propagates the root/body background to the canvas, without changing the view's box.
+add_executable(paint_canvas_background_tests
+    paint_canvas_background_tests.cpp)
+
+target_link_libraries(paint_canvas_background_tests PRIVATE
+    tessera_frame
+    tessera_runtime)
+
+add_test(NAME paint_canvas_background COMMAND paint_canvas_background_tests)
+
 # Per-run LCD eligibility at the paint seam (#471): the window permission, the per-node narrowing
 # (opacity 1, translate-only) and the paint cache's record/replay of the mark.
 add_executable(paint_lcd_eligibility_tests
