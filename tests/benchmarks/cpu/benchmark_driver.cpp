@@ -136,11 +136,15 @@ void BenchmarkDriver::resolve_dirty_styles() {
 
 namespace {
 
+constexpr ui::Dirty kInputDirt = ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint;
+
 // Rewrites `input` in place, as AppHost does (issue #701): the tree is retained between passes so a
-// pass reuses the elements and their children vectors instead of reallocating every one.
+// pass reuses the elements and their children vectors instead of reallocating every one. A child
+// with no style, layout or paint dirt under it keeps what the last pass wrote, and its stored
+// signature joins the parent's; `rebuild` is set below a restyled node, whose descendants inherit.
 void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
                        ui::layout::LayoutInput& input,
-                       ui::layout::LayoutSignatureBuilder& signature) {
+                       ui::layout::LayoutSignatureBuilder& signature, bool rebuild) {
     input.id = node.id();
     input.text.clear();
     input.text_wrap = false;
@@ -152,6 +156,7 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
     }
     signature.enter(input); // folded while the node is hot, as AppHost does
+    const bool below_rebuild = rebuild || ui::has_flag(node.dirty(), ui::Dirty::Style);
     if (input.children.capacity() < node.children().size()) {
         input.children.reserve(node.children().size());
     }
@@ -160,11 +165,17 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         if (used == input.children.size()) {
             input.children.emplace_back();
         }
-        fill_layout_input(*child, styles, input.children[used], signature);
+        ui::layout::LayoutInput& slot = input.children[used];
+        if (!below_rebuild && slot.subtree_signature != 0 && slot.id == child->id() &&
+            !ui::has_any(child->subtree_dirty(), kInputDirt)) {
+            signature.reuse(slot.subtree_signature);
+        } else {
+            fill_layout_input(*child, styles, slot, signature, below_rebuild);
+        }
         ++used;
     }
     input.children.resize(used);
-    signature.leave(used);
+    input.subtree_signature = signature.leave(used);
 }
 
 } // namespace
@@ -182,7 +193,9 @@ double phase_ms(PhaseClock::time_point begin, PhaseClock::time_point end) {
 void BenchmarkDriver::run_layout_pass() {
     const PhaseClock::time_point input_begin = PhaseClock::now();
     ui::layout::LayoutSignatureBuilder signature(viewport_);
-    fill_layout_input(*root_, *provider_, layout_input_, signature);
+    fill_layout_input(*root_, *provider_, layout_input_, signature, input_stale_);
+    input_stale_ = false;
+    input_built_this_frame_ = true;
     const ui::layout::LayoutInput& input = layout_input_;
     const PhaseClock::time_point input_end = PhaseClock::now();
     phases_.layout_input_ms = phase_ms(input_begin, input_end);
@@ -259,6 +272,11 @@ ui::frame::FramePaint BenchmarkDriver::paint(ui::paint::PaintSink& sink, bool fo
 }
 
 void BenchmarkDriver::end_frame() {
+    // Dirt the layout input never saw is about to be cleared: rebuild the input whole next time.
+    if (!input_built_this_frame_ && ui::has_any(root_->subtree_dirty(), kInputDirt)) {
+        input_stale_ = true;
+    }
+    input_built_this_frame_ = false;
     dirty_.clear(*root_, ui::Dirty::All);
 }
 

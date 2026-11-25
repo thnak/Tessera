@@ -65,15 +65,35 @@ how many bytes a pass touches per object, how they are aligned, and how many obj
 |---|---|---|---|
 | `ui::Node` | 320 | 320 | keep; exact assert stays |
 | `layout::detail::RetainedNode` | 288 | 288 (no split) | measured on MSVC at 12 000 nodes: moving the text payload behind the hot fields (reorder only) moved nothing, so the split below is not taken: median one-text frame 9.56 vs 9.58 ms, layout engine 3.44 vs 3.42 ms, one-size frame 7.03 vs 6.88 ms (5 interleaved runs each). The retained tree is about 3.5 MB, and the layout engine's cost is Yoga, not these fields. Revisit only if a counter shows L1D or LLC misses on it |
-| `layout::LayoutInput` | 88 (pinned) | 64 | trim to one line, or split what only text nodes read |
+| `layout::LayoutInput` | 96 (pinned; was 88) | 96 | trim to one line, or split what only text nodes read |
 | `layout::LayoutBox` | 48 (pinned) | 32 or 64 | avoid straddling in arrays |
-| `ui::PaintData` | 520 (heap, per painted node) | 520 (no split) | counted on the 12 000-node benchmark scene: 649 text runs and 9 images carry one, so about 658 x 520 B = 0.34 MB, under 3% of the 12 MB the per-node types cost, and it is allocated per painted node, not per node. By member: `gradient` 200, `decoration` 104, `vector` 56, `image` 56, `text` 32, `text_style` 28, `spans` 24; a plain text node uses about 80 B of the 520. Splitting the cold 416 B would save at most about 0.27 MB on this scene and add an indirection to every paint read, so it is not taken. Revisit for a scene where most nodes paint a gradient, with a measurement |
+| `ui::PaintData` | 520 (heap, per painted node) | 520 (no split) | counted on the 12 000-node benchmark scene: 649 text runs and 9 images carry one, so about 658 x 520 B = 0.34 MB, under 3% of the 12 MB the per-node types cost, and it is allocated per painted node, not per node. By member: `gradient` 200, `decoration` 104, `vector` 56, `image` 56, `text` 32, `text_style` 28, `spans` 24; a plain text node uses about 80 B of the 520. Splitting the cold 416 B would save at most about 0.27 MB on this scene and add an indirection to every paint read, so it is not taken. Also measured: moving `wrap`, `max_lines` and `text_align` next to `kind` (so layout's input pass reads one line instead of two, and the struct drops to 512 B) left the layout-input phase at 1.86 vs 1.89 ms, so it was not kept. Revisit for a scene where most nodes paint a gradient, with a measurement |
 | `style::ComputedStyle` | 16 | 16 | already a delta over shared defaults |
 | `yoga::Node` (patched, 16 measurement slots) | 776 (584 upstream) | keep | the patch buys about 3.6 ms per frame at 12k nodes; revisit only with a new measurement |
 | `Vertex2D`, `ClipRecord` | 64, 64 | 64 | already asserted |
 
 Total per node today, without `PaintData`: Node + Yoga + RetainedNode + LayoutInput + LayoutBox = 1 520 B
 (about 18 MB at 12 000 nodes). Report this sum in `cpu_benchmark` next to `sizeof_node`.
+
+### Where the layout-input phase goes
+
+Measured with the 12 000-node benchmark scene (MSVC Release, best of 30 fill passes, interleaved
+variants that skip one step each): the whole phase was 1.83 ms. Skipping the `ComputedStyle` resolve
+and assignment saved 0.1 ms, skipping the layout-signature fold 0.3 ms, skipping the text clear and
+copy 0.7 ms, and skipping all three left 0.5 ms for the walk itself. Most leaves are text nodes, so
+the text step is a dependent load through `unique_ptr<optional<PaintData>>` per node (about 70 ns),
+not the string copy: the benchmark's strings fit the small-string buffer. A layout of `PaintData`
+that put the fields it reads in one line changed nothing, so the cost was the indirection itself,
+and no object-size change removes it.
+
+What removed it was not reading unchanged nodes at all. The retained `LayoutInput` tree keeps each
+subtree's signature (`subtree_signature`, 8 bytes, which is why `LayoutInput` is 96 B), the
+signature is hierarchical so a skipped subtree contributes its stored value, and a pass keeps every
+subtree with no style, layout or paint dirt under it (`src/app/layout_input_reuse.hpp`). The phase
+fell from 1.85 ms to 0.01 ms, the one-text frame from 9.5 to 7.7 ms and the one-size frame from 6.9
+to 5.0 ms. The signature of the partly reused tree equalled a full rebuild's on every frame of the
+benchmark. A size budget bought here (8 B on a per-node record) is the trade the rules exist to make
+visible.
 
 ### Checking a change
 

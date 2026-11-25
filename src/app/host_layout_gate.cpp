@@ -29,15 +29,35 @@ namespace tessera::app {
 
 namespace {
 
+// The dirt that can change a layout input: its style, its layout flags, or the text and wrap its
+// paint payload carries.
+constexpr ui::Dirty kInputDirt = ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint;
+
+// A retained input that this pass may keep as it is: it was built for this node, nothing under the
+// node is dirty, and no restyle root is on or above it.
+bool keep_input(const ui::Node& node, const ui::layout::LayoutInput& input,
+                const LayoutInputReuse& reuse, bool on_path) {
+    if (reuse.force_all || input.subtree_signature == 0 || input.id != node.id() ||
+        ui::has_any(node.subtree_dirty(), kInputDirt)) {
+        return false;
+    }
+    return !on_path || (!reuse.roots.contains(&node) && !reuse.path.contains(&node));
+}
+
 // One layout tree of computed styles (the paint pass resolves the same provider, so both agree),
 // written into `input` in place. The tree is retained between passes (issue #701): clearing a
 // `std::vector<LayoutInput>` would free every nested children vector, so a pass reuses the elements
 // it finds and only resizes at the end. On a stable tree that makes the pass allocation-free for
 // the structure (one 176-byte block per container per pass before), and it is also what keeps the
 // MSVC `std::map` move from running at all.
+//
+// A child whose retained input `keep_input` accepts is not visited; its stored signature joins the
+// parent's. `rebuild` is set below a restyle root or a restyled node, whose descendants inherit.
+// `on_path` is true when `node` is a restyle root or one of its ancestors.
 void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
                        const SafeAreaState& safe_area, ui::layout::LayoutInput& input,
-                       ui::layout::LayoutSignatureBuilder& signature) {
+                       ui::layout::LayoutSignatureBuilder& signature, const LayoutInputReuse& reuse,
+                       bool on_path, bool rebuild) {
     input.id = node.id();
     input.text.clear();
     input.text_wrap = false;
@@ -57,6 +77,8 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
     // The layout signature is folded in here, while the node is hot, rather than by a second walk
     // over the finished tree: that walk was a cache miss per node.
     signature.enter(input);
+    const bool below_rebuild = rebuild || ui::has_flag(node.dirty(), ui::Dirty::Style) ||
+                               (on_path && reuse.roots.contains(&node));
     // Growing the vector would move each LayoutInput, and the MSVC `std::map` move constructor is
     // not `noexcept`: the vector then copies every element, subtree and 101-entry style included.
     // Measured at ~330 allocations per node (issue #711). Reserving up front means a grow never
@@ -73,11 +95,20 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         if (used == input.children.size()) {
             input.children.emplace_back();
         }
-        fill_layout_input(*child, styles, safe_area, input.children[used], signature);
+        ui::layout::LayoutInput& slot = input.children[used];
+        if (!below_rebuild && keep_input(*child, slot, reuse, on_path)) {
+            signature.reuse(slot.subtree_signature);
+        } else {
+            const bool child_on_path =
+                on_path && !below_rebuild &&
+                (reuse.roots.contains(child.get()) || reuse.path.contains(child.get()));
+            fill_layout_input(*child, styles, safe_area, slot, signature, reuse, child_on_path,
+                              below_rebuild);
+        }
         ++used;
     }
     input.children.resize(used);
-    signature.leave(used);
+    input.subtree_signature = signature.leave(used);
 }
 
 // True when the safe-area snapshot the last layout pass resolved is still the one in force. The
@@ -126,10 +157,37 @@ bool same_safe_area(const hal::WindowMetrics& before, bool before_valid, const S
 
 } // namespace
 
-void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
+void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles, bool incremental) {
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
     ui::layout::LayoutSignatureBuilder signature(viewport);
-    fill_layout_input(root, styles, safe_area, layout_input, signature);
+    // Which subtrees the retained input can keep (layout_input_reuse.hpp). Anything the dirty flags
+    // cannot vouch for rebuilds the whole input, which is what every pass did before.
+    LayoutInputReuse& reuse = input_reuse;
+    reuse.roots.clear();
+    reuse.path.clear();
+    reuse.force_all = reuse.stale || !incremental || tree == nullptr || !sheet.subtree_local() ||
+                      tree->built_for_structure_epoch() != ui::scene_structure_epoch() ||
+                      reuse.structure_epoch != ui::scene_structure_epoch() ||
+                      !same_safe_area(gated_metrics, gated_metrics_valid, safe_area) ||
+                      tree->restyled_roots().size() > LayoutInputReuse::kMaxRoots;
+    if (!reuse.force_all) {
+        for (const ui::Node* restyled : tree->restyled_roots()) {
+            reuse.roots.insert(restyled);
+            for (const ui::Node* up = restyled->parent();
+                 up != nullptr && reuse.path.insert(up).second; up = up->parent()) {
+            }
+        }
+    }
+    const bool root_on_path = reuse.roots.contains(&root) || reuse.path.contains(&root);
+    if (keep_input(root, layout_input, reuse, !reuse.roots.empty())) {
+        signature.reuse(layout_input.subtree_signature);
+    } else {
+        fill_layout_input(root, styles, safe_area, layout_input, signature, reuse, root_on_path,
+                          false);
+    }
+    reuse.stale = false;
+    reuse.built_this_frame = true;
+    reuse.structure_epoch = ui::scene_structure_epoch();
     const ui::layout::LayoutInput& input = layout_input;
     // The scheduler reuses the cached result when the layout input signature (tree shape,
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
@@ -153,6 +211,15 @@ bool AppHost::Impl::scoped_sync_allowed(bool incremental) const {
     return viewport.width == gated_viewport.width && viewport.height == gated_viewport.height &&
            viewport.dpi_scale == gated_viewport.dpi_scale &&
            same_safe_area(gated_metrics, gated_metrics_valid, safe_area);
+}
+
+void AppHost::Impl::note_frame_end() {
+    // The flags are about to be cleared. If dirt the layout input never saw goes with them, the
+    // retained input is behind the scene and the next pass must rebuild it whole.
+    if (!input_reuse.built_this_frame && ui::has_any(root.subtree_dirty(), kInputDirt)) {
+        input_reuse.stale = true;
+    }
+    input_reuse.built_this_frame = false;
 }
 
 bool AppHost::Impl::layout_unchanged(bool incremental) {

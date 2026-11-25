@@ -7,6 +7,7 @@
 // includes it.
 
 #include "adaptive_quality.hpp"
+#include "layout_input_reuse.hpp"
 #include "memo_style_provider.hpp"
 #include "quality_stage.hpp"
 #include "safe_area_state.hpp"
@@ -71,7 +72,12 @@ struct AppHost::Impl {
     void rebuild_cascade();
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
-    void run_layout_pass(ui::paint::StyleProvider& styles);
+    // `incremental` is false when the selector tree was rebuilt, which also rebuilds the whole
+    // layout input (see layout_input_reuse.hpp).
+    void run_layout_pass(ui::paint::StyleProvider& styles, bool incremental);
+    // Called from `end_frame` before the dirty flags are cleared: a frame that left dirt the layout
+    // input never saw makes the next pass rebuild it whole.
+    void note_frame_end();
     // The one restyle-and-layout sequence a frame and the settle loop share (issue #693 decision
     // 1): rebuild the selector tree, drop the paint cache, run style and layout, sync the scene
     // style and sample the animations that started. A settle round that only re-laid-out would
@@ -202,6 +208,7 @@ struct AppHost::Impl {
     // The layout input tree, retained so a pass rewrites it in place instead of reallocating every
     // container's children vector (issue #701); see `fill_layout_input`.
     ui::layout::LayoutInput layout_input;
+    LayoutInputReuse input_reuse;
     ui::layout::LayoutApplyResult last_applied;
     // The topmost nodes whose box size changed in the last layout pass, and the scoped sync's root
     // list (restyled roots plus those). Kept as members so a steady frame reuses their capacity.

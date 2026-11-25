@@ -49,10 +49,10 @@
       "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #617 added the conic shape to the gradient payload (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry, plus the shape tag); 528 since issue #731 reordered LinearGradient by alignment, which removed 8 bytes of internal padding; 520 since issue #734 gave the enums explicit base types, which removed the last 8. See paint_slot_bytes for what a text node actually allocates"
     },
     "sizeof_layout_input": {
-      "budget": 88,
+      "budget": 96,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::layout::LayoutInput): the per-node layout input built every layout pass (id, shared-storage ComputedStyle, child vector, text string, wrap flag). 88 on MSVC and GCC. Recorded by the object-size rules (docs/guides/code-style.md); the 64-byte target there is not taken because trimming it means moving the text string out, which no measurement has asked for"
+      "measures": "sizeof(ui::layout::LayoutInput): the per-node layout input built every layout pass (id, shared-storage ComputedStyle, child vector, text string, wrap flag). 96 on MSVC and GCC: it was 88 until `subtree_signature` (8 bytes) was added so a retained input can skip an unchanged subtree, which took the layout-input phase of the 12 000-node benchmark from 1.85 ms to 0.01 ms and the one-text frame from 9.5 to 7.7 ms. Recorded by the object-size rules (docs/guides/code-style.md); the 64-byte target there is not taken because trimming it means moving the text string out, which no measurement has asked for"
     },
     "sizeof_layout_box": {
       "budget": 48,

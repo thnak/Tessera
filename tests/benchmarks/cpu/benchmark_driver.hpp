@@ -143,6 +143,10 @@ private:
     std::vector<const ui::Node*> sync_roots_;
     std::vector<const ui::Node*> resized_nodes_;
     bool styles_resolved_ = false;
+    // The retained layout input may be behind the scene (never built, or a frame left dirt it did
+    // not see); the next pass then rebuilds every node, as the host does (layout_input_reuse.hpp).
+    bool input_stale_ = true;
+    bool input_built_this_frame_ = false;
     bool full_repaint_pending_ = false;
 };
 

@@ -41,7 +41,7 @@ void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
     if (layout_unchanged) {
         ++layout_gate_hits;
     } else {
-        run_layout_pass(restyle_memo);
+        run_layout_pass(restyle_memo, incremental);
     }
     // Scoped sync (issue #735, slice B). The gate just proved that no box moved and that only the
     // restyled subtrees changed style, so a node outside them has nothing to re-apply. Without that

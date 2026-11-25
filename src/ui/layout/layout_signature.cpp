@@ -82,11 +82,34 @@ LayoutSignatureBuilder::LayoutSignatureBuilder(const LayoutViewport& viewport) n
     hasher.f32(viewport.width);
     hasher.f32(viewport.height);
     hasher.f32(viewport.dpi_scale);
-    state_ = hasher.value();
+    viewport_state_ = hasher.value();
+    value_ = viewport_state_;
+}
+
+std::uint64_t& LayoutSignatureBuilder::top() noexcept {
+    return depth_ <= kInlineDepth ? inline_[depth_ - 1] : spill_[depth_ - kInlineDepth - 1];
+}
+
+// A finished subtree joins its parent's running state, or becomes the whole tree's value when no
+// node is open.
+void LayoutSignatureBuilder::fold_child(std::uint64_t subtree_signature) noexcept {
+    if (depth_ == 0) {
+        Hasher hasher(viewport_state_);
+        hasher.word(subtree_signature);
+        value_ = hasher.value();
+        return;
+    }
+    Hasher hasher(top());
+    hasher.word(subtree_signature);
+    top() = hasher.value();
+}
+
+void LayoutSignatureBuilder::reuse(std::uint64_t subtree_signature) noexcept {
+    fold_child(subtree_signature);
 }
 
 void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
-    Hasher hasher(state_);
+    Hasher hasher(kSeed);
     hasher.word(kNodeBegin);
     hasher.word(input.id);
 
@@ -108,13 +131,23 @@ void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
     // the result the scheduler reuses (issue #490). Folding it in means a wrap flip re-measures
     // instead of reusing a stale fit fact.
     hasher.word(kTextWrap | (input.text_wrap ? 0x100U : 0U));
-    state_ = hasher.value();
+    // Open the node: its running state starts from its own fields and takes each child's signature
+    // as the children finish.
+    ++depth_;
+    if (depth_ > kInlineDepth && spill_.size() < depth_ - kInlineDepth) {
+        spill_.resize(depth_ - kInlineDepth);
+    }
+    top() = hasher.value();
 }
 
-void LayoutSignatureBuilder::leave(std::size_t child_count) noexcept {
-    Hasher hasher(state_);
+std::uint64_t LayoutSignatureBuilder::leave(std::size_t child_count) noexcept {
+    Hasher hasher(top());
     hasher.word(kNodeEnd | (static_cast<std::uint64_t>(child_count) << 8));
-    state_ = hasher.value();
+    --depth_;
+    // Zero is reserved for "never computed" in `LayoutInput::subtree_signature`.
+    const std::uint64_t signature = hasher.value() == 0 ? 1 : hasher.value();
+    fold_child(signature);
+    return signature;
 }
 
 std::uint64_t layout_signature(const LayoutInput& root, const LayoutViewport& viewport) noexcept {
