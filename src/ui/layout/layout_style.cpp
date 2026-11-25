@@ -369,6 +369,7 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
                     YGNodeStyleSetWidthAuto);
     apply_dimension(node, style, "height", viewport, YGNodeStyleSetHeight,
                     YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto);
+    apply_size_containment(node, style, box_sizing);
     apply_dimension(node, style, "min-width", viewport, YGNodeStyleSetMinWidth,
                     YGNodeStyleSetMinWidthPercent, nullptr);
     apply_dimension(node, style, "min-height", viewport, YGNodeStyleSetMinHeight,
