@@ -11,6 +11,7 @@
 #include "emit_node_groups.hpp"
 #include "emit_vector.hpp"
 #include "interpolation.hpp"
+#include "painted_text.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -165,7 +166,7 @@ void emit_scroll_flags(NodeEmitContext& context) {
 }
 
 bool emit_paint_payload(NodeEmitContext& context) {
-    const ir::Expr* paint_expr = context.node.text.get();
+    const ir::Expr* paint_expr = painted_text(context.node);
     if (paint_expr == nullptr && context.controlled_input != nullptr) {
         paint_expr = context.controlled_input->value;
     }

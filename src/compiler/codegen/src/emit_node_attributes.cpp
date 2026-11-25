@@ -101,6 +101,11 @@ NodeEmitContext::Outcome emit_node_prelude(NodeEmitContext& context) {
         // The `Path` vector payload owns these props (emit_vector.cpp) and rejects a non-literal
         // value with a diagnostic that names the prop; validating them here would report the
         // generic expression error first.
+        // A `Button`'s `label` is its caption: painted_text() hands it to the text passes, which
+        // check it is printable (and interpolate it) exactly as for a `Text`.
+        if (node.kind == ir::NodeKind::Button && name == "label") {
+            continue;
+        }
         if (node.kind == ir::NodeKind::Path &&
             (name == "d" || name == "viewBox" || name == "fill" || name == "stroke" ||
              name == "strokeWidth" || name == "label")) {

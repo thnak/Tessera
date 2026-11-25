@@ -9,6 +9,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_forms.hpp"
 #include "interpolation.hpp"
+#include "painted_text.hpp"
 #include "value_ops.hpp"
 
 #include <optional>
@@ -26,10 +27,11 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-// The interpolation source of a node: its `Text` payload, or a controlled field's value prop.
+// The interpolation source of a node: its `Text` payload or `Button` caption, or a controlled
+// field's value prop.
 const ir::Expr* paint_expression(const ir::Node& node) {
-    if (node.text != nullptr) {
-        return node.text.get();
+    if (const ir::Expr* text = painted_text(node)) {
+        return text;
     }
     if (node.kind != ir::NodeKind::TextInput && node.kind != ir::NodeKind::TextArea) {
         return nullptr;

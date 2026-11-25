@@ -660,6 +660,16 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     add_test(NAME codegen_binding_reads COMMAND codegen_binding_reads_tests)
 
+    # A Button's text-only children are its `label` prop; the native generator must paint it (the
+    # counter template drew empty buttons). Hand-built IR over the generator and the read-set
+    # analysis, so it also needs the private source directory.
+    add_executable(codegen_button_label_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_button_label_tests.cpp)
+    target_link_libraries(codegen_button_label_tests PRIVATE tessera_codegen)
+    target_include_directories(codegen_button_label_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME codegen_button_label COMMAND codegen_button_label_tests)
+
     # Issue #834 (ADR-051 implementation note, ADR-056 decisions 1 and 5): generated record
     # equality, per-field dirty bits, and record list elements. The emission test owns the goldens
     # (`codegen_record_equality_tests --write`); a runtime test drives the generated base.

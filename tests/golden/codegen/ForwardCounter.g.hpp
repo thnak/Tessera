@@ -104,6 +104,8 @@ namespace forward {
     template <class Self>
     concept ForwardCounterContract = true;
     namespace ForwardCounter_detail {
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_2 = tessera::ui::DirtyMask<4>::of({3});
       // text binding of node::3 reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_3 = tessera::ui::DirtyMask<4>::of({3});
       template <class Self>
@@ -131,6 +133,9 @@ namespace forward {
       node_2->set_automation_id(13032317110770200247ull);
       node_2->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_2_onClick, this);
       node_2->set_focusable(true);
+      tessera::ui::PaintData paint_node_2;
+      paint_node_2.text = "Add";
+      node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
       // node::3 events={onChange:handler::2}
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9933229183899325470ull + node_id_base_));

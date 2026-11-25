@@ -112,6 +112,8 @@ namespace demo {
       requires std::is_convertible_v<decltype(&Self::on_validate), void (Self::*)(const tessera::ui::TextChangeEvent&)>;
     };
     namespace FieldPage_detail {
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_text_2 = tessera::ui::DirtyMask<3>::of({2});
       // meta binding of node::1 `className` reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_meta_1_className = tessera::ui::DirtyMask<3>::of({2});
       // prop binding of node::3 `error` reads: nothing.
@@ -150,6 +152,9 @@ namespace demo {
       node_2->set_element_kind("Button");
       node_2->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_2_onClick, this);
       node_2->set_focusable(true);
+      tessera::ui::PaintData paint_node_2;
+      paint_node_2.text = "Set";
+      node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
       // node::3 ("comp::Field" instance, slot children: 1)
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull + node_id_base_));
