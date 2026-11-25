@@ -132,13 +132,19 @@ that request and is counted (`gpu_fallbacks`); a failed flush drops the waiting 
 `acquire` rasterizes them on the CPU. A texture evicted while its raster is still queued is submitted
 first and kept one more frame, because the copy into it is in flight; device loss discards the queue.
 
-No production code owns a `PathTextureCache` yet: the window device builds its sink without a
-`VectorPaintConfig`, so SVG draws in a windowed app are not wired at all and only tests and tools
-construct the cache. The composition-root recipe (build the rasterizer from
-`vulkan::path_raster_pipeline_descs()`, `warm` at startup, `set_gpu_rasterizer`, `flush_gpu` before the
-draw list, `end_frame` after) is on `path_raster_pipeline_descs` in
-`include/tessera/rendering/vulkan/path_raster_pipeline.hpp`; whoever adds the windowed vector stack
-follows it.
+The windowed app owns one now (`src/app/window_vector.*`, `detail::VectorStack`): the
+`WindowDevice` group builds it with the other per-device caches from `WindowOptions::vector_assets` /
+`vector_bundles` (borrowed asset bundles; none means vector draws stay no-ops), owns the
+`SvgDocumentCache`, a `PathTextureCache` of 256 entries / 64 MiB in the swapchain's format, and, when
+the device can run it, a warmed `GpuPathRasterizer` routed by `choose_raster_route`. `render_and_present`
+calls `flush()` after `paint_scene` and before the draw list is recorded, and `end_frame()` after the
+submit, only once this window's older frame has finished (a texture evicted during a frame is not
+destroyed while the frame before it may still sample it; with two windows sharing the cache the other
+window's frame is not checked, so the cache is sized to keep a window's assets resident). A device
+generation change releases and rebuilds the stack with the rest of the group's caches.
+`tests/gpu/app_window_vector_tests.cpp` drives it on a real hidden window with validation on: 24
+frames, each a new 140+ px raster, 24 GPU rasters, 0 fallbacks, validation-clean on both the RX 5300M
+and the iGPU.
 
 **The 128 px line stays** (`tests/gpu/batched2d/path_route_measure.cpp`, 48 distinct icons per
 stream, best of 10, the four SVG fixtures at 32 to 256 px, ThorVG against the GPU route forced on,

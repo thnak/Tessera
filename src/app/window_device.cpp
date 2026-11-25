@@ -8,6 +8,7 @@
 #include "tessera/app/window_device.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "window_internal.hpp"
+#include "window_vector.hpp"
 
 #include <cstdio>
 #include <exception>
@@ -274,15 +275,21 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation
     // instead of reusing an atlas whose images died with the old device.
     text_ = std::make_unique<detail::TextStack>(*device_, options.font_path);
-    sink_ = std::make_unique<ui::paint::Batched2DSink>(*renderer_, text_->renderer.get(),
-                                                       text_->shaper.get());
+    // The vector stack is built against this device and format, so it lives and dies with them: a
+    // device generation change rebuilds it (and its GPU pipelines) with the rest.
+    vector_ = std::make_unique<detail::VectorStack>(*device_, format, options.vector_assets,
+                                                    options.vector_bundles);
+    sink_ = std::make_unique<ui::paint::Batched2DSink>(
+        *renderer_, text_->renderer.get(), text_->shaper.get(),
+        vector_->available() ? vector_->config(1.0f) : ui::paint::VectorPaintConfig{});
     return true;
 }
 
 void WindowDevice::release_presentation() {
-    // Destruction order is the dependency order: the sink borrows the renderer and the text
-    // renderer, and the renderer borrows the pipeline and the white texture.
+    // Destruction order is the dependency order: the sink borrows the renderer, the text
+    // renderer and the vector stack, and the renderer borrows the pipeline and the white texture.
     sink_.reset();
+    vector_.reset();
     renderer_.reset();
     text_.reset();
     white_.reset();

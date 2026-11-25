@@ -55,6 +55,8 @@ class include/tessera/app/window.hpp tessera::app::WindowHost
 class include/tessera/app/window.hpp tessera::rendering::rhi::Device
 class include/tessera/app/window.hpp tessera::runtime::Clock
 class include/tessera/app/window.hpp tessera::ui::FocusManager
+class include/tessera/app/window.hpp tessera::ui::assets::AssetBundle
+class include/tessera/app/window.hpp tessera::ui::assets::ComposedAssetBundle
 class include/tessera/app/window.hpp tessera::ui::text::TextInputRuntime
 class include/tessera/app/window.hpp tessera::ui::text::TextMeasurer
 struct include/tessera/app/window.hpp tessera::app::CaptureOptions
@@ -69,6 +71,7 @@ header include/tessera/app/window_device.hpp
 class include/tessera/app/window_device.hpp tessera::app::WindowDevice
 class include/tessera/app/window_device.hpp tessera::app::WindowHost
 class include/tessera/app/window_device.hpp tessera::app::detail::TextStack
+class include/tessera/app/window_device.hpp tessera::app::detail::VectorStack
 struct include/tessera/app/window_device.hpp tessera::app::WindowDeviceOptions
 struct include/tessera/app/window_device.hpp tessera::app::WindowOptions
 alias include/tessera/app/window_device.hpp tessera::app::rhi

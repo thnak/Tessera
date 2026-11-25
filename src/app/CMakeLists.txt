@@ -131,7 +131,11 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         # The frame's paint-target decision (adaptive render scale, glass, 4x MSAA presentation),
         # split out of window.cpp for its size budget.
         window_present_targets.cpp
-        window_recovery.cpp)
+        window_recovery.cpp
+        # The SVG stack the group paints vector nodes through: document and texture caches plus the
+        # GPU path rasterizer (ADR-071), built with the other per-device caches.
+        window_vector.cpp
+        window_vector.hpp)
 
     target_include_directories(tessera_app_window PUBLIC
         ${PROJECT_SOURCE_DIR}/include)
@@ -145,6 +149,7 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         tessera_hal_window
         tessera_input_pump
         tessera_paint
+        tessera_path
         tessera_rhi_vulkan
         # The null backend (issue #228): a `WindowDevice` may be created with `Backend::Null` so the
         # multi-window acceptance can prove device sharing on a headless lane, where no presentation

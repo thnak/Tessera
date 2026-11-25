@@ -977,6 +977,21 @@ if (TARGET tessera_app_window)
         tessera_app_window
         tessera_scale)
     add_test(NAME app_window_render_scale COMMAND app_window_render_scale_tests)
+
+    # The SVG stack on the real window path (ADR-071): an asset bundle given through WindowOptions is
+    # painted by a scene node, every frame a new raster that routes to the GPU rasterizer, flushed
+    # ahead of the draw list - validation-clean with two frames in flight.
+    add_executable(app_window_vector_tests
+        app_window_vector_tests.cpp)
+    target_compile_definitions(app_window_vector_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_vector_tests PRIVATE
+        tessera_app_window
+        tessera_path)
+    add_test(NAME app_window_vector COMMAND app_window_vector_tests)
+    set_tests_properties(app_window_vector PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     set_tests_properties(app_window_render_scale PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")

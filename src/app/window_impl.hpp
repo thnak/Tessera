@@ -112,6 +112,9 @@ struct WindowHost::Impl {
     [[nodiscard]] ui::paint::Batched2DSink* sink() noexcept {
         return group != nullptr ? group->sink() : nullptr;
     }
+    [[nodiscard]] detail::VectorStack* vector() noexcept {
+        return group != nullptr ? group->vector() : nullptr;
+    }
     [[nodiscard]] rhi::Pipeline* present_pipeline() noexcept {
         return group != nullptr ? group->present_pipeline() : nullptr;
     }

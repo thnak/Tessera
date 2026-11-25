@@ -27,6 +27,11 @@ namespace tessera::runtime {
 class Clock;
 }
 
+namespace tessera::ui::assets {
+class AssetBundle;
+class ComposedAssetBundle;
+} // namespace tessera::ui::assets
+
 namespace tessera::ui {
 class FocusManager;
 struct InputEvent;
@@ -62,6 +67,14 @@ struct WindowOptions {
     double refresh_hz = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
+    // The embedded assets a `Path` / SVG node names (the generated `vector_assets()` bundle, the
+    // project manifest bundle, or both composed). Borrowed: they must outlive the window group.
+    // With neither set a vector draw is the documented no-op. A device-wide input: the first window
+    // to present builds the shared vector stack from it, so later windows of a group use the same
+    // one. `vector_bundles` wins over `vector_assets` when both are set (ComposedAssetBundle
+    // order).
+    const ui::assets::AssetBundle* vector_assets = nullptr;
+    const ui::assets::ComposedAssetBundle* vector_bundles = nullptr;
     // Creates the backend device with the Khronos validation layer (and synchronization validation)
     // enabled. Off in production; GPU tests turn it on to prove a frame run is validation-clean.
     bool validation = false;
@@ -160,6 +173,12 @@ struct WindowFrameStats {
     // scene on every present, so this is the plan's own verdict: it proves a resume after a pause
     // repaints fully instead of trusting the pre-pause damage state.
     std::uint32_t full_repaints = 0;
+    // Vector (SVG) draws painted, and how the shared vector stack rasterized them: misses queued on
+    // the GPU rasterizer, and GPU requests that fell back to ThorVG (ADR-071). Totals for the
+    // group.
+    std::uint64_t vector_draws = 0;
+    std::uint64_t vector_gpu_rasterizations = 0;
+    std::uint64_t vector_gpu_fallbacks = 0;
     std::uint32_t idle_waits = 0;
     std::uint32_t input_events = 0;
     // Caret visibility flips produced by a blink tick (two per visible+hidden period). A flip
