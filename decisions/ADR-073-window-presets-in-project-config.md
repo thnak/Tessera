@@ -129,11 +129,12 @@ What follows for Tessera:
 - **The preset values stay simulation inputs, not CSS values.** `foldPosture` (`flat`, `book`,
   `tabletop`) and `hingeAngle` are the HAL's vocabulary (`parse_fold_posture`, `FoldInfo`) used to
   drive a simulation. The names a stylesheet sees are the standard ones above.
-- **The angle is a runtime signal, not a stylesheet feature.** The engine already carries it: Android
-  fills `hinge_angle_degrees` from `Sensor.TYPE_HINGE_ANGLE`, and it changes on `HingeAngleChanged`
-  rather than `FoldChanged` so a slow fold does not relayout per degree. If an app should animate
-  against it, that is a native API (a hook returning an animatable value, like `useAnimatedValue`), not
-  CSS, so there is nothing to conflict with a future W3C feature. That hook is not decided here.
+- **The angle reaches CSS as a Tessera variable, not a W3C name.** The engine already carries it:
+  Android fills `hinge_angle_degrees` from `Sensor.TYPE_HINGE_ANGLE`, and it changes on
+  `HingeAngleChanged` rather than `FoldChanged` so a slow fold does not relayout per degree.
+  [ADR-074](ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md) exposes it as
+  `env(--tessera-hinge-angle)`, a host-defined `--` variable that cannot collide with a future
+  standard name, usable only in paint-only properties.
 - **Simulation (decided here).** The Studio's postures leave the angle unknown, so a project cannot
   review its design at 90 degrees. A preset's `hingeAngle` sets it, and the Studio gains a continuous
   angle control that sends a new `hingeAngle` field through `viewport.set`. Changing the angle runs
@@ -173,7 +174,7 @@ strict schema working as designed.
   someone who expects a native run to behave like the preview. Section 4 says it, and the flag's help
   text must too.
 - A foldable design can be reviewed at a chosen angle in the Studio before any device exists, but
-  the app still cannot react to the angle until the native hook of section 5 is decided.
+  a stylesheet cannot read the angle until [ADR-074](ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md) is accepted and implemented.
 
 ## Alternatives considered
 
@@ -201,6 +202,6 @@ Implementation slices, one landing each, to be filed when this is accepted:
 4. Update `project-config-v1`, `designer-studio-v1` sections 5.3 and 6, `os-events-v1` and the `new`
    templates.
 
-A separate ADR, to be written next: exposing folds to stylesheets with the standard `device-posture`,
-`*-viewport-segments` and `env(viewport-segment-*)` names, and whether the hinge angle gets a native
-hook. It must not add a CSS name the W3C has not defined.
+[ADR-074](ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md) covers exposing folds and the window
+environment to stylesheets: the standard names where they exist and `--tessera-` variables where they
+do not. It must not add a CSS name the W3C has not defined outside that prefix.

@@ -83,6 +83,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-071](ADR-071-gpu-compute-tile-rasterizer.md) | A GPU compute tile rasterizer (Vello-style) for vector paths, amending ADR-057/ADR-004: cost scales with segments, not pixels; encode stays CPU-incremental, flatten/stroke/morph on the GPU; evidence for the spike is still open (#683) | Proposed |
 | [ADR-072](ADR-072-rhi-copy-buffer-to-texture.md) | RHI 1.17: copy a buffer into a texture inside a command list (the handoff from the compute rasterizer to the renderer), one command and one capability; alternatives include a resolve pass that needs no RHI change (#683) | Accepted (slices 1-2; WebGPU/Metal proposed) |
 | [ADR-073](ADR-073-window-presets-in-project-config.md) | Window presets declared in `tessera.json` (`window.presets`, `window.preset`, min/max window bounds): named sizes the Studio, headless runs (`--window-preset`, `all`) and the first native window share, with a simulated fold posture and hinge angle (no CSS angle: W3C has none); data only, bundled skins only, no runtime switching | Proposed |
+| [ADR-074](ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md) | Stylesheet environment: the standard fold media features (`device-posture`, `*-viewport-segments`), `env()` with the standard variables, and `--tessera-` author-defined variables (hinge angle, IME and gesture insets) where the W3C has none; the angle is continuous and paint-only, never in the media context | Proposed |
 
 ## Dependency overview
 
@@ -144,6 +145,7 @@ ADR-070 frame arena (accepted) ── memory-model-v1 sections 2/3/9, #701 measu
 ADR-071 GPU compute tile rasterizer (proposed) ── ADR-057 vector paths exit, ADR-004, ADR-068 storage buffers, ADR-049 RHI versioning
 ADR-072 RHI copy buffer to texture ── ADR-071 compute rasterizer handoff, ADR-049 RHI versioning, ADR-003 thin RHI
 ADR-073 window presets (proposed) ── project-config-v1 window block, designer-studio-v1 skins and presets, responsive window-is-media-context, ADR-045 skins
+ADR-074 stylesheet environment (proposed) ── ADR-073 presets and simulated fold, ADR-023 FoldInfo, responsive re-resolve rule, use-media-query-v1, animation-runtime paint-only frames
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
