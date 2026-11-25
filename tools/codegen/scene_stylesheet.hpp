@@ -5,6 +5,7 @@
 #include "scene_project.hpp"
 #include "tessera/compiler/css_module/module_scan.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
+#include "tessera/hal/fold_posture.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstddef>
@@ -90,8 +91,14 @@ css_diagnostic_code(tessera::ui::style::StyleDiagnosticKind kind) noexcept;
 // `@media (max-width: 600px)` rule and the box it styles cannot disagree. Before this existed the
 // previews resolved against `MediaContext`'s default 1280x720 rectangle, which is why a device
 // preset could not trigger a breakpoint.
-[[nodiscard]] tessera::ui::style::MediaContext preview_media_context(float width, float height,
-                                                                     float dpi_scale) noexcept;
+//
+// `posture` is the simulated fold (ADR-074): it becomes `device-posture` and the viewport-segment
+// features through the same `FoldInfo` the layout uses (`hal::fold_info_for`) and the one
+// `with_fold` mapping the app host calls, so a previewed foldable and a device cannot answer a
+// fold query differently. The default is no fold.
+[[nodiscard]] tessera::ui::style::MediaContext
+preview_media_context(float width, float height, float dpi_scale,
+                      tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None) noexcept;
 
 // The media-independent form of the preview's sheet (ADR-048 decision 2): prepared once, resolved
 // against each viewport. Kept separate from the compiled form so a viewport change re-resolves the

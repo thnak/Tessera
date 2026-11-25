@@ -63,6 +63,12 @@ bool feature_from_name(std::string_view name, MediaFeature& feature) {
         feature = MediaFeature::Pointer;
     } else if (name == "any-pointer") {
         feature = MediaFeature::AnyPointer;
+    } else if (name == "device-posture") {
+        feature = MediaFeature::DevicePosture;
+    } else if (name == "horizontal-viewport-segments") {
+        feature = MediaFeature::HorizontalViewportSegments;
+    } else if (name == "vertical-viewport-segments") {
+        feature = MediaFeature::VerticalViewportSegments;
     } else {
         return false;
     }
@@ -71,7 +77,9 @@ bool feature_from_name(std::string_view name, MediaFeature& feature) {
 
 bool is_range_feature(MediaFeature feature) {
     return feature == MediaFeature::Width || feature == MediaFeature::Height ||
-           feature == MediaFeature::Resolution || feature == MediaFeature::AspectRatio;
+           feature == MediaFeature::Resolution || feature == MediaFeature::AspectRatio ||
+           feature == MediaFeature::HorizontalViewportSegments ||
+           feature == MediaFeature::VerticalViewportSegments;
 }
 
 bool comparison_from_operator(std::string_view text, MediaComparison& comparison) {

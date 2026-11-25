@@ -30,6 +30,11 @@ CSS `@media` V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non
   (issue #691); the Studio's device preset supplies them for the simulation
 - the range form for width, height, aspect-ratio and resolution: `(width >= 600px)`,
   `(600px <= width)` and the two-sided `(600px <= width <= 900px)` (issue #691)
+- `device-posture: continuous|folded` and `horizontal-viewport-segments` / `vertical-viewport-segments`
+  (integer, range forms), the W3C names for foldables ([ADR-074](../../decisions/ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md)):
+  `folded` is a half-open fold, and a *separating* fold makes two segments along the axis its hinge
+  crosses. They answer from `FoldInfo` through `with_fold`, in the host and in the preview alike.
+  The hinge angle is not a media answer, so a slow fold re-resolves nothing
 - `orientation: portrait|landscape`
 - `resolution` / `min-resolution`
 - `prefers-color-scheme`

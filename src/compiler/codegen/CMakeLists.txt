@@ -1130,6 +1130,38 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
     add_test(NAME scene_viewport COMMAND scene_viewport_tests)
 
+    # ADR-074 in the preview: the simulated posture answers `@media (device-posture)` and the
+    # viewport-segment features through the host's `with_fold`, a document built at a posture has
+    # its rules on the first build, and a posture change re-resolves the running tree once per
+    # answer that flips.
+    add_executable(scene_fold_media_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_fold_media_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
+        ${_tessera_canvas_session_sources}
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_fold_media_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen
+                ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(scene_fold_media_tests PRIVATE
+        tessera_behavior
+        tessera_app
+        tessera_automation_scene
+        tessera_css_module
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_fold_media COMMAND scene_fold_media_tests)
+
     # The skin's safe area reaching the engine's layout (issue #171's skins slice,
     # `designer-studio-v1.md` sections 5.1 and 5.2): non-zero insets pad a `SafeArea`'s content by
     # exactly what the skin declared, zero insets leave the frame unchanged, a skin change is one

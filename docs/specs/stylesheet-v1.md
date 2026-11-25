@@ -12,8 +12,8 @@ inheritance/computed-style model in `src/ui/style/cascade.cpp`; the top-level pi
 The property registry (supported properties, initial values, box/pair/flex shorthand expansion,
 and diagnostics) is `src/ui/style/property_registry.cpp`; CSS color parsing/SRGB interpolation is
 `src/ui/style/color.cpp` (named/hex/rgb/rgba/hsl/hsla). At-rule application for `@media`
-(width/height/resolution/orientation/color-scheme/reduced-motion/aspect-ratio/hover/pointer,
-`min-`/`max-` and the range form) is in `media_query.cpp`, `keyframes.cpp`, `supports.cpp` and
+(width/height/resolution/orientation/color-scheme/reduced-motion/aspect-ratio/hover/pointer/
+device-posture/viewport-segments, `min-`/`max-` and the range form) is in `media_query.cpp`, `keyframes.cpp`, `supports.cpp` and
 `compiled_stylesheet.cpp`. `@supports` evaluates registry-level declarations with `not`/`and`/`or`.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
@@ -335,7 +335,7 @@ Two custom properties are reserved because the framework reads them before a ren
 
 | At-rule | V1 | Notes |
 |---|---|---|
-| `@media` | yes | width/height/resolution, orientation, `prefers-color-scheme`, `prefers-reduced-motion` |
+| `@media` | yes | width/height/resolution, orientation, `prefers-color-scheme`, `prefers-reduced-motion`, `device-posture`, `horizontal-/vertical-viewport-segments` ([ADR-074](../../decisions/ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md)) |
 | `@supports` | yes | property/value support checks against the registry |
 | `@layer` | yes | layer order; unlayered author rules win |
 | `@font-face` | parse | font loading is [ADR-006](../../decisions/ADR-006-text-stack.md); V1 uses committed fonts |

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/hal/window_cutout_fold.hpp"
 #include "tessera/ui/style/media_query.hpp"
 
 #include <iostream>
@@ -115,6 +116,114 @@ int main() {
             !expect(!matches("(window-backdrop: fancy)", backdrop_context),
                     "unknown backdrop value does not match")) {
             return 11;
+        }
+    }
+
+    // Fold features (ADR-074): the standard `device-posture` and viewport-segment names, answered
+    // from the fold the window reports and from nothing else.
+    {
+        using tessera::hal::FoldInfo;
+        using tessera::hal::FoldOrientation;
+        using tessera::hal::FoldState;
+        const MediaContext no_fold;
+        if (!expect(matches("(device-posture: continuous)", no_fold), "no fold is continuous") ||
+            !expect(!matches("(device-posture: folded)", no_fold), "no fold is not folded") ||
+            !expect(matches("(horizontal-viewport-segments: 1)", no_fold) &&
+                        matches("(vertical-viewport-segments: 1)", no_fold),
+                    "no fold is one segment on each axis") ||
+            !expect(matches("(horizontal-viewport-segments < 2)", no_fold),
+                    "the range form compares the count")) {
+            return 12;
+        }
+
+        FoldInfo book;
+        book.state = FoldState::HalfOpened;
+        book.orientation = FoldOrientation::Vertical;
+        book.separating = true;
+        const MediaContext book_context = tessera::ui::style::with_fold(MediaContext{}, book);
+        if (!expect(matches("(device-posture: folded)", book_context),
+                    "a half-open fold is folded") ||
+            !expect(!matches("(device-posture: continuous)", book_context),
+                    "folded is not continuous") ||
+            !expect(matches("(horizontal-viewport-segments: 2)", book_context) &&
+                        matches("(horizontal-viewport-segments >= 2)", book_context) &&
+                        matches("(min-horizontal-viewport-segments: 2)", book_context) &&
+                        matches("(1 < horizontal-viewport-segments <= 2)", book_context),
+                    "a vertical hinge is two horizontal segments, in every range form") ||
+            !expect(matches("(vertical-viewport-segments: 1)", book_context),
+                    "and one vertical segment") ||
+            !expect(matches("(device-posture: folded) and (horizontal-viewport-segments: 2)",
+                            book_context),
+                    "the two features combine")) {
+            return 13;
+        }
+
+        FoldInfo tabletop = book;
+        tabletop.orientation = FoldOrientation::Horizontal;
+        const MediaContext tabletop_context =
+            tessera::ui::style::with_fold(MediaContext{}, tabletop);
+        if (!expect(matches("(vertical-viewport-segments: 2)", tabletop_context) &&
+                        matches("(horizontal-viewport-segments: 1)", tabletop_context),
+                    "a horizontal hinge is two vertical segments")) {
+            return 14;
+        }
+
+        // A fold that does not separate is one segment: a flexible screen with no divider.
+        FoldInfo bendable = book;
+        bendable.separating = false;
+        const MediaContext bendable_context =
+            tessera::ui::style::with_fold(MediaContext{}, bendable);
+        FoldInfo flat;
+        flat.state = FoldState::Flat;
+        const MediaContext flat_context = tessera::ui::style::with_fold(book_context, flat);
+        FoldInfo no_axis = book;
+        no_axis.orientation = FoldOrientation::None;
+        const MediaContext no_axis_context = tessera::ui::style::with_fold(MediaContext{}, no_axis);
+        if (!expect(matches("(device-posture: folded)", bendable_context) &&
+                        matches("(horizontal-viewport-segments: 1)", bendable_context),
+                    "a half-open fold that does not separate is folded but one segment") ||
+            !expect(matches("(device-posture: continuous)", flat_context) &&
+                        matches("(horizontal-viewport-segments: 1)", flat_context),
+                    "a flat fold is continuous, and unfolding resets the segments") ||
+            !expect(matches("(horizontal-viewport-segments: 1)", no_axis_context) &&
+                        matches("(vertical-viewport-segments: 1)", no_axis_context),
+                    "a separating fold with no axis has nothing to split")) {
+            return 15;
+        }
+
+        // The hinge angle and rectangle are not media answers: a fold that differs only there
+        // leaves the context field-for-field equal, so a slow fold re-resolves nothing.
+        FoldInfo rotating = book;
+        rotating.hinge_angle_degrees = 95.0f;
+        rotating.hinge_bounds = {100.0f, 0.0f, 24.0f, 800.0f};
+        FoldInfo rotated = rotating;
+        rotated.hinge_angle_degrees = 96.0f;
+        rotated.hinge_bounds = {140.0f, 0.0f, 24.0f, 800.0f};
+        const MediaContext before = tessera::ui::style::with_fold(MediaContext{}, rotating);
+        const MediaContext after = tessera::ui::style::with_fold(MediaContext{}, rotated);
+        if (!expect(before.device_posture == after.device_posture &&
+                        before.horizontal_viewport_segments == after.horizontal_viewport_segments &&
+                        before.vertical_viewport_segments == after.vertical_viewport_segments &&
+                        before.viewport_width == after.viewport_width,
+                    "a changed hinge angle or rectangle leaves the media context equal")) {
+            return 16;
+        }
+
+        // Grammar: the posture is a keyword feature with no min/max form, and the segment count
+        // is an integer, so neither accepts what the other takes.
+        if (!expect(!parse_media_query_list("(min-device-posture: folded)").ok,
+                    "device-posture has no min- prefix") ||
+            !expect(!matches("(device-posture: tabletop)", book_context),
+                    "an unknown posture keyword never matches") ||
+            !expect(!matches("(device-posture >= folded)", book_context),
+                    "device-posture has no range form") ||
+            !expect(!matches("(horizontal-viewport-segments: 2px)", book_context),
+                    "a segment count with a unit never matches") ||
+            !expect(!matches("(horizontal-viewport-segments: 1.5)", book_context),
+                    "a segment count that is not an integer never matches") ||
+            !expect(!matches("(horizontal-viewport-segments: two)", book_context),
+                    "a segment count that is not a number never matches")) {
+            return 17;
         }
     }
 

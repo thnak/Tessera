@@ -315,6 +315,11 @@ filled the metrics in. The posture-to-`FoldInfo` mapping lives once, in
 `tessera/hal/fold_posture.hpp`, and is what the Wasm viewer, the native preview CLI and MCP
 `set_viewport` all call.
 
+**The posture is also a media answer.** It reaches `@media (device-posture)` and the viewport-segment
+features through the same `FoldInfo` (`with_fold` is the one mapping, called by the host and the
+preview), so a stylesheet written for a fold previews as it runs
+([ADR-074](../../decisions/ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md)).
+
 **One layout pass.** A posture or size change re-lays out a single time, inside the call that applies
 it, before any paint can observe the tree: `safe-area-v1.md` section 4's "never a flash of stale
 padding" is structural rather than a timing assumption, and a change already in force runs no pass.

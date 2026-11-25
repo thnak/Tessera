@@ -13,10 +13,14 @@
 #include "diagnostic_record.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_stylesheet.hpp"
+#include "tessera/ui/style/media_query.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/tokenizer.hpp"
 #include "tessera/ui/style/ua_stylesheet.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -98,7 +102,8 @@ bool has_author_stylesheet(std::string_view stylesheet) {
     return !stylesheet.empty() && !has_no_css(stylesheet);
 }
 
-style::MediaContext preview_media_context(float width, float height, float dpi_scale) noexcept {
+style::MediaContext preview_media_context(float width, float height, float dpi_scale,
+                                          hal::FoldPosture posture) noexcept {
     style::MediaContext media;
     // The logical extent is the layout viewport, so the media query and the boxes it sizes are the
     // same rectangle. `dpi_scale` is a multiple of the CSS reference density of 96 dpi
@@ -106,7 +111,12 @@ style::MediaContext preview_media_context(float width, float height, float dpi_s
     media.viewport_width = static_cast<double>(width);
     media.viewport_height = static_cast<double>(height);
     media.resolution_dpi = 96.0 * static_cast<double>(dpi_scale > 0.0f ? dpi_scale : 1.0f);
-    return media;
+    // The same whole-pixel extent `simulated_metrics` hands `fold_info_for`, so the segment answers
+    // are derived from the fold the layout is actually given.
+    const auto whole = [](float value) {
+        return static_cast<std::uint32_t>(std::lround(std::max(value, 0.0f)));
+    };
+    return style::with_fold(media, hal::fold_info_for(posture, whole(width), whole(height)));
 }
 
 style::PreparedStyleSheet prepare_preview_stylesheet(std::string_view stylesheet) {

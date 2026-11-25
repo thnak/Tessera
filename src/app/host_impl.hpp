@@ -12,6 +12,7 @@
 #include "quality_stage.hpp"
 #include "safe_area_state.hpp"
 #include "tessera/app/host.hpp"
+#include "tessera/hal/window_cutout_fold.hpp"
 #include "tessera/rendering/damage.hpp"
 #include "tessera/ui/layout/layout_scheduler.hpp"
 #include "tessera/ui/layout/layout_settle.hpp"
@@ -60,6 +61,10 @@ struct AppHost::Impl {
     // a `@media` answer can actually change. A resize that crosses no breakpoint marks `dirty_mask`
     // and stops there.
     void apply_viewport(ui::Dirty dirty_mask);
+    // The fold half of the media context (ADR-074): `device-posture` and the viewport-segment
+    // counts come from the window's `FoldInfo`. Re-resolves the cascade only when one of those
+    // answers moved, and never reads the hinge angle, so a slow fold costs nothing here.
+    void apply_fold(const hal::FoldInfo& fold);
     [[nodiscard]] bool media_answer_can_change(const ui::style::MediaContext& before,
                                                const ui::style::MediaContext& after) const;
     void rebuild_style_tree();
@@ -197,6 +202,9 @@ struct AppHost::Impl {
     // theme switch takes, so the stylesheet never grows a second "theme changed" mechanism.
     hal::AppearancePreference appearance{};
     ui::style::MediaContext media_context;
+    // The fold the context was last built from, kept so a resize (which rebuilds the context from
+    // the rectangle) carries the fold answers over instead of resetting them.
+    hal::FoldInfo window_fold;
     // Cascade generations: 1 after construction, +1 for every rebuild of the resolved cascade
     // (`rebuild_cascade`). It is how "a resize that crosses no breakpoint does not rebuild the
     // cascade" is asserted in a test instead of inferred from a picture (issue #436).

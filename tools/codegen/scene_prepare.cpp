@@ -124,7 +124,7 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
     // document is laid out at and the DPI scale, so `@media (max-width: 600px)` and the viewport
     // units answer for the rectangle the boxes are in.
     const ui::style::MediaContext media =
-        preview_media_context(options.width, options.height, options.dpi_scale);
+        preview_media_context(options.width, options.height, options.dpi_scale, options.posture);
     PreviewSheets prepared = prepare_preview_sheets(evaluated->sheets);
     scene.sheet = prepared.prepared.resolve(media);
     scene.css_diagnostics = std::move(prepared.diagnostics);

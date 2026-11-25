@@ -250,8 +250,8 @@ InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewO
     // `prepare_scene()`.
     const ui::style::CompiledStyleSheet sheet =
         prepare_preview_sheets(evaluated->sheets)
-            .prepared.resolve(
-                preview_media_context(options.width, options.height, options.dpi_scale));
+            .prepared.resolve(preview_media_context(options.width, options.height,
+                                                    options.dpi_scale, options.posture));
     PreviewSession::Options session_options;
     session_options.width = options.width;
     session_options.height = options.height;

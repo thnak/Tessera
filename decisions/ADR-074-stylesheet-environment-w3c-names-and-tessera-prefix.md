@@ -163,6 +163,10 @@ Slices, one landing each, to be filed when this is accepted:
 
 1. `MediaContext` fold fields, the three media features, parser and evaluator tests, the
    byte-equal-on-angle test, and the spec rows in `stylesheet-v1` and `use-media-query-v1`.
+   **Implemented, together with step 4 for the host and the preview** (section 1 and the fold half of
+   section 5): `with_fold` is the one mapping, `AppHost::set_window_metrics` and the Studio's preview
+   sessions both call it, and the tests are `media_query`, `app_host_fold_media` and
+   `scene_fold_media`.
 2. `env()`: the function, fallback and invalid-at-computed-value-time rules, the referenced-name set
    on the prepared sheet, and the standard variables (`safe-area-inset-*`, `preferred-text-scale`,
    `viewport-segment-*`).

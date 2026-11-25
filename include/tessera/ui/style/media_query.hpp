@@ -5,6 +5,7 @@
 #include "tessera/detail/cache_line.hpp"
 #include "tessera/hal/appearance.hpp"
 #include "tessera/hal/window_backdrop.hpp"
+#include "tessera/hal/window_cutout_fold.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,6 +33,15 @@ enum class MediaPointer : std::uint8_t {
     Fine,
 };
 
+// `@media (device-posture: ...)` (Device Posture API, section 6.1): `folded` for a device whose
+// fold is half open, `continuous` for everything else, including a flat foldable and a device with
+// no fold at all. Exactly one of the two is always true. The angle is deliberately not here: it is
+// continuous, so putting it in the context would re-resolve the cascade per degree (ADR-074).
+enum class MediaPosture : std::uint8_t {
+    Continuous,
+    Folded,
+};
+
 struct MediaContext {
     double viewport_width = 1280.0;
     double viewport_height = 720.0;
@@ -52,6 +62,11 @@ struct MediaContext {
     // laptop with a touchscreen answers. Defaults match the primary device.
     MediaHover any_hover = MediaHover::Hover;
     MediaPointer any_pointer = MediaPointer::Fine;
+    // The fold, as the discrete answers Media Queries Level 5 defines (ADR-074). A device with no
+    // separating fold is one segment on each axis. `with_fold` is the one mapping from `FoldInfo`.
+    MediaPosture device_posture = MediaPosture::Continuous;
+    std::uint8_t horizontal_viewport_segments = 1;
+    std::uint8_t vertical_viewport_segments = 1;
 };
 
 enum class MediaFeature : std::uint8_t {
@@ -71,6 +86,12 @@ enum class MediaFeature : std::uint8_t {
     AnyHover,
     Pointer,
     AnyPointer,
+    // `@media (device-posture: continuous | folded)`. Not a range feature: no `min-`/`max-`.
+    DevicePosture,
+    // `@media (horizontal-viewport-segments: 2)` and the vertical twin: the number of logical
+    // regions a separating fold divides the viewport into. Integer range features.
+    HorizontalViewportSegments,
+    VerticalViewportSegments,
 };
 
 enum class MediaComparison : std::uint8_t {
@@ -123,6 +144,13 @@ struct MediaQueryParseResult {
 MediaQueryParseResult parse_media_query_list(std::string_view text);
 bool evaluate(const MediaQuery& query, const MediaContext& context);
 bool evaluate(const MediaQueryList& queries, const MediaContext& context);
+
+// Folds the window's fold into a media context (ADR-074): `device-posture` is `folded` when the
+// fold is half open, and a fold that `separating` splits the viewport into two segments along the
+// axis the hinge crosses (a vertical hinge gives two horizontal segments). The hinge angle is not
+// read: it never reaches the media context. Everything else in `context` is left as the caller set
+// it.
+[[nodiscard]] MediaContext with_fold(MediaContext context, const hal::FoldInfo& fold) noexcept;
 
 // Folds the OS appearance snapshot into a media context: `prefers-color-scheme` follows the
 // resolved color scheme and `prefers-reduced-motion` the reduced-motion flag (issue #187). It is

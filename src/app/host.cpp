@@ -488,6 +488,8 @@ void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
         state.apply_size(static_cast<float>(metrics.logical_width),
                          static_cast<float>(metrics.logical_height), metrics.dpi_scale);
     }
+    // The fold is part of the media context too (`device-posture`, the viewport-segment features).
+    state.apply_fold(metrics.fold);
     if (!state.safe_area.set_metrics(metrics, state.reduced_motion)) {
         return;
     }

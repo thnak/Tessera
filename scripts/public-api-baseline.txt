@@ -3138,9 +3138,11 @@ enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaCompariso
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaFeature
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaHover
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaPointer
+enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaPosture
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::evaluate
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::parse_media_query_list
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::with_appearance
+function include/tessera/ui/style/media_query.hpp tessera::ui::style::with_fold
 
 header include/tessera/ui/style/parser.hpp
 struct include/tessera/ui/style/parser.hpp tessera::ui::style::AtRule
