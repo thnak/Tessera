@@ -2602,6 +2602,7 @@ class include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::SceneStyleProv
 class include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::StyleProvider
 struct include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::PaintContext
 struct include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::PaintStats
+function include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::canvas_background
 function include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::paint_scene
 
 header include/tessera/ui/paint/paint_sink.hpp
