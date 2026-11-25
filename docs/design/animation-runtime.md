@@ -236,6 +236,19 @@ discrete switch at 50 %. The interpolated value goes through the same overlay as
 so the shadow's reach is re-synced each frame and damage covers the previous, wider reach
 (`frame_pipeline_shadow_damage`).
 
+**`clip-path` shape animation** (#674, ADR-068 slice 6). Two shapes of the same function interpolate
+component by component (`animation/clip_path_interpolation.cpp`): `inset()` its four edges and four
+corner radii (a side without `round` blends from square corners), `circle()`/`ellipse()` the radii and
+the centre, `polygon()` every vertex when both have the same vertex count and fill rule. The reader
+works on the unresolved text because the animation layer has no reference box: a percentage stays a
+percentage and the paint-time parse resolves both ends against the node's own box. A radius is clamped
+at zero when the progress overshoots. `none` against a shape, two different functions, polygons of
+different size or fill rule, px against a non-zero % (CSS would need `calc()`), `url()`, `path()` and
+anything unread keep the discrete switch at 50 %. `clip-path` is in `paint_dirties_subtree`, like
+`opacity`, because it clips every primitive of the subtree. The paint pass does not read `clip-path`
+yet, so the end-to-end check is `clip_path_animation` (a polygon morph sampled from keyframes at fixed
+steps, five frames compared pixel for pixel with the CPU reference on the real renderer).
+
 **Cost.** The style stage is change-driven, so this walk never runs on a paint-only frame. It
 resolves one computed style per rendered node, which the stage already does twice (scene sync and
 interaction sync); the snapshots are the only retained memory, bounded by the transition-declaring

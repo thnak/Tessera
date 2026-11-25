@@ -181,3 +181,7 @@ Slices 1 to 3 are a refactor with no user-visible change; #615 lands from slice 
   `CpuCanvas` reference. The shader and `gpu::clip::inside_polygon` are the same loop; the GPU test
   compares every pixel of six scenes against the CPU reference. Rationale and the fallback rules are
   in [clip-records.md](../docs/design/gpu/clip-records.md) section 8.
+- Slice 6 landed (issue #674): `animation/clip_path_interpolation.cpp` interpolates same-kind shapes
+  through the keyframe sampler (and so transitions), with the discrete 50 % switch for everything
+  else; `clip-path` joined `paint_dirties_subtree`. See
+  [animation-runtime.md](../docs/design/animation-runtime.md).
