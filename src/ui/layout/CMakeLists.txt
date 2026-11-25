@@ -19,6 +19,7 @@ add_library(tessera_layout STATIC
     layout_measure.cpp
     layout_retained.cpp
     layout_retained_collect.cpp
+    layout_length.cpp
     layout_style.cpp
     layout_tokens.cpp
     layout_scheduler.cpp
