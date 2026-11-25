@@ -9,6 +9,7 @@
 
 const TESSERA_CLIP_MAX_RECORDS: u32 = 256u;
 const TESSERA_CLIP_MAX_SETS: u32 = 256u;
+const TESSERA_CLIP_MAX_VERTICES: u32 = 4096u;
 
 struct ClipRecord {
     kind: u32,
@@ -37,6 +38,8 @@ struct ClipBuffer {
     header_reserved2: u32,
     records: array<ClipRecord, TESSERA_CLIP_MAX_RECORDS>,
     sets: array<ClipSetRange, TESSERA_CLIP_MAX_SETS>,
+    // The polygon vertex pool (ADR-068 slice 5), after the sets; `vec2<f32>` is an 8-byte stride.
+    vertices: array<vec2<f32>, TESSERA_CLIP_MAX_VERTICES>,
 };
 
 struct Params {
@@ -110,8 +113,56 @@ fn inside_ellipse_record(p: vec2<f32>, index: u32) -> bool {
     return dot(d, d) <= 1.0;
 }
 
+// Polygon clip (ADR-068 slice 5): the same ray test as gpu::clip::inside_polygon and batched2d.frag.
+fn inside_polygon_record(p: vec2<f32>, index: u32) -> bool {
+    let first = clip_buffer.records[index].first_vertex;
+    let count = min(clip_buffer.records[index].vertex_count, 256u);
+    let even_odd = (clip_buffer.records[index].flags & 1u) != 0u;
+    var parity = false;
+    var winding = 0;
+    for (var i = 0u; i < count; i = i + 1u) {
+        let a = clip_buffer.vertices[first + i];
+        let b = clip_buffer.vertices[first + select(i + 1u, 0u, i + 1u == count)];
+        if ((a.y <= p.y) == (b.y <= p.y)) {
+            continue;
+        }
+        let t = (p.y - a.y) / (b.y - a.y);
+        let crossing_x = a.x + t * (b.x - a.x);
+        if (p.x < crossing_x) {
+            parity = !parity;
+            winding = winding + select(-1, 1, b.y > a.y);
+        }
+    }
+    return select(winding != 0, parity, even_odd);
+}
+
+// Signed distance (pixels, negative inside) to the polygon outline, for the anti-aliased path.
+fn polygon_signed_distance(p: vec2<f32>, index: u32) -> f32 {
+    let first = clip_buffer.records[index].first_vertex;
+    let count = min(clip_buffer.records[index].vertex_count, 256u);
+    var nearest = 1e30;
+    for (var i = 0u; i < count; i = i + 1u) {
+        let a = clip_buffer.vertices[first + i];
+        let b = clip_buffer.vertices[first + select(i + 1u, 0u, i + 1u == count)];
+        let edge = b - a;
+        let to_point = p - a;
+        let length_squared = dot(edge, edge);
+        var h = 0.0;
+        if (length_squared > 0.0) {
+            h = clamp(dot(to_point, edge) / length_squared, 0.0, 1.0);
+        }
+        let offset = to_point - edge * h;
+        nearest = min(nearest, dot(offset, offset));
+    }
+    let distance = sqrt(nearest);
+    return select(distance, -distance, inside_polygon_record(p, index));
+}
+
 fn inside_clip(p: vec2<f32>, index: u32) -> bool {
     let clip = clip_buffer.records[index];
+    if (clip.kind == 2u) {
+        return inside_polygon_record(p, index);
+    }
     // Kind 1 is `Ellipse` (ADR-068 slice 4); the rest is the rounded-rect test.
     if (clip.kind == 1u) {
         return inside_ellipse_record(p, index);
@@ -162,6 +213,9 @@ fn erf_approx(x: f32) -> f32 {
 
 fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     let clip = clip_buffer.records[index];
+    if (clip.kind == 2u) {
+        return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, polygon_signed_distance(p, index));
+    }
     // See batched2d.frag: the clip's own signed distance over +/- aa_radius pixels.
     let half_size = clip.rect.zw * 0.5;
     let q = p - (clip.rect.xy + half_size);

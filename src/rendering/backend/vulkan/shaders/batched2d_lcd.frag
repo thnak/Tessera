@@ -34,6 +34,7 @@ layout(set = 0, binding = 0) uniform sampler2D u_texture;
 // read-only storage buffer holding the frame's clip records and the interned set ranges.
 #define TESSERA_CLIP_MAX_RECORDS 256
 #define TESSERA_CLIP_MAX_SETS 256
+#define TESSERA_CLIP_MAX_VERTICES 4096
 
 struct ClipRecord {
     uint kind;
@@ -57,6 +58,7 @@ layout(set = 1, binding = 0, std430) readonly buffer ClipBuffer {
     uint header_reserved[3];
     ClipRecord records[TESSERA_CLIP_MAX_RECORDS];
     ClipSetRange sets[TESSERA_CLIP_MAX_SETS];
+    vec2 vertices[TESSERA_CLIP_MAX_VERTICES]; // polygon vertex pool (ADR-068 slice 5)
 } clip_buffer;
 
 // Must match Batched2DPushConstants, the same block batched2d.frag uses (16 bytes): the LCD variant
@@ -104,7 +106,56 @@ bool inside_ellipse_record(vec2 p, uint index) {
     return dot(d, d) <= 1.0;
 }
 
+// Polygon clip (ADR-068 slice 5): the even-odd / non-zero ray test, expression for expression the same
+// as gpu::clip::inside_polygon (clip_shapes.hpp), so the shader and the CPU reference agree on every
+// pixel centre that is not within rounding of an edge. The vertices come from the frame's pool; the
+// loop bound is the record's own count, which the renderer never lets past 256.
+bool inside_polygon_record(vec2 p, uint index) {
+    uint first = clip_buffer.records[index].first_vertex;
+    uint count = min(clip_buffer.records[index].vertex_count, 256u);
+    bool even_odd = (clip_buffer.records[index].flags & 1u) != 0u;
+    bool parity = false;
+    int winding = 0;
+    for (uint i = 0u; i < count; ++i) {
+        vec2 a = clip_buffer.vertices[first + i];
+        vec2 b = clip_buffer.vertices[first + (i + 1u == count ? 0u : i + 1u)];
+        if ((a.y <= p.y) == (b.y <= p.y)) {
+            continue;
+        }
+        float t = (p.y - a.y) / (b.y - a.y);
+        float crossing_x = a.x + t * (b.x - a.x);
+        if (p.x < crossing_x) {
+            parity = !parity;
+            winding += b.y > a.y ? 1 : -1;
+        }
+    }
+    return even_odd ? parity : winding != 0;
+}
+
+// Signed distance (pixels, negative inside) from p to the polygon's outline: the nearest segment
+// gives the magnitude, the ray test the sign. Used only by the anti-aliased path.
+float polygon_signed_distance(vec2 p, uint index) {
+    uint first = clip_buffer.records[index].first_vertex;
+    uint count = min(clip_buffer.records[index].vertex_count, 256u);
+    float nearest = 1e30;
+    for (uint i = 0u; i < count; ++i) {
+        vec2 a = clip_buffer.vertices[first + i];
+        vec2 b = clip_buffer.vertices[first + (i + 1u == count ? 0u : i + 1u)];
+        vec2 edge = b - a;
+        vec2 to_point = p - a;
+        float length_squared = dot(edge, edge);
+        float h = length_squared > 0.0 ? clamp(dot(to_point, edge) / length_squared, 0.0, 1.0) : 0.0;
+        vec2 offset = to_point - edge * h;
+        nearest = min(nearest, dot(offset, offset));
+    }
+    float distance = sqrt(nearest);
+    return inside_polygon_record(p, index) ? -distance : distance;
+}
+
 bool inside_clip(vec2 p, uint index) {
+    if (clip_buffer.records[index].kind == 2u) {
+        return inside_polygon_record(p, index);
+    }
     if (clip_buffer.records[index].kind == 1u) {
         return inside_ellipse_record(p, index);
     }
@@ -145,6 +196,9 @@ bool inside_clip(vec2 p, uint index) {
 // pixels. An `Ellipse` record uses the ellipse's own distance approximation; a `RoundedRect` uses
 // the rounded-box distance with the corner radius that applies at the pixel's quadrant.
 float clip_coverage(vec2 p, uint index) {
+    if (clip_buffer.records[index].kind == 2u) {
+        return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, polygon_signed_distance(p, index));
+    }
     vec2 origin = clip_buffer.records[index].rect.xy;
     vec2 half_size = clip_buffer.records[index].rect.zw * 0.5;
     vec2 q = p - (origin + half_size);

@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui::paint::detail {
 
@@ -18,9 +19,13 @@ namespace tessera::ui::paint::detail {
 //   inset( <length-percentage>{1,4} [ round <length-percentage>{1,4} ]? )
 //   circle( <length-percentage>? [ at <position> ]? )
 //   ellipse( <length-percentage>{2} [ at <position> ]? )
+//   polygon( [ nonzero | evenodd , ]? <length-percentage> <length-percentage> # )
 //
-// `polygon()` is slice 5 and is rejected here with a documented "unsupported" result rather than
-// silently ignored, so a caller can tell "no clip" from "a clip this build cannot draw".
+// `polygon()` is slice 5 (#673). `url()` and `path()` are out of scope and are rejected with a
+// documented "unsupported" result rather than silently ignored, so a caller can tell "no clip" from
+// "a clip this build cannot draw". `path()` is left out because the vertex pool holds straight
+// edges only: a curve needs the vector path renderer's flattening (ADR-057), and an author who
+// needs one has the `Path` element.
 //
 // Percentages resolve against the reference box: horizontal against its width, vertical against its
 // height. That is the CSS rule for `inset()` and for a `circle()`/`ellipse()` radius, and it is why
@@ -28,7 +33,7 @@ namespace tessera::ui::paint::detail {
 
 // One parsed basic shape, in the reference box's coordinate space.
 struct ClipShape {
-    enum class Kind : std::uint8_t { None, Inset, Circle, Ellipse };
+    enum class Kind : std::uint8_t { None, Inset, Circle, Ellipse, Polygon };
 
     Kind kind = Kind::None;
     // `inset()`: the four edge insets (top, right, bottom, left) in pixels.
@@ -48,6 +53,11 @@ struct ClipShape {
     float center_y = 0.0f;
     float radius_x = 0.0f;
     float radius_y = 0.0f;
+    // `polygon()`: the vertices in the same target space as the box (the box origin is already
+    // added), in source order, and the fill rule. The parser keeps every vertex it reads; the
+    // clip table degrades a polygon over `clip::kMaxPolygonVertices` to its bounding box.
+    std::vector<rendering::gpu::clip::ClipVertex> vertices;
+    bool even_odd = false;
 
     [[nodiscard]] bool is_none() const {
         return kind == Kind::None;
@@ -71,7 +81,9 @@ struct ClipPathParse {
 
 // Converts a parsed shape into the clip record the renderer and the CPU reference both read. The
 // record's `kind` is `Ellipse` for a circle/ellipse and `RoundedRect` for an inset, which is what
-// the shader dispatches on.
+// the shader dispatches on, and `Polygon` for a polygon: the record carries the bounding box, the
+// fill rule and the vertex count, while `first_vertex` is assigned when the table pools
+// `shape.vertices`.
 [[nodiscard]] rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape,
                                                               const rendering::rhi::Rect& box);
 

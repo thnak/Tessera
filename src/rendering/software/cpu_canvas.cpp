@@ -100,7 +100,7 @@ void CpuCanvas::fill_rect_clipped(const rhi::Rect& rect, rhi::Color color, const
             bool covered = true;
             for (const gpu::clip::ClipRecord& record : clip.records) {
                 if (!gpu::clip::covers_pixel(record, static_cast<std::int32_t>(x),
-                                             static_cast<std::int32_t>(y))) {
+                                             static_cast<std::int32_t>(y), clip.vertices)) {
                     covered = false;
                     break;
                 }

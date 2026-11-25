@@ -24,11 +24,11 @@ clip::ClipRecord to_record(const clip::RoundedRect& source) {
     return record;
 }
 
-// True when two records describe the same clip. Only the fields slice 3 writes are compared, so a
-// future kind that fills more of the record cannot make two equal clips intern as different sets by
-// accident.
+// True when two records describe the same clip. A polygon's vertices are pooled and deduplicated,
+// so equal polygons have equal `first_vertex` and the run index stands for their contents.
 bool same_record(const clip::ClipRecord& a, const clip::ClipRecord& b) {
-    if (a.kind != b.kind || a.flags != b.flags || a.x != b.x || a.y != b.y || a.width != b.width ||
+    if (a.kind != b.kind || a.flags != b.flags || a.first_vertex != b.first_vertex ||
+        a.vertex_count != b.vertex_count || a.x != b.x || a.y != b.y || a.width != b.width ||
         a.height != b.height) {
         return false;
     }
@@ -57,22 +57,85 @@ void ClipStateTable::reset() {
     clip_folded_.clear();
     scissor_stack_.clear();
     sets_.resize(1);
+    vertices_.clear();
+    pooled_.clear();
+    shape_fallbacks_ = 0;
     flat_dirty_ = true;
     current_set_ = 0;
 }
 
 ClipStateTable::Update ClipStateTable::push(const clip::RoundedRect& clip, rhi::Scissor current) {
+    Entry entry;
+    entry.bounds = clip;
+    return push_entry(entry, current);
+}
+
+std::int64_t ClipStateTable::pool_vertices(std::span<const clip::ClipVertex> vertices) {
+    for (const PooledRun& run : pooled_) {
+        if (run.count == vertices.size() &&
+            std::memcmp(vertices_.data() + run.first, vertices.data(),
+                        vertices.size() * sizeof(clip::ClipVertex)) == 0) {
+            return run.first;
+        }
+    }
+    if (vertices_.size() + vertices.size() > clip::kMaxClipVertices) {
+        return -1;
+    }
+    const auto first = static_cast<std::uint32_t>(vertices_.size());
+    vertices_.insert(vertices_.end(), vertices.begin(), vertices.end());
+    pooled_.push_back(PooledRun{first, static_cast<std::uint32_t>(vertices.size())});
+    return first;
+}
+
+ClipStateTable::Update ClipStateTable::push_shape(const clip::ShapeClip& shape,
+                                                  rhi::Scissor current) {
+    Entry entry;
+    entry.shape = shape.record;
+    entry.bounds.rect =
+        rhi::Rect{shape.record.x, shape.record.y, shape.record.width, shape.record.height};
+    entry.shaped = true;
+    if (shape.record.kind == static_cast<std::uint32_t>(clip::RecordKind::Polygon)) {
+        entry.shape.first_vertex = 0;
+        entry.shape.vertex_count = 0;
+        const std::size_t count = shape.vertices.size();
+        if (count < 3) {
+            // No area: an empty rectangle is what clips everything away.
+            entry.shape.kind = static_cast<std::uint32_t>(clip::RecordKind::RoundedRect);
+            entry.shape.width = 0.0f;
+            entry.shape.height = 0.0f;
+            entry.bounds.rect.width = 0.0f;
+            entry.bounds.rect.height = 0.0f;
+        } else {
+            const std::int64_t first =
+                count <= clip::kMaxPolygonVertices ? pool_vertices(shape.vertices) : -1;
+            if (first < 0) {
+                // Over a limit: the bounding box, counted so the gap is visible in diagnostics.
+                entry.shaped = false;
+                ++shape_fallbacks_;
+            } else {
+                entry.shape.first_vertex = static_cast<std::uint32_t>(first);
+                entry.shape.vertex_count = static_cast<std::uint32_t>(count);
+            }
+        }
+    }
+    return push_entry(entry, current);
+}
+
+ClipStateTable::Update ClipStateTable::push_entry(const Entry& entry, rhi::Scissor current) {
+    const clip::RoundedRect& clip = entry.bounds;
     // The enclosing scissor is recorded per level: the renderer may have a damage or scroll scissor
     // narrower than the clip, and a pop must restore whatever was in effect rather than the
     // frame's full-target rect.
     scissor_stack_.push_back(current);
     if (clip_stack_.size() < clip::kMaxClipDepth) {
-        clip_stack_.push_back(clip);
+        clip_stack_.push_back(entry);
         clip_folded_.push_back(false);
     } else {
         // Documented nesting bound: deeper clips are folded into the innermost active clip
-        // (conservative intersection) instead of growing the stack.
-        clip_stack_.back() = clip::intersect_clips(clip_stack_.back(), clip);
+        // (conservative intersection) instead of growing the stack. The fold keeps bounds only, so
+        // a shaped clip at this depth reduces to its bounding box.
+        clip_stack_.back().bounds = clip::intersect_clips(clip_stack_.back().bounds, clip);
+        clip_stack_.back().shaped = false;
         clip_folded_.push_back(true);
     }
     rebuild();
@@ -105,13 +168,13 @@ void ClipStateTable::rebuild() {
     // reflects every clip rect, so the result never paints outside any active clip.
     std::vector<clip::ClipRecord> records;
     records.reserve(std::min<std::size_t>(clip_stack_.size(), clip::kMaxClipRecords));
-    for (const clip::RoundedRect& active : clip_stack_) {
+    for (const Entry& active : clip_stack_) {
         if (records.size() >= clip::kMaxClipRecords) {
-            records.back() =
-                to_record(clip::intersect_clips(clip_stack_[records.size() - 1], active));
+            records.back() = to_record(
+                clip::intersect_clips(clip_stack_[records.size() - 1].bounds, active.bounds));
             continue;
         }
-        records.push_back(to_record(active));
+        records.push_back(active.shaped ? active.shape : to_record(active.bounds));
     }
     current_set_ = intern(records);
     flat_dirty_ = true;

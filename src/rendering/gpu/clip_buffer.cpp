@@ -8,7 +8,8 @@
 namespace tessera::rendering::gpu {
 namespace {
 
-constexpr std::size_t kBufferBytes = clip::buffer_bytes(clip::kMaxClipRecords, clip::kMaxClipSets);
+constexpr std::size_t kBufferBytes =
+    clip::buffer_bytes(clip::kMaxClipRecords, clip::kMaxClipSets, clip::kMaxClipVertices);
 
 } // namespace
 
@@ -31,6 +32,7 @@ void ClipBuffer::begin_frame() {
     // first upload of the frame writes from offset zero.
     current_->uploaded_records = 0;
     current_->uploaded_sets = 0;
+    current_->uploaded_vertices = 0;
 }
 
 void ClipBuffer::ensure_capacity(Slot& slot) {
@@ -43,7 +45,8 @@ void ClipBuffer::ensure_capacity(Slot& slot) {
 }
 
 rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
-                                const std::vector<clip::ClipSetRange>& sets) {
+                                const std::vector<clip::ClipSetRange>& sets,
+                                const std::vector<clip::ClipVertex>& vertices) {
     if (current_ == nullptr || !supported()) {
         return nullptr;
     }
@@ -83,10 +86,26 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
         current_->uploaded_sets = total_sets;
     }
 
-    // The header carries the record count, which the shader does not need (it reads a set's range)
-    // but a debug readback and a future polygon slice do.
+    // The vertex pool is append-only within a frame, like the records, so only the vertices added
+    // since the last upload are written. A polygon record's range points into it, which is why the
+    // vertices go in before any draw that reads the set.
+    const std::uint32_t total_vertices = std::min<std::uint32_t>(
+        static_cast<std::uint32_t>(vertices.size()), clip::kMaxClipVertices);
+    if (total_vertices > current_->uploaded_vertices) {
+        const std::size_t offset =
+            clip::vertices_offset(clip::kMaxClipRecords, clip::kMaxClipSets) +
+            static_cast<std::size_t>(current_->uploaded_vertices) * sizeof(clip::ClipVertex);
+        const std::size_t count =
+            (total_vertices - current_->uploaded_vertices) * sizeof(clip::ClipVertex);
+        current_->buffer->write(vertices.data() + current_->uploaded_vertices, count, offset);
+        current_->uploaded_vertices = total_vertices;
+    }
+
+    // The header carries the record and vertex counts, which the shader does not need (it reads a
+    // set's range) but a debug readback does.
     clip::ClipBufferHeader header;
     header.record_count = current_->uploaded_records;
+    header.vertex_count = current_->uploaded_vertices;
     current_->buffer->write(&header, sizeof(header), 0);
 
     return current_->buffer.get();

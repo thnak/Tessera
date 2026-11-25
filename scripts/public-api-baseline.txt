@@ -1252,19 +1252,26 @@ header include/tessera/rendering/gpu/clip_records.hpp
 struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipBufferHeader
 struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipRecord
 struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipSetRange
+struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipVertex
+struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ShapeClip
 enum include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::RecordKind
 function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::buffer_bytes
 function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::records_offset
 function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::sets_offset
+function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::vertices_offset
 constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipRecords
 constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipSets
+constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipVertices
+constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxPolygonVertices
 constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kRecordFlagEvenOdd
 
 header include/tessera/rendering/gpu/clip_shapes.hpp
 struct include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::Ellipse
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::covers_pixel
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::enclosing_scissor
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::has_polygon_vertices
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_ellipse
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_polygon
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_rounded_rect
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::make_ellipse
 

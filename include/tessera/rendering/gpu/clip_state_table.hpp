@@ -53,6 +53,17 @@ public:
     // radius clamping, since both are its own frame state.
     [[nodiscard]] Update push(const clip::RoundedRect& clip, rhi::Scissor current);
 
+    // Pushes one shaped clip (ADR-068 slice 5): an `Ellipse`, a `RoundedRect` with elliptical
+    // radii, or a `Polygon` whose vertices join the frame's pool. The record's rect is the shape's
+    // bounding box and drives the scissor exactly as a rounded rect's does. The caller applies
+    // content scale to the record and the vertices.
+    //
+    // A polygon over `clip::kMaxPolygonVertices`, or one that would push the frame past
+    // `clip::kMaxClipVertices`, degrades to its bounding box and is counted in `shape_fallbacks()`;
+    // a polygon with fewer than three vertices has no area and clips everything away. Identical
+    // polygons share their pooled vertices, so the same shape pushed twice costs its vertices once.
+    [[nodiscard]] Update push_shape(const clip::ShapeClip& shape, rhi::Scissor current);
+
     // Pops one level. `current` is the renderer's live scissor, used only when the stack is
     // unbalanced and there is nothing to restore.
     [[nodiscard]] Update pop(rhi::Scissor current);
@@ -78,6 +89,16 @@ public:
     // One range per interned set, indexing `flat_records()`. Index 0 is the empty set.
     [[nodiscard]] const std::vector<clip::ClipSetRange>& set_ranges() const;
 
+    // The frame's polygon vertex pool: append-only until `reset()`, so a record's `first_vertex`
+    // stays valid for the whole frame and the buffer upload only writes what was added.
+    [[nodiscard]] const std::vector<clip::ClipVertex>& flat_vertices() const {
+        return vertices_;
+    }
+    // How many shaped clips this frame degraded to their bounding box (over a vertex limit).
+    [[nodiscard]] std::uint32_t shape_fallbacks() const {
+        return shape_fallbacks_;
+    }
+
     // Packs `index` into the batch push-constant block. Pure: it reads the table and the frame
     // viewport, so the caller decides when to record the constant write.
     void pack_push_constants(std::uint32_t index, rhi::Extent2D viewport, float aa_radius,
@@ -88,13 +109,25 @@ public:
     }
 
 private:
+    // One level of the stack: the bounds that drive the scissor and the conservative fold, and the
+    // shaped record when the clip is not a plain rounded rectangle.
+    struct Entry {
+        clip::RoundedRect bounds;
+        clip::ClipRecord shape;
+        bool shaped = false;
+    };
+
+    [[nodiscard]] Update push_entry(const Entry& entry, rhi::Scissor current);
+    // Appends `vertices` to the pool (or finds an identical run) and returns its first index, or
+    // -1 when the frame's pool is full.
+    [[nodiscard]] std::int64_t pool_vertices(std::span<const clip::ClipVertex> vertices);
     // Recomputes the fold from the stack and interns it.
     void rebuild();
     std::uint32_t intern(const std::vector<clip::ClipRecord>& records);
     // Rebuilds `flat_records_` and `set_ranges_` from `sets_`, once per frame after the last push.
     void flatten() const;
 
-    std::vector<clip::RoundedRect> clip_stack_;
+    std::vector<Entry> clip_stack_;
     // One entry per pushed clip: true when it was folded into the innermost active clip instead of
     // being pushed onto clip_stack_, so pop() knows whether to unwind the stack itself.
     std::vector<bool> clip_folded_;
@@ -103,6 +136,14 @@ private:
     // One record list per interned set. Set 0 is the empty list.
     std::vector<std::vector<clip::ClipRecord>> sets_;
     std::uint32_t current_set_ = 0;
+    // The frame's polygon vertex pool and the runs already in it, for deduplication.
+    struct PooledRun {
+        std::uint32_t first = 0;
+        std::uint32_t count = 0;
+    };
+    std::vector<clip::ClipVertex> vertices_;
+    std::vector<PooledRun> pooled_;
+    std::uint32_t shape_fallbacks_ = 0;
     // The flattened view the clip buffer uploads, rebuilt lazily and invalidated by any stack
     // change.
     mutable std::vector<clip::ClipRecord> flat_records_;

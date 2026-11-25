@@ -198,8 +198,18 @@ public:
     // `clip::kMaxClipDepth`) is folded conservatively into the innermost shader slot; push/pop must
     // pair (mixing with push_scissor is allowed but each pop matches its own push).
     void push_clip(const clip::RoundedRect& clip);
+    // Pushes a shaped clip (ADR-068 slice 5): a circle/ellipse, an elliptical-radius rounded rect
+    // or a polygon, in paint coordinates like push_clip(). It shares the stack and the pop with
+    // push_clip(), so the two nest freely. A polygon over the vertex limits degrades to its
+    // bounding box (see ClipStateTable::push_shape).
+    void push_clip_shape(const clip::ShapeClip& clip);
     void pop_clip();
     [[nodiscard]] std::uint32_t clip_depth() const;
+    // Shaped clips this frame that degraded to their bounding box because a polygon was over a
+    // vertex limit; zero when every shape drew as authored.
+    [[nodiscard]] std::uint32_t clip_shape_fallbacks() const {
+        return clips_.shape_fallbacks();
+    }
 
     void set_transform(const rhi::Mat3& transform);
     void push_transform(const rhi::Mat3& transform);
@@ -362,6 +372,9 @@ private:
 
     GlassCompositor glass_;
     ClipStateTable clips_;
+    // Scaled vertices of the shape being pushed, reused so a content-scaled push allocates nothing
+    // once it has grown to the largest polygon.
+    std::vector<clip::ClipVertex> shape_scratch_;
     // The per-frame clip-record buffer the fragment shader reads (ADR-068 slice 3). Empty and
     // unused on a device without storage buffers, where the push-constant path stays.
     ClipBuffer clip_buffer_;

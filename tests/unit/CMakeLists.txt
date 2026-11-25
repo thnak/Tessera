@@ -2677,6 +2677,15 @@ target_link_libraries(clip_path_tests PRIVATE tessera_paint tessera_software)
 
 add_test(NAME clip_path COMMAND clip_path_tests)
 
+# `clip-path: polygon()` (ADR-068 slice 5, issue #673): the parser, the record, and the fill-rule
+# coverage the CPU reference and the shader share.
+add_executable(clip_polygon_tests
+    clip_polygon_tests.cpp)
+
+target_link_libraries(clip_polygon_tests PRIVATE tessera_paint tessera_software)
+
+add_test(NAME clip_polygon COMMAND clip_polygon_tests)
+
 add_executable(paint_text_tests
     paint_text_tests.cpp)
 

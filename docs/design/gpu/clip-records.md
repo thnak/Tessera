@@ -38,13 +38,17 @@ Record[i]   { u32 kind; u32 flags; u32 first_vertex; u32 vertex_count;  64 bytes
               f32 x, y, width, height;
               f32 radii[8]; }
 ClipSet[k]  { u32 first_record; u32 count; u32 reserved[2]; }           16 bytes
+Vertex[v]   { f32 x, y; }                                                8 bytes
 ```
+
+The header's second word is the vertex count (slice 5; it was reserved). The vertex pool is the last
+area, so the record and set offsets slice 3 fixed did not move.
 
 - `kind` is `RoundedRect` (0), `Ellipse` (1) or `Polygon` (2). Slice 3 emits `RoundedRect` only;
   slices 4 and 5 add the other two, and the format already has room so they add a kind, not a layout.
 - `radii[0..3]` are the corner radii in TL, TR, BR, BL order; `radii[4..7]` are the second component
   of each corner's elliptical pair, zero for a circular corner.
-- `flags` carries the polygon fill rule (`nonzero` or `evenodd`); slice 3 sets none.
+- `flags` carries the polygon fill rule (`nonzero` or `evenodd`); only polygons set it.
 - The sets live at a fixed offset after the record area, so the shader's array base is a compile-time
   constant and a set's range is one add.
 
@@ -110,3 +114,38 @@ draw used another, which validation reports as an incompatible set.
 - `manifest_build_step` pins that the manifest's push-constant fields and bindings match the GLSL.
 - `batched2d`, `batch_split`, `glass_composite_gpu` and `glass_paint_gpu` pin that batching and the
   glass seam are unchanged.
+
+## 8. Polygons (slice 5, issue #673)
+
+A `Polygon` record names a run of the frame's **vertex pool** with `first_vertex` and `vertex_count`;
+its rect is the polygon's bounding box, so the scissor fast path works exactly as for the other kinds.
+The pool is the buffer's last area: 4096 vertices of 8 bytes, 32 KB, which makes the buffer 53,264
+bytes per frame in flight (`buffer_bytes(256, 256, 4096)`).
+
+**Coverage.** One loop decides it, in `gpu::clip::inside_polygon` and in the shader's
+`inside_polygon_record` (GLSL and WGSL), expression for expression. A ray runs from the pixel centre
+toward +x; an edge counts when exactly one endpoint is at or above the centre's y (half-open, so a
+vertex on the ray is counted once) and the edge crosses to the centre's right. `evenodd` is the parity
+of the crossings and `nonzero` the signed sum of their directions. The anti-aliased path uses the
+distance to the nearest edge for the magnitude and the same test for the sign.
+
+**Limits.** At most `kMaxPolygonVertices` (256) per polygon and `kMaxClipVertices` (4096) per frame.
+`ClipStateTable::push_shape` checks both and degrades a polygon over either to its bounding box, which
+never paints outside the shape's own box, and counts it in `shape_fallbacks()` (also reachable as
+`Batched2DRenderer::clip_shape_fallbacks()`). A polygon with fewer than three vertices has no area and
+clips everything away, which is not a fallback. Identical polygons share their pooled run, so the same
+shape pushed under several nodes costs its vertices once. Deeper than `kMaxClipDepth` a shaped clip
+folds to its bounds, like any other.
+
+**What is not wired yet.** The parser, the record, the renderer entry (`push_clip_shape`), the shaders
+and the CPU reference exist. The paint pass does not read `clip-path` yet, so no stylesheet draws a
+polygon until the rest of #615 lands (the paint wiring and hit testing).
+
+**Tests.**
+- `clip_polygon` pins the parser (fill rules, percentages, the box origin, every invalid form) and the
+  coverage of a convex, a concave and a self-intersecting polygon under both rules.
+- `clip_state_polygon` pins the pool, the deduplication, the two limits and the degenerate case.
+- `polygon_clip` (real Vulkan) compares every pixel of six scenes with `CpuCanvas`: convex, concave,
+  a star under both fill rules, a polygon under a rounded clip, and an over-limit polygon. Its fixtures
+  keep every edge crossing at least a thousandth of a pixel from a pixel centre, so it fails only when
+  the rule is wrong, not when two platforms round differently.

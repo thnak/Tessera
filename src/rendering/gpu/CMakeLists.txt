@@ -2,6 +2,7 @@
 
 add_library(tessera_gpu STATIC
     batched2d_renderer.cpp
+    batched2d_clip.cpp
     batched2d_shadow.cpp
     # The exact-nearest textured quad (issue #682): integer texel math in the shader, no sampler.
     batched2d_texture_exact.cpp
@@ -51,4 +52,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/gpu_collaborators_tests.cpp)
     target_link_libraries(gpu_collaborators_tests PRIVATE tessera_gpu tessera_rhi_null)
     add_test(NAME gpu_collaborators COMMAND gpu_collaborators_tests)
+
+    # ClipStateTable polygon pooling (ADR-068 slice 5, issue #673): the vertex pool, deduplication
+    # and the over-limit fallback.
+    add_executable(clip_state_polygon_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/clip_state_polygon_tests.cpp)
+    target_link_libraries(clip_state_polygon_tests PRIVATE tessera_gpu tessera_rhi_null)
+    add_test(NAME clip_state_polygon COMMAND clip_state_polygon_tests)
 endif()

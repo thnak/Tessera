@@ -310,6 +310,50 @@ bool parse_ellipse(const std::string& arguments, const rendering::rhi::Rect& box
     return true;
 }
 
+// `polygon( [ nonzero | evenodd , ]? <length-percentage> <length-percentage> # )`. Each vertex is a
+// comma-separated pair; a percentage resolves against the box's width (x) or height (y).
+bool parse_polygon(const std::string& arguments, const rendering::rhi::Rect& box,
+                   ClipShape& shape) {
+    std::vector<std::string> parts;
+    std::string current;
+    for (const char character : arguments) {
+        if (character == ',') {
+            parts.push_back(current);
+            current.clear();
+            continue;
+        }
+        current.push_back(character);
+    }
+    parts.push_back(current);
+
+    std::size_t first = 0;
+    bool even_odd = false;
+    const std::string_view head = trim(parts.front());
+    if (head == "nonzero" || head == "evenodd") {
+        even_odd = head == "evenodd";
+        first = 1;
+    }
+    if (first >= parts.size()) {
+        return false;
+    }
+    std::vector<rendering::gpu::clip::ClipVertex> vertices;
+    vertices.reserve(parts.size() - first);
+    for (std::size_t index = first; index < parts.size(); ++index) {
+        const std::vector<std::string> pair = tokenize_arguments(parts[index]);
+        Length x;
+        Length y;
+        if (pair.size() != 2 || !parse_length(pair[0], x) || !parse_length(pair[1], y)) {
+            return false;
+        }
+        vertices.push_back(rendering::gpu::clip::ClipVertex{box.x + x.resolve(box.width),
+                                                            box.y + y.resolve(box.height)});
+    }
+    shape.vertices = std::move(vertices);
+    shape.even_odd = even_odd;
+    shape.kind = ClipShape::Kind::Polygon;
+    return true;
+}
+
 } // namespace
 
 ClipPathParse parse_clip_path(std::string_view value, const rendering::rhi::Rect& box) {
@@ -318,9 +362,9 @@ ClipPathParse parse_clip_path(std::string_view value, const rendering::rhi::Rect
     if (text.empty() || text == "none") {
         return result;
     }
-    // `polygon()` is slice 5. Reporting it as unsupported rather than as `none` is what lets a
-    // caller count the gap instead of silently painting unclipped.
-    if (text.starts_with("polygon(") || text.starts_with("path(") || text.starts_with("url(")) {
+    // `path()` and `url()` are out of scope. Reporting them as unsupported rather than as `none` is
+    // what lets a caller count the gap instead of silently painting unclipped.
+    if (text.starts_with("path(") || text.starts_with("url(")) {
         result.unsupported = true;
         return result;
     }
@@ -343,6 +387,8 @@ ClipPathParse parse_clip_path(std::string_view value, const rendering::rhi::Rect
         ok = parse_circle(arguments, box, result.shape);
     } else if (name == "ellipse") {
         ok = parse_ellipse(arguments, box, result.shape);
+    } else if (name == "polygon") {
+        ok = parse_polygon(arguments, box, result.shape);
     } else {
         result.unsupported = true;
         return result;
@@ -369,6 +415,31 @@ rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape,
         record.y = shape.center_y - shape.radius_y;
         record.width = shape.radius_x * 2.0f;
         record.height = shape.radius_y * 2.0f;
+        return record;
+    }
+    case ClipShape::Kind::Polygon: {
+        record.kind = static_cast<std::uint32_t>(rendering::gpu::clip::RecordKind::Polygon);
+        record.flags = shape.even_odd ? rendering::gpu::clip::kRecordFlagEvenOdd : 0U;
+        record.vertex_count = static_cast<std::uint32_t>(shape.vertices.size());
+        if (shape.vertices.empty()) {
+            return record;
+        }
+        // The record's rect is the bounding box: the scissor derives from it, and it is what a
+        // polygon degrades to when it is over a vertex limit.
+        float min_x = shape.vertices.front().x;
+        float max_x = min_x;
+        float min_y = shape.vertices.front().y;
+        float max_y = min_y;
+        for (const rendering::gpu::clip::ClipVertex& vertex : shape.vertices) {
+            min_x = std::min(min_x, vertex.x);
+            max_x = std::max(max_x, vertex.x);
+            min_y = std::min(min_y, vertex.y);
+            max_y = std::max(max_y, vertex.y);
+        }
+        record.x = min_x;
+        record.y = min_y;
+        record.width = max_x - min_x;
+        record.height = max_y - min_y;
         return record;
     }
     case ClipShape::Kind::Inset: {

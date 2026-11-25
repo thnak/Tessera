@@ -454,6 +454,16 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME rounded_clip COMMAND rounded_clip_tests)
     set_tests_properties(rounded_clip PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # `clip-path: polygon()` (ADR-068 slice 5, issue #673): every pixel of a polygon-clipped quad is
+    # compared with the CPU reference, for convex, concave, self-intersecting (both fill rules),
+    # nested and over-limit polygons.
+    add_executable(polygon_clip_tests
+        batched2d/polygon_clip_tests.cpp)
+    target_link_libraries(polygon_clip_tests PRIVATE
+        tessera_gpu tessera_paint tessera_software tessera_rhi_vulkan)
+    add_test(NAME polygon_clip COMMAND polygon_clip_tests)
+    set_tests_properties(polygon_clip PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # An outer box-shadow is painted only outside the border box (issue #461): a real readback
     # proves a transparent node shows the page colour inside its own (rounded) box, through the
     # renderer's Gaussian quad and through the paint pass for both the sharp and the blurred path.
