@@ -200,9 +200,14 @@ public:
     [[nodiscard]] std::uint32_t uniform_size() const {
         return uniform_size_;
     }
+    // RHI 1.15: the layout declares the clip-record storage buffer at kBindingClipRecords.
+    [[nodiscard]] bool declares_storage_buffer() const override {
+        return storage_buffer_;
+    }
 
 private:
     std::shared_ptr<WebGpuContext> context_;
+    bool storage_buffer_ = false;
     WGPUBindGroupLayout bind_group_layout_ = nullptr;
     WGPUPipelineLayout layout_ = nullptr;
     WGPURenderPipeline pipeline_ = nullptr;

@@ -14,6 +14,7 @@ namespace tessera::rendering::webgpu {
 WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
                                const rhi::PipelineDesc& desc)
     : context_(std::move(context)),
+      storage_buffer_(desc.storage_buffer),
       sample_count_(desc.sample_count),
       uniform_size_(push_constant_uniform_size(desc.push_constant_size)) {
     if (!is_supported_sample_count(desc.sample_count)) {
@@ -43,8 +44,11 @@ WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
     module_desc.nextInChain = &wgsl.chain;
     WGPUShaderModule module = wgpuDeviceCreateShaderModule(context_->device, &module_desc);
 
-    // Group 0: [0] push-constant uniform (dynamic offset per draw), [1] texture, [2] sampler.
-    std::array<WGPUBindGroupLayoutEntry, 3> entries{};
+    // Group 0: [0] push-constant uniform (dynamic offset per draw), [1] texture, [2] sampler, and
+    // for a pipeline that declares one (ADR-068) [3] the read-only clip-record storage buffer. The
+    // WGSL twin declares binding 3 unconditionally, so a layout without it is a validation error at
+    // pipeline creation; the one shader that has it is created with `storage_buffer`.
+    std::array<WGPUBindGroupLayoutEntry, 4> entries{};
     for (auto& entry : entries) {
         entry = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
     }
@@ -60,9 +64,12 @@ WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
     entries[2].binding = kBindingSampler;
     entries[2].visibility = WGPUShaderStage_Fragment;
     entries[2].sampler.type = WGPUSamplerBindingType_Filtering;
+    entries[3].binding = kBindingClipRecords;
+    entries[3].visibility = WGPUShaderStage_Fragment;
+    entries[3].buffer.type = WGPUBufferBindingType_ReadOnlyStorage;
 
     WGPUBindGroupLayoutDescriptor bgl_desc = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
-    bgl_desc.entryCount = entries.size();
+    bgl_desc.entryCount = storage_buffer_ ? entries.size() : entries.size() - 1;
     bgl_desc.entries = entries.data();
     bind_group_layout_ = wgpuDeviceCreateBindGroupLayout(context_->device, &bgl_desc);
 
