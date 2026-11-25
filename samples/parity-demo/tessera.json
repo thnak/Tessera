@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "app": { "namespace": "parity_demo" }
+  "app": { "name": "parity-demo", "entry": "Counter.tsx", "namespace": "parity_demo" }
 }

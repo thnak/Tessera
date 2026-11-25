@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "app": { "name": "compiler-demo", "entry": "Demo.tsx", "namespace": "compiler_demo" }
+}
