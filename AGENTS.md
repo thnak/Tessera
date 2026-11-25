@@ -504,19 +504,16 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       the runs so a later line's shadow never darkens an earlier line's glyphs), interpolated, and
       layout/ink-box invariant — `src/ui/paint/paint_text_shadow.cpp`,
       `tests/unit/paint_text_shadow_tests.cpp` (PR #667).
-- [ ] #615 `clip-path` basic shapes — blocked on [ADR-068](decisions/ADR-068-clip-state-in-a-storage-buffer.md)
-      (Proposed): `clip::RoundedRect` is a rect plus four circular radii in 3 × 32-byte push-constant
-      slots (112 of Vulkan's 128-byte minimum), the `CommandList` seam has no storage-buffer binding
-      and no stencil attachment, and `CpuCanvas` clips with one rect, so `polygon()` cannot reach the
-      fragment shader and no CPU/GPU-agreed golden is reachable. `ellipse()` and `inset()` with
-      elliptical radii do not fit the existing circular-corner SDF either, so none of the shapes
-      lands before the refactor. ADR-068 moves clip state into a per-frame storage buffer (RHI 1.9);
-      slices 1 to 3 are a no-pixel-change refactor (#669 RHI 1.9 null + Vulkan, #670 Metal +
-      WebGPU, #671 `ClipStateTable` and shader on the buffer), then #672 `circle()`/`ellipse()`/
-      `inset()`, #673 `polygon()`, #674 shape interpolation. `path()` stays out of V1 (fill-rule
-      evaluation, no layer budget). #672, #673 and #674 landed as library slices (parser, shader,
-      `CpuCanvas` reference, `Batched2DRenderer::push_clip_shape`, shape interpolation); wiring `clip-path` into the
-      paint pass and hit testing is what remains of #615.
+- [ ] #615 `clip-path` basic shapes — [ADR-068](decisions/ADR-068-clip-state-in-a-storage-buffer.md)
+      (Accepted) moved clip state into a per-frame storage buffer so `ellipse()`, elliptical `inset()`
+      radii and `polygon()` can reach the fragment shader with a CPU reference both agree on.
+      Landed as library slices: #669 RHI 1.12 null + Vulkan, #671 `ClipStateTable` and shader on the
+      buffer, #672 `circle()`/`ellipse()`/`inset()` (parser, shader, `CpuCanvas` shaped clip), #673
+      `polygon()` with both fill rules (vertex pool, `Batched2DRenderer::push_clip_shape`; PR #911) and
+      #674 shape interpolation (`animation/clip_path_interpolation.cpp`; PR #911). Open: #670 Metal +
+      WebGPU storage buffers, and the wiring itself — the paint pass reading `clip-path` (a shaped
+      clip around a node's children) and hit testing against the shape. `path()` stays out of V1
+      (fill-rule evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 - [ ] GPU for CPU-produced pixels (measured 2026-11-21 at 4K on the RX 5300M and the iGPU:
