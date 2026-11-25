@@ -55,4 +55,11 @@ rhi::ComputePipelineDesc path_raster_pipeline_desc(PathRasterPass pass) {
     return desc;
 }
 
+path::GpuPathPipelineDescs path_raster_pipeline_descs() {
+    return {path_raster_pipeline_desc(PathRasterPass::Clear),
+            path_raster_pipeline_desc(PathRasterPass::Stroke),
+            path_raster_pipeline_desc(PathRasterPass::Bin),
+            path_raster_pipeline_desc(PathRasterPass::Fine)};
+}
+
 } // namespace tessera::rendering::vulkan

@@ -116,13 +116,6 @@ struct Raster {
     return pixels[i] == r && pixels[i + 1] == g && pixels[i + 2] == b;
 }
 
-[[nodiscard]] path::GpuPathPipelineDescs descs() {
-    return {vk::path_raster_pipeline_desc(vk::PathRasterPass::Clear),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Stroke),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Bin),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Fine)};
-}
-
 void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     device.wait_idle();
     rasterizer.collect();
@@ -141,7 +134,7 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
 }
 
 [[nodiscard]] bool run(rhi::Device& device) {
-    path::GpuPathRasterizer rasterizer(device, descs());
+    path::GpuPathRasterizer rasterizer(device, vk::path_raster_pipeline_descs());
     // Different sizes, and one raster with a stroke, so the batch's dispatch grid (the largest
     // raster by the job count) has threads past a raster's own extent and the stroke pass has jobs
     // with no stroke at all.
@@ -203,7 +196,7 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
 
     // Two batches in flight at once need two pipeline sets: a set's descriptors are rewritten by
     // every bind, so a running batch's set is not handed out.
-    path::GpuPathRasterizer overlapped(device, descs());
+    path::GpuPathRasterizer overlapped(device, vk::path_raster_pipeline_descs());
     for (int batch = 0; batch < 2; ++batch) {
         ok = expect(overlapped
                             .enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
@@ -217,7 +210,7 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     wait_collect(overlapped, device);
 
     // warm() builds sets ahead of the first batch and is idempotent.
-    path::GpuPathRasterizer warmed(device, descs());
+    path::GpuPathRasterizer warmed(device, vk::path_raster_pipeline_descs());
     ok = expect(warmed.warm(2).has_value() && warmed.stats().pipeline_slots == 2, "warm(2)") && ok;
     ok = expect(warmed.warm(1).has_value() && warmed.stats().pipeline_slots == 2,
                 "warm never shrinks or rebuilds") &&
@@ -233,7 +226,7 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
     // A full batch is refused, not dropped.
     path::GpuPathRasterizerConfig small;
     small.max_jobs_per_batch = 1;
-    path::GpuPathRasterizer tiny(device, descs(), small);
+    path::GpuPathRasterizer tiny(device, vk::path_raster_pipeline_descs(), small);
     ok = expect(tiny.enqueue(std::span<const path::PathShape>(&yellow, 1), *again.texture,
                              again.extent)
                     .has_value(),

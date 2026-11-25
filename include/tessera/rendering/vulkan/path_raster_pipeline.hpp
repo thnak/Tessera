@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/path/gpu_path_rasterizer.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cstdint>
@@ -35,5 +36,19 @@ inline constexpr std::uint32_t kPathRasterStorageBuffers = 7;
 inline constexpr std::uint32_t kPathRasterPushBytes = 4; // job_base
 
 [[nodiscard]] rhi::ComputePipelineDesc path_raster_pipeline_desc(PathRasterPass pass);
+
+// The four passes in the form `path::GpuPathRasterizer` takes. The composition root that owns a
+// `PathTextureCache` turns the GPU route on with:
+//
+//   path::GpuPathRasterizer gpu(device, vulkan::path_raster_pipeline_descs());
+//   if (path::GpuPathRasterizer::supported(device)) {
+//       (void)gpu.warm(2);               // at startup: a pipeline set is ~2 ms to build
+//       textures.set_gpu_rasterizer(&gpu);
+//   }
+//   // each frame: acquire()s ..., textures.flush_gpu() before the draw list is submitted,
+//   //             textures.end_frame() after it, as for any PathTextureCache owner.
+//
+// The rasterizer must outlive the cache or be detached first (`set_gpu_rasterizer(nullptr)`).
+[[nodiscard]] path::GpuPathPipelineDescs path_raster_pipeline_descs();
 
 } // namespace tessera::rendering::vulkan

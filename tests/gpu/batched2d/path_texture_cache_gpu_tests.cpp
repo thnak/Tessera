@@ -51,13 +51,6 @@ constexpr std::uint32_t kTargetHeight = 128;
     return shape;
 }
 
-[[nodiscard]] path::GpuPathPipelineDescs descs() {
-    return {vk::path_raster_pipeline_desc(vk::PathRasterPass::Clear),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Stroke),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Bin),
-            vk::path_raster_pipeline_desc(vk::PathRasterPass::Fine)};
-}
-
 // Draws `texture` 1:1 at the origin on black and returns the target's RGBA bytes.
 [[nodiscard]] std::vector<std::uint8_t> draw(rhi::Device& device, rhi::Texture& texture,
                                              rhi::Extent2D extent) {
@@ -109,7 +102,7 @@ constexpr std::uint32_t kTargetHeight = 128;
 
 bool run(rhi::Device& device, path::PathRasterizer& cpu) {
     bool ok = true;
-    path::GpuPathRasterizer gpu_rasterizer(device, descs());
+    path::GpuPathRasterizer gpu_rasterizer(device, vk::path_raster_pipeline_descs());
     path::PathTextureCacheConfig config;
     config.max_entries = 4;
     path::PathTextureCache cache(device, cpu, config);

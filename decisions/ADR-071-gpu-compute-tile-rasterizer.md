@@ -132,9 +132,31 @@ that request and is counted (`gpu_fallbacks`); a failed flush drops the waiting 
 `acquire` rasterizes them on the CPU. A texture evicted while its raster is still queued is submitted
 first and kept one more frame, because the copy into it is in flight; device loss discards the queue.
 
-Still open: the frame code that owns a `GpuPathRasterizer`, calls `warm()` at startup and `flush_gpu()`
-per frame (the cache has no caller yet), whether the 128 px line can drop now that a batched raster
-costs about what ThorVG does (measure it through the cache before moving it), and the WebGPU port of the shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
+No production code owns a `PathTextureCache` yet: the window device builds its sink without a
+`VectorPaintConfig`, so SVG draws in a windowed app are not wired at all and only tests and tools
+construct the cache. The composition-root recipe (build the rasterizer from
+`vulkan::path_raster_pipeline_descs()`, `warm` at startup, `set_gpu_rasterizer`, `flush_gpu` before the
+draw list, `end_frame` after) is on `path_raster_pipeline_descs` in
+`include/tessera/rendering/vulkan/path_raster_pipeline.hpp`; whoever adds the windowed vector stack
+follows it.
+
+**The 128 px line stays** (`tests/gpu/batched2d/path_route_measure.cpp`, 48 distinct icons per
+stream, best of 10, the four SVG fixtures at 32 to 256 px, ThorVG against the GPU route forced on,
+per icon): the cost a frame pays is the main thread's (`acquire` plus `flush_gpu`). On the iGPU the
+GPU route is at or below ThorVG from 32 px for the stroked icons (0.033 against 0.039 ms) and from
+128 px for every fixture (0.043 against 0.045 to 0.12 ms), and 2 to 6 times cheaper at 256 px. On the
+RX 5300M it is break-even to worse below 128 px (0.06 to 0.11 ms against 0.04 to 0.07), wins on the
+complex icons from 128 px (0.077 against 0.10 ms; 0.114 against 0.21 at 192 px) and loses on the two
+simple fixtures (one shape) up to 192 px, where ThorVG is still 0.05 to 0.08 ms. So the line moves
+neither way on these numbers: ThorVG's cost grows with pixels times shapes, the GPU's mostly with
+the batch, and a rule that also looks at the shape count would be the next refinement, with a real
+icon set to measure it on (these fixtures are one or two shapes). One caution: the end-to-end time
+(until the device is idle) on the RX 5300M is often 3 to 5 times its main-thread time and in some
+runs sits at about 14 ms for a 48-icon batch against 3 to 5 ms in others, which looks like the
+discrete GPU leaving a low power state, not our code, but it was not investigated; a batch of icons
+can appear a frame or two later than a ThorVG one on that GPU.
+
+Still open: the WebGPU port of the shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
 spare, and the port should check the device's limit).
 
 ## Alternatives, to be measured on the same 4K scenes

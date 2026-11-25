@@ -204,6 +204,15 @@ if (TARGET tessera_rhi_vulkan)
     target_compile_definitions(path_texture_measure PRIVATE
         TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
 
+    # Manual measurement tool (not a CTest): where the CPU and GPU route of PathTextureCache cross
+    # over, per fixture and size (ADR-071).
+    add_executable(path_route_measure
+        batched2d/path_route_measure.cpp)
+    target_link_libraries(path_route_measure PRIVATE
+        tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
+    target_compile_definitions(path_route_measure PRIVATE
+        TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+
     # Manual measurement tool (not a CTest): CPU raster + upload cost at 4K, the numbers behind the
     # decision to move vector paths and other CPU-produced pixels onto the GPU.
     add_executable(cpu_to_gpu_4k_measure

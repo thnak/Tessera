@@ -1553,6 +1553,7 @@ function include/tessera/rendering/vulkan/glass_blur_pipeline.hpp tessera::rende
 header include/tessera/rendering/vulkan/path_raster_pipeline.hpp
 enum include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::PathRasterPass
 function include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::path_raster_pipeline_desc
+function include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::path_raster_pipeline_descs
 constant include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::kPathRasterPushBytes
 constant include/tessera/rendering/vulkan/path_raster_pipeline.hpp tessera::rendering::vulkan::kPathRasterStorageBuffers
 
