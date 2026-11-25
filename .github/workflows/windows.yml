@@ -57,6 +57,15 @@ jobs:
       - name: ccache statistics
         run: ccache --show-stats
 
+      # A red test must not leave the next run cold: the cache action's own save only runs when the
+      # whole job passes, and two red main runs in a row (window_wait) made the next PR's build take
+      # 2205 s instead of about 300 s (no cache for the day, 26% hits).
+      - name: Save ccache (before the tests)
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-windows-${{ env.CCACHE_KEY_DATE }}-${{ github.sha }}
+
       - name: Package build (CPack ZIP)
         env:
           SOURCE_DATE_EPOCH: "315532800"
