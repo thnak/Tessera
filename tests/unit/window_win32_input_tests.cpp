@@ -146,6 +146,38 @@ int main() {
         return 6;
     }
 
+    // The window class has CS_DBLCLKS, so the second press of a quick pair arrives as
+    // WM_*BUTTONDBLCLK. It must queue a press like WM_*BUTTONDOWN, or every second click of a fast
+    // sequence is lost (50 clicks 10 ms apart registered 25).
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, point(3, 3));
+    SendMessageW(hwnd, WM_LBUTTONUP, 0, point(3, 3));
+    SendMessageW(hwnd, WM_LBUTTONDBLCLK, MK_LBUTTON, point(3, 3));
+    SendMessageW(hwnd, WM_LBUTTONUP, 0, point(3, 3));
+    SendMessageW(hwnd, WM_RBUTTONDBLCLK, MK_RBUTTON, point(3, 3));
+    SendMessageW(hwnd, WM_RBUTTONUP, 0, point(3, 3));
+    SendMessageW(hwnd, WM_MBUTTONDBLCLK, MK_MBUTTON, point(3, 3));
+    SendMessageW(hwnd, WM_MBUTTONUP, 0, point(3, 3));
+    const LRESULT double_x_result =
+        SendMessageW(hwnd, WM_XBUTTONDBLCLK, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), point(3, 3));
+    SendMessageW(hwnd, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), point(3, 3));
+    events = drain(queue);
+    if (!expect(events.size() == 10, "a double-click press queues a press, like a plain one") ||
+        !expect(events[2].type == InputEventType::PointerDown &&
+                    events[2].button == PointerButton::Left,
+                "the second left press of a pair is not dropped") ||
+        !expect(events[4].type == InputEventType::PointerDown &&
+                    events[4].button == PointerButton::Right,
+                "right double-click press") ||
+        !expect(events[6].type == InputEventType::PointerDown &&
+                    events[6].button == PointerButton::Middle,
+                "middle double-click press") ||
+        !expect(events[8].type == InputEventType::PointerDown &&
+                    events[8].button == PointerButton::Back,
+                "side button double-click press") ||
+        !expect(double_x_result == TRUE, "X double-click reports handled")) {
+        return 10;
+    }
+
     // A release without a press is ignored; losing capture cancels the press.
     SendMessageW(hwnd, WM_LBUTTONUP, 0, point(1, 1));
     if (!expect(queue.empty(), "stray release is ignored")) {

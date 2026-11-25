@@ -337,25 +337,32 @@ bool Win32InputTranslator::handle(HWND window, UINT message, WPARAM wparam, LPAR
         push(pointer_event(window, ui::InputEventType::PointerMove, GET_X_LPARAM(lparam),
                            GET_Y_LPARAM(lparam), mouse_modifiers(wparam)));
         return true;
+    // The window class has CS_DBLCLKS, so Windows delivers the second press of a quick pair as
+    // WM_*BUTTONDBLCLK instead of WM_*BUTTONDOWN. It is a press like any other: dropping it lost
+    // every second click of a fast sequence (50 clicks 10 ms apart registered 25). Double-click
+    // recognition is the gesture arena's job, from its own timing, not the OS's.
     case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK:
     case WM_LBUTTONUP:
-        pointer_button(window, ui::PointerButton::Left, message == WM_LBUTTONDOWN, lparam, wparam);
+        pointer_button(window, ui::PointerButton::Left, message != WM_LBUTTONUP, lparam, wparam);
         return true;
     case WM_RBUTTONDOWN:
+    case WM_RBUTTONDBLCLK:
     case WM_RBUTTONUP:
-        pointer_button(window, ui::PointerButton::Right, message == WM_RBUTTONDOWN, lparam, wparam);
+        pointer_button(window, ui::PointerButton::Right, message != WM_RBUTTONUP, lparam, wparam);
         return true;
     case WM_MBUTTONDOWN:
+    case WM_MBUTTONDBLCLK:
     case WM_MBUTTONUP:
-        pointer_button(window, ui::PointerButton::Middle, message == WM_MBUTTONDOWN, lparam,
-                       wparam);
+        pointer_button(window, ui::PointerButton::Middle, message != WM_MBUTTONUP, lparam, wparam);
         return true;
     case WM_XBUTTONDOWN:
+    case WM_XBUTTONDBLCLK:
     case WM_XBUTTONUP:
         pointer_button(window,
                        GET_XBUTTON_WPARAM(wparam) == XBUTTON1 ? ui::PointerButton::Back
                                                               : ui::PointerButton::Forward,
-                       message == WM_XBUTTONDOWN, lparam, wparam);
+                       message != WM_XBUTTONUP, lparam, wparam);
         result = TRUE; // required so the system stops looking for another handler
         return true;
     case WM_MOUSEWHEEL:
