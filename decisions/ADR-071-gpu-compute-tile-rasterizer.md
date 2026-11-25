@@ -156,8 +156,24 @@ runs sits at about 14 ms for a 48-icon batch against 3 to 5 ms in others, which 
 discrete GPU leaving a low power state, not our code, but it was not investigated; a batch of icons
 can appear a frame or two later than a ThorVG one on that GPU.
 
-Still open: the WebGPU port of the shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
-spare, and the port should check the device's limit).
+**The WGSL twin** (`src/rendering/backend/webgpu/shaders/path_raster.wgsl`, the `webgpu` source of the
+manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL
+only where WGSL forces it: the work buffer is `array<atomic<u32>>` (every access is an
+`atomicLoad`/`atomicStore`, relaxed, which is enough because each pass is its own dispatch), GLSL's
+`mod` is written out (WGSL's `%` truncates), and the push constant is a uniform at binding 7
+(`pc`). It binds seven storage buffers and one uniform; WebGPU's default limit is eight storage buffers
+per stage, so there is one spare. The CI gate (`validate_wgsl.py`, naga 30.0.1) validates it. It was
+also **run**: each entry point was translated to SPIR-V with naga, the entry renamed to `main`, and
+the Vulkan tests and the 4K spike were rerun with those modules in place of the glslc ones (a
+temporary hook, not kept). `path_raster_gpu`, `path_raster_batch_gpu` and `path_texture_cache_gpu` pass,
+a control that swaps the fine pass for the clear pass fails all three, and all 43 comparison lines of the
+spike against ThorVG (round, bevel and miter joins, the three caps, dashes, per-path transforms, the
+animated frames) are identical to the digit with the GLSL. What is not shown: WebGPU itself (no
+backend runs compute yet; ADR-072 slice 3 adds the buffer-to-texture copy there), and naga's
+SPIR-V is not what a browser's compiler produces.
+
+Still open: a WebGPU compute backend that embeds the module and runs it (RHI 1.16 is Vulkan only), and
+the frame code that owns a `GpuPathRasterizer` once windowed apps get a vector stack.
 
 ## Alternatives, to be measured on the same 4K scenes
 

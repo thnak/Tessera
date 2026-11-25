@@ -301,7 +301,10 @@ lane adds the artifact-level checks; it is not what proves parity.
   because the GPU path rasterizer (`path_raster`) is a core consumer. A compute entry has the single
   stage `compute`, no `vertexLayout`, `storage_buffer` bindings and push constants; combining it with a
   graphics stage is `compute_stage_unsupported` (section 9). Pass variants selected by a define (the
-  rasterizer's four passes) stay a build rule, not a manifest field; WGSL twins are not authored yet.
+  rasterizer's four passes) stay a build rule, not a manifest field. A WGSL twin carries the passes as
+  entry points of one module (WGSL has no defines) and the push constant as a uniform at the next
+  binding (`pc`, as for `batched2d`); `path_raster.wgsl` is the first one and is validated by the WGSL
+  gate, but no backend embeds it yet.
 - Reflection for WGSL in the browser build.
 - Shader variant matrix (quality/power modes).
 - Per-backend entry names. The schema has one `entry` map per stage, but the batched2d WGSL twin

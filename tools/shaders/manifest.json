@@ -156,7 +156,8 @@
       "stages": ["compute"],
       "entry": { "compute": "main" },
       "sources": {
-        "vulkan": ["path_raster.comp"]
+        "vulkan": ["path_raster.comp"],
+        "webgpu": ["path_raster.wgsl"]
       },
       "bindings": [
         { "group": 0, "binding": 0, "type": "storage_buffer", "name": "segs" },
@@ -165,7 +166,8 @@
         { "group": 0, "binding": 3, "type": "storage_buffer", "name": "pixels" },
         { "group": 0, "binding": 4, "type": "storage_buffer", "name": "strokes" },
         { "group": 0, "binding": 5, "type": "storage_buffer", "name": "dashes" },
-        { "group": 0, "binding": 6, "type": "storage_buffer", "name": "jobs" }
+        { "group": 0, "binding": 6, "type": "storage_buffer", "name": "jobs" },
+        { "group": 0, "binding": 7, "type": "uniform_buffer", "name": "pc" }
       ],
       "pushConstants": {
         "size": 4,
