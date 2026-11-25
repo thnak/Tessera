@@ -1416,6 +1416,15 @@ struct include/tessera/rendering/path/path_texture_key.hpp tessera::rendering::p
 struct include/tessera/rendering/path/path_texture_key.hpp tessera::rendering::path::PathTextureKey
 function include/tessera/rendering/path/path_texture_key.hpp tessera::rendering::path::make_path_texture_key
 
+header include/tessera/rendering/path/raster_route.hpp
+struct include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteConfig
+struct include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteDecision
+struct include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteInput
+enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRoute
+enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteMode
+enum include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::RasterRouteReason
+function include/tessera/rendering/path/raster_route.hpp tessera::rendering::path::choose_raster_route
+
 header include/tessera/rendering/path/svg_document_cache.hpp
 class include/tessera/rendering/path/svg_document_cache.hpp tessera::rendering::path::SvgDocumentCache
 struct include/tessera/rendering/path/svg_document_cache.hpp tessera::rendering::path::SvgDocumentCacheConfig
