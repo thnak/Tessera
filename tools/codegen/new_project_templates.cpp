@@ -161,9 +161,11 @@ std::string cmake_lists(const Options& options) {
     text += "target_compile_features(" + options.app_name + " PRIVATE cxx_std_23)\n";
     text += "\n";
     text += "if (TARGET tessera_app_window)\n";
-    text += "    target_link_libraries(" + options.app_name + " PRIVATE tessera_app_window)\n";
+    text += "    target_link_libraries(" + options.app_name +
+            " PRIVATE tessera_app_window tessera_harness_image)\n";
     text += "else ()\n";
-    text += "    target_link_libraries(" + options.app_name + " PRIVATE Tessera::app_window)\n";
+    text += "    target_link_libraries(" + options.app_name +
+            " PRIVATE Tessera::app_window Tessera::harness_image)\n";
     text += "endif ()\n";
     text += "\n";
     text += "if (MSVC)\n";

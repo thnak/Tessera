@@ -152,6 +152,10 @@ void check_entry_point(const fs::path& project, std::string_view ns) {
           "main.cpp: the vector assets header is a conditional include");
     check(contains(text, std::string(ns) + "::gen::vector_assets::bundle()"),
           "main.cpp: the generated bundle is taken from the module namespace");
+    check(contains(text, "tessera::harness::encode_png(image)"),
+          "main.cpp: --capture writes the PNG it reports");
+    check(contains(read_file(project / "CMakeLists.txt"), "tessera_harness_image"),
+          "CMakeLists.txt: the PNG encoder is linked");
     check(contains(text, "options.vector_assets = &vector_bundle;"),
           "main.cpp: the window gets the bundle");
     check(contains(text, "shot.vector_assets = options.vector_assets;"),

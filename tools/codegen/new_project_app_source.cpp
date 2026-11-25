@@ -82,6 +82,7 @@ std::string main_source(const Options& options) {
     text += "#endif\n";
     text += "\n";
     text += "#include \"tessera/app/window.hpp\"\n";
+    text += "#include \"tessera/harness/image_compare.hpp\"\n";
     text += "#include \"tessera/ui/scene/node.hpp\"\n";
     text += "#include \"tessera/ui/scene/update_scheduler.hpp\"\n";
     text += "#include \"tessera/ui/style/compiled_stylesheet.hpp\"\n";
@@ -204,6 +205,21 @@ std::string main_source(const Options& options) {
     text += "            std::cout << \"" + options.app_name +
             ": skipped (Vulkan device unavailable)\\n\";\n";
     text += "            return 0;\n";
+    text += "        }\n";
+    text += "        // The capture is the frame as a PNG; the framework's own encoder, so no "
+            "image library is\n";
+    text += "        // needed here.\n";
+    text += "        tessera::harness::RgbaImage image;\n";
+    text += "        image.width = frame->width;\n";
+    text += "        image.height = frame->height;\n";
+    text += "        image.rgba = frame->rgba;\n";
+    text += "        const auto png = tessera::harness::encode_png(image);\n";
+    text += "        std::ofstream out(capture, std::ios::binary | std::ios::trunc);\n";
+    text += "        if (!png || !out.write(png->data(), "
+            "static_cast<std::streamsize>(png->size()))) {\n";
+    text += "            std::cerr << \"" + options.app_name +
+            ": cannot write \" << capture << \"\\n\";\n";
+    text += "            return 1;\n";
     text += "        }\n";
     text += "        std::cout << \"" + options.app_name + ": captured \" << capture << \" (\"\n";
     text += "                  << frame->width << \"x\" << frame->height << \")\\n\";\n";
