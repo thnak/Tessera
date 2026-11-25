@@ -10,6 +10,7 @@
 #include <exception>
 #include <limits>
 #include <list>
+#include <optional>
 #include <span>
 #include <unordered_map>
 #include <utility>
@@ -115,6 +116,11 @@ struct PathTextureCache::Impl {
         bytes = 0;
         retired.clear(); // loss/invalidate: nothing recorded against these textures can still run
         retired_bytes = 0;
+        // Queued GPU rasters point at textures that were just destroyed.
+        gpu_pending.clear();
+        if (gpu != nullptr) {
+            gpu->discard_pending();
+        }
     }
 
     // An evicted texture may still be referenced by a draw already recorded this frame, so it is
@@ -122,8 +128,15 @@ struct PathTextureCache::Impl {
     // cache's own limits; past that the oldest parked texture is destroyed anyway (the pre-existing
     // behavior), counted in forced_releases.
     void retire(Entry& victim) {
+        // A texture still waiting for its GPU raster is submitted now, while it is alive, and kept
+        // one more frame: the copy into it is in flight after this and may not outlive it.
+        const bool awaiting_gpu =
+            std::find(gpu_pending.begin(), gpu_pending.end(), victim.key) != gpu_pending.end();
+        if (awaiting_gpu) {
+            (void)submit_pending();
+        }
         retired_bytes += victim.bytes;
-        retired.push_back(Retired{std::move(victim.texture), victim.bytes});
+        retired.push_back(Retired{std::move(victim.texture), victim.bytes, awaiting_gpu});
         while (!retired.empty() &&
                (retired.size() > config.max_entries || retired_bytes > config.max_bytes)) {
             retired_bytes -= retired.front().bytes;
@@ -144,6 +157,96 @@ struct PathTextureCache::Impl {
         }
     }
 
+    [[nodiscard]] rhi::TextureDesc base_texture_desc(rhi::Extent2D extent) const {
+        rhi::TextureDesc desc;
+        desc.extent = extent;
+        desc.format = config.format;
+        desc.filter = config.filter;
+        desc.address = config.address;
+        // The path cache is a bounded pool with its own budget row (RHI 1.14, issue #703).
+        desc.category = rhi::MemoryCategory::PathCache;
+        return desc;
+    }
+
+    [[nodiscard]] CachedPathTexture insert_entry(const PathTextureKey& key,
+                                                 std::unique_ptr<rhi::Texture> texture,
+                                                 rhi::Extent2D extent, std::uint64_t entry_bytes) {
+        evict_until_fits(entry_bytes);
+        const auto inserted =
+            entries.emplace(entries.begin(), Entry{key, std::move(texture), extent, entry_bytes});
+        index.emplace(key, inserted);
+        bytes += entry_bytes;
+        return CachedPathTexture{inserted->texture.get(), inserted->extent};
+    }
+
+    // Submits the queued GPU rasters. On failure the entries that were waiting are dropped, so the
+    // next acquire() of the same key rasterizes on the CPU instead of serving blank pixels.
+    [[nodiscard]] bool submit_pending() {
+        if (gpu == nullptr || gpu_pending.empty()) {
+            return true;
+        }
+        std::vector<PathTextureKey> waiting = std::move(gpu_pending);
+        gpu_pending.clear();
+        if (gpu->flush().has_value()) {
+            return true;
+        }
+        for (const PathTextureKey& key : waiting) {
+            const auto found = index.find(key);
+            if (found == index.end()) {
+                continue;
+            }
+            const auto entry = found->second;
+            bytes -= entry->bytes;
+            index.erase(found);
+            retire(*entry);
+            entries.erase(entry);
+        }
+        return false;
+    }
+
+    // The GPU route for one miss: nothing when the policy keeps it on the CPU or the rasterizer
+    // refuses (counted as a fallback), so the caller rasterizes on the CPU. The texture is created
+    // without pixels, because the copy that fills it replaces every texel.
+    [[nodiscard]] std::optional<CachedPathTexture> try_gpu(const PathTextureKey& key,
+                                                           std::span<const PathShape> shapes,
+                                                           rhi::Extent2D extent,
+                                                           std::uint64_t entry_bytes) {
+        if (gpu == nullptr) {
+            return std::nullopt;
+        }
+        const RasterRouteDecision decision = choose_raster_route(
+            {extent.width, extent.height, 0, GpuPathRasterizer::supported(device)}, route);
+        if (decision.route != RasterRoute::gpu) {
+            return std::nullopt;
+        }
+        std::unique_ptr<rhi::Texture> texture;
+        try {
+            texture = device.create_texture(base_texture_desc(extent));
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
+        if (!texture) {
+            return std::nullopt;
+        }
+        const std::uint64_t max_nodes =
+            route.mode == RasterRouteMode::gpu_when_possible ? 0 : route.max_row_nodes;
+        auto queued = gpu->enqueue(shapes, *texture, extent, max_nodes);
+        if (!queued.has_value() && queued.error() == GpuRasterError::batch_full) {
+            // The batch is full: submit it and queue this one in the next.
+            if (submit_pending()) {
+                queued = gpu->enqueue(shapes, *texture, extent, max_nodes);
+            }
+        }
+        if (!queued.has_value()) {
+            ++stats.gpu_fallbacks;
+            return std::nullopt;
+        }
+        ++stats.gpu_rasterizations;
+        ++stats.uploads;
+        gpu_pending.push_back(key);
+        return insert_entry(key, std::move(texture), extent, entry_bytes);
+    }
+
     [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
     rasterize_and_upload(const PathTextureKey& key, std::span<const PathShape> shapes,
                          rhi::Extent2D extent) {
@@ -158,6 +261,10 @@ struct PathTextureCache::Impl {
         const std::span<const PathShape> to_rasterize =
             scaled_storage.empty() ? shapes : std::span<const PathShape>(scaled_storage);
 
+        if (auto gpu_texture = try_gpu(key, to_rasterize, extent, entry_bytes)) {
+            return *gpu_texture;
+        }
+
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(entry_bytes), 0);
         RasterTarget target{std::span<std::uint8_t>(pixels.data(), pixels.size()), extent.width,
                             extent.height, static_cast<std::uint32_t>(row_bytes)};
@@ -168,15 +275,9 @@ struct PathTextureCache::Impl {
             return std::unexpected(map_raster_error(raster.error()));
         }
 
-        rhi::TextureDesc desc;
-        desc.extent = extent;
-        desc.format = config.format;
+        rhi::TextureDesc desc = base_texture_desc(extent);
         desc.pixels = pixels.data();
         desc.row_pitch = static_cast<std::size_t>(row_bytes);
-        desc.filter = config.filter;
-        desc.address = config.address;
-        // The path cache is a bounded pool with its own budget row (RHI 1.14, issue #703).
-        desc.category = rhi::MemoryCategory::PathCache;
 
         std::unique_ptr<rhi::Texture> texture;
         try {
@@ -189,12 +290,7 @@ struct PathTextureCache::Impl {
         }
         ++stats.uploads;
 
-        evict_until_fits(entry_bytes);
-        const auto inserted =
-            entries.emplace(entries.begin(), Entry{key, std::move(texture), extent, entry_bytes});
-        index.emplace(key, inserted);
-        bytes += entry_bytes;
-        return CachedPathTexture{inserted->texture.get(), inserted->extent};
+        return insert_entry(key, std::move(texture), extent, entry_bytes);
     }
 
     rhi::Device& device;
@@ -206,7 +302,12 @@ struct PathTextureCache::Impl {
     struct Retired {
         std::unique_ptr<rhi::Texture> texture;
         std::uint64_t bytes = 0;
+        bool gpu_inflight =
+            false; // a GPU raster copy into it was just submitted: live one more frame
     };
+    GpuPathRasterizer* gpu = nullptr;
+    RasterRouteConfig route;
+    std::vector<PathTextureKey> gpu_pending; // keys whose rasters are queued, not yet submitted
     std::vector<Retired> retired;
     std::uint64_t retired_bytes = 0;
     std::list<Entry> entries;
@@ -262,9 +363,36 @@ PathTextureCache::acquire(const PathTextureKey& key, std::span<const PathShape> 
     return impl_->rasterize_and_upload(key, shapes, rhi::Extent2D{extent_width, extent_height});
 }
 
+void PathTextureCache::set_gpu_rasterizer(GpuPathRasterizer* gpu, RasterRouteConfig route) {
+    if (impl_->gpu != nullptr && impl_->gpu != gpu) {
+        impl_->gpu->discard_pending();
+        impl_->gpu_pending.clear();
+    }
+    impl_->gpu = gpu;
+    impl_->route = route;
+}
+
+std::expected<void, PathTextureError> PathTextureCache::flush_gpu() {
+    if (!impl_->submit_pending()) {
+        return std::unexpected(PathTextureError::rasterize_failed);
+    }
+    return {};
+}
+
 void PathTextureCache::end_frame() {
-    impl_->retired.clear();
-    impl_->retired_bytes = 0;
+    (void)impl_->submit_pending();
+    if (impl_->gpu != nullptr) {
+        impl_->gpu->collect();
+    }
+    // A texture whose GPU copy was submitted this frame is kept until the next one.
+    std::erase_if(impl_->retired, [&](Impl::Retired& parked) {
+        if (parked.gpu_inflight) {
+            parked.gpu_inflight = false;
+            return false;
+        }
+        impl_->retired_bytes -= parked.bytes;
+        return true;
+    });
 }
 
 void PathTextureCache::invalidate_all() {

@@ -544,6 +544,16 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # PathTextureCache with the GPU rasterizer attached: routing, flush_gpu, fallback, eviction of a
+    # queued raster. Skips without Vulkan, compute or ThorVG.
+    add_executable(path_texture_cache_gpu_tests
+        batched2d/path_texture_cache_gpu_tests.cpp)
+    target_link_libraries(path_texture_cache_gpu_tests PRIVATE tessera_gpu tessera_path tessera_rhi_vulkan)
+    add_test(NAME path_texture_cache_gpu COMMAND path_texture_cache_gpu_tests)
+    set_tests_properties(path_texture_cache_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
     # target, blur it horizontally into a second pooled target that samples the copy, then resume
     # and composite the blurred result. Expected pixels come from the CPU glass kernel.

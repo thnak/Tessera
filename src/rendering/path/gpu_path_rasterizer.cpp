@@ -322,7 +322,8 @@ bool GpuPathRasterizer::supported(const rhi::Device& device) {
 
 std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const PathShape> shapes,
                                                                rhi::Texture& target,
-                                                               rhi::Extent2D extent) {
+                                                               rhi::Extent2D extent,
+                                                               std::uint64_t max_row_nodes) {
     if (!supported(impl_->device)) {
         return std::unexpected(GpuRasterError::unsupported);
     }
@@ -343,6 +344,9 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
         groups(extent.width, kTile) > kMaxGroups || groups(extent.height, kTile) > kMaxGroups) {
         return std::unexpected(GpuRasterError::too_large);
     }
+    if (max_row_nodes != 0 && job.encoded.row_nodes > max_row_nodes) {
+        return std::unexpected(GpuRasterError::too_dense);
+    }
     job.layout = *layout;
     job.target = &target;
     job.extent = extent;
@@ -351,6 +355,10 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
     }
     impl_->pending.push_back(std::move(job));
     return {};
+}
+
+void GpuPathRasterizer::discard_pending() {
+    impl_->pending.clear();
 }
 
 std::expected<void, GpuRasterError> GpuPathRasterizer::warm(std::uint32_t slots) {

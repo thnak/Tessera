@@ -122,8 +122,19 @@ at 256 px. The cost of reading the job record from a buffer instead of a push co
 scenes is 2 to 8% on the RX 5300M and 3 to 4% on the iGPU (interleaved old/new runs; single runs of
 this GPU drift by 30%, so compare interleaved).
 
-Still open: the `PathTextureCache` GPU path and where the frame flushes, and the WebGPU port of the
-shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
+`PathTextureCache` now has the GPU path (`set_gpu_rasterizer`, `flush_gpu`; test
+`path_texture_cache_gpu`, `path_texture_cache` for the no-support case). A miss that
+`choose_raster_route` sends to the GPU returns a texture created without pixels and queues its raster;
+the frame calls `flush_gpu()` once after its last `acquire()` and before the draw list that samples
+the textures, and `end_frame()` flushes whatever is left and collects finished batches. Any GPU
+refusal (a dense raster, a full batch that will not flush, a device error) falls back to ThorVG for
+that request and is counted (`gpu_fallbacks`); a failed flush drops the waiting entries so the next
+`acquire` rasterizes them on the CPU. A texture evicted while its raster is still queued is submitted
+first and kept one more frame, because the copy into it is in flight; device loss discards the queue.
+
+Still open: the frame code that owns a `GpuPathRasterizer`, calls `warm()` at startup and `flush_gpu()`
+per frame (the cache has no caller yet), whether the 128 px line can drop now that a batched raster
+costs about what ThorVG does (measure it through the cache before moving it), and the WebGPU port of the shader (it now binds seven storage buffers; WebGPU's default limit is eight per stage, so there is one
 spare, and the port should check the device's limit).
 
 ## Alternatives, to be measured on the same 4K scenes

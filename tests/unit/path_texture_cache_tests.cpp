@@ -439,8 +439,33 @@ bool evicted_texture_outlives_the_frame() {
            ok;
 }
 
+// A GPU rasterizer attached to a device without compute never gets work: the policy keeps every
+// miss on the CPU (not even counted as a fallback), flush_gpu and end_frame are harmless no-ops.
+bool gpu_rasterizer_without_device_support() {
+    FakeDevice device;
+    PatternRasterizer rasterizer;
+    path::PathTextureCache cache(device, rasterizer, make_config(4, 1U << 20));
+    path::GpuPathRasterizer gpu(device, path::GpuPathPipelineDescs{});
+    cache.set_gpu_rasterizer(&gpu);
+    const auto shape = triangle_path();
+    const auto key = path::make_path_texture_key(9, 1, 256, 256, 1000, shape);
+    const auto result = cache.acquire(key, shape);
+    bool ok =
+        expect(result.has_value() && rasterizer.calls == 1, "a large miss rasterizes on the CPU");
+    ok = expect(cache.stats().gpu_rasterizations == 0 && cache.stats().gpu_fallbacks == 0,
+                "no GPU work was attempted") &&
+         ok;
+    ok = expect(cache.flush_gpu().has_value(), "flush_gpu with nothing queued succeeds") && ok;
+    cache.end_frame();
+    cache.set_gpu_rasterizer(nullptr);
+    return expect(cache.acquire(key, shape).has_value() && cache.stats().hits == 1,
+                  "detaching the rasterizer keeps the cache working") &&
+           ok;
+}
+
 int main() {
     bool ok = true;
+    ok = gpu_rasterizer_without_device_support() && ok;
     ok = hit_and_miss() && ok;
     ok = cached_bytes_match_direct() && ok;
     ok = key_sensitivity() && ok;

@@ -35,6 +35,7 @@ enum class GpuRasterError : std::uint8_t {
     unsupported = 0, // the device has no compute or no buffer-to-texture copy
     batch_full,      // `max_jobs_per_batch` jobs are pending: flush(), then enqueue again
     too_large,       // a size does not fit the shader's 32-bit indices or the dispatch limit
+    too_dense,       // the raster has more bin nodes than the caller's bound: the CPU is faster
     device_failure,  // the device refused a buffer, pipeline or submission
 };
 
@@ -74,9 +75,18 @@ public:
     [[nodiscard]] std::expected<void, GpuRasterError> warm(std::uint32_t slots);
 
     // Queues `shapes` (already scaled to the target) to be rasterized into `target`, a texture of
-    // `extent` this device created. `target` must stay alive until the batch is collected.
-    [[nodiscard]] std::expected<void, GpuRasterError>
-    enqueue(std::span<const PathShape> shapes, rhi::Texture& target, rhi::Extent2D extent);
+    // `extent` this device created. `target` must stay alive until the batch is collected. With a
+    // non-zero `max_row_nodes`, a raster whose bin-node bound is larger is refused with `too_dense`
+    // before anything is queued (the route policy's density rule; the node count is only known
+    // after encoding).
+    [[nodiscard]] std::expected<void, GpuRasterError> enqueue(std::span<const PathShape> shapes,
+                                                              rhi::Texture& target,
+                                                              rhi::Extent2D extent,
+                                                              std::uint64_t max_row_nodes = 0);
+
+    // Drops the queued rasters without submitting them (their target textures are about to go away,
+    // for example on device loss). Flights already submitted are untouched.
+    void discard_pending();
 
     // Submits every queued raster in one command list. A no-op without pending work.
     [[nodiscard]] std::expected<void, GpuRasterError> flush();
