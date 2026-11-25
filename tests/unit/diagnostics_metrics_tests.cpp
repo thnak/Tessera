@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/diagnostics/memory.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 
 #include <iostream>
+#include <string>
 
 namespace {
 
@@ -79,6 +81,35 @@ int main() {
         !expect(metrics.size() == 4, "reset keeps registrations") ||
         !expect(metrics.snapshot()[0].value == 0, "snapshot after reset")) {
         return 7;
+    }
+
+    // The memory report names the process line, the blocks-vs-allocations line, and only the
+    // categories that hold or held bytes.
+    tessera::diagnostics::ProcessMemory process;
+    process.resident_bytes = 100ULL * 1024 * 1024;
+    process.peak_resident_bytes = 120ULL * 1024 * 1024;
+    process.valid = true;
+    tessera::diagnostics::GpuMemory gpu;
+    gpu.block_bytes = 16ULL * 1024 * 1024;
+    gpu.allocation_bytes = 6ULL * 1024 * 1024;
+    gpu.category_bytes[0] = 2048ULL * 1024;
+    gpu.category_peak_bytes[0] = 2048ULL * 1024;
+    const std::string report = tessera::diagnostics::format_memory_report(process, gpu);
+    if (!expect(report.find("process resident=100.0MB peak=120.0MB") != std::string::npos,
+                "report: process line") ||
+        !expect(report.find("allocations=6.00MB blocks=16.00MB") != std::string::npos,
+                "report: allocations and blocks") ||
+        !expect(report.find("gpu.vertex live=2048.0KB") != std::string::npos,
+                "report: a used category") ||
+        !expect(report.find("gpu.index") == std::string::npos,
+                "report: unused categories are left out")) {
+        return 8;
+    }
+    process.valid = false;
+    if (!expect(tessera::diagnostics::format_memory_report(process, gpu).find("unavailable") !=
+                    std::string::npos,
+                "report: an unavailable process sample says so")) {
+        return 9;
     }
 
     std::cout << "diagnostics_metrics: ok\n";

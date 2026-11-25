@@ -67,6 +67,15 @@ bool check_vulkan(rhi::Device& device) {
                 "the allocator holds at least the tracked bytes") &&
          ok;
 
+    // The allocator's blocks are what a driver pins in system RAM for host-visible memory, so a
+    // small resource set must not reserve far more than it uses: VMA's default block (a heap-sized
+    // fraction, 32 MiB on a large heap) made a two-button window hold ~68 MiB of blocks for ~6 MiB
+    // of live resources. The cap is the preferred block size the device configures, with headroom
+    // for one block per memory type.
+    ok = expect(during.block_bytes <= 32ULL * 1024 * 1024,
+                "a small resource set does not reserve a large allocator block") &&
+         ok;
+
     // Issue #703: a texture, a vertex buffer and a render target land in different categories, and
     // the sum of the categories is the live set the kind split already reports. A backend that
     // filled one view and not the other would fail here rather than in a budget row months later.

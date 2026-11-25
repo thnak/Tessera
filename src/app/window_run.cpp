@@ -170,6 +170,21 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
 
     window->set_input_queue(nullptr);
     release_in_flight(detail::kDrainBudgetSeconds);
+    // Sampled after the drain, once per run: two syscalls, never on the frame path. Before the
+    // swapchain is torn down, so the numbers are the steady state a user sees in Task Manager.
+    stats.process_memory = diagnostics::sample_process_memory();
+    if (device != nullptr) {
+        const rhi::DeviceMemoryStats gpu = device->memory_statistics();
+        stats.gpu_memory.buffer_bytes = gpu.buffer_bytes;
+        stats.gpu_memory.image_bytes = gpu.image_bytes;
+        stats.gpu_memory.block_bytes = gpu.block_bytes;
+        stats.gpu_memory.allocation_bytes = gpu.allocation_bytes;
+        for (std::size_t i = 0;
+             i < gpu.categories.size() && i < diagnostics::kGpuMemoryCategoryCount; ++i) {
+            stats.gpu_memory.category_bytes[i] = gpu.categories[i].live_bytes;
+            stats.gpu_memory.category_peak_bytes[i] = gpu.categories[i].peak_bytes;
+        }
+    }
     return stats;
 }
 
