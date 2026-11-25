@@ -11,7 +11,7 @@ src/app/host.cpp 687
 src/app/window.cpp 697
 src/compiler/lowering/src/module_lowering.cpp 580
 src/platform/linux/window.cpp 759
-src/platform/windows/window.cpp 631
+src/platform/windows/window.cpp 608
 src/rendering/backend/vulkan/src/vulkan_command_list.cpp 685
 src/rendering/backend/vulkan/src/vulkan_internal.hpp 599
 src/rendering/backend/vulkan/src/vulkan_swapchain.cpp 591

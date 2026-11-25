@@ -312,6 +312,33 @@ int main() {
         return 19;
     }
     window->set_input_queue(nullptr);
+    // The OS drag-resize loop keeps the thread inside DefWindowProc, so the engine loop does not
+    // tick; the live-frame callback is what renders while an edge is dragged. It runs once per
+    // size change between ENTERSIZEMOVE and EXITSIZEMOVE, never outside them, and is not
+    // re-entered by a size message its own frame causes.
+    int live_frames = 0;
+    window->set_live_frame_callback([&]() {
+        ++live_frames;
+        SendMessageW(hwnd, WM_SIZE, SIZE_RESTORED, point(100, 100)); // a nested size message
+    });
+    SendMessageW(hwnd, WM_SIZE, SIZE_RESTORED, point(300, 180));
+    if (!expect(live_frames == 0, "a size change outside a drag does not run the live frame")) {
+        return 11;
+    }
+    SendMessageW(hwnd, WM_ENTERSIZEMOVE, 0, 0);
+    SendMessageW(hwnd, WM_SIZE, SIZE_RESTORED, point(310, 190));
+    SendMessageW(hwnd, WM_SIZE, SIZE_RESTORED, point(320, 200));
+    if (!expect(live_frames == 2,
+                "each size change inside a drag runs one live frame, not nested")) {
+        return 12;
+    }
+    SendMessageW(hwnd, WM_EXITSIZEMOVE, 0, 0);
+    SendMessageW(hwnd, WM_SIZE, SIZE_RESTORED, point(330, 210));
+    window->set_live_frame_callback({});
+    if (!expect(live_frames == 2, "no live frame after the drag ends")) {
+        return 13;
+    }
+
     window.reset();
 
     // Pure translation decisions, no HWND or device involved.

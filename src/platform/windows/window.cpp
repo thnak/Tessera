@@ -24,13 +24,14 @@
 #include "window_display_win.hpp"
 #include "window_event_queue.hpp"
 #include "window_fullscreen_win.hpp"
+#include "window_wait_win.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -43,10 +44,6 @@ namespace {
 using detail::EventQueue;
 
 constexpr wchar_t kWindowClassName[] = L"Tessera.Hal.Window";
-// CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is missing from older SDK headers.
-constexpr DWORD kHighResolutionTimer = 0x00000002;
-constexpr DWORD kTimerBoundPaddingMs = 20;
-
 std::wstring widen(std::string_view text) {
     return detail::win32_widen(text);
 }
@@ -109,20 +106,21 @@ public:
     void set_accessibility_root(AccessibilityRoot root) override {
         accessibility_root_ = root;
     }
+    void set_live_frame_callback(std::function<void()> callback) override {
+        live_frame_ = std::move(callback);
+    }
 
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     LRESULT handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     void enqueue(WindowEventType type, EventReason reason = EventReason::Unspecified);
     void request_close();
+    void run_live_frame();
     void pump_messages();
     [[nodiscard]] bool has_pending_events() const;
-    // Lazily created on the owning thread; null when the OS has no high-resolution timers.
-    [[nodiscard]] HANDLE wait_timer();
 
     HWND hwnd_ = nullptr;
-    HANDLE wait_timer_ = nullptr;
-    bool wait_timer_failed_ = false;
+    detail::Win32Parker parker_;
     WakeSource* wake_ = nullptr; // issue #842; null keeps the timer + message wait
     DWORD owner_thread_ = GetCurrentThreadId();
     EventQueue events_;
@@ -130,6 +128,12 @@ private:
     AccessibilityRoot accessibility_root_{};
     bool focused_ = false;
     bool minimized_ = false;
+    // Between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the thread is inside DefWindowProc's modal
+    // loop, so the engine loop does not run; `live_frame_` renders from the size messages
+    // instead. `in_live_frame_` keeps a message the frame itself pumps from re-entering it.
+    bool in_size_move_ = false;
+    bool in_live_frame_ = false;
+    std::function<void()> live_frame_;
     // The OS backdrop this window resolved at creation (glass-v1.md section 6); the engine reads it
     // only through WindowMetrics and never re-applies it during a run.
     BackdropResolution backdrop_{};
@@ -237,10 +241,6 @@ Win32Window::~Win32Window() {
     // The display notification belongs to the window: unregister before it is destroyed.
     detail::unregister_win32_display_notifications(display_notifications_);
     display_notifications_ = nullptr;
-    if (wait_timer_ != nullptr) {
-        CloseHandle(wait_timer_);
-        wait_timer_ = nullptr;
-    }
     if (hwnd_ == nullptr) {
         return;
     }
@@ -356,18 +356,6 @@ std::size_t Win32Window::poll_events(std::span<WindowEvent> events) {
     return copied;
 }
 
-HANDLE Win32Window::wait_timer() {
-    if (wait_timer_ == nullptr && !wait_timer_failed_) {
-        // The default sleep granularity is the 15.6 ms system tick, which turns a 16.7 ms frame
-        // deadline into a ~31 ms wait. A high-resolution timer (Windows 10 1803+) wakes within
-        // about a millisecond without changing the global timer resolution.
-        wait_timer_ =
-            CreateWaitableTimerExW(nullptr, nullptr, kHighResolutionTimer, TIMER_ALL_ACCESS);
-        wait_timer_failed_ = wait_timer_ == nullptr;
-    }
-    return wait_timer_;
-}
-
 bool Win32Window::wait_for_events(double timeout_seconds) {
     // Message pumping and the event queue belong to the creating thread; a foreign-thread wait
     // cannot observe them safely.
@@ -387,48 +375,18 @@ bool Win32Window::wait_for_events(double timeout_seconds) {
         if (remaining <= 0.0) {
             return false;
         }
-        // MsgWaitForMultipleObjectsEx takes whole milliseconds. Round up so a sub-millisecond
-        // remainder still parks once instead of spinning, and clamp so the wait stays bounded.
-        const double wait_milliseconds =
-            std::min(std::ceil(remaining * 1000.0),
-                     static_cast<double>(std::numeric_limits<DWORD>::max() - 1));
-        const DWORD wait_ms = static_cast<DWORD>(wait_milliseconds);
-
-        // Park on the high-resolution timer plus the message queue. The millisecond timeout stays
-        // as a bound in case the timer never fires (it is padded so the timer normally wins).
-        HANDLE timer = wait_timer();
-        bool timer_armed = false;
-        if (timer != nullptr) {
-            LARGE_INTEGER due{};
-            due.QuadPart = -std::max<LONGLONG>(1, static_cast<LONGLONG>(remaining * 1.0e7));
-            timer_armed = SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) != FALSE;
-        }
-        // The completion wake joins the handle list (#842): a worker's post ends the park here
-        // instead of waiting out the host's clamp. Handle order is timer, then wake.
-        HANDLE handles[2];
-        DWORD handle_count = 0;
-        if (timer_armed) {
-            handles[handle_count++] = timer;
-        }
-        DWORD wake_index = WAIT_FAILED;
-        if (wake_ != nullptr && wake_->os_event() != nullptr) {
-            wake_index = handle_count;
-            handles[handle_count++] = static_cast<HANDLE>(wake_->os_event());
-        }
-        const DWORD result = MsgWaitForMultipleObjectsEx(
-            handle_count, handle_count > 0 ? handles : nullptr,
-            timer_armed ? wait_ms + kTimerBoundPaddingMs : wait_ms, QS_ALLINPUT, 0);
-        if (wake_index != WAIT_FAILED && result == WAIT_OBJECT_0 + wake_index) {
+        const detail::ParkOutcome parked = parker_.park(remaining, wake_);
+        if (parked == detail::ParkOutcome::Wake) {
             wake_->drain();
             pump_messages();
             return true; // A completion is queued: the loop drains it on this thread.
         }
-        if (result == WAIT_FAILED) {
+        if (parked == detail::ParkOutcome::Failed) {
             // A broken message queue must not spin; idle out the remaining budget once.
             wait_until_seconds(deadline);
             return has_pending_events();
         }
-        if (result == WAIT_TIMEOUT || (timer_armed && result == WAIT_OBJECT_0)) {
+        if (parked == detail::ParkOutcome::Timeout) {
             pump_messages();
             return has_pending_events();
         }
@@ -446,6 +404,18 @@ void Win32Window::hide() {
     if (hwnd_ != nullptr) {
         ShowWindow(hwnd_, SW_HIDE);
     }
+}
+
+// One frame at the size the drag just produced. The callback drains the Resize this very message
+// queued, lays out, paints and presents, so the content follows the frame instead of being
+// stretched by the compositor until the button is released.
+void Win32Window::run_live_frame() {
+    if (!in_size_move_ || !live_frame_ || in_live_frame_) {
+        return;
+    }
+    in_live_frame_ = true;
+    live_frame_();
+    in_live_frame_ = false;
 }
 
 void Win32Window::request_redraw() {
@@ -524,9 +494,16 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
             // change is the user or the system moving the frame.
             enqueue(WindowEventType::Resize,
                     wparam == SIZE_MAXIMIZED ? EventReason::Maximize : EventReason::User);
+            run_live_frame();
         }
         return 0;
     }
+    case WM_ENTERSIZEMOVE:
+        in_size_move_ = true;
+        return DefWindowProcW(window, message, wparam, lparam);
+    case WM_EXITSIZEMOVE:
+        in_size_move_ = false;
+        return DefWindowProcW(window, message, wparam, lparam);
     case WM_DPICHANGED: {
         const auto* suggested = reinterpret_cast<const RECT*>(lparam);
         if (suggested != nullptr) {

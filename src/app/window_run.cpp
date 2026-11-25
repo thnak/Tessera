@@ -41,6 +41,16 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
     RecoveryPolicy recovery_policy;
 
     bool closed = false;
+    // The OS's modal resize loop stops this loop for as long as an edge is being dragged; the
+    // platform calls back per size change so the content follows the frame. Removed on every exit
+    // path below (the guard), because the callback captures this.
+    window->set_live_frame_callback([this]() { live_resize_frame(); });
+    struct LiveFrameGuard {
+        hal::Window* window;
+        ~LiveFrameGuard() {
+            window->set_live_frame_callback({});
+        }
+    } live_frame_guard{window.get()};
     last_tick_seconds_ = hal::steady_now_seconds();
     // A frame that keeps failing (a device that never recovers, a swapchain that never yields an
     // image) stops the run instead of spinning (ADR-021). Backpressure is bounded separately: a
@@ -186,6 +196,39 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         }
     }
     return stats;
+}
+
+void WindowHost::Impl::live_resize_frame() {
+    if (!available || paused()) {
+        return;
+    }
+    std::array<hal::WindowEvent, detail::kMaxWindowEvents> events{};
+    const std::size_t event_count = window->poll_events(events);
+    for (std::size_t index = 0; index < event_count; ++index) {
+        // A Close during a drag is left to the main loop: it re-reads the pending flag when the
+        // modal loop returns, and tearing the window down from inside its own message is not safe.
+        if (events[index].type == hal::WindowEventType::Close) {
+            continue;
+        }
+        (void)handle_window_event(events[index]);
+    }
+    pump_input();
+    loop->mark_render_dirty();
+    const runtime::RuntimeTick tick = loop->tick();
+    if (!tick.should_render) {
+        return;
+    }
+    const double now = hal::steady_now_seconds();
+    const double dt = now - last_tick_seconds_;
+    last_tick_seconds_ = now;
+    const HostFrame frame = host->begin_frame(dt, tick.alpha);
+    if (render_and_present(true) != FrameResult::Presented) {
+        // Busy or skipped: the next size message (or the main loop after the drag) retries.
+        return;
+    }
+    pacer->present(hal::steady_now_seconds());
+    host->end_frame();
+    loop->clear_render_dirty();
 }
 
 } // namespace tessera::app

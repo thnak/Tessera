@@ -257,8 +257,8 @@ monitor-derived ladder step above, not on `renderScale`.
 - Handle `WM_SIZE`, `WM_GETMINMAXINFO`, `WM_WINDOWPOSCHANGED`, `WM_DISPLAYCHANGE`,
   `WM_DPICHANGED`, `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_ACTIVATEAPP`,
   `WM_SHOWWINDOW`, `WM_POWERBROADCAST`.
-- Gate swapchain recreation with `WM_ENTERSIZEMOVE`/`WM_EXITSIZEMOVE`: coalesce during the modal
-  resize loop, recreate on exit (or at a frame boundary with no frame in flight on the old swapchain), not once per `WM_SIZE`.
+- Modal resize loop (implemented): between `WM_ENTERSIZEMOVE`/`WM_EXITSIZEMOVE` the thread is parked in
+  `DefWindowProc`, so each `WM_SIZE` calls `Window::set_live_frame_callback`'s frame (one frame at that size; the swapchain recreates at the frame boundary on `OutOfDate`, with the target re-derived from the new extent).
 - Per-monitor DPI awareness v2 (`SetProcessDpiAwarenessContext`); use
   `AdjustWindowRectExForDpi` for non-client sizing; honor the suggested rect in `WM_DPICHANGED`.
 - Honor system minimum/maximum track sizes; do not fight the shell.
