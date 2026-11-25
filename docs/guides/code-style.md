@@ -37,6 +37,51 @@ When a file crosses the soft limit, split by responsibility (for example `offscr
 `device.cpp`, `pipeline.cpp`, `readback.cpp`). Do not split just to hit a number; split along a
 real boundary.
 
+## Object size and layout
+
+Budgets here are proposals until `cpu_benchmark` confirms them; "Now" is measured (GCC 13.3, Linux x86-64, Release).
+
+`struct` and `class` lay out and run identically; only default access differs. What changes speed is
+how many bytes a pass touches per object, how they are aligned, and how many objects there are.
+
+### Rules
+
+| Rule | Guideline |
+|---|---|
+| Budget by multiplication | bytes a pass reads per object x instances, against the target cache (one core's L2 first, then LLC). 12 000 nodes x 64 B is 0.77 MB and fits L2; x 1.5 KB is 18 MB and does not. |
+| One object per instance count | an object with thousands of instances (per node, per vertex, per record) carries a size budget and a `static_assert`. An object with a handful of instances (window, device, host) carries none; do not optimize it. |
+| Hot part in the first 64 bytes | fields every frame pass reads go in the first cache line; everything else follows, or moves to a side struct reached by index. `ui::Node` is the model: 320 B total, hot fields on line 0. |
+| Small arrays divide 64 | an element stored in a large array is 16, 32 or 64 B, so none straddles a line. 48 B and 88 B elements straddle; round or trim. |
+| Alignment is part of the size | a 64 B struct only helps if it starts on a line (`detail::CacheLine<T>`, class-level aligned `operator new`, or an array of 64-multiples). |
+| No heavy members inline | no `std::string`, `std::function`, `std::vector` or `std::map` directly in a per-node struct. Hold an index or pointer to a side table, or keep it only in the variant that needs it (text nodes, not every node). |
+| Narrow where it is free | 32-bit index or handle instead of a pointer or `uint64_t` id when the table is bounded; bools and small enums packed together; members ordered by alignment so no padding appears. Skip bitfields on a hot read path if they add shifts that show in a profile. |
+| Writers do not share a line | fields written by different threads go on different lines (false sharing, see [cache-lines](../design/cache-lines.md)). |
+| Third-party types are budgeted, not edited | count them in the table (Yoga node), and justify any patch that grows them with a measurement, as the 16-slot Yoga cache patch did. |
+| Every budget has a gate | `static_assert(sizeof(T) <= kTBudget)` for the type, plus a row in `tests/golden/perf/memory_budget.json` for types a header assert cannot see (third-party, MSVC layouts). A budget changes only in a commit that says why. |
+
+### Proposed budgets (per-node and per-record types)
+
+| Type | Now (B) | Target (B) | Plan |
+|---|---|---|---|
+| `ui::Node` | 320 | 320 | keep; exact assert stays |
+| `layout::detail::RetainedNode` | 288 | 288 (no split) | measured on MSVC at 12 000 nodes: moving the text payload behind the hot fields (reorder only) moved nothing, so the split below is not taken: median one-text frame 9.56 vs 9.58 ms, layout engine 3.44 vs 3.42 ms, one-size frame 7.03 vs 6.88 ms (5 interleaved runs each). The retained tree is about 3.5 MB, and the layout engine's cost is Yoga, not these fields. Revisit only if a counter shows L1D or LLC misses on it |
+| `layout::LayoutInput` | 88 (pinned) | 64 | trim to one line, or split what only text nodes read |
+| `layout::LayoutBox` | 48 (pinned) | 32 or 64 | avoid straddling in arrays |
+| `ui::PaintData` | 520 (heap, per painted node) | 520 (no split) | counted on the 12 000-node benchmark scene: 649 text runs and 9 images carry one, so about 658 x 520 B = 0.34 MB, under 3% of the 12 MB the per-node types cost, and it is allocated per painted node, not per node. By member: `gradient` 200, `decoration` 104, `vector` 56, `image` 56, `text` 32, `text_style` 28, `spans` 24; a plain text node uses about 80 B of the 520. Splitting the cold 416 B would save at most about 0.27 MB on this scene and add an indirection to every paint read, so it is not taken. Revisit for a scene where most nodes paint a gradient, with a measurement |
+| `style::ComputedStyle` | 16 | 16 | already a delta over shared defaults |
+| `yoga::Node` (patched, 16 measurement slots) | 776 (584 upstream) | keep | the patch buys about 3.6 ms per frame at 12k nodes; revisit only with a new measurement |
+| `Vertex2D`, `ClipRecord` | 64, 64 | 64 | already asserted |
+
+Total per node today, without `PaintData`: Node + Yoga + RetainedNode + LayoutInput + LayoutBox = 1 520 B
+(about 18 MB at 12 000 nodes). Report this sum in `cpu_benchmark` next to `sizeof_node`.
+
+### Checking a change
+
+1. Print `sizeof` and the member offsets (`g++ -fdump-lang-class`, `pahole`, or MSVC `/d1reportSingleClassLayout`).
+2. Run `tessera_benchmark --walk` and the one-text-change profile before and after. A size change that
+   does not move a counter (L1D or LLC misses) or a time is kept only if it removes a structural cost.
+3. Update the budget row and the asserts in the same commit.
+
 ## Naming
 
 | Kind | Style | Example |
