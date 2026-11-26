@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "substitution.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/color.hpp"
@@ -161,7 +162,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     const std::string value = lower(declaration.value);
     if (property == "list-style-type" || property == "list-style-position") {
         // A `var()` reference is substituted after this check; judge the resolved text then.
-        if (trim(value).find("var(") != std::string_view::npos) {
+        if (detail::has_substitution_function(value)) {
             return true;
         }
         const bool ok = property == "list-style-type" ? parse_list_style_type(value).has_value()
@@ -180,7 +181,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     }
     if (property.starts_with("text-decoration-") || property == "vertical-align") {
         // A `var()` reference is substituted after this check; judge the resolved text then.
-        if (trim(value).find("var(") != std::string_view::npos) {
+        if (detail::has_substitution_function(value)) {
             return true;
         }
         if (const char* message = text_decoration_value_error(property, value)) {
@@ -204,7 +205,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     // substituted after this check, so it is judged on the resolved text instead.
     if (property == "background-image") {
         const std::string_view text = trim(value);
-        if (text.find("var(") == std::string_view::npos && !parse_background_layers(text)) {
+        if (!detail::has_substitution_function(text) && !parse_background_layers(text)) {
             out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
                                           std::string(property),
                                           "only a comma-separated list of linear-gradient() or "
@@ -234,7 +235,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
         }
         // A custom-property reference is substituted after this check; keep the declaration so the
         // computed-value pass can judge the resolved text.
-        if (trim(value).find("var(") != std::string_view::npos) {
+        if (detail::has_substitution_function(value)) {
             return true;
         }
         if (grid_style_value_supported(property, value)) {
@@ -246,7 +247,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     }
     // A custom-property reference is substituted after this check; keep the declaration so the
     // computed-value pass can judge the resolved text.
-    if (trim(value).find("var(") != std::string_view::npos) {
+    if (detail::has_substitution_function(value)) {
         return true;
     }
     if (scroll_style_value_supported(property, value)) {

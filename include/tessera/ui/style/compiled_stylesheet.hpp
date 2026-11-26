@@ -10,10 +10,12 @@
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/selector_match.hpp"
+#include "tessera/ui/style/style_environment.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -143,6 +145,17 @@ public:
     [[nodiscard]] const MediaContext& media() const {
         return media_;
     }
+    // The values `env()` reads (ADR-074). Null, the default, is an environment with no variables:
+    // every `env()` takes its fallback. Shared and immutable, so a host swaps the whole snapshot
+    // and a copy of the sheet keeps the one it was compiled with. Setting it does not re-resolve
+    // anything: computed styles pick it up the next time they are computed, so the host marks
+    // `Dirty::Style` when `PreparedStyleSheet::environment_answer_can_change` says it must.
+    void set_environment(std::shared_ptr<const StyleEnvironment> environment) {
+        environment_ = std::move(environment);
+    }
+    [[nodiscard]] const StyleEnvironment* environment() const {
+        return environment_.get();
+    }
     [[nodiscard]] const std::vector<KeyframeBlock>& keyframes() const {
         return keyframes_;
     }
@@ -163,6 +176,7 @@ private:
     Origin origin_ = Origin::Author;
     PropertyRegistry registry_;
     MediaContext media_;
+    std::shared_ptr<const StyleEnvironment> environment_;
     std::vector<CompiledRule> rules_;
     SelectorIndex index_;
     // Reused by `matched_rules` so a per-node match does not allocate (security review finding P3).

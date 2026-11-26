@@ -355,4 +355,30 @@ bool PreparedStyleSheet::media_answer_can_change(const MediaContext& before,
     return false;
 }
 
+bool PreparedStyleSheet::environment_answer_can_change(const StyleEnvironment& before,
+                                                       const StyleEnvironment& after) const {
+    if (before == after) {
+        return false;
+    }
+    std::vector<std::string> names;
+    for (const PreparedItem& item : items) {
+        for (const Declaration& declaration : item.declarations) {
+            if (declaration.value.find('(') == std::string::npos) {
+                continue;
+            }
+            names.clear();
+            collect_env_references(declaration.value, names);
+            for (const std::string& name : names) {
+                const std::string* old_value = before.find(name);
+                const std::string* new_value = after.find(name);
+                if ((old_value == nullptr) != (new_value == nullptr) ||
+                    (old_value != nullptr && *old_value != *new_value)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace tessera::ui::style

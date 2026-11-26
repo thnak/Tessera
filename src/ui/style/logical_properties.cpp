@@ -7,6 +7,7 @@
 // longhands to Yoga's Start/End edges; paint resolves the same mapping from the computed
 // `direction`, so one stylesheet mirrors between LTR and RTL.
 
+#include "substitution.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/property_registry.hpp"
@@ -120,7 +121,7 @@ bool is_color(std::string_view token) {
 // longhand. `border: var(--all)` (the reference is the whole value) is still fine, because every
 // component is the same reference and each longhand receives it.
 bool is_var_reference(std::string_view token) {
-    return lower(token).find("var(") != std::string::npos;
+    return detail::has_substitution_function(token);
 }
 
 } // namespace

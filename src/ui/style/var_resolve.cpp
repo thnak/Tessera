@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "color_functions.hpp"
+#include "substitution.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/style_environment.hpp"
+#include "var_color.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -54,6 +57,13 @@ bool is_var_function(std::string_view value, std::size_t at) {
            value[at + 3] == '(';
 }
 
+bool is_env_function(std::string_view value, std::size_t at) {
+    return at + 4 <= value.size() && ascii_lower(value[at]) == 'e' &&
+           ascii_lower(value[at + 1]) == 'n' && ascii_lower(value[at + 2]) == 'v' &&
+           value[at + 3] == '(';
+}
+
+// A `var()` or `env()` call, outside strings: either one is substituted at computed-value time.
 bool contains_var_function(std::string_view value) {
     for (std::size_t i = 0; i < value.size(); ++i) {
         if (value[i] == '"' || value[i] == '\'') {
@@ -67,7 +77,7 @@ bool contains_var_function(std::string_view value) {
             }
             continue;
         }
-        if (is_var_function(value, i)) {
+        if (is_var_function(value, i) || is_env_function(value, i)) {
             return true;
         }
     }
@@ -133,7 +143,8 @@ void collect_references(std::string_view value, std::vector<std::string>& out, i
             i = skip_string(value, i);
             continue;
         }
-        if (!is_var_function(value, i)) {
+        const bool is_env = is_env_function(value, i);
+        if (!is_var_function(value, i) && !is_env) {
             ++i;
             continue;
         }
@@ -144,7 +155,7 @@ void collect_references(std::string_view value, std::vector<std::string>& out, i
         const std::string_view inner = value.substr(i + 4, close - i - 4);
         const std::size_t comma = find_comma(inner);
         std::string name = trim(inner.substr(0, comma));
-        if (is_custom_property_name(name)) {
+        if (!is_env && is_custom_property_name(name)) {
             out.push_back(std::move(name));
         }
         if (comma != std::string_view::npos) {
@@ -161,7 +172,28 @@ struct CustomProperties {
     std::set<std::string> invalid;
     std::vector<std::string> stack;
     std::map<std::string, std::uint8_t> visit; // 0 = unvisited, 1 = on stack, 2 = done
+    const StyleEnvironment* environment = nullptr;
 };
+
+// The name of an `env()` variable with its arguments: tokens separated by single spaces, so
+// `viewport-segment-width   0  1` and `viewport-segment-width 0 1` are the same variable.
+std::string normalize_env_name(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    bool pending_space = false;
+    for (const char c : text) {
+        if (std::isspace(static_cast<unsigned char>(c)) != 0) {
+            pending_space = !out.empty();
+            continue;
+        }
+        if (pending_space) {
+            out.push_back(' ');
+            pending_space = false;
+        }
+        out.push_back(c);
+    }
+    return out;
+}
 
 void detect_cycle(CustomProperties& state, const std::string& name, int depth = 0) {
     if (depth > kMaxVarDepth) {
@@ -198,83 +230,6 @@ bool is_custom_property(std::string_view property) {
     return property.size() >= 2 && property[0] == '-' && property[1] == '-';
 }
 
-// The scheme a `light-dark()` in this element resolves against: the element's own computed
-// `color-scheme` when it is `light` or `dark`, else the parent's (the property is inherited, so the
-// parent's value is already in `style` unless this element overrode it), else light. `normal` and
-// `only light`/`only dark` are read for their light/dark half; the `only` prefix only suppresses
-// the UA's own scheme switching, which the engine does not do.
-ColorContext color_context_for(const ComputedStyle& style, const ComputedStyle* parent) {
-    const auto read = [](const std::string* value) -> std::optional<bool> {
-        if (value == nullptr) {
-            return std::nullopt;
-        }
-        std::string text(*value);
-        std::transform(text.begin(), text.end(), text.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (text == "dark") {
-            return true;
-        }
-        if (text == "light") {
-            return false;
-        }
-        return std::nullopt;
-    };
-    if (const std::optional<bool> own = read(style.find("color-scheme"))) {
-        return ColorContext{*own};
-    }
-    if (parent != nullptr) {
-        if (const std::optional<bool> inherited = read(parent->find("color-scheme"))) {
-            return ColorContext{*inherited};
-        }
-    }
-    return ColorContext{};
-}
-
-// Substitutes `light-dark()`/`color-mix()` in every non-custom property. A malformed call is
-// invalid at computed-value time, which behaves like `unset`: an inherited property keeps the
-// parent's value and everything else is dropped so the initial-value pass applies.
-void resolve_color_functions(ComputedStyle& style, const ComputedStyle* parent,
-                             const ColorContext& context,
-                             std::vector<StyleDiagnostic>* diagnostics) {
-    struct Update {
-        std::string property;
-        std::optional<std::string> value;
-    };
-    std::vector<Update> updates;
-    for (const auto& [property, value] : style.delta()) {
-        if (is_custom_property(property) || value.find('(') == std::string::npos) {
-            continue;
-        }
-        std::string resolved = value;
-        if (!detail::substitute_color_functions(resolved, context)) {
-            if (diagnostics != nullptr) {
-                diagnostics->push_back(StyleDiagnostic{
-                    StyleDiagnosticKind::UnsupportedValue, 0, property,
-                    "light-dark()/color-mix() call is malformed or uses an unsupported "
-                    "interpolation space"});
-            }
-            if (is_inherited_property(property) && parent != nullptr) {
-                if (const std::string* inherited = parent->find(property); inherited != nullptr) {
-                    updates.push_back(Update{property, *inherited});
-                    continue;
-                }
-            }
-            updates.push_back(Update{property, std::nullopt});
-            continue;
-        }
-        if (resolved != value) {
-            updates.push_back(Update{property, std::move(resolved)});
-        }
-    }
-    for (Update& update : updates) {
-        if (update.value) {
-            style.set(std::move(update.property), std::move(*update.value));
-        } else {
-            style.erase(update.property);
-        }
-    }
-}
-
 std::optional<std::string> resolve_custom(CustomProperties& state, const std::string& name,
                                           int depth);
 
@@ -291,7 +246,8 @@ std::optional<std::string> substitute(CustomProperties& state, std::string_view 
             i = end;
             continue;
         }
-        if (!is_var_function(value, i)) {
+        const bool is_env = is_env_function(value, i);
+        if (!is_var_function(value, i) && !is_env) {
             out.push_back(value[i]);
             ++i;
             continue;
@@ -302,9 +258,21 @@ std::optional<std::string> substitute(CustomProperties& state, std::string_view 
         }
         const std::string_view inner = value.substr(i + 4, close - i - 4);
         const std::size_t comma = find_comma(inner);
-        const std::string name = trim(inner.substr(0, comma));
         std::optional<std::string> replacement;
-        if (is_custom_property_name(name)) {
+        if (is_env) {
+            // A variable the host does not define, or an unknown name, "does not exist": the
+            // fallback applies, and without one the declaration is invalid at computed-value time.
+            const std::string name = normalize_env_name(inner.substr(0, comma));
+            if (state.environment != nullptr && !name.empty()) {
+                if (const std::string* found = state.environment->find(name)) {
+                    replacement = *found;
+                }
+            }
+            if (!replacement && comma != std::string_view::npos) {
+                replacement = substitute(state, inner.substr(comma + 1), depth + 1);
+            }
+        } else if (const std::string name = trim(inner.substr(0, comma));
+                   is_custom_property_name(name)) {
             replacement = resolve_custom(state, name, depth + 1);
             if (!replacement && comma != std::string_view::npos) {
                 replacement = substitute(state, inner.substr(comma + 1), depth + 1);
@@ -353,8 +321,33 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
 
 } // namespace
 
+void collect_env_references(std::string_view value, std::vector<std::string>& names) {
+    for (std::size_t i = 0; i < value.size();) {
+        if (value[i] == '"' || value[i] == '\'') {
+            i = skip_string(value, i);
+            continue;
+        }
+        if (!is_env_function(value, i)) {
+            ++i;
+            continue;
+        }
+        const std::size_t close = match_paren(value, i + 3);
+        if (close == std::string_view::npos) {
+            return;
+        }
+        const std::string_view inner = value.substr(i + 4, close - i - 4);
+        const std::size_t comma = find_comma(inner);
+        names.push_back(normalize_env_name(inner.substr(0, comma)));
+        if (comma != std::string_view::npos) {
+            collect_env_references(inner.substr(comma + 1), names);
+        }
+        i = close + 1;
+    }
+}
+
 void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
-                       std::vector<StyleDiagnostic>* diagnostics) {
+                       std::vector<StyleDiagnostic>* diagnostics,
+                       const StyleEnvironment* environment) {
     // The delta, not the effective style: a registry default is a literal CSS initial value, so it
     // can never hold a `var()` reference and re-resolving it would be wasted work (issue #735).
     const auto& properties = style.delta();
@@ -367,7 +360,7 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
     // colours) and may appear inside a larger value. Resolve them after `var()` below, because a
     // custom property may hold the function, and before the initial-value pass, so a malformed call
     // drops the declaration exactly as an unresolvable `var()` does.
-    const ColorContext color_context = color_context_for(style, parent);
+    const ColorContext color_context = detail::color_context_for(style, parent);
 
     // Style resolution runs for every dirty node, and almost no value references a custom property.
     // Scan first so the common case allocates nothing.
@@ -385,10 +378,11 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
     }
     if (!has_custom_reference && !has_property_reference) {
         // No `var()` anywhere, but a colour function may still be present: resolve it and stop.
-        resolve_color_functions(style, parent, color_context, diagnostics);
+        detail::resolve_color_functions(style, parent, color_context, diagnostics);
         return;
     }
     CustomProperties state;
+    state.environment = environment;
     for (const auto& [property, value] : properties) {
         if (is_custom_property(property)) {
             state.raw.emplace(property, value);
@@ -457,9 +451,9 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
         }
         if (!resolved) {
             if (diagnostics != nullptr) {
-                diagnostics->push_back(StyleDiagnostic{StyleDiagnosticKind::UnresolvedVar, 0,
-                                                       property,
-                                                       "var() reference has no usable value"});
+                diagnostics->push_back(
+                    StyleDiagnostic{StyleDiagnosticKind::UnresolvedVar, 0, property,
+                                    "var() or env() reference has no usable value"});
             }
             // Invalid at computed-value time behaves like `unset`: an inherited property keeps the
             // parent's value, everything else is dropped so the initial-value pass applies.
@@ -485,6 +479,6 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
         }
     }
 
-    resolve_color_functions(style, parent, color_context, diagnostics);
+    detail::resolve_color_functions(style, parent, color_context, diagnostics);
 }
 } // namespace tessera::ui::style

@@ -452,7 +452,8 @@ void ComputedStyle::merge_missing(const Entries& defaults) {
 }
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
-                            std::vector<StyleDiagnostic>* diagnostics) {
+                            std::vector<StyleDiagnostic>* diagnostics,
+                            const StyleEnvironment* environment) {
     ComputedStyle style;
     if (parent != nullptr) {
         // The effective style: an inherited property the parent left at its default still inherits
@@ -469,7 +470,7 @@ ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cas
     }
     // var() is resolved at computed-value time (stylesheet-v1 section 9), after inheritance and
     // the cascade so custom properties from both are visible to every dependent declaration.
-    resolve_variables(style, parent, diagnostics);
+    resolve_variables(style, parent, diagnostics, environment);
     resolve_font_size(style, parent);
     return style;
 }

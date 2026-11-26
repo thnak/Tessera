@@ -2,6 +2,7 @@
 
 #include "property_list_style.hpp"
 #include "property_text_decoration.hpp"
+#include "substitution.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/color.hpp"
@@ -45,7 +46,7 @@ bool value_supported(std::string_view property, std::string_view value) {
     }
     if (normalized == "inherit" || normalized == "initial" || normalized == "unset" ||
         normalized == "revert" || normalized == "revert-layer" ||
-        normalized.find("var(") != std::string::npos) {
+        detail::has_substitution_function(normalized)) {
         return true;
     }
 

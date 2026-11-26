@@ -169,7 +169,13 @@ Slices, one landing each, to be filed when this is accepted:
    `scene_fold_media`.
 2. `env()`: the function, fallback and invalid-at-computed-value-time rules, the referenced-name set
    on the prepared sheet, and the standard variables (`safe-area-inset-*`, `preferred-text-scale`,
-   `viewport-segment-*`).
+   `viewport-segment-*`). **Implemented as the engine half:** `StyleEnvironment` and
+   `standard_environment` (`style_environment.hpp`), substitution in `resolve_variables` (so `env()`
+   works inside a custom property, a fallback and `calc()`), `CompiledStyleSheet::set_environment`, and
+   `PreparedStyleSheet::environment_answer_can_change`. The referenced names are read from the
+   declaration text when asked, not stored, so the blob format does not change. **Not yet done:** the
+   host and the preview building the environment from `WindowMetrics` and `FoldInfo` and calling
+   `set_environment` (slice 4); until then a host sheet's `env()` takes its fallback.
 3. The `--tessera-` variables, the continuous/discrete rule and the paint-only diagnostic, plus the
    Android feed for the angle.
 4. The preview and host fill the fold and environment from `FoldInfo` and the metrics in one shared

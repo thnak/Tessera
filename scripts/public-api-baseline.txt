@@ -3224,6 +3224,13 @@ header include/tessera/ui/style/style_defaults.hpp
 class include/tessera/ui/style/style_defaults.hpp tessera::ui::style::StyleDefaults
 struct include/tessera/ui/style/style_defaults.hpp tessera::ui::style::StyleDefault
 
+header include/tessera/ui/style/style_environment.hpp
+class include/tessera/ui/style/style_environment.hpp tessera::ui::style::StyleEnvironment
+struct include/tessera/ui/style/style_environment.hpp tessera::ui::style::EnvironmentSegment
+struct include/tessera/ui/style/style_environment.hpp tessera::ui::style::StandardEnvironmentInputs
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::collect_env_references
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::standard_environment
+
 header include/tessera/ui/style/stylesheet_blob.hpp
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::BlobError
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::EmbeddedStylesheet

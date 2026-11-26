@@ -290,8 +290,9 @@ void PropertyRegistry::apply_initial_values(ComputedStyle& style) const {
 }
 
 ComputedStyle PropertyRegistry::compute_with_initial(const ComputedStyle* parent,
-                                                     const CascadeTable& cascade) const {
-    ComputedStyle style = compute_style(parent, cascade);
+                                                     const CascadeTable& cascade,
+                                                     const StyleEnvironment* environment) const {
+    ComputedStyle style = compute_style(parent, cascade, nullptr, environment);
     apply_initial_values(style);
     return style;
 }

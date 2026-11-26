@@ -1508,6 +1508,13 @@ target_link_libraries(media_query_tests PRIVATE tessera_style)
 
 add_test(NAME media_query COMMAND media_query_tests)
 
+add_executable(style_environment_tests
+    style_environment_tests.cpp)
+
+target_link_libraries(style_environment_tests PRIVATE tessera_style)
+
+add_test(NAME style_environment COMMAND style_environment_tests)
+
 add_executable(viewport_units_tests
     viewport_units_tests.cpp)
 
