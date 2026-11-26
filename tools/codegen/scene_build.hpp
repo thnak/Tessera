@@ -19,9 +19,9 @@
 // a second model of it. Style and layout are separate steps (`scene_layout.hpp`), because they
 // operate on the tree this produces and can be re-run without rebuilding it.
 //
-// Not covered by this slice, and reported as an unsupported construct instead of guessed at: user
-// component instances (`NodeKind::Component`, which needs prop binding and slot splicing),
-// `CustomElement` nodes, list/conditional children and virtual collections. The corpus in
+// Not covered by this slice, and reported as an unsupported construct instead of guessed at:
+// `CustomElement` nodes and virtual collections. A user component instance is built (issue #594)
+// when the caller passes the module that holds its callee. The corpus in
 // `scripts/ci/scene_snapshot_parity.py` stays inside what is implemented; the omission is recorded
 // in docs/design/compiler-wasm.md section 7.1.
 namespace tessera::compiler::codegen::cli {
@@ -87,7 +87,11 @@ struct SceneBuildResult {
 // `set_element_id`, `set_class_name`, `set_role`, `set_aria`, `set_inline_style`), and the ones
 // this walk applies point into `component`'s strings. The IR module must therefore outlive the
 // scene, as it does in every caller (a generated base's literals are static for the same reason).
+//
+// `module` is where a user component instance (`NodeKind::Component`) finds its callee. Without it
+// an instance is reported as unsupported, which is what a caller that has no project gets.
 [[nodiscard]] SceneBuildResult build_scene(const ir::Component& component, ui::Node& root,
-                                           eval::Scope& scope);
+                                           eval::Scope& scope,
+                                           const ir::IrModule* module = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

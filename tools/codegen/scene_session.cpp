@@ -158,7 +158,7 @@ void PreviewSession::rebuild() {
     applied_overrides_.clear();
     override_text_.clear();
 
-    const SceneBuildResult built = build_scene(component_, *root_, scope_);
+    const SceneBuildResult built = build_scene(component_, *root_, scope_, &module_);
     built_ = built.error.empty();
     // The environment values the build seeded with their initial are overwritten with the live
     // viewport's, so a component that reads `useBreakpoint()` renders the class the canvas actually

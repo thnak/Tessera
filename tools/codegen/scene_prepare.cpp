@@ -109,7 +109,7 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
 
     scene.root = std::make_unique<ui::Node>(1);
     eval::Scope scope;
-    const SceneBuildResult built = build_scene(chosen, *scene.root, scope);
+    const SceneBuildResult built = build_scene(chosen, *scene.root, scope, &scene.module);
     if (!built.error.empty()) {
         return failed(built.error);
     }

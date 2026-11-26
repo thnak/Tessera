@@ -134,24 +134,24 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
                     std::to_string(kMaxPreviewNodes) + ")");
     }
     switch (node.kind) {
-    case ir::NodeKind::Component:
-        return unsupported(
-            "a user component instance (`" + node.id +
-            "`) needs prop binding and slot splicing, which the preview does not evaluate yet");
     case ir::NodeKind::CustomElement:
         return unsupported("`CustomElement` nodes are not previewed yet");
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
         return unsupported("a virtual collection (`" + node.id + "`) is not previewed yet");
     case ir::NodeKind::Slot:
-        return unsupported("a `Slot` position (`" + node.id + "`) is not previewed yet");
+        // The position is replaced by the instance's children, so it owns no scene node.
+        return build_slot(node, parent, depth);
     default:
         break;
     }
 
     auto created = std::make_unique<ui::Node>(next_node_id_++);
     ui::Node& scene = parent.add_child(std::move(created));
-    scene.set_element_kind(ir::node_kind_name(node.kind));
+    // An instance's host node is a plain `View`, as in generated code: the callee's own root is its
+    // child, and the instance's events are callback props, not scene events.
+    const bool instance = node.kind == ir::NodeKind::Component;
+    scene.set_element_kind(instance ? "View" : ir::node_kind_name(node.kind));
 
     // The IR span of the JSX element this node came from (issue #171's `source.patch` slice). It is
     // recorded here because this is the last point that holds the `ir::Node`: the scene node
@@ -167,6 +167,11 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     // the scene node's automation id is what the snapshot reports. Both are decimal strings.
     std::uint64_t id = 0;
     const bool has_id = parse_id(node.automation_id, id) || parse_id(node.ui_id, id);
+    // Inside a callee every instance repeats the callee's ids, so each one is salted by its
+    // instance ordinal; the caller's own nodes (salt 0) keep the ids the IR assigned.
+    if (has_id && salt_ != 0) {
+        id = (id ^ (salt_ * 0x9E3779B97F4A7C15ULL)) | 1ULL;
+    }
     if (has_id) {
         scene.set_automation_id(id);
     }
@@ -175,7 +180,9 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     // id is how the session finds the handler to run, because `Node::bind_event` carries no IR
     // identity of its own. A node with a handler but no id cannot be addressed by a scripted click
     // (`click <automationId>`), so it is reported rather than silently unbound.
-    if (!node.events.empty()) {
+    // A callee's own handlers are not bound yet: they run against the callee's state and callback
+    // props, which the session's single scope cannot address (slice 2 of #594).
+    if (!node.events.empty() && !instance && salt_ == 0) {
         if (!has_id) {
             return fail("a node with an event handler has no automation id (`" + node.id +
                         "`), so nothing can address it");
@@ -189,7 +196,7 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     // the node a `ref` resolved to, so the session needs the mapping from `ref::` id to scene node.
     // Recorded here because this is the last point that holds the `ir::Node`; the scene node
     // carries no ref id of its own.
-    if (component_refs_ != nullptr) {
+    if (component_refs_ != nullptr && salt_ == 0) {
         for (const ir::Ref& ref : *component_refs_) {
             if (ref.target == node.id) {
                 result_.ref_targets.push_back({ref.id, scene.id()});
@@ -235,9 +242,12 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
         scene.set_scrollable_y(value == "y" || value == "both");
     }
 
+    if (instance) {
+        return build_instance(node, scene, depth);
+    }
     if (node.text) {
         std::string text;
-        if (!evaluate_text(evaluator_, *node.text, scope_, text, result_.error)) {
+        if (!evaluate_text(evaluator_, *node.text, *scope_, text, result_.error)) {
             return false;
         }
         scene.set_paint_data(text_paint(std::move(text)));
@@ -247,7 +257,7 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
         const auto label = node.props.find("label");
         if (label != node.props.end() && label->second != nullptr) {
             std::string text;
-            if (!evaluate_text(evaluator_, *label->second, scope_, text, result_.error)) {
+            if (!evaluate_text(evaluator_, *label->second, *scope_, text, result_.error)) {
                 return false;
             }
             scene.set_paint_data(text_paint(std::move(text)));

@@ -85,8 +85,8 @@ export interface TreeRow {
  * The sample project the page boots with: a real project, not a single file.
  *
  * `tessera.json` names the entry (`app.entry`), the entry imports the stylesheet it is styled with, and
- * that import is the only way the sheet applies. There is no router yet: the scene builder does not render
- * user component instances, so a second screen cannot be composed in until the engine can.
+ * that import is the only way the sheet applies. There is no router yet, so a second screen cannot be composed in
+ * (the scene builder renders user component instances since #594, but not their event handlers).
  */
 const SEED: readonly { path: string; text: string }[] = Object.freeze([
   {

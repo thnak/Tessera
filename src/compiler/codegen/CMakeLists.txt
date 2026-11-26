@@ -214,6 +214,8 @@ set(_tessera_scene_preview_sources
     # (issue #389) pushed that file past the size limit: one TU per node, one per child set.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_walk.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_children.cpp
+    # A user component instance (issue #594): props, the callee's own scope, and `Slot` splicing.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_instance.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_build_dynamic.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_layout.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_state.cpp
@@ -988,6 +990,27 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_dynamic COMMAND scene_dynamic_tests)
+
+    # User component instances in the preview (issue #594): props, children splicing, per-instance
+    # state and nested instances. Registered beside `scene_dynamic`, which it shares fixtures with.
+    add_executable(scene_component_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_component_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_component_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
+    target_compile_definitions(scene_component_tests PRIVATE
+        TESSERA_REPO_ROOT="${PROJECT_SOURCE_DIR}")
+    target_link_libraries(scene_component_tests PRIVATE
+        tessera_behavior
+        tessera_automation_scene
+        tessera_css_module
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_component COMMAND scene_component_tests)
 
     # Behaviors in the preview (ADR-064 item 7, spike #658; behavior-hooks-v1.md section 10): the
     # session builds the same registry `Instance` the generated base does, attaches it to the node
