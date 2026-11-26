@@ -236,41 +236,41 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
 
     // Element metadata: the channels codegen fills (emit_node_attributes.cpp). They are how a
     // stylesheet selects the node and how the snapshot reports its accessible name.
-    std::string_view text;
+    std::string_view meta;
     bool present = false;
-    if (!metadata_string(node, "id", text, present)) {
+    if (!metadata_string(node, "id", meta, present)) {
         return false;
     }
     if (present) {
-        scene.set_element_id(text);
+        scene.set_element_id(meta);
     }
-    if (!metadata_string(node, "className", text, present)) {
+    if (!metadata_string(node, "className", meta, present)) {
         return false;
     }
     if (present) {
-        scene.set_class_name(text);
+        scene.set_class_name(meta);
     }
-    if (!metadata_string(node, "role", text, present)) {
+    if (!metadata_string(node, "role", meta, present)) {
         return false;
     }
     if (present) {
-        scene.set_role(text);
+        scene.set_role(meta);
     }
-    if (!metadata_string(node, "tag", text, present)) {
+    if (!metadata_string(node, "tag", meta, present)) {
         return false;
     }
     if (present) {
-        scene.set_element_tag(text);
+        scene.set_element_tag(meta);
     }
     for (const auto& [name, value] : node.props) {
         if (name.rfind("aria-", 0) != 0) {
             continue;
         }
-        if (!metadata_string(node, name, text, present)) {
+        if (!metadata_string(node, name, meta, present)) {
             return false;
         }
         if (present) {
-            (void)scene.set_aria(name, text);
+            (void)scene.set_aria(name, meta);
         }
     }
     apply_inline_style(node, scene);
