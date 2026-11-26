@@ -16,6 +16,8 @@
 
 #include <cstddef>
 #include <iostream>
+#include <string>
+#include <vector>
 
 namespace runtime = tessera::runtime;
 namespace ui = tessera::ui;
@@ -29,13 +31,27 @@ constexpr std::size_t kAdaptiveQualitySampleBytes = 24;
 constexpr std::size_t kOverlayPlacementBytes = 40;
 constexpr std::size_t kPaintDataBytes = 520;
 
+// 520 is the size of `PaintData` with a 32-byte `std::string` and a 24-byte `std::vector`. MSVC's
+// Debug stdlib (`_ITERATOR_DEBUG_LEVEL != 0`) widens both by one pointer, so the same layout is 544
+// there (issue #900, measured: +8 for each of the two strings, `text` and
+// `TextDecoration::preedit_text`, and +8 for `spans`). The assert derives the expectation from the
+// members that move, as `node.hpp` does for `Node`: a real regression still fails in both
+// configurations because it moves the total without moving a string or a vector.
+constexpr std::size_t kShippingStringBytes = 32;
+constexpr std::size_t kShippingVectorBytes = 24;
+constexpr std::size_t kPaintDataStrings = 2;
+constexpr std::size_t kPaintDataVectors = 1;
+constexpr std::size_t kPaintDataExpected =
+    kPaintDataBytes + kPaintDataStrings * (sizeof(std::string) - kShippingStringBytes) +
+    kPaintDataVectors * (sizeof(std::vector<int>) - kShippingVectorBytes);
+
 static_assert(sizeof(runtime::PaceDecision) == kPaceDecisionBytes,
               "sizeof(PaceDecision) regressed (issue #731: order members widest-first)");
 static_assert(sizeof(runtime::AdaptiveQualitySample) == kAdaptiveQualitySampleBytes,
               "sizeof(AdaptiveQualitySample) regressed (issue #731: order members widest-first)");
 static_assert(sizeof(ui::OverlayPlacement) == kOverlayPlacementBytes,
               "sizeof(OverlayPlacement) regressed (issue #731: order members widest-first)");
-static_assert(sizeof(ui::PaintData) == kPaintDataBytes,
+static_assert(sizeof(ui::PaintData) == kPaintDataExpected,
               "sizeof(PaintData) regressed (issue #731: LinearGradient reordered; 528 -> 520 is "
               "issue #734, the enum base types)");
 
@@ -53,7 +69,7 @@ int main() {
     check("AdaptiveQualitySample", sizeof(runtime::AdaptiveQualitySample),
           kAdaptiveQualitySampleBytes);
     check("OverlayPlacement", sizeof(ui::OverlayPlacement), kOverlayPlacementBytes);
-    check("PaintData", sizeof(ui::PaintData), kPaintDataBytes);
+    check("PaintData", sizeof(ui::PaintData), kPaintDataExpected);
     std::cout << "padding_size: PaceDecision=" << sizeof(runtime::PaceDecision)
               << " AdaptiveQualitySample=" << sizeof(runtime::AdaptiveQualitySample)
               << " OverlayPlacement=" << sizeof(ui::OverlayPlacement)
