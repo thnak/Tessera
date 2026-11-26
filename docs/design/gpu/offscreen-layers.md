@@ -198,6 +198,28 @@ slice behavior + tests + docs, nothing user-visible until the last:
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
    golden, and the property-status table updated.
 
+**Integration points found in `paint_node` (`src/ui/paint/paint_pass.cpp`), to settle in slice 1:**
+
+- *Where the layer opens.* After the node's own `push_transform` and before its backdrop, shadow and
+  box paint, so the node's box and its children are one group; it closes after the children and
+  before `pop_transform`. The existing `push_clip` wraps only the children and stays inside the layer.
+- *Layer box and space.* The device-space axis-aligned bounds of the node's visual box (box shadow
+  included) under the active transform, clamped to the clip and the frame. A rotated node composites
+  its bounding box, not its rotated rectangle; the composite draws the layer's own quad through the
+  same transform, so only the target allocation is the AABB.
+- *Opacity.* Today every primitive multiplies the ancestor opacity product (`child_scope.opacity`,
+  section 14.1 of `paint-pass.md`). A layer applies the node's own opacity once, at composite, so
+  inside a layer the child scope restarts at 1.0 and the record's `effective_opacity` is the
+  product outside it. A sink without `supports_layers()` keeps today's product rule, so the two
+  paths must agree on non-overlapping content (golden) and differ only where children overlap.
+- *Cache.* A per-node `PaintRecord` holds the node's own ops and pop flags. A layer adds
+  `pushed_layer` and the `LayerDraw` to the record (the pass pops it after the child walk, like
+  `pushed_clip`), and the subtree draw list (`record_pops`) records `PushLayer`/`PopLayer`
+  explicitly. A layer node's descendants' damage must dirty the layer's whole box, like a glass
+  node's dependencies (`DamageTracker::add_glass_dependencies`).
+- *Producers stay off until slice 2 is proven.* `supports_layers()` is false on every sink at first,
+  so slice 1 changes no recorded stream and no golden.
+
 Open decisions for the owner before slice 2: the composite needs a new shader (GLSL, WGSL and MSL
 twins through the shader chain, so it touches the `shader-cross` and `wgsl-validation` lanes), and
 the layer target's format and colour space must follow the sRGB/UNORM target rule.
