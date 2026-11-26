@@ -129,6 +129,8 @@ handler-subset ADR); `json<T>()` carries the type; the V1 query subset stands, w
 
 ## Follow-up
 
+- Landed with this ADR: the `HttpService` interface (`include/tessera/appfw/http_service.hpp`) with
+  `NetClient` as its default implementation, and its tests.
 - Check the variant-type answer against `jsx-subset-v1.md` section 5 before the decoder is built.
 - When accepted: a spec `docs/specs/query-v1.md` (API and coverage table), a `fetch` section in
   `jsx-subset-v1.md`, the `HttpService` interface and tests, then the shim packages and analyzer rules,

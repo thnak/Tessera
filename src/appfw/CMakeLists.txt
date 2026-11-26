@@ -432,7 +432,8 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_error_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_redirect_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_thread_tests.cpp
-        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_request_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_request_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_http_service_tests.cpp)
     target_include_directories(appfw_net_tests PRIVATE
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_net_tests PRIVATE tessera_appfw_net tessera_runtime)
