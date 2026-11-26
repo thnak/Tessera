@@ -1,6 +1,8 @@
 # ADR-064: The first-party UI library follows Astryx's system design: catalogue, anatomy, theme model and behavior hooks
 
-- Status: Proposed (2026-11-20). The direction is the owner's: "the mock should be a Tessera demo, not
+- Status: Proposed (2026-11-20); **item 6 (theme model) Accepted 2026-11-26** by the owner on the
+  evidence of spike #662 (#688), which unblocks the behavior-hook work that waited on it. The other
+  items stay Proposed. The direction is the owner's: "the mock should be a Tessera demo, not
   first-party; Astryx's system design is better; no port, copy the catalogue and the anatomy of
   components and themes", and "those hooks are very valuable". The details below are the proposal to
   review. Amends [ADR-047](ADR-047-component-library-layers-and-design-language.md) item 5 (the default
