@@ -175,6 +175,33 @@ source must not be a swapchain image; the same submission resamples it into the 
 
 ### 5.2 Isolated layers (#227)
 
+**Landing plan (issue #617 `mask`, then `filter`, are the first consumers).** One slice each, every
+slice behavior + tests + docs, nothing user-visible until the last:
+
+1. **Sink seam.** `PaintSink::push_layer(const LayerDraw&)` / `pop_layer()`, default no-ops, so a sink that
+   ignores them paints the subtree flat (today's non-isolated behaviour). `LayerDraw` carries the
+   device-space box, the folded opacity and an optional mask. Wired through `ClippedPaintSink`,
+   `LcdTextSink`, `TextShadowSink`, the recorder (`PaintCache` ops) and replay, with the structure tests
+   that already guard `push_clip`/`pop_clip` balance.
+2. **Renderer layer path.** `Batched2DRenderer::push_layer`: flush, `break_pass()`, acquire a pooled target
+   for the box, draw the subtree into it (render pass on the target, clip and transform rebased to the
+   box origin), `pop_layer` composites it once through `bind_sampled_target`, then `resume_pass()`. A
+   pool that cannot hand out a target, or a frame target that cannot be read, paints flat and counts it
+   in a `LayerPaintStats::unsupported`, like the glass fallback. Null-backend structure test first, then
+   the lavapipe pixel test.
+3. **`CpuCanvas` twin.** The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
+   GPU path to the existing tolerance.
+4. **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
+   same seam; the §14.1 product rule stays the fallback.
+5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
+   layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
+   (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
+   golden, and the property-status table updated.
+
+Open decisions for the owner before slice 2: the composite needs a new shader (GLSL, WGSL and MSL
+twins through the shader chain, so it touches the `shader-cross` and `wgsl-validation` lanes), and
+the layer target's format and colour space must follow the sRGB/UNORM target rule.
+
 An isolated layer is the same seam with a different destination: render the subtree into a pooled
 target (render pass on the target, not a region copy), then composite it once. Because the pool
 hands out plain `RenderTarget`s - not region-copy scratch buffers - no new resource type is needed;
