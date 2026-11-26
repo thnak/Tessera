@@ -146,6 +146,15 @@ public:
     void draw_backdrop(const BackdropDraw& draw) override {
         target_->draw_backdrop(draw);
     }
+    [[nodiscard]] bool supports_layers() const override {
+        return target_->supports_layers();
+    }
+    void push_layer(const LayerDraw& layer) override {
+        target_->push_layer(layer);
+    }
+    void pop_layer() override {
+        target_->pop_layer();
+    }
 
 private:
     PaintSink* target_;

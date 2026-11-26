@@ -178,7 +178,7 @@ source must not be a swapchain image; the same submission resamples it into the 
 **Landing plan (issue #617 `mask`, then `filter`, are the first consumers).** One slice each, every
 slice behavior + tests + docs, nothing user-visible until the last:
 
-1. **Sink seam.** `PaintSink::push_layer(const LayerDraw&)` / `pop_layer()`, default no-ops, so a sink that
+1. **Sink seam (landed, issue #227 slice 1).** `LayerDraw`, `PaintSink::supports_layers()`/`push_layer`/`pop_layer` (all default off), forwarded by `TextShadowSink` and `LcdTextSink`; `ClippedPaintSink` answers false until slice 2 replays a layer per damage region; `PaintCache::Recorder` records a push op and a `pushed_layer` flag (per node) or a pop op (subtree list), and the pass pops a replayed record's layer after the clip pop. Test: `paint_layer`. Original scope: `PaintSink::push_layer(const LayerDraw&)` / `pop_layer()`, default no-ops, so a sink that
    ignores them paints the subtree flat (today's non-isolated behaviour). `LayerDraw` carries the
    device-space box, the folded opacity and an optional mask. Wired through `ClippedPaintSink`,
    `LcdTextSink`, `TextShadowSink`, the recorder (`PaintCache` ops) and replay, with the structure tests

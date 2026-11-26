@@ -4,6 +4,7 @@ add_library(tessera_paint STATIC
     background_layer_cache.cpp
     paint_box.cpp
     paint_cache.cpp
+    paint_cache_recorder.cpp
     paint_pass.cpp
     paint_image.cpp
     paint_properties.cpp

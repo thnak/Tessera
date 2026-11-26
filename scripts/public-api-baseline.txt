@@ -2635,6 +2635,7 @@ struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCounts
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintRecord
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushClipOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushLayerOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushTransformOp
 alias include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientPayload
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::extend_paint_clip_hash
@@ -2659,6 +2660,7 @@ struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::ConicBand
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::ConicGradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::GradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::ImageDraw
+struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::LayerDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RadialBand
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RadialGradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RoundedClip

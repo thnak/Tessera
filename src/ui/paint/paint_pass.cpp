@@ -260,6 +260,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         } else if (const PaintRecord* record = pass.cache->find(*signature, node.paint_data())) {
             const PaintCounts counts = record->counts;
             const bool pushed_clip = record->pushed_clip;
+            const bool pushed_layer = record->pushed_layer;
             const RoundedClip clip = record->clip;
             // The record carries the effective opacity its ops were folded with, so the child walk
             // composites at the same product without resolving this node's style again.
@@ -277,6 +278,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             });
             if (pushed_clip) {
                 sink.pop_clip();
+            }
+            if (pushed_layer) {
+                sink.pop_layer();
             }
             if (open_frame) {
                 sink.pop_transform();

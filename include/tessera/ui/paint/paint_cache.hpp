@@ -181,6 +181,10 @@ struct DrawBackdropOp {
     BackdropDraw draw;
 };
 
+struct PushLayerOp {
+    LayerDraw layer;
+};
+
 // One recorded sink call: the kind tag plus the payload that kind owns. `kind` is kept beside the
 // variant rather than derived from the active alternative because the three gradient kinds share
 // one alternative and the two asset kinds share another.
@@ -195,6 +199,7 @@ struct PaintOp {
         FillConicGradient,
         PushClip,
         PushTransform,
+        PushLayer,
         DrawText,
         DrawVector,
         DrawImage,
@@ -203,11 +208,12 @@ struct PaintOp {
         // carry its own pops); a per-node record stores pops as flags and never holds these.
         PopClip,
         PopTransform,
+        PopLayer,
     };
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
                                  GradientRefOp, PushClipOp, PushTransformOp, DrawTextOp,
-                                 DrawAssetOp, DrawBackdropOp>;
+                                 DrawAssetOp, DrawBackdropOp, PushLayerOp>;
 
     Kind kind = Kind::FillRect;
     Payload payload = FillRectOp{};
@@ -225,6 +231,9 @@ struct PaintRecord {
     std::vector<GradientPayload> gradients;
     bool pushed_transform = false;
     bool pushed_clip = false;
+    // The node opened an isolated layer (issue #227): the pass closes it after the child walk,
+    // after the clip pop and before the transform pop, like the other pops.
+    bool pushed_layer = false;
     RoundedClip clip; // valid when pushed_clip; also feeds the children's clip fingerprint
     PaintCounts counts;
     // Effective opacity this node composited its own draws with and passes to its descendants
@@ -374,6 +383,9 @@ public:
         [[nodiscard]] bool supports_backdrop() const override;
         void push_transform(const rhi::Mat3& transform) override;
         void pop_transform() override;
+        [[nodiscard]] bool supports_layers() const override;
+        void push_layer(const LayerDraw& layer) override;
+        void pop_layer() override;
         void draw_text(const TextDraw& run) override;
         void draw_vector(const VectorDraw& draw) override;
         void draw_image(const ImageDraw& draw) override;
@@ -394,6 +406,7 @@ public:
         RoundedClip clip_;
         bool pushed_clip_ = false;
         bool pushed_transform_ = false;
+        bool pushed_layer_ = false;
     };
 
 private:
