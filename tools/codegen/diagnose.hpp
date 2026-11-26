@@ -25,13 +25,17 @@ namespace tessera::compiler::codegen::cli {
 //
 // Deterministic: the document is a pure function of `text` and `file`, with no clock, no locale, no
 // environment and no filesystem read.
-[[nodiscard]] std::string diagnose_source(std::string_view text, std::string_view file);
+// `services_manifest` is the text of the project's `ui/services.json`, or empty for none (without it
+// a `useService<T>()` is rejected); a manifest that does not parse is the one diagnostic.
+[[nodiscard]] std::string diagnose_source(std::string_view text, std::string_view file,
+                                          std::string_view services_manifest = {});
 
 // The records `diagnose_source()` serializes, for a caller that prints them instead (the preview
 // CLIs: a failed scene must say why on stderr, not only in the document). Same stages, same first
 // diagnostic, same order; `diagnose_source()` is this plus `write_diagnostics_json()`.
-[[nodiscard]] std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
-                                                                       std::string_view file);
+[[nodiscard]] std::vector<DiagnosticRecord>
+collect_source_diagnostics(std::string_view text, std::string_view file,
+                           std::string_view services_manifest = {});
 
 // The same document for a whole project: the entry and every file it reaches through relative
 // imports (`ProjectWalk`, the walk the scene preview uses, so the two cannot disagree about which

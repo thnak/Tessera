@@ -87,6 +87,8 @@ export interface StagedProject {
   entry: string | null;
   sources: readonly { path: string; text: string }[];
   stylesheets: readonly { path: string; text: string }[];
+  /** The text of the project's `ui/services.json`; omitted or null for a project with none. */
+  servicesManifest?: string | null;
 }
 
 function callVoid(module: WasmModule, name: string, strings: string[]): void {
@@ -124,6 +126,9 @@ export function stageProject(module: WasmModule, project: StagedProject): void {
   }
   for (const sheet of project.stylesheets) {
     callVoid(module, "_tessera_project_add_stylesheet", [sheet.path, sheet.text]);
+  }
+  if (project.servicesManifest) {
+    callVoid(module, "_tessera_project_set_services", [project.servicesManifest]);
   }
   if (project.entry !== null) {
     callVoid(module, "_tessera_project_set_entry", [project.entry]);

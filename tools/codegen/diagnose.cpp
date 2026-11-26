@@ -29,9 +29,11 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest.hpp"
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -45,6 +47,7 @@ namespace ir = tessera::compiler::ir;
 namespace jsx = tessera::compiler::jsx;
 namespace lowering = tessera::compiler::lowering;
 namespace rules = tessera::compiler::rules;
+namespace services = tessera::compiler::services;
 
 // One parsed and analysed in-memory source: the browser's equivalent of the driver's SourceFile.
 // The members are ordered so the parse result outlives the SourceMap that views `text`, and the
@@ -61,7 +64,8 @@ struct InMemorySource {
     jsx::ExpansionMetrics expansion;
     rules::AnalyzedModule analyzed;
 
-    InMemorySource(std::string path, std::string source)
+    InMemorySource(std::string path, std::string source,
+                   const services::ServicesManifest* manifest = nullptr)
         : file(std::move(path)),
           text(std::move(source)),
           parsed(jsx::parse_module(text)),
@@ -73,7 +77,8 @@ struct InMemorySource {
         expansion =
             jsx::expand_custom_hooks(*parsed.root, map, jsx::FrontEndOptions{}, *expansion_sink);
         analyzed =
-            rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr, &expansion.call_sites);
+            rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr, &expansion.call_sites,
+                                  manifest);
     }
 
     [[nodiscard]] lowering::ModuleSource module_source() const {
@@ -129,13 +134,30 @@ bool deferred_identity(const ir::IrDiagnostic& diagnostic) {
 } // namespace
 
 std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
-                                                         std::string_view file) {
+                                                         std::string_view file,
+                                                         std::string_view services_manifest) {
     std::vector<DiagnosticRecord> records;
     const auto report = [&records](const jsx::Diagnostic& diagnostic, std::string_view path) {
         records.push_back(to_record(diagnostic, path));
     };
 
-    InMemorySource source{std::string(file), std::string(text)};
+    // The manifest is parsed first and outlives the analysis that points into it.
+    std::optional<services::ServicesManifest> manifest;
+    if (!services_manifest.empty()) {
+        auto parsed_manifest = services::parse_services_manifest(services_manifest);
+        if (!parsed_manifest) {
+            DiagnosticRecord record;
+            record.severity = "error";
+            record.message = "ui/services.json: " + parsed_manifest.error().code + ": " +
+                             parsed_manifest.error().message + " (at " +
+                             parsed_manifest.error().pointer + ")";
+            records.push_back(std::move(record));
+            return records;
+        }
+        manifest = std::move(*parsed_manifest);
+    }
+
+    InMemorySource source{std::string(file), std::string(text), manifest ? &*manifest : nullptr};
 
     // Parse, then analyse: the CLI stops at the first file that fails and reports the first
     // diagnostic of that stage, so the page reports the same single error for the same input.
@@ -208,8 +230,10 @@ std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
     return records;
 }
 
-std::string diagnose_source(std::string_view text, std::string_view file) {
-    return write_diagnostics_json(file, collect_source_diagnostics(text, file));
+std::string diagnose_source(std::string_view text, std::string_view file,
+                            std::string_view services_manifest) {
+    return write_diagnostics_json(file,
+                                  collect_source_diagnostics(text, file, services_manifest));
 }
 
 std::string diagnose_project(const ProjectInput& project) {

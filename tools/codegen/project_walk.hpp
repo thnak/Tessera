@@ -6,6 +6,7 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -41,7 +42,7 @@ struct WalkUnit {
 
 // Why the walk stopped. `file` is the project file the failure is in.
 struct WalkFailure {
-    enum class Kind { Parse, Analyze, Import, Stylesheet };
+    enum class Kind { Parse, Analyze, Import, Stylesheet, Manifest };
     Kind kind = Kind::Parse;
     std::string file;
     std::string message;
@@ -70,6 +71,9 @@ public:
     // Walks from the entry. False when `failure()` is set; `units()` then holds the files parsed
     // before the stop, and `failed_unit()` the one that failed to parse or analyse, if that was it.
     bool run() {
+        if (!load_services_manifest()) {
+            return false;
+        }
         const std::string entry = normalize_project_path(input_.entry);
         const ProjectFile* file = find_file(input_.sources, entry);
         if (file == nullptr) {
@@ -142,6 +146,24 @@ private:
         return specifier.rfind("./", 0) == 0 || specifier.rfind("../", 0) == 0;
     }
 
+    // Parses the staged `ui/services.json` once; an empty text is a project with no services. The
+    // reader's own code, pointer and message are the failure, so a page shows the same text the CLI
+    // prints for the same file.
+    bool load_services_manifest() {
+        if (input_.services_manifest.empty() || services_.has_value()) {
+            return true;
+        }
+        auto parsed = tessera::compiler::services::parse_services_manifest(input_.services_manifest);
+        if (!parsed) {
+            fail(WalkFailure::Kind::Manifest, "ui/services.json",
+                 "ui/services.json: " + parsed.error().code + ": " + parsed.error().message +
+                     " (at " + parsed.error().pointer + ")");
+            return false;
+        }
+        services_ = std::move(*parsed);
+        return true;
+    }
+
     void fail(WalkFailure::Kind kind, std::string file, std::string message) {
         if (!failure_) {
             failure_ = WalkFailure{kind, std::move(file), std::move(message)};
@@ -167,7 +189,8 @@ private:
             return nullptr;
         }
         unit->map = std::make_unique<jsx::SourceMap>(file.text);
-        unit->analyzed = rules::analyze_module(*unit->parsed.root, *unit->map);
+        unit->analyzed = rules::analyze_module(*unit->parsed.root, *unit->map, jsx::Limits{}, nullptr, nullptr,
+                                  services_ ? &*services_ : nullptr);
         if (unit->analyzed.has_errors()) {
             fail(WalkFailure::Kind::Analyze, path, path + " does not analyse");
             failed_ = std::move(unit);
@@ -220,6 +243,8 @@ private:
     }
 
     const ProjectInput& input_;
+    // Declared before `units_`: each unit's analysis points into it, so it is destroyed last.
+    std::optional<tessera::compiler::services::ServicesManifest> services_;
     std::vector<std::unique_ptr<WalkUnit>> units_;
     std::vector<SheetUse> sheets_;
     std::unique_ptr<WalkUnit> failed_;

@@ -14,7 +14,9 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest.hpp"
 
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -67,7 +69,17 @@ bool deferred_identity(const ir::IrDiagnostic& diagnostic) {
 
 } // namespace
 
-std::optional<std::string> lower_source_to_ir_json(std::string_view text, std::string_view file) {
+std::optional<std::string> lower_source_to_ir_json(std::string_view text, std::string_view file,
+                                                   std::string_view services_manifest) {
+    // Parsed first: the analysis points into it, so it must outlive the analysis.
+    std::optional<tessera::compiler::services::ServicesManifest> manifest;
+    if (!services_manifest.empty()) {
+        auto parsed_manifest = tessera::compiler::services::parse_services_manifest(services_manifest);
+        if (!parsed_manifest) {
+            return std::nullopt;
+        }
+        manifest = std::move(*parsed_manifest);
+    }
     // The parse result views `text`, and the analysis views the parse tree, so the locals are
     // ordered source -> parse -> map -> analysis exactly as the diagnostics driver orders them.
     const std::string source(text);
@@ -76,7 +88,8 @@ std::optional<std::string> lower_source_to_ir_json(std::string_view text, std::s
         return std::nullopt;
     }
     const jsx::SourceMap map(source);
-    const rules::AnalyzedModule analyzed = rules::analyze_module(*parsed.root, map);
+    const rules::AnalyzedModule analyzed = rules::analyze_module(
+        *parsed.root, map, jsx::Limits{}, nullptr, nullptr, manifest ? &*manifest : nullptr);
     if (analyzed.has_errors()) {
         return std::nullopt;
     }

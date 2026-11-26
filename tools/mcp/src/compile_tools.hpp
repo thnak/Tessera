@@ -16,12 +16,18 @@ namespace tessera::mcp {
 
 // `diagnostics`: compile `source` as `file` and return the
 // docs/specs/compiler-diagnostics-v1.md document as the tool's text content.
-[[nodiscard]] ToolResult run_diagnostics_tool(std::string_view source, std::string_view file);
+[[nodiscard]] ToolResult run_diagnostics_tool(std::string_view source, std::string_view file,
+                                              std::string_view services_manifest = {});
 
 // `get_ir`: lower `source` and return the canonical IR JSON (docs/specs/ir-v1.md). When the source
 // does not reach a valid module, the diagnostics document is returned with `isError` set, because a
 // client asking for IR needs to know why there is none.
-[[nodiscard]] ToolResult run_get_ir_tool(std::string_view source, std::string_view file);
+[[nodiscard]] ToolResult run_get_ir_tool(std::string_view source, std::string_view file,
+                                         std::string_view services_manifest = {});
+
+// The text of the open project's `ui/services.json` (docs/specs/services-manifest-v1.md), or empty
+// when the project has none, so both compile tools resolve `useService<T>()` the way the CLI does.
+[[nodiscard]] std::string read_project_services_manifest(SessionState& session);
 
 // Resolves the `file` argument of a compile tool against the open project, defaulting to
 // `kDefaultBufferName`. An empty result means the path escapes the project and must be refused.

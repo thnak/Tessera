@@ -28,6 +28,8 @@ public:
     void set_entry(std::string_view path);
     void add_source(std::string_view path, std::string_view text);
     void add_stylesheet(std::string_view path, std::string_view text);
+    // The text of the project's `ui/services.json`; empty for a project with none.
+    void set_services_manifest(std::string_view text);
 
     // True once an entry has been named. A stage with no entry previews nothing, and the
     // exports say so instead of choosing a file.
@@ -45,6 +47,7 @@ private:
     std::vector<Entry> sources_;
     std::vector<Entry> stylesheets_;
     std::string entry_;
+    std::string services_manifest_;
     // Rebuilt by `input()`; a member so the returned spans have somewhere to live.
     mutable std::vector<ProjectFile> source_views_;
     mutable std::vector<ProjectFile> stylesheet_views_;

@@ -170,6 +170,11 @@ endif ()
 
 # The public lowering target: core pipeline + generated library component registry.
 add_library(tessera_lowering INTERFACE)
+# `tessera_services_manifest` rides along because every consumer that lowers a project from memory
+# (the diagnostics driver, the scene walk, the MCP adapter) also reads the staged
+# `ui/services.json` before it analyses (docs/specs/services-manifest-v1.md). It is not part of the
+# core's closed list above: the core takes the plain data, never the JSON reader.
 target_link_libraries(tessera_lowering INTERFACE
     tessera_lowering_core
-    tessera_library_components)
+    tessera_library_components
+    tessera_services_manifest)

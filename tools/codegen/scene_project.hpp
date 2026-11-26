@@ -28,6 +28,10 @@ struct ProjectInput {
     std::span<const ProjectFile> sources;
     std::span<const ProjectFile> stylesheets;
     std::string_view entry;
+    // The text of the project's `ui/services.json` (docs/specs/services-manifest-v1.md), or empty
+    // when it has none. A project with no manifest rejects `useService<T>()`, so a page that previews
+    // a project that uses services must stage it.
+    std::string_view services_manifest{};
 };
 
 // A stylesheet the entry reaches, with the bytes it was given. `path` is canonical, so a diagnostic
@@ -45,6 +49,7 @@ struct OwnedProject {
     std::vector<std::pair<std::string, std::string>> sources;
     std::vector<std::pair<std::string, std::string>> stylesheets;
     std::string entry;
+    std::string services_manifest;
 
     [[nodiscard]] static OwnedProject of(const ProjectInput& input) {
         OwnedProject out;
@@ -55,11 +60,13 @@ struct OwnedProject {
             out.stylesheets.emplace_back(std::string(file.path), std::string(file.text));
         }
         out.entry = std::string(input.entry);
+        out.services_manifest = std::string(input.services_manifest);
         return out;
     }
 
     [[nodiscard]] bool same_as(const ProjectInput& input) const {
-        if (entry != input.entry || sources.size() != input.sources.size() ||
+        if (entry != input.entry || services_manifest != input.services_manifest ||
+            sources.size() != input.sources.size() ||
             stylesheets.size() != input.stylesheets.size()) {
             return false;
         }

@@ -27,6 +27,9 @@
 
 namespace tessera::compiler::codegen::cli {
 
+// `quoted` is qualified below: <filesystem> (pulled in by the services manifest through
+// project_walk.hpp) puts `std::quoted` in reach of an unqualified call on a `std::string`.
+
 std::string css_diagnostics_json(const ProjectInput& project) {
     // The sheets the entry reaches, even when the walk stopped partway on a broken file: the sheets
     // collected before the stop are still the author's, and their problems are worth reporting.
@@ -52,13 +55,13 @@ std::string css_diagnostics_json(const ProjectInput& project) {
         }
         const PreviewCssDiagnostic& problem = problems[index];
         out += "{\"code\":";
-        out += quoted(problem.code);
+        out += cli::quoted(problem.code);
         out += ",\"severity\":";
-        out += quoted(problem.warning ? "warning" : "error");
+        out += cli::quoted(problem.warning ? "warning" : "error");
         out += ",\"message\":";
-        out += quoted(problem.message);
+        out += cli::quoted(problem.message);
         out += ",\"file\":";
-        out += quoted(problem.file);
+        out += cli::quoted(problem.file);
         out += ",\"line\":";
         out += std::to_string(problem.line);
         out += ",\"column\":";
