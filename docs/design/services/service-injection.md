@@ -71,7 +71,7 @@ the hook form in `rules` (checked against the manifest), `nav.push(...)` lowered
 
 Still open, each its own change:
 
-1. **`services.d.ts` generation** from the manifest.
+1. ~~`services.d.ts` generation~~ landed: `src/compiler/services/src/typings.cpp`, emitted by `regenerate` next to the generated base, ctest `services_typings`.
 2. **Startup validation of missing providers**, which needs the union of requirements across components
    (ADR-050 section 3.1 item 6; AF1's runtime form already terminates with `TESSERA_APPFW_SERVICE_MISSING`).
 3. **Manifest delivery** to Studio, preview and mcp callers, which pass no manifest today.

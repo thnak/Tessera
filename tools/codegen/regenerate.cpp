@@ -23,6 +23,7 @@
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/compiler/services/manifest.hpp"
+#include "tessera/compiler/services/typings.hpp"
 #include "tessera/harness/json_parse.hpp"
 
 #include <algorithm>
@@ -510,6 +511,12 @@ Outcome run_impl(const Options& options) {
     std::vector<GeneratedFile> files;
     if (!generate_files(module, *embeds, theme, options, files, outcome, options.inputs.front())) {
         return outcome;
+    }
+
+    if (services_ptr != nullptr) {
+        // The editor typings for the services TSX may name (spec section 3 item 4); generated, covered
+        // by --check.
+        files.push_back({"services.d.ts", services::write_services_typings(*services_ptr)});
     }
 
     if (!identity->salt.empty()) {

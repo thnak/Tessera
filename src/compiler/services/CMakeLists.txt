@@ -11,6 +11,7 @@ target_include_directories(tessera_services_types
 target_compile_features(tessera_services_types INTERFACE cxx_std_23)
 
 add_library(tessera_services_manifest STATIC
-    src/manifest.cpp)
+    src/manifest.cpp
+    src/typings.cpp)
 
 target_link_libraries(tessera_services_manifest PUBLIC tessera_services_types tessera_harness)
