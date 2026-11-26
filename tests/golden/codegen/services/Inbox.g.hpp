@@ -11,6 +11,7 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/appfw/service_context.hpp"
+#include "tessera/appfw/service_requirements.hpp"
 #include "demo/services.hpp"
 
 #include <cstdint>
@@ -124,6 +125,16 @@ namespace demo {
           } else {
               return service_unavailable<T>();
           }
+      }
+      // ADR-050 section 3.1 item 6: this component's requirements, for the composition
+      // root's startup validation (tessera::appfw::find_missing_services).
+      [[nodiscard]] static std::span<const tessera::appfw::RequiredService>
+      required_services() noexcept {
+          static constexpr tessera::appfw::RequiredService kRequired[] = {
+              {demo::Navigator::kServiceId, "demo::Navigator", "Inbox", "ui/Inbox.tsx:3:15"},
+              {demo::MailStore::kServiceId, "demo::MailStore", "Inbox", "ui/Inbox.tsx:4:15"},
+          };
+          return kRequired;
       }
       // The service `svc::nav` (`nav` in the TSX), resolved at attach.
       [[nodiscard]] demo::Navigator& nav() const { return service<demo::Navigator>(); }

@@ -388,4 +388,29 @@ void lower_context_use(HookState& state, std::size_t index, LoweredHooks& out,
     out.environment.push_back(std::move(env));
 }
 
+void lower_service_hook(HookState& state, std::size_t index, LoweredHooks& out) {
+    const HookLoweringContext& context = state.context;
+    const jsx::Statement& statement = context.component.body[index];
+    const rules::ServiceUseInfo* info = nullptr;
+    for (const rules::ServiceUseInfo& candidate : context.analysis.service_uses) {
+        if (candidate.statement == index) {
+            info = &candidate;
+            break;
+        }
+    }
+    if (info == nullptr || info->decl == nullptr) {
+        fail_hook(state, "TESSERA_IR_MALFORMED",
+                  "the analysis did not classify this `useService` call", statement.span);
+        return;
+    }
+    ir::Service service;
+    service.id = prefixed("svc::", info->name);
+    service.name = info->name;
+    service.type = info->decl->cpp_type;
+    service.header = info->decl->header;
+    service.registry_id = info->decl->id;
+    service.source = to_source_span(context.source_map, statement.span, context.file);
+    out.services.push_back(std::move(service));
+}
+
 } // namespace tessera::compiler::lowering::internal

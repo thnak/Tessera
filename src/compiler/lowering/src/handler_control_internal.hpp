@@ -31,6 +31,13 @@ namespace tessera::compiler::lowering::internal {
 [[nodiscard]] std::optional<ir::Action> lower_dispatch_call(HookState& state, const jsx::Expr& call,
                                                             const jsx::Expr& callee);
 
+// ADR-050 section 3.1 item 4: `nav.push(route)` on a `useService` binding, as a `callService`
+// action. Null without an error when the receiver is not a service, so the caller tries the other
+// forms.
+[[nodiscard]] std::optional<ir::Action> lower_service_call(HookState& state, const jsx::Expr& call,
+                                                           const jsx::Expr& callee,
+                                                           ComponentNames& names);
+
 // One call statement as an action: a setter, an animated-value `.set(...)`, a ref `focus`/`blur`,
 // or a callback prop. Shared by the body walk and by an `if` branch, so both accept exactly the
 // same calls. `arrow` is the handler the statement belongs to, which a callback call needs to check

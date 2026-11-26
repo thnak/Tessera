@@ -12,6 +12,11 @@ void ProjectStage::begin() {
     sources_.clear();
     stylesheets_.clear();
     entry_.clear();
+    services_manifest_.clear();
+}
+
+void ProjectStage::set_services_manifest(std::string_view text) {
+    services_manifest_ = std::string(text);
 }
 
 void ProjectStage::set_entry(std::string_view path) {
@@ -49,7 +54,7 @@ ProjectInput ProjectStage::input() const {
     for (const Entry& entry : stylesheets_) {
         stylesheet_views_.push_back(ProjectFile{entry.path, entry.text});
     }
-    return ProjectInput{source_views_, stylesheet_views_, entry_};
+    return ProjectInput{source_views_, stylesheet_views_, entry_, services_manifest_};
 }
 
 ProjectStage& project_stage() {

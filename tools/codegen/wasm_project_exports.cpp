@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// The four exports every preview module shares for handing it a project (see
+// The exports every preview module shares for handing it a project (see
 // `wasm_project_stage.hpp`). They live in one translation unit so the diagnostics, scene and canvas
 // modules cannot stage a project three slightly different ways.
 //
@@ -47,6 +47,12 @@ EMSCRIPTEN_KEEPALIVE void tessera_project_add_source(const char* path, const cha
 // Stages one `.css` file. It applies only if a staged source imports it.
 EMSCRIPTEN_KEEPALIVE void tessera_project_add_stylesheet(const char* path, const char* text) {
     tessera::compiler::codegen::cli::project_stage().add_stylesheet(view_of(path), view_of(text));
+}
+
+// Stages the project's `ui/services.json` text (docs/specs/services-manifest-v1.md). Without it a
+// `useService<T>()` in a staged source is rejected, exactly as in a project with no manifest.
+EMSCRIPTEN_KEEPALIVE void tessera_project_set_services(const char* text) {
+    tessera::compiler::codegen::cli::project_stage().set_services_manifest(view_of(text));
 }
 
 } // extern "C"

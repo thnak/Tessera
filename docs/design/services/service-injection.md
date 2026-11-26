@@ -61,23 +61,17 @@ through the accessor), so an accessor that did nothing could not pass. The docum
 0.37 ns, the same machine code as the cached-pointer case, while resolving from a retained context on
 every use costs 4.61 ns, about 12x even with the registry entirely in cache.
 
-### 11.6 The TSX half of `useService<T>()`: what is still missing
+### 11.6 The TSX half of `useService<T>()` (#177)
 
-Not in this slice, and not guessable from the ADR:
+Landed: the `ui/services.json` schema and reader ([`services-manifest-v1.md`](../../specs/services-manifest-v1.md)),
+the hook form in `rules` (checked against the manifest), `nav.push(...)` lowered to an
+`ir::ActionKind::CallService` action ([`ir-v1.md`](../../specs/ir-v1.md) section 2), the evaluator's
+`ServiceCallSink`, and codegen of `nav().method(args)`. Tests: `services_manifest`,
+`services_frontend`, `codegen_services_tsx_runtime`.
 
-1. **Call-expression lowering.** A service use is `nav.push(route)`, and `lower_reference` gives
-   member chains an IR form only for a prop object, a record-typed state and a loop item
-   (`reference_lowering.cpp`); a call on that chain has no IR expression today, and
-   `TESSERA_JSX_SUBSET_CALL` rejects it at the front end. `useService` is therefore only useful once
-   a member call on a service value is an IR expression.
-2. **A hook form.** `useService<T>()` needs an entry in `rules` (`check_hook_statement`), a
-   `SymbolKind`, and a `lower_hooks` branch that appends to `ir::Component::services`. Its `T` is a
-   type argument the front end currently only parses for `useState`/`useRef`.
-3. **The manifest and its typings.** `ui/services.json` (id, C++ class, header, the methods TSX may
-   call with their IR types) plus the generated `services.d.ts` is a spec-level artifact with no
-   format in the repository yet; ADR-050 section 3.1 item 1 names what it must contain but not its
-   schema. Writing one here would be an ADR/spec decision, so the IR entry took `type` and `header`
-   as data and left the reader to that slice.
-4. **Startup validation of missing providers**, which needs the manifest's union across components to
-   know what to require (ADR-050 section 3.1 item 6). AF1's runtime form of the same failure already
-   terminates with `TESSERA_APPFW_SERVICE_MISSING`.
+Still open, each its own change:
+
+1. ~~`services.d.ts` generation~~ landed: `src/compiler/services/src/typings.cpp`, emitted by `regenerate` next to the generated base, ctest `services_typings`.
+2. ~~Startup validation~~ landed as a seam: every generated base exposes `required_services()` (id, interface, component, TSX location), and `tessera::appfw::find_missing_services` / `report_missing_services` (`include/tessera/appfw/service_requirements.hpp`) check a list against a frozen scope. The composition root concatenates the lists of the components it mounts and calls it before any mount; wiring that into `Application` is open because `Application` does not own a `ServiceContext` yet. Test: `codegen_services_tsx_runtime`.
+3. ~~Manifest delivery~~ landed for the compiler-side callers: `ProjectInput::services_manifest` (the `ProjectWalk` behind scene, diagnostics and canvas), `tessera_project_set_services` on the Wasm stage and `stageProject({servicesManifest})` in the designer, the optional manifest of `diagnose_source` / `lower_source_to_ir_json`, and the MCP compile tools reading `<project>/ui/services.json`. Test: `codegen_diagnostics_json` section 3. Open: the designer UI reading the file from the project and replacing the mock console's own `readServiceManifest() -> null`.
+4. **Effect bodies** stay native; only handler-body service calls lower to IR.

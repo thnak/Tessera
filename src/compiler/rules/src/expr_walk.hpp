@@ -69,7 +69,10 @@ inline bool is_core_hook(std::string_view name) {
            name == "useReducer" ||
            // ADR-066 item 5 (issue #802): `useContext` is a core hook whose form its own pass
            // (context.cpp) checks against the module's `createContext` consts.
-           name == "useContext";
+           name == "useContext" ||
+           // ADR-050 section 3.1 (issue #177): `useService<T>()`, whose form its own pass
+           // (service.cpp) checks against the project's services manifest.
+           name == "useService";
 }
 
 // True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion

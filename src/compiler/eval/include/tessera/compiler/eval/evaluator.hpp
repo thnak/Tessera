@@ -83,6 +83,18 @@ public:
         }
     }
 
+    // A `callService` action calls a method of a service the component requires (ADR-050
+    // section 3.1 item 4). The evaluator has no services, so a host that models them (the preview,
+    // the Studio mock services) installs a sink: it receives the `svc::<name>` target, the method
+    // and the evaluated arguments, after the action's guard held. Without a sink the call is
+    // skipped.
+    using ServiceCallSink = void (*)(void* context, const std::string& target,
+                                     const std::string& method, const std::vector<Value>& args);
+    void set_service_call_sink(ServiceCallSink sink, void* context) noexcept {
+        service_sink_ = sink;
+        service_sink_context_ = context;
+    }
+
     void set_pending_session(PendingSession* session) noexcept {
         pending_ = session;
     }
@@ -91,6 +103,14 @@ public:
     }
 
 private:
+    // Actions that leave the value model: focus, `callProp` and `callService`. They are skipped by
+    // the state/anim assignment path and handled by `run_host_action` (evaluator_service.cpp).
+    [[nodiscard]] static bool is_host_action(ir::ActionKind kind) noexcept {
+        return kind == ir::ActionKind::Focus || kind == ir::ActionKind::Blur ||
+               kind == ir::ActionKind::CallProp || kind == ir::ActionKind::CallService;
+    }
+    [[nodiscard]] std::expected<void, EvalError> run_host_action(const ir::Action& action,
+                                                                 const Scope& scope);
     [[nodiscard]] std::expected<Value, EvalError> eval(const ir::Expr& expr, const Scope& scope,
                                                        std::size_t depth);
     [[nodiscard]] std::expected<Value, EvalError>
@@ -106,6 +126,8 @@ private:
     PendingSession* pending_ = nullptr;
     PropCallSink prop_sink_ = nullptr;
     void* prop_sink_context_ = nullptr;
+    ServiceCallSink service_sink_ = nullptr;
+    void* service_sink_context_ = nullptr;
 };
 
 } // namespace tessera::compiler::eval

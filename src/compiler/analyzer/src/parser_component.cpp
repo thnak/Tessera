@@ -173,6 +173,7 @@ bool Parser::parse_component_param(ModuleItem& item) {
 
 bool Parser::parse_component_body(ModuleItem& item) {
     in_component_ = true;
+    service_bindings_.clear();
     props_name_ = item.props_name;
     if (!expect_punct("{", LexMode::Code)) {
         return false;
@@ -253,6 +254,15 @@ bool Parser::parse_statement(ModuleItem& item) {
         expect_semicolon();
     }
     statement.span = span_from(begin);
+    // ADR-050 section 3.1 (issue #177): remember a `useService` binding so a later `nav.push(...)`
+    // is left to the rules pass instead of being taken for an array method.
+    if (statement.kind == StatementKind::Const && !statement.array_pattern &&
+        statement.names.size() == 1 && statement.init && statement.init->kind == ExprKind::Call &&
+        !statement.init->operands.empty() &&
+        statement.init->operands[0]->kind == ExprKind::Identifier &&
+        statement.init->operands[0]->text == "useService") {
+        service_bindings_.insert(statement.names.front());
+    }
     item.body.push_back(std::move(statement));
     return true;
 }

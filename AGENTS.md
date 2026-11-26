@@ -944,8 +944,9 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `in_frame == 0`). Evidence: `src/compiler/codegen/src/emit_services.cpp`, ctest
       `codegen_services_generate`/`codegen_services_runtime`, `docs/design/services/
       service-injection.md` section 11.5.
-      **Still open:** the TSX half (`nav.push(...)` needs call-expression lowering) and the
-      `ui/services.json` schema, both recorded in section 11.6 rather than guessed at.
+      TSX half landed (#925): `ui/services.json` reader, hook rules, `callService` IR action,
+      `codegen_services_tsx_runtime`. **Still open:** `services.d.ts`, startup validation,
+      manifest delivery to Studio/preview/mcp (section 11.6).
 - [x] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` -- the surface is a **borrowed**
       ref-counted view over handles the HAL owns (no deleter, no teardown hook), proved in
       both directions against a window that counts its own teardowns. The golden

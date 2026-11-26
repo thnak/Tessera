@@ -29,7 +29,17 @@ namespace jsx_registry {
 // `kExpansion` runs the custom-hook expansion (spike #659, ADR-065) with the experimental switch
 // on: the codes it reports are not reachable from the default pipeline, so a fixture that parses
 // without the switch cannot cover them.
-enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules, kExpansion, kNoCustomHooks };
+enum class Entry {
+    kLex,
+    kExpression,
+    kJsx,
+    kType,
+    kModule,
+    kRules,
+    kExpansion,
+    kNoCustomHooks,
+    kServices
+};
 
 struct Case {
     std::string_view code;
@@ -322,6 +332,37 @@ inline const std::vector<Case> kCases = {
             37, 35, 3),
     // ADR-066 item 4: the reducer form. `reduce` is not a module-scope helper here, so the lowering
     // has no body to read; the span is the call.
+    // ADR-050 section 3.1 (issue #177): `useService<T>()` is checked against the project manifest,
+    // which the kServices entry supplies (one `Navigator` service).
+    fixture("TESSERA_REACT_SERVICE_CALL_IN_RENDER", "react-service-call-in-render",
+            Entry::kServices,
+            "function A() {\n"
+            "  const nav = useService<Navigator>();\n"
+            "  const here = nav.back();\n"
+            "  return <View/>;\n"
+            "}\n",
+            69, 10, 3),
+    fixture("TESSERA_REACT_SERVICE_METHOD", "react-service-method", Entry::kServices,
+            "function A() {\n"
+            "  const nav = useService<Navigator>();\n"
+            ""
+            "  return <View onClick={() => nav.pop()}/>;\n"
+            "}\n",
+            84, 7, 3),
+    fixture("TESSERA_REACT_SERVICE_UNKNOWN", "react-service-unknown", Entry::kServices,
+            "function A() {\n"
+            "  const nav = useService<Settings>();\n"
+            ""
+            "  return <View/>;\n"
+            "}\n",
+            17, 35, 2),
+    fixture("TESSERA_REACT_SERVICE_VALUE", "react-service-value", Entry::kServices,
+            "function A() {\n"
+            "  const nav = useService<Navigator>();\n"
+            "  const alias = nav;\n"
+            "  return <View/>;\n"
+            "}\n",
+            70, 3, 3),
     fixture("TESSERA_REACT_REDUCER_FORM", "react-reducer-form", Entry::kRules,
             "function A() {\n"
             "  const [state, dispatch] = useReducer(reduce, { count: 0 });\n"

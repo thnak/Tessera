@@ -193,6 +193,8 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
             kind = "if";
         } else if (action.kind == ActionKind::Dispatch) {
             kind = "dispatch";
+        } else if (action.kind == ActionKind::CallService) {
+            kind = "callService";
         }
         json.set("kind", JsonValue::string(kind));
         // ADR-066 item 4: a `dispatch({ type: "x" })` names the reducer state and the `type`
@@ -200,6 +202,22 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
         if (action.kind == ActionKind::Dispatch) {
             json.set("target", JsonValue::string(action.target));
             json.set("action", JsonValue::string(action.action));
+            if (action.guard) {
+                json.set("guard", expr_to_json(action.guard.get()));
+            }
+            list.push(std::move(json));
+            continue;
+        }
+        // ADR-050 section 3.1 item 4: a service call names the requirement, the manifest method and
+        // its arguments in call order. `args` is always written, so a no-argument call is explicit.
+        if (action.kind == ActionKind::CallService) {
+            json.set("target", JsonValue::string(action.target));
+            json.set("method", JsonValue::string(action.method));
+            JsonValue args = JsonValue::array();
+            for (const ExprPtr& arg : action.args) {
+                args.push(value_to_json(arg.get()));
+            }
+            json.set("args", std::move(args));
             if (action.guard) {
                 json.set("guard", expr_to_json(action.guard.get()));
             }

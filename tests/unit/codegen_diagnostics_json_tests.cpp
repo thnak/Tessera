@@ -23,6 +23,7 @@
 #include "tessera/harness/json_parse.hpp"
 #include "tessera/harness/json_value.hpp"
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -405,6 +406,41 @@ int main(int argc, char** argv) {
                           std::to_string(test_case.minimum) + " diagnostic(s)");
             }
         }
+    }
+
+    // --- 3. The services manifest reaches the in-memory paths (#177). Without it a `useService` is
+    // rejected; with it the same source is clean; a manifest that does not parse is the one error.
+    {
+        const std::string source = "import { useService } from \"tessera\";\n"
+                                   "export function Inbox() {\n"
+                                   "  const nav = useService<Navigator>();\n"
+                                   "  return <View onClick={() => { nav.push(\"/a\"); }} />;\n}\n";
+        const std::string manifest =
+            R"({"version":1,"services":[{"id":"demo.nav","name":"Navigator",)"
+            R"("cpp":{"type":"demo::Navigator","header":"demo/navigator.hpp"},)"
+            R"("methods":[{"name":"push","params":[{"name":"route","type":"string"}],)"
+            R"("returns":"void"}]}]})";
+        const auto count_of = [](const std::string& document) {
+            const auto parsed = harness::parse_json(document);
+            const harness::JsonValue* list = parsed ? parsed->find("diagnostics") : nullptr;
+            return list != nullptr && list->as_array() != nullptr ? list->as_array()->size()
+                                                                  : std::size_t{99};
+        };
+        check(count_of(cli::diagnose_source(source, "ui/Inbox.tsx")) > 0,
+              "a useService with no manifest is rejected");
+        check(count_of(cli::diagnose_source(source, "ui/Inbox.tsx", manifest)) == 0,
+              "the same source with the manifest is clean");
+        check(count_of(cli::diagnose_source(source, "ui/Inbox.tsx", "{not json")) == 1,
+              "a manifest that does not parse is one diagnostic");
+
+        const std::array<cli::ProjectFile, 1> sources{{{"ui/Inbox.tsx", source}}};
+        const std::array<cli::ProjectFile, 0> sheets{};
+        cli::ProjectInput project{sources, sheets, "ui/Inbox.tsx"};
+        check(count_of(cli::diagnose_project(project)) > 0,
+              "a staged project with no manifest rejects the use");
+        project.services_manifest = manifest;
+        check(count_of(cli::diagnose_project(project)) == 0,
+              "a staged project with the manifest is clean");
     }
 
     fs::remove_all(work, error);

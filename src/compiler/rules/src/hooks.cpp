@@ -345,6 +345,10 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         // ADR-066 item 5: handled by its own pass (context.cpp), which needs the module's
         // `createContext` consts. Nothing is recorded here, so a rejected form reports once.
         return;
+    } else if (name == "useService") {
+        // ADR-050 section 3.1: handled by its own pass (service.cpp), which needs the project's
+        // services manifest. Nothing is recorded here, so a rejected form reports once.
+        return;
     } else if (name == "useRef") {
         check_ref(ctx, index, statement, call);
     } else if (name == "useMergedRefs") {

@@ -309,7 +309,7 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`. A hook that exists (core or manifest) but is not
   listed in `ui.hooks.allowed` gives `TESSERA_REACT_HOOK_NOT_ALLOWED`: an error when `ui.hooks.strict` is
   `true` (the default), a warning when it is `false`; in both cases the hook is still lowered normally
-  ([`project-config-v1.md`](project-config-v1.md)).
+  ([`project-config-v1.md`](project-config-v1.md)). `useService<Navigator>()` is accepted at the top level when `Navigator` is in `ui/services.json` ([`services-manifest-v1.md`](services-manifest-v1.md)); `nav.push(...)` is then a service call, allowed in handlers only.
 - A function whose name starts with `use` and that is declared in the project is a custom hook: it is
   expanded at each call site and never reaches the IR ([`custom-hooks-v1.md`](custom-hooks-v1.md)).
   A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an

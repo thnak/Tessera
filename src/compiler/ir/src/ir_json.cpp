@@ -193,6 +193,9 @@ JsonValue to_json(const Component& component) {
         entry.set("name", JsonValue::string(service.name));
         entry.set("type", JsonValue::string(service.type));
         entry.set("header", JsonValue::string(service.header));
+        if (!service.registry_id.empty()) {
+            entry.set("registryId", JsonValue::string(service.registry_id));
+        }
         entry.set("source", to_json(service.source));
         services.push(std::move(entry));
     }

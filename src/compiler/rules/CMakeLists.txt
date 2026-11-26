@@ -12,7 +12,8 @@ add_library(tessera_react_rules STATIC
     src/hook_placement.cpp
     src/hooks.cpp
     src/memo_deps.cpp
-    src/reducer.cpp)
+    src/reducer.cpp
+    src/service.cpp)
 
 target_include_directories(tessera_react_rules
     PUBLIC
@@ -20,7 +21,7 @@ target_include_directories(tessera_react_rules
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-target_link_libraries(tessera_react_rules PUBLIC tessera_jsx_frontend)
+target_link_libraries(tessera_react_rules PUBLIC tessera_jsx_frontend tessera_services_types)
 
 # The built-in hook manifest is embedded in the front end (jsx-subset-v1.md section 7.1): the native
 # compiler and the Wasm designer both contain it, so neither reads it from disk at run time. The

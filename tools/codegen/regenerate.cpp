@@ -22,6 +22,8 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest.hpp"
+#include "tessera/compiler/services/typings.hpp"
 #include "tessera/harness/json_parse.hpp"
 
 #include <algorithm>
@@ -57,6 +59,7 @@ namespace ir = tessera::compiler::ir;
 namespace jsx = tessera::compiler::jsx;
 namespace lowering = tessera::compiler::lowering;
 namespace rules = tessera::compiler::rules;
+namespace services = tessera::compiler::services;
 using detail::derive_module_name;
 using detail::diagnostic_text;
 using detail::ir_diagnostic_text;
@@ -246,6 +249,19 @@ Outcome run_impl(const Options& options) {
         return outcome;
     }
 
+    // ADR-050 section 3.1 item 1 (issue #177): `ui/services.json`, when the project has one.
+    // Without it `useService<T>()` has no interface to resolve `T` against and is rejected.
+    const auto services_manifest = services::load_services_manifest(identity->root);
+    if (!services_manifest) {
+        report(outcome, true,
+               "ui/services.json: " + services_manifest.error().code + ": " +
+                   services_manifest.error().message + " (at " + services_manifest.error().pointer +
+                   ")");
+        outcome.exit_code = 1;
+        return outcome;
+    }
+    const services::ServicesManifest* const services_ptr =
+        services_manifest->has_value() ? &**services_manifest : nullptr;
     // Project-relative names are required with a salt (they feed the ids) and with package roots
     // (bare specifiers match against them); either way the form is POSIX and checkout-independent.
     const bool project_paths = !identity->salt.empty() || !identity->packages.empty();
@@ -283,7 +299,8 @@ Outcome run_impl(const Options& options) {
             return outcome;
         }
         sources.push_back(std::make_unique<SourceFile>(std::move(next.first), std::move(*text),
-                                                       identity->limits));
+                                                       identity->limits, jsx::FrontEndOptions{},
+                                                       services_ptr));
         // Import closure (issue #70): a run follows the imports of every file it loads, so a
         // package's sources do not have to be listed on the command line. A specifier that names no
         // file is left alone here - lowering reports it with the import diagnostics.
@@ -494,6 +511,12 @@ Outcome run_impl(const Options& options) {
     std::vector<GeneratedFile> files;
     if (!generate_files(module, *embeds, theme, options, files, outcome, options.inputs.front())) {
         return outcome;
+    }
+
+    if (services_ptr != nullptr) {
+        // The editor typings for the services TSX may name (spec section 3 item 4); generated,
+        // covered by --check.
+        files.push_back({"services.d.ts", services::write_services_typings(*services_ptr)});
     }
 
     if (!identity->salt.empty()) {

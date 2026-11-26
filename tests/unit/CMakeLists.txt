@@ -3375,3 +3375,27 @@ add_executable(selection_controller_tests
 # into the shaping layer.
 target_link_libraries(selection_controller_tests PRIVATE tessera_text_edit tessera_text)
 add_test(NAME selection_controller COMMAND selection_controller_tests)
+
+# The `ui/services.json` reader (docs/specs/services-manifest-v1.md, issue #177).
+add_executable(services_manifest_tests
+    services_manifest_tests.cpp)
+
+target_link_libraries(services_manifest_tests PRIVATE tessera_services_manifest)
+
+add_test(NAME services_manifest COMMAND services_manifest_tests)
+
+add_executable(services_typings_tests
+    services_typings_tests.cpp)
+
+target_link_libraries(services_typings_tests PRIVATE tessera_services_manifest)
+
+add_test(NAME services_typings COMMAND services_typings_tests)
+
+# `useService<T>()` from TSX (ADR-050 section 3.1, docs/specs/services-manifest-v1.md, issue #177):
+# the rules, the lowering and the evaluator half.
+add_executable(services_frontend_tests
+    services_frontend_tests.cpp)
+
+target_link_libraries(services_frontend_tests PRIVATE tessera_lowering tessera_ir_eval)
+
+add_test(NAME services_frontend COMMAND services_frontend_tests)

@@ -218,6 +218,10 @@ private:
     bool in_component_ = false;      // inside a component body: enables the props-spread rule
     std::string props_name_;         // name of the props parameter, empty when destructured
     std::set<std::string> bind_ids_; // every bind id (and reserved cleanup id) seen in the file
+    // ADR-050 section 3.1 (issue #177): the bindings of `const nav = useService<T>();` seen so far
+    // in the current component. A method call on one is a service call the rules pass checks
+    // against the project manifest, not an array method, so `nav.push(route)` is not rejected here.
+    std::set<std::string> service_bindings_;
     std::size_t comment_cursor_ = 0; // comments before this index were already checked
     // Spike #659: the experimental custom-hook switch. Off means a `use...` function keeps the
     // `TESSERA_REACT_CUSTOM_HOOK` rejection and is parsed as a component, as before.

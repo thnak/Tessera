@@ -6,6 +6,7 @@
 #include "tessera/compiler/jsx/hook_expansion.hpp"
 #include "tessera/compiler/jsx/hook_manifest.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
+#include "tessera/compiler/services/manifest_types.hpp"
 
 #include <optional>
 #include <string>
@@ -35,6 +36,10 @@ struct Context {
     // `check_module_contexts` before the per-component passes run. `check_contexts` validates each
     // `useContext` argument against them.
     const std::vector<ContextInfo>* module_contexts = nullptr;
+    // ADR-050 section 3.1 item 1 (issue #177): the project's `ui/services.json`, or null when the
+    // project has none. `useService<T>()` resolves `T` against it and a service call is checked
+    // against its methods.
+    const services::ServicesManifest* services = nullptr;
     bool failed = false;
 
     // The related span for a diagnostic at `span`: the call site of the expansion that produced it,
@@ -95,5 +100,13 @@ void check_reducers(Context& ctx);
 void check_module_contexts(const jsx::Module& module, AnalyzedModule& out,
                            jsx::DiagnosticSink& sink);
 void check_contexts(Context& ctx);
+// service.cpp: ADR-050 section 3.1 (issue #177). `check_services` records each `useService<T>()`
+// and declares its symbol, run after the hook forms like `check_contexts`; `check_service_calls`
+// then checks every use of a service symbol (method, arity, handler-only) once the symbols exist.
+void check_services(Context& ctx);
+void check_service_calls(Context& ctx);
+// Whether `expr` is `svc.method(...)` on a service symbol of a known method, which a handler body
+// may hold like a setter call. Defined in service.cpp, which owns the form.
+[[nodiscard]] bool is_service_call(const Context& ctx, const jsx::Expr& expr);
 
 } // namespace tessera::compiler::rules

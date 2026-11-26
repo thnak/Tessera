@@ -6,6 +6,7 @@
 add_library(tessera_ir_eval STATIC
     src/builtins.cpp
     src/evaluator.cpp
+    src/evaluator_service.cpp
     src/number_text.cpp
     src/operators.cpp
     src/pending.cpp
