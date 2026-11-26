@@ -158,7 +158,11 @@ void PreviewSession::rebuild() {
     applied_overrides_.clear();
     override_text_.clear();
 
-    const SceneBuildResult built = build_scene(component_, *root_, scope_, &module_);
+    SceneBuildResult built = build_scene(component_, *root_, scope_, &module_, &instance_scopes_);
+    // The new tree borrows the strings and scopes of this build; the old tree is already gone, so
+    // the old strings can go with it.
+    frames_ = built.frames;
+    metadata_strings_ = std::move(built.strings);
     built_ = built.error.empty();
     // The environment values the build seeded with their initial are overwritten with the live
     // viewport's, so a component that reads `useBreakpoint()` renders the class the canvas actually
@@ -180,7 +184,7 @@ void PreviewSession::rebuild() {
         return;
     }
     for (const SceneBuildResult::SceneEventHandler& handler : built.handlers) {
-        bind_handler(handler.automation_id, handler.event, handler.handler);
+        bind_handler(handler.automation_id, handler.event, handler.handler, handler.frame);
     }
 
     // Before layout: an override can move a box, so the pass must see it.
@@ -332,7 +336,7 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     return true;
 }
 void PreviewSession::run_handler(const std::string& handler_id,
-                                 const std::vector<ir::Action>* actions) {
+                                 const std::vector<ir::Action>* actions, std::size_t frame) {
     if (actions == nullptr) {
         unrun_.push_back(handler_id);
         return;
@@ -341,7 +345,7 @@ void PreviewSession::run_handler(const std::string& handler_id,
         ran_.push_back(handler_id);
         return;
     }
-    if (!evaluator_.run(*actions, scope_).has_value()) {
+    if (!run_actions(frame, *actions)) {
         unrun_.push_back(handler_id);
         return;
     }
@@ -363,7 +367,7 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
         if (!slot->reached) {
             continue;
         }
-        run_handler(slot->handler_id, slot->can_run ? slot->actions : nullptr);
+        run_handler(slot->handler_id, slot->can_run ? slot->actions : nullptr, slot->frame);
     }
     if (dirty_) {
         // The scope changed, so the tree's text and boxes are stale. Rebuilding is the preview's

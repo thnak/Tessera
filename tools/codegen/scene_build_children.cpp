@@ -146,6 +146,8 @@ bool Builder::build_repeated_child(const ir::Node& child, ui::Node& parent, std:
     const int saved_depth = loop_depth_;
     loop_depth_ = saved_depth + 1;
     bool ok = true;
+    // The item index joins the instance path, so two instances of one repeated template differ.
+    const std::string saved_path = loop_path_;
     for (std::size_t index = 0; ok && index < items.size(); ++index) {
         const std::size_t before = parent.children().size();
         {
@@ -153,6 +155,7 @@ bool Builder::build_repeated_child(const ir::Node& child, ui::Node& parent, std:
             // a loop-local reference (ir-v1 section 5), so it is only resolvable with the item
             // bound.
             LoopScope locals(*scope_, *child.loop, items[index], static_cast<std::int32_t>(index));
+            loop_path_ = saved_path + "#" + std::to_string(index);
             bool present = false;
             std::uint64_t key = 0;
             if (!detail::evaluate_item_key(evaluator_, *scope_, child, present, key,
@@ -172,6 +175,7 @@ bool Builder::build_repeated_child(const ir::Node& child, ui::Node& parent, std:
         }
     }
     loop_depth_ = saved_depth;
+    loop_path_ = saved_path;
     return ok;
 }
 

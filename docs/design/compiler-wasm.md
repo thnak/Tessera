@@ -169,11 +169,11 @@ native build would have built rather than a parallel model of it.
 **Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
 array rather than approximated: `CustomElement`, virtual collections, nested list
 templates, and inline-span `Text`. **User component instances are evaluated** (issue #594): a host `View` holds the callee's tree in its
-own scope, `{children}` splices at the `Slot` under the caller's scope. **Not yet inside an instance:**
-event handlers, state changes, callback props, dynamic `className`/`role`/`aria-*`. **Conditional and repeated children are evaluated** (issue #389)
-through the same evaluator and scope as text and clicks; `docs/design/preview-dynamic-children.md`
-states both decisions, the bounded subset and why there is no second evaluator. The gallery sample's
-`Button` is an instance, so it paints but is not yet interactive. Dynamic inline-style values
+own scope, `{children}` splices at the `Slot` under the caller's scope. A callee's handlers run on its
+instance's own state, a `callProp` runs the caller's handler, and dynamic `className`/`role`/`aria-*`
+are evaluated. **Not yet:** payload callbacks. **Conditional and repeated children are evaluated** (issue #389) through the same evaluator and scope
+as text and clicks; `docs/design/preview-dynamic-children.md` states the bounded subset. The gallery sample's
+`Button` is an instance and clicks. Dynamic inline-style values
 are not applied either (generated `apply_state` owns those); the preview lays out the initial tree.
 
 ### 7.2 The shared walk (one implementation, not two)

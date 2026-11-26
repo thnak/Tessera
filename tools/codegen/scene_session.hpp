@@ -334,6 +334,7 @@ private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
     // `unique_ptr` so the `void*` context handed to `Node::bind_event` keeps a stable address.
     struct HandlerSlot;
+    struct CallContext;
     // One installed `onSizeChange` observation (ADR-041 item 3, issue #694). The preview is an IR
     // evaluator, so it cannot run the developer's C++ thunk; it runs the same IR body the generated
     // base would, with a `SizeChangeEvent` record bound to the handler's parameter. The slot is
@@ -359,7 +360,11 @@ private:
     // re-evaluation: everything a size or posture change needs, and nothing else.
     [[nodiscard]] bool relayout();
     void bind_handler(std::uint64_t automation_id, const std::string& event,
-                      const std::string& handler_id);
+                      const std::string& handler_id, std::size_t frame);
+    // Runs `actions` against the scope of component frame `frame` (0 is the root component). A
+    // `callProp` in them runs the caller's handler in the caller's frame (`on_prop_call`).
+    [[nodiscard]] bool run_actions(std::size_t frame, const std::vector<ir::Action>& actions);
+    static void on_prop_call(void* context, const std::string& target, bool has_payload);
     // Attaches every IR behavior to the nodes its target refs resolved to, after the tree exists.
     // A behavior whose targets are not all present attaches nothing (the spec's rule), and a
     // behavior the registry lacks is reported in `behavior_errors_` rather than silently skipped.
@@ -371,7 +376,8 @@ private:
     // Detaches every behavior before the tree it targets is destroyed.
     void detach_behaviors();
     static void on_scene_event(void* context, const ui::Event& event);
-    void run_handler(const std::string& handler_id, const std::vector<ir::Action>* actions);
+    void run_handler(const std::string& handler_id, const std::vector<ir::Action>* actions,
+                     std::size_t frame);
     [[nodiscard]] ui::Node* node_by_automation_id(std::uint64_t automation_id);
     // The node with this SCENE id (the identity a `ref` resolved to), or null. Distinct from
     // `node_by_automation_id`: a scene id is assigned by the build walk in preorder, an automation
@@ -401,6 +407,14 @@ private:
     ui::style::StyleEnvironment style_environment_;
     std::uint64_t cascade_generation_ = 1;
     eval::Scope scope_;
+    // Component instances (issue #594): their state cells persist here across rebuilds, and
+    // `frames_` is the last build's frame table, which handlers index by frame number. Frame 0 is
+    // the root component and points at `scope_`.
+    InstanceScopes instance_scopes_;
+    std::vector<SceneInstanceFrame> frames_;
+    // The metadata strings the last build evaluated, which the tree borrows.
+    std::deque<std::string> metadata_strings_;
+    CallContext* active_call_ = nullptr;
     StateCarryReport carry_report_;
     std::unique_ptr<ui::Node> root_;
     ui::InputRouter router_;

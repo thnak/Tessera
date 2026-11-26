@@ -24,6 +24,7 @@ class PreviewSession;
 // handler identity has to live in the context; this record is that context.
 struct PreviewSession::HandlerSlot {
     std::string handler_id;
+    std::size_t frame = 0; // the component frame the handler belongs to (0 is the root)
     const std::vector<ir::Param>* params = nullptr;
     const std::vector<ir::Action>* actions = nullptr;
     bool can_run = false;

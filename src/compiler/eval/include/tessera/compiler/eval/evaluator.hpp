@@ -67,6 +67,22 @@ public:
     // against. Null (the default) means a transition mark is inert, which is what keeps every
     // existing evaluation byte-identical. The session is the evaluator's half of the differential
     // test: it runs the same `tessera::ui::pending` state machine generated C++ runs.
+    // A `callProp` action calls a callback prop of the component, which belongs to the caller. The
+    // evaluator does not model the caller, so a host that does (the preview session, for a
+    // component instance) installs a sink: it receives the `prop::<name>` target and whether the
+    // call carries a payload, after the action's guard held. Without a sink the call is skipped.
+    using PropCallSink = void (*)(void* context, const std::string& target, bool has_payload);
+    void set_prop_call_sink(PropCallSink sink, void* context) noexcept {
+        prop_sink_ = sink;
+        prop_sink_context_ = context;
+    }
+
+    void notify_prop_call(const ir::Action& action) const {
+        if (prop_sink_ != nullptr) {
+            prop_sink_(prop_sink_context_, action.target, action.value != nullptr);
+        }
+    }
+
     void set_pending_session(PendingSession* session) noexcept {
         pending_ = session;
     }
@@ -88,6 +104,8 @@ private:
     std::vector<Diagnostic> diagnostics_;
     std::unordered_set<const ir::Expr*> reported_;
     PendingSession* pending_ = nullptr;
+    PropCallSink prop_sink_ = nullptr;
+    void* prop_sink_context_ = nullptr;
 };
 
 } // namespace tessera::compiler::eval
