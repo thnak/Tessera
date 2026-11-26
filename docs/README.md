@@ -197,8 +197,8 @@ This page is the map and reading order for the framework.
 - [`specs/security-review-v1.md`](specs/security-review-v1.md) — the #198 review:
   trust boundaries, compiler resource limits (two confirmed stack overflows), IO, and
   update/crash findings, plus what was not reviewed
-- [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
-  comparison rules
+- [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and comparison rules
+- [`specs/services-manifest-v1.md`](specs/services-manifest-v1.md) — `ui/services.json`: the service interfaces TSX may name and the methods it may call (draft, #177)
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
   interface
 - [`specs/versioning-v1.md`](specs/versioning-v1.md) — SemVer (semantic versioning), schema/IR/manifest versions,
