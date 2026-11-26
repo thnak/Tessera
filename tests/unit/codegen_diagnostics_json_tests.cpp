@@ -411,11 +411,10 @@ int main(int argc, char** argv) {
     // --- 3. The services manifest reaches the in-memory paths (#177). Without it a `useService` is
     // rejected; with it the same source is clean; a manifest that does not parse is the one error.
     {
-        const std::string source =
-            "import { useService } from \"tessera\";\n"
-            "export function Inbox() {\n"
-            "  const nav = useService<Navigator>();\n"
-            "  return <View onClick={() => { nav.push(\"/a\"); }} />;\n}\n";
+        const std::string source = "import { useService } from \"tessera\";\n"
+                                   "export function Inbox() {\n"
+                                   "  const nav = useService<Navigator>();\n"
+                                   "  return <View onClick={() => { nav.push(\"/a\"); }} />;\n}\n";
         const std::string manifest =
             R"({"version":1,"services":[{"id":"demo.nav","name":"Navigator",)"
             R"("cpp":{"type":"demo::Navigator","header":"demo/navigator.hpp"},)"

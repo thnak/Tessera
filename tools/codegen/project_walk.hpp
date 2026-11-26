@@ -153,7 +153,8 @@ private:
         if (input_.services_manifest.empty() || services_.has_value()) {
             return true;
         }
-        auto parsed = tessera::compiler::services::parse_services_manifest(input_.services_manifest);
+        auto parsed =
+            tessera::compiler::services::parse_services_manifest(input_.services_manifest);
         if (!parsed) {
             fail(WalkFailure::Kind::Manifest, "ui/services.json",
                  "ui/services.json: " + parsed.error().code + ": " + parsed.error().message +
@@ -189,8 +190,8 @@ private:
             return nullptr;
         }
         unit->map = std::make_unique<jsx::SourceMap>(file.text);
-        unit->analyzed = rules::analyze_module(*unit->parsed.root, *unit->map, jsx::Limits{}, nullptr, nullptr,
-                                  services_ ? &*services_ : nullptr);
+        unit->analyzed = rules::analyze_module(*unit->parsed.root, *unit->map, jsx::Limits{},
+                                               nullptr, nullptr, services_ ? &*services_ : nullptr);
         if (unit->analyzed.has_errors()) {
             fail(WalkFailure::Kind::Analyze, path, path + " does not analyse");
             failed_ = std::move(unit);

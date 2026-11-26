@@ -25,8 +25,8 @@ namespace tessera::compiler::codegen::cli {
 //
 // Deterministic: the document is a pure function of `text` and `file`, with no clock, no locale, no
 // environment and no filesystem read.
-// `services_manifest` is the text of the project's `ui/services.json`, or empty for none (without it
-// a `useService<T>()` is rejected); a manifest that does not parse is the one diagnostic.
+// `services_manifest` is the text of the project's `ui/services.json`, or empty for none (without
+// it a `useService<T>()` is rejected); a manifest that does not parse is the one diagnostic.
 [[nodiscard]] std::string diagnose_source(std::string_view text, std::string_view file,
                                           std::string_view services_manifest = {});
 

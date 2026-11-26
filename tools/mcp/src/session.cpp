@@ -307,9 +307,9 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
                          kInvalidParamsCode});
         }
         const std::string services_manifest = read_project_services_manifest(state_);
-        const ToolResult result =
-            name == "diagnostics" ? run_diagnostics_tool(*source, file, services_manifest)
-                                  : run_get_ir_tool(*source, file, services_manifest);
+        const ToolResult result = name == "diagnostics"
+                                      ? run_diagnostics_tool(*source, file, services_manifest)
+                                      : run_get_ir_tool(*source, file, services_manifest);
         return tool_result_json(result);
     }
 

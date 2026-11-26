@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // `services.d.ts` from a parsed `ui/services.json` (docs/specs/services-manifest-v1.md section 3
-// item 4): one `interface <Name>` per service with its methods, and a `useService` overload per name,
-// so an editor checks the same rules the front end does. Pure text, deterministic, no I/O.
+// item 4): one `interface <Name>` per service with its methods, and a `useService` overload per
+// name, so an editor checks the same rules the front end does. Pure text, deterministic, no I/O.
 #pragma once
 
 #include "tessera/compiler/services/manifest_types.hpp"

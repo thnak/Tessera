@@ -74,7 +74,8 @@ std::optional<std::string> lower_source_to_ir_json(std::string_view text, std::s
     // Parsed first: the analysis points into it, so it must outlive the analysis.
     std::optional<tessera::compiler::services::ServicesManifest> manifest;
     if (!services_manifest.empty()) {
-        auto parsed_manifest = tessera::compiler::services::parse_services_manifest(services_manifest);
+        auto parsed_manifest =
+            tessera::compiler::services::parse_services_manifest(services_manifest);
         if (!parsed_manifest) {
             return std::nullopt;
         }

@@ -29,8 +29,8 @@ struct ProjectInput {
     std::span<const ProjectFile> stylesheets;
     std::string_view entry;
     // The text of the project's `ui/services.json` (docs/specs/services-manifest-v1.md), or empty
-    // when it has none. A project with no manifest rejects `useService<T>()`, so a page that previews
-    // a project that uses services must stage it.
+    // when it has none. A project with no manifest rejects `useService<T>()`, so a page that
+    // previews a project that uses services must stage it.
     std::string_view services_manifest{};
 };
 

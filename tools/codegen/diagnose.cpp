@@ -76,9 +76,8 @@ struct InMemorySource {
         expansion_sink = std::make_unique<jsx::DiagnosticSink>(map, jsx::Limits{});
         expansion =
             jsx::expand_custom_hooks(*parsed.root, map, jsx::FrontEndOptions{}, *expansion_sink);
-        analyzed =
-            rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr, &expansion.call_sites,
-                                  manifest);
+        analyzed = rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr,
+                                         &expansion.call_sites, manifest);
     }
 
     [[nodiscard]] lowering::ModuleSource module_source() const {
@@ -232,8 +231,7 @@ std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
 
 std::string diagnose_source(std::string_view text, std::string_view file,
                             std::string_view services_manifest) {
-    return write_diagnostics_json(file,
-                                  collect_source_diagnostics(text, file, services_manifest));
+    return write_diagnostics_json(file, collect_source_diagnostics(text, file, services_manifest));
 }
 
 std::string diagnose_project(const ProjectInput& project) {

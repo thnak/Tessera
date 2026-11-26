@@ -16,9 +16,11 @@ namespace tessera::mcp {
 
 // Lowers `text` as the single project-relative file `file` and returns the canonical IR JSON of
 // docs/specs/ir-v1.md. Nullopt when the source does not lower into a module; the caller then has a
-// non-empty diagnostics document to return instead. `services_manifest` is the text of the project's
-// `ui/services.json`, or empty for none; one that does not parse is a failure like any other.
-[[nodiscard]] std::optional<std::string> lower_source_to_ir_json(
-    std::string_view text, std::string_view file, std::string_view services_manifest = {});
+// non-empty diagnostics document to return instead. `services_manifest` is the text of the
+// project's `ui/services.json`, or empty for none; one that does not parse is a failure like any
+// other.
+[[nodiscard]] std::optional<std::string>
+lower_source_to_ir_json(std::string_view text, std::string_view file,
+                        std::string_view services_manifest = {});
 
 } // namespace tessera::mcp

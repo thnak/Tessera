@@ -514,8 +514,8 @@ Outcome run_impl(const Options& options) {
     }
 
     if (services_ptr != nullptr) {
-        // The editor typings for the services TSX may name (spec section 3 item 4); generated, covered
-        // by --check.
+        // The editor typings for the services TSX may name (spec section 3 item 4); generated,
+        // covered by --check.
         files.push_back({"services.d.ts", services::write_services_typings(*services_ptr)});
     }
 

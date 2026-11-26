@@ -58,8 +58,8 @@ std::string write_services_typings(const ServicesManifest& manifest) {
         out += "\n";
     }
     for (const ManifestService& service : manifest.services) {
-        out += "export declare function useService<T extends " + service.name + ">(): " +
-               service.name + ";\n";
+        out += "export declare function useService<T extends " + service.name +
+               ">(): " + service.name + ";\n";
     }
     return out;
 }

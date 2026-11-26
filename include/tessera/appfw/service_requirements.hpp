@@ -30,9 +30,9 @@ struct RequiredService {
 // order, and returns how many there are. The count may exceed `missing.size()`; only the first
 // `missing.size()` are stored, so a caller sizes the buffer to the requirement list for a full
 // report. Zero means the app may mount.
-[[nodiscard]] inline std::size_t find_missing_services(const ServiceContext& context,
-                                                       std::span<const RequiredService> required,
-                                                       std::span<RequiredService> missing) noexcept {
+[[nodiscard]] inline std::size_t
+find_missing_services(const ServiceContext& context, std::span<const RequiredService> required,
+                      std::span<RequiredService> missing) noexcept {
     std::size_t count = 0;
     for (const RequiredService& requirement : required) {
         if (context.contains(requirement.id)) {

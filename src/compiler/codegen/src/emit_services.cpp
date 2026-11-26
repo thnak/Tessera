@@ -81,9 +81,9 @@ std::string pointer_list(const ir::Component& component) {
 
 // The names this emitter adds. All of them are claimed up front, so a TSX binding that happens to
 // use one is a collision diagnostic instead of a redeclaration error in the generated C++.
-constexpr std::string_view kGeneratedNames[] = {"attach_services", "services_",
-                                                "has_service_v",   "ServiceRequirement",
-                                                "service",         "service_unavailable", "required_services"};
+constexpr std::string_view kGeneratedNames[] = {
+    "attach_services", "services_",           "has_service_v",    "ServiceRequirement",
+    "service",         "service_unavailable", "required_services"};
 
 // One slot, one pointer. Two requirements on the same C++ interface would make `std::get<T*>`
 // ambiguous, and two with the same binding name would collide in the struct, so both are rejected
@@ -238,7 +238,8 @@ bool emit_service_accessors(CppWriter& writer, const ir::Component& component,
     writer.line("        return service_unavailable<T>();");
     writer.line("    }");
     writer.line("}");
-    writer.line("// ADR-050 section 3.1 item 6: this component's requirements, for the composition");
+    writer.line(
+        "// ADR-050 section 3.1 item 6: this component's requirements, for the composition");
     writer.line("// root's startup validation (tessera::appfw::find_missing_services).");
     writer.line("[[nodiscard]] static std::span<const tessera::appfw::RequiredService>");
     writer.line("required_services() noexcept {");
