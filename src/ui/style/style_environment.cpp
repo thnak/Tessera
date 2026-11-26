@@ -45,6 +45,39 @@ std::string number(float value) {
 
 } // namespace
 
+std::string css_length(float px) {
+    return length(px);
+}
+
+std::string css_angle(float degrees) {
+    return number(degrees) + "deg";
+}
+
+bool is_continuous_environment_name(std::string_view name) {
+    return name == "--tessera-hinge-angle";
+}
+
+bool differs_only_in_continuous(const StyleEnvironment& before, const StyleEnvironment& after) {
+    if (before == after) {
+        return false;
+    }
+    bool continuous_moved = false;
+    const auto check = [&](const StyleEnvironment& from, const StyleEnvironment& to) {
+        for (const auto& [name, value] : from.entries()) {
+            const std::string* other = to.find(name);
+            if (other != nullptr && *other == value) {
+                continue;
+            }
+            if (!is_continuous_environment_name(name)) {
+                return false;
+            }
+            continuous_moved = true;
+        }
+        return true;
+    };
+    return check(before, after) && check(after, before) && continuous_moved;
+}
+
 void StyleEnvironment::set(std::string name, std::string value) {
     const auto at = std::lower_bound(
         entries_.begin(), entries_.end(), name,

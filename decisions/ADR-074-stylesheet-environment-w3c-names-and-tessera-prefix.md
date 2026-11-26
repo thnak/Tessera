@@ -177,7 +177,18 @@ Slices, one landing each, to be filed when this is accepted:
    host and the preview building the environment from `WindowMetrics` and `FoldInfo` and calling
    `set_environment` (slice 4); until then a host sheet's `env()` takes its fallback.
 3. The `--tessera-` variables, the continuous/discrete rule and the paint-only diagnostic, plus the
-   Android feed for the angle.
+   Android feed for the angle. **Implemented:** `window_environment` adds `--tessera-ime-inset-*`,
+   `--tessera-gesture-inset-*` and, when a sensor measured one, `--tessera-hinge-angle` (in `deg`,
+   0 to 360). `resolve_variables` drops a layout property that references a continuous variable
+   (`is_continuous_environment_name`), also through a custom property, with an `UnresolvedVar`
+   diagnostic; it counts the reference, not the value, so validity does not depend on whether a device
+   has a sensor. A hinge-only change restyles for `Style|Paint|Render` and marks no layout
+   (`differs_only_in_continuous`). The Android feed already existed (`set_hinge_angle` emits
+   `HingeAngleChanged`). **Deviation from section 4:** the angle is resolved by re-resolving the
+   cascade of a sheet that reads it, once per frame (the host coalesces to the newest), not at sample
+   time with no style stage; a sheet that does not read it pays nothing and no sheet relayouts.
+   Sampling at paint time needs unresolved text kept in the computed style, which is a larger change
+   to the paint path. The permission question stays open.
 4. The preview and host fill the fold and environment from `FoldInfo` and the metrics in one shared
    function, with the Studio and MCP agreeing. **Implemented for the standard variables:**
    `window_environment` (`window_environment.hpp`) is that one function.

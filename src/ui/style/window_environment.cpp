@@ -4,6 +4,9 @@
 #include "tessera/ui/style/window_environment.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <string>
+#include <string_view>
 
 namespace tessera::ui::style {
 
@@ -38,6 +41,33 @@ void split_viewport(StandardEnvironmentInputs& inputs, const hal::FoldInfo& fold
     }
 }
 
+// A source inset the platform may leave unset: non-finite and negative values count as zero, the
+// rule `resolve_safe_area` applies to the same fields.
+float inset(float value) {
+    return std::isfinite(value) ? std::max(value, 0.0f) : 0.0f;
+}
+
+void add_insets(StyleEnvironment& environment, std::string_view prefix,
+                const hal::WindowInsets& in) {
+    const std::string base(prefix);
+    environment.set(base + "-top", css_length(inset(in.top)));
+    environment.set(base + "-right", css_length(inset(in.right)));
+    environment.set(base + "-bottom", css_length(inset(in.bottom)));
+    environment.set(base + "-left", css_length(inset(in.left)));
+}
+
+// The `--tessera-` variables (ADR-074 section 3): host-defined names for what the standard has not
+// defined. The hinge angle exists only when a sensor measured one; an unmeasured angle means the
+// variable does not exist, so the author's fallback applies.
+void add_host_variables(StyleEnvironment& environment, const hal::WindowMetrics& metrics) {
+    add_insets(environment, "--tessera-ime-inset", metrics.ime_insets);
+    add_insets(environment, "--tessera-gesture-inset", metrics.gesture_insets);
+    const float angle = metrics.fold.hinge_angle_degrees;
+    if (std::isfinite(angle) && angle >= 0.0f) {
+        environment.set("--tessera-hinge-angle", css_angle(std::min(angle, 360.0f)));
+    }
+}
+
 } // namespace
 
 StyleEnvironment window_environment(const hal::WindowMetrics& metrics, float viewport_width,
@@ -52,7 +82,9 @@ StyleEnvironment window_environment(const hal::WindowMetrics& metrics, float vie
     inputs.viewport_width = non_negative(viewport_width);
     inputs.viewport_height = non_negative(viewport_height);
     split_viewport(inputs, metrics.fold);
-    return standard_environment(inputs);
+    StyleEnvironment environment = standard_environment(inputs);
+    add_host_variables(environment, metrics);
+    return environment;
 }
 
 } // namespace tessera::ui::style

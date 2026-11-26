@@ -370,7 +370,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select` (auto/none/text/all), `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent, `light-dark()`, `color-mix()` | lab/lch/oklab/oklch/color() semantics |
-| Custom properties | `var()`, `env()` (standard names, ADR-074), inheritance, fallback, cycles | `@property` typed values, `--tessera-` environment names |
+| Custom properties | `var()`, `env()` (standard and `--tessera-` names, ADR-074; the hinge angle only in paint properties), inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
 | Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (section 6.3) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |
 

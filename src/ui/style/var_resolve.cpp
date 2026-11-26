@@ -4,8 +4,10 @@
 #include "substitution.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/layout_digest.hpp"
 #include "tessera/ui/style/style_environment.hpp"
 #include "var_color.hpp"
+#include "var_scan.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -22,117 +24,16 @@ namespace tessera::ui::style {
 
 namespace {
 
-// A hard cap keeps a pathological custom-property chain bounded; the dependency graph walk above
-// already rejects cycles, so this only guards malformed token streams.
-//
-// Every recursive path here carries the same budget (security review finding S12): before, only
-// `substitute` was bounded, while `collect_references` (per nested fallback), `detect_cycle` (per
-// dependency link) and `resolve_custom` (which restarted `substitute` at depth 0) were not.
-constexpr int kMaxVarDepth = 32;
-
-char ascii_lower(char c) {
-    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-}
-
-bool is_custom_property_name(std::string_view name) {
-    if (name.size() < 3 || name[0] != '-' || name[1] != '-') {
-        return false;
-    }
-    for (std::size_t i = 2; i < name.size(); ++i) {
-        const unsigned char c = static_cast<unsigned char>(name[i]);
-        if (c >= 0x80) {
-            continue; // non-ASCII identifiers are legal in CSS
-        }
-        if (std::isalnum(c) == 0 && c != '-' && c != '_') {
-            return false;
-        }
-    }
-    return true;
-}
-
-// `var(` matches ASCII-case-insensitively (CSS function names are case-insensitive).
-bool is_var_function(std::string_view value, std::size_t at) {
-    return at + 4 <= value.size() && ascii_lower(value[at]) == 'v' &&
-           ascii_lower(value[at + 1]) == 'a' && ascii_lower(value[at + 2]) == 'r' &&
-           value[at + 3] == '(';
-}
-
-bool is_env_function(std::string_view value, std::size_t at) {
-    return at + 4 <= value.size() && ascii_lower(value[at]) == 'e' &&
-           ascii_lower(value[at + 1]) == 'n' && ascii_lower(value[at + 2]) == 'v' &&
-           value[at + 3] == '(';
-}
-
-// A `var()` or `env()` call, outside strings: either one is substituted at computed-value time.
-bool contains_var_function(std::string_view value) {
-    for (std::size_t i = 0; i < value.size(); ++i) {
-        if (value[i] == '"' || value[i] == '\'') {
-            const char quote = value[i];
-            for (++i; i < value.size(); ++i) {
-                if (value[i] == '\\' && i + 1 < value.size()) {
-                    ++i;
-                } else if (value[i] == quote) {
-                    break;
-                }
-            }
-            continue;
-        }
-        if (is_var_function(value, i) || is_env_function(value, i)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-std::size_t skip_string(std::string_view value, std::size_t at) {
-    const char quote = value[at];
-    for (std::size_t i = at + 1; i < value.size(); ++i) {
-        if (value[i] == '\\' && i + 1 < value.size()) {
-            ++i;
-        } else if (value[i] == quote) {
-            return i + 1;
-        }
-    }
-    return value.size();
-}
-
-std::size_t match_paren(std::string_view value, std::size_t open) {
-    int depth = 0;
-    for (std::size_t i = open; i < value.size(); ++i) {
-        if (value[i] == '"' || value[i] == '\'') {
-            i = skip_string(value, i) - 1;
-        } else if (value[i] == '(') {
-            ++depth;
-        } else if (value[i] == ')') {
-            if (--depth == 0) {
-                return i;
-            }
-        }
-    }
-    return std::string_view::npos;
-}
-
-// First comma at nesting depth zero: it separates the custom property name from the fallback.
-std::size_t find_comma(std::string_view text) {
-    int depth = 0;
-    for (std::size_t i = 0; i < text.size(); ++i) {
-        const char c = text[i];
-        if (c == '"' || c == '\'') {
-            i = skip_string(text, i) - 1;
-        } else if (c == '(' || c == '[') {
-            ++depth;
-        } else if (c == ')' || c == ']') {
-            --depth;
-        } else if (c == ',' && depth == 0) {
-            return i;
-        }
-    }
-    return std::string_view::npos;
-}
-
-std::string trim(std::string_view text) {
-    return std::string(tessera::detail::trim(text));
-}
+using detail::contains_var_function;
+using detail::find_comma;
+using detail::is_custom_property_name;
+using detail::is_env_function;
+using detail::is_var_function;
+using detail::kMaxVarDepth;
+using detail::match_paren;
+using detail::normalize_env_name;
+using detail::skip_string;
+using detail::trim;
 
 void collect_references(std::string_view value, std::vector<std::string>& out, int depth = 0) {
     if (depth > kMaxVarDepth) {
@@ -173,27 +74,12 @@ struct CustomProperties {
     std::vector<std::string> stack;
     std::map<std::string, std::uint8_t> visit; // 0 = unvisited, 1 = on stack, 2 = done
     const StyleEnvironment* environment = nullptr;
+    // How many continuous `env()` variables (`is_continuous_environment_name`) substitution has
+    // referenced, so a caller can tell whether a value it just resolved depends on one. A custom
+    // property that did is remembered, because the property that uses it decides where it may go.
+    int continuous_references = 0;
+    std::set<std::string> continuous_custom;
 };
-
-// The name of an `env()` variable with its arguments: tokens separated by single spaces, so
-// `viewport-segment-width   0  1` and `viewport-segment-width 0 1` are the same variable.
-std::string normalize_env_name(std::string_view text) {
-    std::string out;
-    out.reserve(text.size());
-    bool pending_space = false;
-    for (const char c : text) {
-        if (std::isspace(static_cast<unsigned char>(c)) != 0) {
-            pending_space = !out.empty();
-            continue;
-        }
-        if (pending_space) {
-            out.push_back(' ');
-            pending_space = false;
-        }
-        out.push_back(c);
-    }
-    return out;
-}
 
 void detect_cycle(CustomProperties& state, const std::string& name, int depth = 0) {
     if (depth > kMaxVarDepth) {
@@ -263,13 +149,23 @@ std::optional<std::string> substitute(CustomProperties& state, std::string_view 
             // A variable the host does not define, or an unknown name, "does not exist": the
             // fallback applies, and without one the declaration is invalid at computed-value time.
             const std::string name = normalize_env_name(inner.substr(0, comma));
+            // Counted on reference, not on presence: whether a layout property is valid must not
+            // depend on whether this device has a hinge sensor.
+            if (is_continuous_environment_name(name)) {
+                ++state.continuous_references;
+            }
             if (state.environment != nullptr && !name.empty()) {
                 if (const std::string* found = state.environment->find(name)) {
                     replacement = *found;
                 }
             }
             if (!replacement && comma != std::string_view::npos) {
+                // The padding around a fallback is not part of it: `rotate(env(x, 5deg))`, not
+                // `rotate( 5deg)`.
                 replacement = substitute(state, inner.substr(comma + 1), depth + 1);
+                if (replacement) {
+                    replacement = trim(*replacement);
+                }
             }
         } else if (const std::string name = trim(inner.substr(0, comma));
                    is_custom_property_name(name)) {
@@ -297,6 +193,9 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
     }
     const auto cached = state.resolved.find(name);
     if (cached != state.resolved.end()) {
+        if (state.continuous_custom.count(name) != 0) {
+            ++state.continuous_references;
+        }
         return cached->second;
     }
     const auto raw = state.raw.find(name);
@@ -308,7 +207,11 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
     state.resolved[name] = std::nullopt;
     // The depth is carried through, not restarted: a long acyclic chain is bounded by the same
     // budget as a nested fallback.
+    const int references_before = state.continuous_references;
     std::optional<std::string> value = substitute(state, raw->second, depth);
+    if (state.continuous_references != references_before) {
+        state.continuous_custom.insert(name);
+    }
     if (value) {
         // A substituted value is a token stream; store it in the canonical trimmed form so a
         // consumer never sees the padding around a fallback (or the whole property would be
@@ -320,30 +223,6 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
 }
 
 } // namespace
-
-void collect_env_references(std::string_view value, std::vector<std::string>& names) {
-    for (std::size_t i = 0; i < value.size();) {
-        if (value[i] == '"' || value[i] == '\'') {
-            i = skip_string(value, i);
-            continue;
-        }
-        if (!is_env_function(value, i)) {
-            ++i;
-            continue;
-        }
-        const std::size_t close = match_paren(value, i + 3);
-        if (close == std::string_view::npos) {
-            return;
-        }
-        const std::string_view inner = value.substr(i + 4, close - i - 4);
-        const std::size_t comma = find_comma(inner);
-        names.push_back(normalize_env_name(inner.substr(0, comma)));
-        if (comma != std::string_view::npos) {
-            collect_env_references(inner.substr(comma + 1), names);
-        }
-        i = close + 1;
-    }
-}
 
 void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
                        std::vector<StyleDiagnostic>* diagnostics,
@@ -440,7 +319,22 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
         if (!contains_var_function(value)) {
             continue;
         }
+        bool reported = false;
+        const int references_before = state.continuous_references;
         std::optional<std::string> resolved = substitute(state, value, 0);
+        const bool reads_continuous = state.continuous_references != references_before;
+        if (reads_continuous && is_layout_property(property)) {
+            // A hinge angle must never be a layout input (ADR-074 section 4): the declaration is
+            // invalid at computed-value time, which is `unset`.
+            resolved = std::nullopt;
+            reported = true;
+            if (diagnostics != nullptr) {
+                diagnostics->push_back(StyleDiagnostic{
+                    StyleDiagnosticKind::UnresolvedVar, 0, property,
+                    "a continuous env() variable (--tessera-hinge-angle) may feed only a "
+                    "paint-only property, not a layout property"});
+            }
+        }
         if (resolved) {
             *resolved = trim(*resolved);
             if (resolved->empty()) {
@@ -450,7 +344,7 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
             }
         }
         if (!resolved) {
-            if (diagnostics != nullptr) {
+            if (diagnostics != nullptr && !reported) {
                 diagnostics->push_back(
                     StyleDiagnostic{StyleDiagnosticKind::UnresolvedVar, 0, property,
                                     "var() or env() reference has no usable value"});

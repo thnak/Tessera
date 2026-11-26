@@ -42,6 +42,8 @@ constexpr std::string_view kCss = R"(
     padding-top: env(safe-area-inset-top, 1px);
     margin-left: env(viewport-segment-width 1 0, 7px);
     color: #aaaaaa;
+    transform: rotate(env(--tessera-hinge-angle, 180deg));
+    padding-bottom: env(--tessera-ime-inset-bottom, 0px);
 }
 @media (max-width: 500px) { .root { color: #222222; } }
 )";
@@ -124,6 +126,34 @@ int main() {
     frame(host, now);
     expect(property(host, root, "color") == "#222222", "the media rule applied (a rebuild ran)");
     expect(property(host, root, "padding-top") == "44px", "the rebuild kept the environment");
+
+    // 7. The hinge angle is continuous: it restyles for paint only. The sheet reads it, so it
+    // re-resolves, but no layout pass runs and the transform follows.
+    expect(property(host, root, "transform") == "rotate(180deg)",
+           "no sensor reading: the angle's fallback applies");
+    hal::WindowMetrics hinge = metrics(44.0f, 34.0f, hal::FoldPosture::Book);
+    hinge.fold.hinge_angle_degrees = 120.0f;
+    host.set_window_metrics(hinge);
+    frame(host, now);
+    const std::size_t layouts = host.layout_runs();
+    expect(property(host, root, "transform") == "rotate(120deg)", "the angle reaches the sheet");
+    for (float angle = 121.0f; angle <= 125.0f; angle += 1.0f) {
+        hinge.fold.hinge_angle_degrees = angle;
+        host.set_window_metrics(hinge);
+        // Read before the frame clears it: the hinge marks paint, never layout.
+        expect((root.dirty() & ui::Dirty::Paint) != ui::Dirty::Clean, "a hinge move marks paint");
+        expect((root.dirty() & ui::Dirty::Layout) == ui::Dirty::Clean,
+               "a hinge move does not mark layout");
+        frame(host, now);
+    }
+    expect(property(host, root, "transform") == "rotate(125deg)", "and follows the hinge");
+    expect(host.layout_runs() == layouts, "a moving hinge runs no layout pass");
+
+    // 8. The IME inset is a discrete `--tessera-` variable: it can feed layout.
+    hinge.ime_insets.bottom = 300.0f;
+    host.set_window_metrics(hinge);
+    frame(host, now);
+    expect(property(host, root, "padding-bottom") == "300px", "the IME inset reaches the sheet");
 
     if (failures == 0) {
         std::cout << "app_host_environment: ok\n";
