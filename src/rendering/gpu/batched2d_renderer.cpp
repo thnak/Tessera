@@ -137,6 +137,10 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
     draw_calls_ = 0;
     in_frame_ = true;
+    layers_.clear();
+    alpha_scale_ = 1.0f;
+    layers_isolated_ = 0;
+    layers_flat_ = 0;
 
     commands_->begin_render_pass(target, desc);
     commands_->bind_pipeline(*pipeline_);
@@ -380,6 +384,8 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
                                 {half_width, half_height},
                                 {-half_width, half_height}};
     const float texcoords[4][2] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+    // The product of the open flat layers' opacities (push_layer): the non-isolated rule.
+    color.a *= alpha_scale_;
     const std::uint32_t packed_color = pack_color(color);
     constexpr std::uint32_t kIndices[6] = {0, 1, 2, 0, 2, 3};
 

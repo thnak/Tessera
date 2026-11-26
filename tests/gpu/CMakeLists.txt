@@ -91,6 +91,13 @@ target_link_libraries(glass_paint_null_tests PRIVATE
     tessera_gpu tessera_paint tessera_rhi_null)
 add_test(NAME glass_paint_null COMMAND glass_paint_null_tests)
 
+# Isolated layers (issue #227 slice 2) on the null backend: the pass and draw skeleton of one layer,
+# nesting, the bounded pool, and the flat fallbacks. Runs everywhere.
+add_executable(layer_null_tests
+    batched2d/layer_null_tests.cpp)
+target_link_libraries(layer_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_null COMMAND layer_null_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -604,6 +611,15 @@ if (TARGET tessera_rhi_vulkan)
         tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME glass_paint_gpu COMMAND glass_paint_gpu_tests)
     set_tests_properties(glass_paint_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Isolated layers (issue #227 slice 2) on a real device: overlapping children composite as one
+    # faded image, the flat fallback differs where it must, premultiplied accumulation, nesting and
+    # scissor bounds, validation-clean. Skips without a Vulkan device.
+    add_executable(layer_gpu_tests
+        batched2d/layer_gpu_tests.cpp)
+    target_link_libraries(layer_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME layer_gpu COMMAND layer_gpu_tests)
+    set_tests_properties(layer_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests

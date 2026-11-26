@@ -147,7 +147,9 @@ struct GlassPushConstants {
     float saturate = 1.0f; // saturate, brightness, contrast (vertical pass only)
     float brightness = 1.0f;
     float contrast = 1.0f;
-    float mode = 0.0f;    // 0 = horizontal into the blur target, 1 = vertical + composite
+    // 0 = horizontal into the blur target, 1 = vertical + composite, 2 = isolated-layer composite
+    // (issue #227): sample the layer, un-premultiply, apply `opacity`, no matrix and no clip.
+    float mode = 0.0f;
     float opacity = 1.0f; // composite alpha weight (vertical pass only)
     // std140 pads the block to a 16-byte multiple; the shader never reads these.
     float padding_2 = 0.0f;

@@ -183,7 +183,24 @@ slice behavior + tests + docs, nothing user-visible until the last:
    device-space box, the folded opacity and an optional mask. Wired through `ClippedPaintSink`,
    `LcdTextSink`, `TextShadowSink`, the recorder (`PaintCache` ops) and replay, with the structure tests
    that already guard `push_clip`/`pop_clip` balance.
-2. **Renderer layer path.** `Batched2DRenderer::push_layer`: flush, `break_pass()`, acquire a pooled target
+2. **Renderer layer path (landed, issue #227 slice 2).** `Batched2DRenderer::push_layer(box, opacity)` / `pop_layer()`
+   (`src/rendering/gpu/batched2d_layer.cpp`). The layer target is a pooled target the size of the frame,
+   so it shares the frame's coordinates, transform, clips and scissors and no origin shifts: flush,
+   close the frame pass, open a pass on the target cleared to transparent, draw, close, reopen the
+   frame pass and composite once per scissor (the frame clip, the layer's device box and each damage
+   region). The composite is `glass_blur.frag` mode 2 (and its WGSL twin): the batched pipeline's
+   straight-alpha blend over a transparent clear leaves premultiplied colour with a correct alpha, so
+   mode 2 divides the colour back and applies the group opacity once; the composite pipeline and
+   pool are the glass ones, so no new pipeline exists. A layer that cannot be isolated (no composite
+   pipeline or pool, a multisampled frame, an empty or off-frame box, or the bounded pool out of
+   targets: one frame never reuses a target, so the default pool of 4 holds four layers) paints flat:
+   its opacity multiplies into every primitive until the pop, which is the §14.1 rule. A
+   `backdrop-filter` inside an isolated layer sees the layer's content only, which is the CSS
+   backdrop-root behaviour. Tests: `layer_null` (pass and draw skeleton, nesting, the bound, the flat
+   fallbacks), `layer_gpu` (overlap isolation against the flat contrast, premultiplied accumulation,
+   nesting, scissor, repeated frames, validation clean). Limits to lift later: a frame-sized target
+   per layer (a box-sized target needs an origin shift of the transform and the clip records) and
+   the pool bound. Original scope: `Batched2DRenderer::push_layer`: flush, `break_pass()`, acquire a pooled target
    for the box, draw the subtree into it (render pass on the target, clip and transform rebased to the
    box origin), `pop_layer` composites it once through `bind_sampled_target`, then `resume_pass()`. A
    pool that cannot hand out a target, or a frame target that cannot be read, paints flat and counts it

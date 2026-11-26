@@ -103,6 +103,20 @@ void main() {
         return;
     }
 
+    // mode 2: composite an isolated layer (issue #227). The layer target holds what the batched
+    // pipeline's straight-alpha blend accumulated over a transparent clear, which is premultiplied
+    // colour with a correct alpha, so the colour is divided back to straight alpha and the node's
+    // opacity is applied once to the group. The composite draws over the frame with the same
+    // straight-alpha blend as mode 1: result = layer.rgb * opacity + frame * (1 - layer.a * opacity).
+    // No colour matrix and no rounded clip: the layer's own content is already shaped, and the
+    // scissor bounds the composite.
+    if (pc.mode > 1.5) {
+        float layer_alpha = blurred.a;
+        vec3 straight = layer_alpha > 0.0 ? blurred.rgb / layer_alpha : vec3(0.0);
+        out_color = vec4(straight, layer_alpha * pc.opacity);
+        return;
+    }
+
     // Vertical pass: color matrix (saturate, then brightness, then contrast, as CSS composes them)
     // and the rounded-box composite clip of the paint pass.
     vec3 rgb = blurred.rgb;

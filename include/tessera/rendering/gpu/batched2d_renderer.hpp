@@ -150,6 +150,31 @@ public:
     // never an exception on the frame path.
     [[nodiscard]] bool draw_backdrop(const GlassBackdropDraw& draw);
 
+    // --- Isolated layers (docs/design/gpu/offscreen-layers.md section 5.2, issue #227) ----------
+    // Renders everything between push_layer() and the matching pop_layer() into a pooled target the
+    // size of the frame, then composites that target once with `opacity` applied to the group, so
+    // overlapping children fade as a unit. `box` is the group's bounds in paint coordinates; the
+    // composite is limited to its device-space bounds under the active transform and content scale,
+    // the frame scissor and the damage regions. The layer shares the frame's coordinate system,
+    // clips and scissors, so no origin shifts and nothing else changes while it is open. Layers
+    // nest and must pair.
+    //
+    // A layer that cannot be isolated - no composite pipeline or pool, a multisampled frame, the
+    // bounded pool having no free target this frame, or an empty box - paints flat: its opacity is
+    // multiplied into every primitive inside it (the non-isolated rule of paint-pass.md 14.1), so
+    // the group still fades and only overlapping content differs. Nothing throws or blocks.
+    void push_layer(const rhi::Rect& box, float opacity);
+    void pop_layer();
+    // True when layers can be isolated by this renderer at all (composite pipeline and pool).
+    [[nodiscard]] bool layers_supported() const;
+    // Layers of this frame that opened an offscreen target / painted flat.
+    [[nodiscard]] std::uint32_t layers_isolated() const {
+        return layers_isolated_;
+    }
+    [[nodiscard]] std::uint32_t layers_flat() const {
+        return layers_flat_;
+    }
+
     // True when draw_backdrop() can execute: both glass pipelines are configured, the offscreen
     // pool is enabled and the sink is inside a frame. Callers use it to report an unsupported
     // backdrop draw instead of pretending it painted glass.
@@ -353,6 +378,21 @@ private:
     void apply_clip_state(const ClipStateTable::Update& update);
     static void resume_pass_callback(void* context);
 
+    // One open push_layer(). An isolated layer owns the pass on its pooled target and remembers the
+    // frame target to return to; a flat one only remembers the alpha scale to restore.
+    struct LayerFrame {
+        bool isolated = false;
+        float previous_alpha_scale = 1.0f;
+        float opacity = 1.0f;
+        const rhi::RenderTarget* parent_target = nullptr;
+        rhi::RenderTargetDesc parent_desc;
+        rhi::RenderTarget* layer_target = nullptr;
+        rhi::Scissor region;
+    };
+    // Device-space pixel bounds of a paint-space box under the active transform and content scale,
+    // clamped to the frame.
+    [[nodiscard]] rhi::Scissor device_region(const rhi::Rect& box) const;
+
     rhi::Device* device_ = nullptr;
     rhi::Pipeline* pipeline_ = nullptr;
     rhi::Pipeline* lcd_pipeline_ = nullptr;
@@ -371,6 +411,11 @@ private:
     bool pass_broken_ = false;
 
     GlassCompositor glass_;
+    std::vector<LayerFrame> layers_;
+    // Product of the opacities of the open flat layers, folded into every emitted colour.
+    float alpha_scale_ = 1.0f;
+    std::uint32_t layers_isolated_ = 0;
+    std::uint32_t layers_flat_ = 0;
     ClipStateTable clips_;
     // Scaled vertices of the shape being pushed, reused so a content-scaled push allocates nothing
     // once it has grown to the largest polygon.

@@ -94,6 +94,18 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return blurred;
     }
 
+    // mode 2: composite an isolated layer (issue #227): premultiplied layer colour back to straight
+    // alpha, the node's opacity applied once to the group, no colour matrix and no rounded clip (the
+    // scissor bounds the composite). See glass_blur.frag.
+    if (pc.mode > 1.5) {
+        let layer_alpha = blurred.a;
+        var straight = vec3<f32>(0.0);
+        if (layer_alpha > 0.0) {
+            straight = blurred.rgb / layer_alpha;
+        }
+        return vec4<f32>(straight, layer_alpha * pc.opacity);
+    }
+
     // Vertical pass: color matrix (saturate, then brightness, then contrast, as CSS composes them)
     // and the rounded-box composite clip of the paint pass.
     var rgb = blurred.rgb;

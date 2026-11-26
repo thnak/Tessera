@@ -90,6 +90,46 @@ bool GlassCompositor::can_read_target(const rhi::RenderTarget& target) const {
     return glass_.composite->sample_count() == target.sample_count();
 }
 
+bool GlassCompositor::layers_supported(const rhi::RenderTarget& frame_target) const {
+    return glass_.composite != nullptr && pool_ != nullptr && frame_target.sample_count() == 1 &&
+           glass_.composite->sample_count() == 1;
+}
+
+bool GlassCompositor::composite_layer(const FrameContext& frame, rhi::RenderTarget& layer,
+                                      const std::vector<rhi::Scissor>& scissors, float opacity) {
+    if (frame.commands == nullptr || frame.target == nullptr || !layers_supported(*frame.target)) {
+        return false;
+    }
+    rhi::CommandList& commands = *frame.commands;
+    const rhi::Extent2D layer_extent = layer.extent();
+    // Mode 2 samples the layer at uv = (fragcoord - region_origin) / region_size. The layer shares
+    // the frame's coordinate system (it is drawn with the same transform, clips and scissors), so
+    // the origin is zero and the size is the target's own, which maps a fragment onto its own
+    // texel even when the pooled target is larger than the frame.
+    GlassPushConstants layer_constants;
+    layer_constants.region_size_x = static_cast<float>(layer_extent.width);
+    layer_constants.region_size_y = static_cast<float>(layer_extent.height);
+    layer_constants.mode = 2.0f;
+    layer_constants.opacity = std::clamp(opacity, 0.0f, 1.0f);
+
+    // Same ordering as compose(): the pipeline is bound before the sampled bind so the descriptor
+    // set is recorded against the composite layout, then the frame pass is reopened and the
+    // pipeline rebound.
+    commands.bind_pipeline(*glass_.composite);
+    commands.bind_sampled_target(0, layer);
+    frame.seam.reopen();
+    commands.bind_pipeline(*glass_.composite);
+    commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(frame.extent.width),
+                                        static_cast<float>(frame.extent.height)});
+    commands.push_constants(&layer_constants, sizeof(layer_constants));
+    for (const rhi::Scissor& scissor : scissors) {
+        commands.set_scissor(scissor);
+        commands.draw(kFullscreenVertices);
+        ++draws_;
+    }
+    return true;
+}
+
 bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw& draw) {
     if (frame.commands == nullptr || frame.target == nullptr || !supported()) {
         return false;

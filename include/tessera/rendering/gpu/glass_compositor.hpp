@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace tessera::rendering::gpu {
 
@@ -74,6 +75,26 @@ public:
     // swapchain image is not a copy source), or the bounded pool having no free target - so the
     // caller paints the node without the effect. Requires the frame pass to be broken already.
     [[nodiscard]] bool compose(const FrameContext& frame, const GlassBackdropDraw& draw);
+
+    // Isolated layers (issue #227) reuse the composite pipeline (glass_blur.frag mode 2) and the
+    // pool: true when a layer can be rendered into a pooled target and composited into `frame`.
+    // The composite pipeline must match the frame target's sample count, and a layer target is
+    // always single-sampled, so a multisampled frame paints its groups flat.
+    [[nodiscard]] bool layers_supported(const rhi::RenderTarget& frame_target) const;
+    // Frame-independent half: the composite pipeline and the pool exist. A paint pass asks this
+    // while planning, before a frame target is known; the sample-count half is checked per layer.
+    [[nodiscard]] bool layers_configured() const {
+        return glass_.composite != nullptr && pool_ != nullptr;
+    }
+
+    // Composites `layer` (a pooled target the renderer drew a group into, holding premultiplied
+    // colour over a transparent clear) into the frame target, once per scissor in `scissors` (the
+    // frame's clip intersected with the layer's box, and with each damage region when the frame is
+    // damage-clipped), with `opacity` applied once to the group. Requires the frame pass to be
+    // broken; the pass is reopened through the seam. Returns false, recording nothing, when
+    // layers_supported() is false.
+    [[nodiscard]] bool composite_layer(const FrameContext& frame, rhi::RenderTarget& layer,
+                                       const std::vector<rhi::Scissor>& scissors, float opacity);
 
     [[nodiscard]] rhi::RenderTarget* acquire(rhi::Extent2D extent);
     [[nodiscard]] std::uint32_t target_count() const {
