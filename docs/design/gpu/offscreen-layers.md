@@ -206,9 +206,9 @@ slice behavior + tests + docs, nothing user-visible until the last:
    pool that cannot hand out a target, or a frame target that cannot be read, paints flat and counts it
    in a `LayerPaintStats::unsupported`, like the glass fallback. Null-backend structure test first, then
    the lavapipe pixel test.
-3. **`CpuCanvas` twin.** The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
+3. **`CpuCanvas` twin (deferred; `CpuPaintSink` reports no layers and paints groups flat).** The canvas is an opaque framebuffer, so an exact twin cannot accumulate premultiplied alpha in it; the exact route is to replay the group's recorded ops (`PaintCache::Recorder` already captures every call) onto two scratch canvases, one cleared black and one white, and recover per pixel `P = C_black` and `A = 1 - (C_white - C_black)`, then write `B * (1 - opacity * A) + P * opacity`. Original scope: The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
    GPU path to the existing tolerance.
-4. **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
+4. **Group opacity becomes isolated (landed behind `PaintContext::isolate_group_opacity`, default false, issue #227 slice 4).** `paint_node` opens a layer after the node's transform push and before its backdrop, shadow and box paint, closes it after the children, the clip pop and before the transform pop; the node's own opacity moves to the layer and the primitives inside carry only the ancestor product; text inside a layer is grayscale (`PaintScope::in_layer`); `isolate_groups` and `in_layer` are part of the paint-cache key. The box is the whole frame for now (the renderer clamps it to the frame, the clip and the damage). A culled node still fades its visible children flat. Tests: `paint_layer_pass` and the paint-path case of `layer_gpu`. Original scope: **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
    same seam; the §14.1 product rule stays the fallback.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`

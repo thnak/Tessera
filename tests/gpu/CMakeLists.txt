@@ -617,7 +617,7 @@ if (TARGET tessera_rhi_vulkan)
     # scissor bounds, validation-clean. Skips without a Vulkan device.
     add_executable(layer_gpu_tests
         batched2d/layer_gpu_tests.cpp)
-    target_link_libraries(layer_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    target_link_libraries(layer_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_gpu COMMAND layer_gpu_tests)
     set_tests_properties(layer_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 

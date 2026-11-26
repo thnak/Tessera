@@ -8,6 +8,7 @@
 #include "paint_gradient.hpp"
 #include "paint_image.hpp"
 #include "paint_list_marker.hpp"
+#include "paint_node_parts.hpp"
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text.hpp"
@@ -30,56 +31,6 @@ namespace {
 // The transformed-frame geometry lives in `paint_frame.hpp`; the helpers below use it by name.
 using namespace detail;
 
-// Glass backdrop (docs/specs/glass-v1.md sections 2, 3 and 5): emitted before the node's own box
-// visuals, because what is behind the node at this point in paint order is exactly its backdrop.
-// High contrast ignores `backdrop-filter` entirely (section 3.5), so the stylesheet's opaque
-// fallback stays visible. The sigma is clamped here, where the configured `glassMaxBlurRadius` is
-// known, and the opacity is folded into the composite: with straight-alpha source-over over the
-// same region, `opacity * blurred + (1 - opacity) * original` is the correct translucent result.
-void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
-                    const PaintContext& context, PaintSink& sink, PaintStats& stats) {
-    if (context.high_contrast || rect.width <= 0.0f || rect.height <= 0.0f || opacity <= 0.0f) {
-        return;
-    }
-    const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
-    if (!filter.has_value()) {
-        return;
-    }
-    const float sigma = rendering::gpu::clamp_glass_sigma(filter->blur_sigma, context.glass);
-
-    BackdropDraw draw;
-    draw.rect = rect;
-    draw.clip = detail::corner_clip(style, rect);
-    draw.sigma = sigma;
-    draw.opacity = std::clamp(opacity, 0.0f, 1.0f);
-    draw.saturate = filter->saturate;
-    draw.brightness = filter->brightness;
-    draw.contrast = filter->contrast;
-    sink.draw_backdrop(draw);
-    ++stats.backdrops;
-}
-
-// The node's own box visuals in paint order: background, gradient, border, then the inset shadows.
-// CSS paints an inset shadow above the background and below the content (CSS Backgrounds 3 section
-// 7.1.1), which is why the outer shadows are emitted before this call and the inset ones inside it.
-void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
-                          const rhi::Rect& rect, float opacity, const rhi::Color& current,
-                          float device_scale, PaintSink& sink, PaintStats& stats,
-                          bool reduce_effects, BackgroundLayerCache* const layer_cache) {
-    paint_background(style, rect, opacity, current, sink, stats);
-    detail::paint_gradient(node, style, rect, opacity, sink, stats, layer_cache);
-    if (const std::optional<RingBorder> ring =
-            rounded_ring(style, rect, opacity, current, device_scale)) {
-        sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);
-        ++stats.borders;
-    } else {
-        paint_borders(style, rect, opacity, current, device_scale, sink, stats);
-    }
-    // The inset shadows sit above the background and border, below the content.
-    detail::paint_box_shadows(style, rect, detail::uniform_radius(style).value_or(0.0f), opacity,
-                              current, sink, stats, detail::ShadowLayer::Inset, reduce_effects);
-}
-
 // Painted state inherited from the parent: the painted world matrix of the parent's content space
 // (scroll offset applied), whether any ancestor already paints with an interpolation override, and
 // the effective opacity of the ancestors. `opacity` is the product of every ancestor's `opacity`
@@ -90,6 +41,9 @@ struct PaintScope {
     rhi::Mat3 content_world;
     bool interpolated = false;
     float opacity = 1.0f;
+    // Inside an isolated layer (issue #227): text must stay grayscale there, because a dual-source
+    // LCD blend into the layer's transparent target would composite wrong.
+    bool in_layer = false;
 };
 
 // Inline-span children of a Text node are painted as attributed runs by the parent, never as their
@@ -140,6 +94,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     PaintScope child_scope;
     child_scope.interpolated = interpolated;
     child_scope.opacity = scope.opacity;
+    child_scope.in_layer = scope.in_layer;
     if (interpolated) {
         child_scope.content_world =
             painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
@@ -227,7 +182,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (pass.cacheable) {
         signature = detail::make_paint_cache_signature(
             node, painted_world, painted_frame.inverse, open_frame, rect, interpolated,
-            sink.supports_transform(), clip_scope, pass, scope.opacity);
+            sink.supports_transform(), clip_scope, pass, scope.opacity, sink.supports_layers(),
+            scope.in_layer);
         // Retained draw list (issue #476): a clean subtree is replayed as one flat list, or
         // recorded as one when it has none yet. The recording pass re-enters this node with
         // `in_subtree`.
@@ -265,6 +221,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             // The record carries the effective opacity its ops were folded with, so the child walk
             // composites at the same product without resolving this node's style again.
             child_scope.opacity = record->effective_opacity;
+            child_scope.in_layer = scope.in_layer || record->pushed_layer;
             replay_paint_ops(record->ops, record->gradients, sink);
             const detail::ClipScope child_clip =
                 pushed_clip ? detail::pushed_clip_scope(clip_scope, clip) : clip_scope;
@@ -317,8 +274,22 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // Effective opacity: the ancestor product times this node's own `opacity` (both clamped 0..1).
     // It multiplies every primitive this node emits and is what its children inherit, so a group
     // fades as a whole without an offscreen layer (paint-pass.md 14.1); `opacity: 0` still walks.
-    const float effective_opacity = scope.opacity * detail::opacity_value(style);
+    // A faded node with children paints as one isolated layer when the context asks for it and the
+    // sink can render one (issue #227): its own opacity is applied once at the composite, so the
+    // primitives inside carry only the ancestor product. The box is the whole frame for now (the
+    // renderer clamps it to the frame, the clip and the damage); a tighter subtree box is a later
+    // refinement. `opacity: 0` paints nothing either way and stays on the flat path.
+    const float own_opacity = detail::opacity_value(style);
+    const bool isolate_group = pass.isolate_group_opacity && own_opacity < 1.0f &&
+                               own_opacity > 0.0f && !node.children().empty() &&
+                               rect.width > 0.0f && rect.height > 0.0f && own->supports_layers();
+    const float effective_opacity = scope.opacity * (isolate_group ? 1.0f : own_opacity);
     child_scope.opacity = effective_opacity;
+    child_scope.in_layer = scope.in_layer || isolate_group;
+    if (isolate_group) {
+        constexpr float kReach = 1.0e6f;
+        own->push_layer(LayerDraw{{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach}, own_opacity});
+    }
 
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const rhi::Color current = detail::current_color(style);
@@ -367,17 +338,17 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const detail::TextShadowList text_shadows =
         detail::parse_text_shadows(style, detail::current_color(style));
     if (text_shadows.empty()) {
-        detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context,
-                                 detail::lcd_text_eligible(context, effective_opacity,
-                                                           painted_frame.active, interpolated,
-                                                           painted_world));
+        detail::paint_text_lines(
+            node, style, rect, effective_opacity, *own, stats, context,
+            detail::lcd_text_eligible(context, child_scope.in_layer ? 0.0f : effective_opacity,
+                                      painted_frame.active, interpolated, painted_world));
     } else {
         detail::TextShadowSink shadowed(*own, text_shadows, effective_opacity,
                                         context.reduce_effects, stats);
-        detail::paint_text_lines(node, style, rect, effective_opacity, shadowed, stats, context,
-                                 detail::lcd_text_eligible(context, effective_opacity,
-                                                           painted_frame.active, interpolated,
-                                                           painted_world));
+        detail::paint_text_lines(
+            node, style, rect, effective_opacity, shadowed, stats, context,
+            detail::lcd_text_eligible(context, child_scope.in_layer ? 0.0f : effective_opacity,
+                                      painted_frame.active, interpolated, painted_world));
         shadowed.flush();
     }
     detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
@@ -410,6 +381,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     });
     if (pushed_clip) {
         sink.pop_clip();
+    }
+    if (isolate_group) {
+        sink.pop_layer();
     }
     if (open_frame) {
         sink.pop_transform();
@@ -466,6 +440,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.reduce_effects = context.reduce_effects;
     pass.high_contrast = context.high_contrast;
     pass.lcd_text = context.lcd_text;
+    pass.isolate_group_opacity = context.isolate_group_opacity;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
     pass.cull = context.cull.has_value() ? &*context.cull : nullptr;

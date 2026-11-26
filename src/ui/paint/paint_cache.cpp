@@ -43,7 +43,8 @@ bool same_signature_impl(const PaintCacheSignature& lhs, const PaintCacheSignatu
            lhs.metrics_source_id == rhs.metrics_source_id &&
            lhs.device_scale_bits == rhs.device_scale_bits &&
            lhs.reduce_effects == rhs.reduce_effects && lhs.high_contrast == rhs.high_contrast &&
-           lhs.lcd_text == rhs.lcd_text && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
+           lhs.lcd_text == rhs.lcd_text && lhs.isolate_groups == rhs.isolate_groups &&
+           lhs.in_layer == rhs.in_layer && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
            lhs.glass_max_backdrop_area == rhs.glass_max_backdrop_area &&
            lhs.list_ordinal == rhs.list_ordinal;
 }

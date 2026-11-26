@@ -21,6 +21,9 @@
 #include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/rendering/vulkan/vulkan_validation.hpp"
+#include "tessera/ui/paint/batched2d_sink.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <array>
 #include <cmath>
@@ -29,7 +32,10 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <map>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -214,6 +220,95 @@ bool frames_repeat(Harness& harness) {
     return ok;
 }
 
+// --- Through the real paint path: paint_scene -> Batched2DSink -> Batched2DRenderer -> Vulkan.
+// ----
+class StubStyles final : public tessera::ui::paint::StyleProvider {
+public:
+    void set(tessera::ui::NodeId id, tessera::ui::style::ComputedStyle style) {
+        styles_[id] = std::move(style);
+    }
+    tessera::ui::style::ComputedStyle compute(const tessera::ui::Node& node) override {
+        const auto found = styles_.find(node.id());
+        return found == styles_.end() ? tessera::ui::style::ComputedStyle{} : found->second;
+    }
+
+private:
+    std::map<tessera::ui::NodeId, tessera::ui::style::ComputedStyle> styles_;
+};
+
+void clear_tree(tessera::ui::Node& node) {
+    node.clear_dirty(tessera::ui::Dirty::All);
+    for (const auto& child : node.children()) {
+        clear_tree(*child);
+    }
+}
+
+// The overlapping pair as a scene: a faded group (opacity 0.5) holding a red and a blue child.
+Frame render_scene(Harness& harness, bool isolate) {
+    using tessera::ui::Node;
+    using tessera::ui::style::ComputedStyle;
+    Node root(1);
+    root.set_bounds({0.0f, 0.0f, 64.0f, 64.0f});
+    auto faded = std::make_unique<Node>(2);
+    faded->set_bounds({8.0f, 8.0f, 48.0f, 48.0f});
+    auto red = std::make_unique<Node>(3);
+    red->set_bounds({0.0f, 0.0f, 32.0f, 32.0f});
+    faded->add_child(std::move(red));
+    auto blue = std::make_unique<Node>(4);
+    blue->set_bounds({16.0f, 16.0f, 32.0f, 32.0f});
+    faded->add_child(std::move(blue));
+    root.add_child(std::move(faded));
+
+    StubStyles styles;
+    ComputedStyle faded_style;
+    faded_style.set("opacity", "0.5");
+    styles.set(2, faded_style);
+    ComputedStyle red_style;
+    red_style.set("background-color", "#ff0000");
+    styles.set(3, red_style);
+    ComputedStyle blue_style;
+    blue_style.set("background-color", "#0000ff");
+    styles.set(4, blue_style);
+    clear_tree(root);
+
+    auto target = harness.device->create_render_target(target_desc());
+    auto commands = harness.device->create_command_list();
+    Batched2DConfig config;
+    config.enable_aa = false;
+    config.golden_mode = true;
+    Frame frame;
+    {
+        Batched2DRenderer renderer(*harness.device, *harness.pipeline, *harness.white, config,
+                                   GlassPipelines{harness.blur.get(), harness.composite.get()});
+        tessera::ui::paint::Batched2DSink sink(renderer);
+        tessera::ui::paint::PaintContext context;
+        context.isolate_group_opacity = isolate;
+        renderer.begin(*commands, *target, target_desc());
+        (void)tessera::ui::paint::paint_scene(root, styles, sink, context);
+        renderer.end();
+        commands->submit();
+        frame.isolated = renderer.layers_isolated();
+        frame.flat = renderer.layers_flat();
+    }
+    frame.pixels = read_target(*harness.device, *target);
+    return frame;
+}
+
+bool paint_path(Harness& harness) {
+    const Frame layered = render_scene(harness, true);
+    bool ok = expect(layered.isolated == 1 && layered.flat == 0,
+                     "the paint pass opened one isolated layer");
+    ok = near(pixel_at(layered.pixels, 12, 12), 128, 0, 0, "paint path: red at half", 12, 12) && ok;
+    ok = near(pixel_at(layered.pixels, 32, 32), 0, 0, 128,
+              "paint path: the overlap is the top rect", 32, 32) &&
+         ok;
+    const Frame flat = render_scene(harness, false);
+    ok = expect(flat.isolated == 0 && flat.flat == 0, "the flag off opens no layer") && ok;
+    ok = near(pixel_at(flat.pixels, 32, 32), 64, 0, 128, "paint path off: the flat rule", 32, 32) &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -248,6 +343,7 @@ int main() {
     ok = nesting_multiplies(harness) && ok;
     ok = scissor_bounds_the_composite(harness) && ok;
     ok = frames_repeat(harness) && ok;
+    ok = paint_path(harness) && ok;
 
     const std::uint64_t validation_messages =
         tessera::rendering::vulkan::validation_message_count();

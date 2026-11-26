@@ -289,6 +289,13 @@ struct PaintCacheSignature {
     // PaintContext::lcd_text: a recorded text op carries `TextDraw::lcd`, which that permission
     // decided, so a record made under the other value must not replay.
     bool lcd_text = false;
+    // PaintContext::isolate_group_opacity on a sink that supports layers: a record made with a
+    // layer op (and a different opacity fold) must not replay when the other holds.
+    bool isolate_groups = false;
+    // The node paints inside an isolated layer: its text stays grayscale, so a record made with LCD
+    // eligibility must not replay there (an ancestor's own opacity does not change this node's
+    // inherited product once it is isolated, so the opacity bits alone cannot tell).
+    bool in_layer = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // Position of a list item among its parent's list items (0 for any other node): the counter of

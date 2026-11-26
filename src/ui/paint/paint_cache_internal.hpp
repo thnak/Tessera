@@ -36,6 +36,7 @@ struct PassState {
     bool reduce_effects = false;
     bool high_contrast = false;
     bool lcd_text = false;
+    bool isolate_group_opacity = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
@@ -61,7 +62,8 @@ inline PaintCacheSignature
 make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
                            const rhi::Mat3& frame_inverse, bool frame_active, const rhi::Rect& rect,
                            bool interpolated, bool supports_transform, const ClipScope& clip_scope,
-                           const PassState& pass, float inherited_opacity) {
+                           const PassState& pass, float inherited_opacity,
+                           bool sink_supports_layers, bool in_layer) {
     PaintCacheSignature signature;
     signature.node = node.id();
     signature.bounds = node.bounds();
@@ -88,6 +90,8 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.reduce_effects = pass.reduce_effects;
     signature.high_contrast = pass.high_contrast;
     signature.lcd_text = pass.lcd_text;
+    signature.isolate_groups = pass.isolate_group_opacity && sink_supports_layers;
+    signature.in_layer = in_layer;
     signature.glass_max_blur_radius = pass.glass_max_blur_radius;
     signature.glass_max_backdrop_area = pass.glass_max_backdrop_area;
     signature.list_ordinal = list_item_ordinal(node);
