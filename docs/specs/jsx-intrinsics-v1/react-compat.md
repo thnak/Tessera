@@ -41,6 +41,20 @@ build, and therefore runs on a fresh checkout. Construct-level grading - which `
 `dangerouslySetInnerHTML` a file uses - belongs to the front end and arrives with typing rules 1-3
 of ADR-058 section 3, which are steps 2 and later of its order of work.
 
+### 1.2 One-line-fix typing diagnostics (ADR-058 typing rule 3, #548)
+
+The edits a port is asked to make by hand each have a stable code, a location and the fix in the message, so `port-check` can list them verbatim:
+
+| Written | Code | Fix |
+|---|---|---|
+| `any`, `unknown` | `TESSERA_JSX_TYPE_ANY` | the concrete type, or `type Item = { ... }` |
+| `Record<K, V>`, `Map<K, V>` | `TESSERA_JSX_TYPE_MAP` | `Entry[]` with `type Entry = { key: string; value: T }` until a map type exists |
+| `useState([])`, `useState({})` | `TESSERA_JSX_TYPE_STATE_UNTYPED` | `useState<Item[]>([])`, `useState<Item>({})` |
+
+Absorbed without an edit (typing rule 1, #547 slice 1): `interface X { ... }` and `export interface X { ... }` are the type alias `type X = { ... }`, and `import type` / `export type { }` were already accepted. `interface X extends Y` and a generic interface stay `TESSERA_JSX_SUBSET_TYPES` with the fix to write the members out. Slice 2: `Partial<R>`, `Required<R>`, `Pick<R, "a" | "b">`, `Omit<R, "a">` and `A & B` over records declared in the same file are expanded at module level to the one object type of the resulting members (so a later alias may be used before its declaration, and they compose). Codes: `TESSERA_JSX_TYPE_UTILITY` (a record not declared in this file, wrong arity, non-literal or unknown keys) and `TESSERA_JSX_TYPE_INTERSECTION` (a non-record operand, or a member declared twice). Slice 3: a string `enum` (`enum Color { Red = "red" }`, also exported) is `type Color = "red" | ...`, and `Color.Red` is replaced by the literal at parse time; an `as const` suffix on a constant is accepted and dropped, and `const COLORS = { dark: "d" } as const` makes `COLORS.dark` the literal `"d"`. A numeric or valueless enum member, or an unknown member, is `TESSERA_JSX_TYPE_ENUM` with the fix. The namespace must be declared earlier in the same file and `typeof COLORS[keyof typeof COLORS]` is not supported; both are the remaining gaps.
+
+An inline object type on the props parameter stays accepted: the lowering already gives it a synthesized record, so no diagnostic is raised for it.
+
 ## 2. Event props and payloads (decided: Q1, option C)
 
 Options for the payload of `onChange` on `TextInput`/`TextArea` (the other events have only one

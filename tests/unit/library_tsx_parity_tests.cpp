@@ -224,6 +224,7 @@ std::string ir_type_of(const jsx::TypeNode& type) {
         return {};
     case jsx::TypeKind::StringLiteral:
     case jsx::TypeKind::Union:
+    case jsx::TypeKind::Intersection:
     case jsx::TypeKind::Object:
         return {};
     }

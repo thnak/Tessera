@@ -33,6 +33,12 @@ void append_type(std::string& out, const TypeNode& type) {
             append_type(out, *type.children[i]);
         }
         return;
+    case TypeKind::Intersection:
+        for (std::size_t i = 0; i < type.children.size(); ++i) {
+            out += i == 0 ? "" : "&";
+            append_type(out, *type.children[i]);
+        }
+        return;
     case TypeKind::Object:
         out.push_back('{');
         for (std::size_t i = 0; i < type.members.size(); ++i) {

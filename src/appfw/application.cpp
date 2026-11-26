@@ -73,8 +73,20 @@ AppLifecycleObserver* Application::observer_for(ServiceId id) const noexcept {
     return nullptr;
 }
 
+void Application::require_services(const ServiceContext& context,
+                                   std::span<const RequiredService> required) noexcept {
+    required_context_ = &context;
+    required_services_ = required;
+}
+
 bool Application::launch() {
     if (launched_ || state_ == AppState::Terminating || state_ == AppState::Terminated) {
+        return false;
+    }
+    // Before any service starts: a missing provider is a composition-root bug, and reporting all of
+    // them here beats aborting inside the first `ServiceContext::get<T>()` of a mount.
+    if (required_context_ != nullptr &&
+        report_unresolved_services(*required_context_, required_services_) != 0) {
         return false;
     }
     // An empty runner (an app with no services) still has a lifecycle: the start sequence it

@@ -211,9 +211,12 @@ and no silent skipping.
 | State setter called during render | `TESSERA_REACT_SETTER_IN_RENDER` | Call it in a handler or an effect |
 | Missing or extra effect dependency | `TESSERA_REACT_EFFECT_DEPS` | Match dependencies exactly |
 | Missing key on a list element | `TESSERA_REACT_LIST_KEY` | Add `key` |
-| Types in `.jsx`; `any`, `enum`, `interface`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
+| Types in `.jsx`; `enum`, `interface ... extends`, a generic `interface`, `never`, `object`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
 | Array methods other than `.map`, `.filter` and `.slice` (`reduce`, `forEach`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Sort in a setter or in developer C++ |
 | Bare `number` type | `TESSERA_JSX_TYPE_NUMBER` | Write `int` or `float` (section 5) |
+| `any` or `unknown` as a type | `TESSERA_JSX_TYPE_ANY` | Write the concrete type, or declare a record (ADR-058 typing rule 3) |
+| `Record<K, V>`, `Map<K, V>`, `ReadonlyMap` | `TESSERA_JSX_TYPE_MAP` | Deferred until a map type exists; use a list of `{ key; value }` records |
+| `useState([])` or `useState({})` with no type argument | `TESSERA_JSX_TYPE_STATE_UNTYPED` | Write `useState<Item[]>([])` or `useState<Item>({})` |
 | Reading an animated value (`v.value`) | `TESSERA_JSX_SUBSET_ANIMATED_READ` | Pass the animated value whole (section 7) |
 | `return` inside an effect body other than the final cleanup | `TESSERA_REACT_EFFECT_RETURN` | Use the cleanup form (section 7) |
 | Unknown `use...` hook name | `TESSERA_REACT_UNKNOWN_HOOK` | Use a core hook or a manifest hook (sections 7 and 7.1) |

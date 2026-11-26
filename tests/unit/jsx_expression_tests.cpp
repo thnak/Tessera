@@ -105,7 +105,7 @@ void test_typed_arrow_functions() {
     check_eq(dump_expr("(a): => 1"), "<null>",
              "a missing return type is a syntax error, not an arrow");
     check_eq(dump_expr("c ? (a) : (b) : d"), "<null>", "still an error, not an arrow");
-    check_eq(codes(parse_expression("(a: any) => a")), "TESSERA_JSX_SUBSET_TYPES;",
+    check_eq(codes(parse_expression("(a: any) => a")), "TESSERA_JSX_TYPE_ANY;",
              "parameter types are checked like any type");
     check_eq(codes(parse_expression("(a: number) => a")), "TESSERA_JSX_TYPE_NUMBER;",
              "bare number in a handler parameter");

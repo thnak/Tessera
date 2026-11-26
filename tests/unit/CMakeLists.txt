@@ -35,6 +35,13 @@ target_link_libraries(jsx_module_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_module COMMAND jsx_module_tests)
 
+add_executable(jsx_type_forms_tests
+    jsx_type_forms_tests.cpp)
+
+target_link_libraries(jsx_type_forms_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_type_forms COMMAND jsx_type_forms_tests)
+
 # ADR-066 item 1: the React spellings a port uses (arrow components, `import React`, `useId`, the
 # safe `useMemo`/`useCallback` forms, `??`/`?.`). Split from jsx_module_tests when that file reached
 # the 500-line hard limit.

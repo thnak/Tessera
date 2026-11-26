@@ -78,6 +78,7 @@ std::optional<std::string> lower_written_type(const jsx::TypeNode& type) {
         return std::nullopt;
     }
     case jsx::TypeKind::Object:
+    case jsx::TypeKind::Intersection:
     case jsx::TypeKind::Function:
         // An inline structural type needs a declared record name from the type table (slice 4).
         return std::nullopt;

@@ -37,6 +37,7 @@
 #include "tessera/app/lifecycle_sink.hpp"
 #include "tessera/appfw/lifecycle.hpp"
 #include "tessera/appfw/service.hpp"
+#include "tessera/appfw/service_requirements.hpp"
 #include "tessera/appfw/service_runner.hpp"
 #include "tessera/appfw/window_registry.hpp"
 
@@ -135,6 +136,15 @@ public:
     // `launch()`, from the composition root; a duplicate id, a full table or a null observer is
     // refused. The observer must outlive the application.
     bool attach_observer(ServiceId id, AppLifecycleObserver& observer);
+
+    // ADR-050 section 3.1 item 6: the services the mounted components require (the concatenated
+    // `required_services()` of the generated bases) and the scope that must provide them. Call it
+    // from the composition root before `launch()`; `launch()` then refuses to start when any
+    // requirement has no provider, after reporting each as `TESSERA_APPFW_SERVICE_MISSING` with the
+    // component and TSX location. Both are borrowed and must outlive the application. Without this
+    // call nothing is checked, which keeps an app with no `useService` unchanged.
+    void require_services(const ServiceContext& context,
+                          std::span<const RequiredService> required) noexcept;
 
     // --- the window set (issue #180) -------------------------------------------------------------
     // Registers a window and returns its id, or nullopt when the set is full. The primary window is
@@ -259,6 +269,8 @@ private:
     }
 
     ServiceRunner* runner_ = nullptr;
+    const ServiceContext* required_context_ = nullptr;
+    std::span<const RequiredService> required_services_;
     ApplicationConfig config_;
     // The app's window set (issue #180). The primary window is registered by the constructor, so a
     // single-window app's aggregate is exactly the one `WindowLifecycle` AF3 had.

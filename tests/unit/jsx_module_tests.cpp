@@ -123,7 +123,7 @@ void test_types_and_constants() {
     check(parse_module("export type P = int;").root->items[0].exported, "exported flag");
     check_eq(dump_module("const kMax: int = 10;\nexport const kName = \"x\";"),
              "(module\n  (const kMax : int (num 10))\n  (const kName (str \"x\")))", "constants");
-    check_eq(codes(parse_module("type Bad = any;")), "TESSERA_JSX_SUBSET_TYPES;",
+    check_eq(codes(parse_module("type Bad = any;")), "TESSERA_JSX_TYPE_ANY;",
              "type errors surface from aliases");
     check_eq(codes(parse_module("const a = ;")), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;",
              "constant without a value");

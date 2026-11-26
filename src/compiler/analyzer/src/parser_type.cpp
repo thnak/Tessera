@@ -42,7 +42,7 @@ TypePtr Parser::parse_type_expr() {
         return nullptr;
     }
     const std::uint32_t begin = cur_.span.offset;
-    TypePtr first = parse_type_primary();
+    TypePtr first = parse_type_intersection();
     if (!first || !at_punct("|")) {
         return fatal_ ? nullptr : std::move(first);
     }
@@ -50,7 +50,7 @@ TypePtr Parser::parse_type_expr() {
     uni->children.push_back(std::move(first));
     while (at_punct("|")) {
         advance(LexMode::Code);
-        TypePtr next = parse_type_primary();
+        TypePtr next = parse_type_intersection();
         if (!next) {
             return nullptr;
         }
@@ -58,6 +58,29 @@ TypePtr Parser::parse_type_expr() {
     }
     uni->span = span_from(begin);
     return finish_node(*uni) ? std::move(uni) : nullptr;
+}
+
+// `A & B` binds tighter than `|`, as in TypeScript. The module-level expansion turns an
+// intersection of records into one object type; anywhere else it stays a node the later passes
+// reject.
+TypePtr Parser::parse_type_intersection() {
+    const std::uint32_t begin = cur_.span.offset;
+    TypePtr first = parse_type_primary();
+    if (!first || !at_punct("&")) {
+        return fatal_ ? nullptr : std::move(first);
+    }
+    TypePtr both = make_type(TypeKind::Intersection, Span{});
+    both->children.push_back(std::move(first));
+    while (at_punct("&")) {
+        advance(LexMode::Code);
+        TypePtr next = parse_type_primary();
+        if (!next) {
+            return nullptr;
+        }
+        both->children.push_back(std::move(next));
+    }
+    both->span = span_from(begin);
+    return finish_node(*both) ? std::move(both) : nullptr;
 }
 
 TypePtr Parser::parse_type_primary() {
@@ -84,8 +107,16 @@ TypePtr Parser::parse_type_primary() {
         advance(LexMode::Code);
         type = make_type(TypeKind::Name, name_span);
         type->text = name;
-        if (name == "any" || name == "unknown" || name == "never" || name == "object" ||
-            name == "Function") {
+        // ADR-058 typing rule 3: the two types a port reaches for first get their own stable code
+        // and a one-line fix, so `port-check` can surface them as a single edit each.
+        if (name == "any" || name == "unknown") {
+            report("TESSERA_JSX_TYPE_ANY", "`" + name + "` is not a Tessera type", name_span,
+                   "write the concrete type, or declare a record: `type Item = { id: string }`");
+        } else if (name == "Record" || name == "Map" || name == "ReadonlyMap") {
+            report("TESSERA_JSX_TYPE_MAP",
+                   "`" + name + "` is deferred until Tessera has a map type", name_span,
+                   "use a list of records: `type Entry = { key: string; value: T }` and `Entry[]`");
+        } else if (name == "never" || name == "object" || name == "Function") {
             report("TESSERA_JSX_SUBSET_TYPES", "type `" + excerpt(name) + "` is not supported",
                    name_span, "use the types of the subset specification, section 5");
         } else if (name == "number") {
@@ -152,11 +183,6 @@ TypePtr Parser::parse_type_primary() {
             return nullptr;
         }
         type = std::move(array);
-    }
-    if (at_punct("&")) {
-        fail("TESSERA_JSX_SUBSET_TYPES", "intersection types are not supported", cur_.span,
-             "use an object type with all the members");
-        return nullptr;
     }
     return fatal_ ? nullptr : std::move(type);
 }

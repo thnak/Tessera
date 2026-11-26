@@ -59,4 +59,19 @@ inline void report_missing_services(std::span<const RequiredService> missing) no
     }
 }
 
+// Reports every requirement `context` cannot resolve (one `TESSERA_APPFW_SERVICE_MISSING` line
+// each, in input order) and returns how many there were. No buffer to size, so a startup check
+// cannot truncate its own report.
+inline std::size_t report_unresolved_services(const ServiceContext& context,
+                                              std::span<const RequiredService> required) noexcept {
+    std::size_t count = 0;
+    for (const RequiredService& requirement : required) {
+        if (!context.contains(requirement.id)) {
+            report_missing_services(std::span<const RequiredService>(&requirement, 1));
+            ++count;
+        }
+    }
+    return count;
+}
+
 } // namespace tessera::appfw

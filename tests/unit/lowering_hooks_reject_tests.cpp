@@ -47,7 +47,7 @@ void test_state_type_needs_the_type_table() {
 void test_array_list_initial_rejections() {
     // `useState<T[]>(...)` accepts an array literal with literal elements and a list reference
     // (spec 8.4); every other list-valued initial has no IR form and is rejected loudly.
-    const auto no_type = parse(component("  const [rows, setRows] = useState([]);\n"));
+    const auto no_type = parse(component("  const [rows, setRows] = useState([1]);\n"));
     const auto no_type_result = lower(*no_type);
     check(!no_type_result.has_value(), "an array initial without an element type is rejected");
     check_eq(first_code(no_type_result), "TESSERA_IR_UNSUPPORTED", "the code names the slice");

@@ -23,6 +23,7 @@ enum class TypeKind : std::uint8_t {
     Union,         // children = alternatives
     Object,        // members
     Function,      // param_names; children = parameter types followed by the return type
+    Intersection,  // children = the intersected types; expanded to one Object at module level
 };
 
 struct TypeMember {
