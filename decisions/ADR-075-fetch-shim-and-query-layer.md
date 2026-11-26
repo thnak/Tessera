@@ -1,8 +1,9 @@
 # ADR-075: Server data in TSX: a `fetch` shim and a query layer, both over the one net client
 
-- Status: Proposed (2026-11-26). The owner decided the two scope questions on 2026-11-26: the
-  `fetch` shim is in, and the query layer is **V1**. The shapes below need the owner's answers in
-  "Questions for the owner" before this is Accepted.
+- Status: Proposed (2026-11-26). The owner decided on 2026-11-26: the `fetch` shim is in; the query
+  layer is **V1**; the `.then` chain is the V1 surface; `json()` carries its type at the call;
+  `queryKey` scope is mandatory; `HttpService` lives next to `NetClient` in `appfw`. One question
+  (variant types, below) is still open before this is Accepted.
 - Date: 2026-11-26
 - Related: [ADR-058](ADR-058-react-vite-port-compatibility-tiers.md) (class B shim packages; its
   server-data row and section 5 step 5 are what this ADR schedules),
@@ -50,9 +51,14 @@ and effects: `fetch(url[, init]).then(r => r.json()).then(setter)` with an optio
 
 - `init`: `method`, `headers` (object literal of strings), `body` (a string or a record serialized as
   JSON), `signal`. Anything else is a diagnostic naming the supported form.
-- `Response` subset: `ok`, `status`, `url`, `headers.get(name)`, `json()`, `text()`. `json()` is typed
-  by the setter it flows into (a `useState<Item[]>` gives a generated decoder for `Item[]`); a decode
-  mismatch is a rejection with a typed error, never an untyped value.
+- `Response` subset: `ok`, `status`, `url`, `headers.get(name)`, `json()`, `text()`. `json<T>()` carries its type
+  at the call (`r.json<Item[]>()`); the analyzer generates a decoder for `T`. A bare `json()` is a
+  diagnostic that shows the form. A decode mismatch rejects with a typed error, never an untyped value.
+  `T` is any type the subset accepts today: scalars, records (ADR-051), lists, `T | null` and string-literal
+  unions (an unknown literal is a decode error). **Variant types** (a discriminated union such as
+  `{kind:"a",..} | {kind:"b",..}`) are not accepted by `jsx-subset-v1.md` (a union is `T | null` or string
+  literals only), so they are a diagnostic. V1 workaround: a flat record with nullable fields, or a
+  `bind::` method that decodes in C++. Whether to add variant types is its own decision (question 1).
 - `AbortController`/`signal` map to the effect cleanup's cancellation token. Unmounting cancels.
 - A 4xx/5xx resolves with `ok: false`, as in the browser; only `NetError` rejects.
 - Lowering is an IR action that calls the `HttpService` and routes the typed result to the setter on the
@@ -94,7 +100,7 @@ from C++, or a later shim). A project may ship its own shim package on the same 
   services (ADR-055) cover server data without a new mechanism.
 - Cost: two promised API surfaces. The coverage table and the rule that unsupported calls are
   diagnostics bound it to what is tested.
-- Typed `json()` decoding adds generated code per record type used; measure it with the memory budget.
+- Typed `json<T>()` decoding adds generated code per record type used; measure it with the memory budget.
 - No JS runtime is introduced and the IR stays additive.
 
 ## Alternatives
@@ -109,15 +115,17 @@ from C++, or a later shim). A project may ship its own shim package on the same 
 
 ## Questions for the owner
 
-1. Is the chain form (`.then`/`.catch`) the right accepted `fetch` surface, with `await` left to a
-   later handler-subset ADR?
-2. Is typed `json()` (decoder derived from the receiving state type) acceptable, or must a type argument
-   be written at the call?
-3. Is the V1 query subset in section 3 the right cut, in particular mandatory scope in `queryKey`?
-4. Should `HttpService` live in `appfw` next to `NetClient` (proposed) or in a services module?
+1. **Open.** Real APIs return variants (error vs success bodies, tagged events). Do we add discriminated
+   union types to the subset and IR (a separate ADR, additive to ADR-051), or hold V1 to the workaround
+   above? Until decided, `json<T>()` rejects them.
+
+Decided on 2026-11-26: the `.then`/`.catch` chain is the V1 `fetch` surface (`await` waits for a
+handler-subset ADR); `json<T>()` carries the type; the V1 query subset stands, with a mandatory scope in
+`queryKey`; `HttpService` lives in `appfw` next to `NetClient`.
 
 ## Follow-up
 
+- Check the variant-type answer against `jsx-subset-v1.md` section 5 before the decoder is built.
 - When accepted: a spec `docs/specs/query-v1.md` (API and coverage table), a `fetch` section in
   `jsx-subset-v1.md`, the `HttpService` interface and tests, then the shim packages and analyzer rules,
   each its own issue under V1-M5.
