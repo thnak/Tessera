@@ -52,8 +52,12 @@ and effects: `fetch(url[, init]).then(r => r.json()).then(setter)` with an optio
 - `init`: `method`, `headers` (object literal of strings), `body` (a string or a record serialized as
   JSON), `signal`. Anything else is a diagnostic naming the supported form.
 - `Response` subset: `ok`, `status`, `url`, `headers.get(name)`, `json()`, `text()`. `json<T>()` carries its type
-  at the call (`r.json<Item[]>()`); the analyzer generates a decoder for `T`. A bare `json()` is a
-  diagnostic that shows the form. A decode mismatch rejects with a typed error, never an untyped value.
+  at the call (`r.json<Item[]>()`); the analyzer generates a decoder for `T`. When `T` is not written it is
+  inferred where unambiguous: from the setter the result flows into (`useState<Item[]>`) or from the
+  `useQuery` result type; a bare `json()` with no inferable type is a diagnostic that prints the form. The
+  cast `r.json() as Promise<Item[]>` (or `as Item[]` on the awaited value) is accepted at this one site as
+  the type argument, since it is the common ported spelling. Existing `interface` and string-enum API
+  types work as `T` through ADR-058 rule 1. Decoding is lenient like TypeScript: extra JSON fields are ignored, a missing field is `null` when its type is `T | null`, a JSON number decodes into `float` always and into `int` only when integral, and a mismatch (including an unknown string literal) rejects with a typed error, never an untyped value. `tessera port-check` prints the `json<T>()` line to write, and the flat-record rewrite for a variant response.
   `T` is any type the subset accepts today: scalars, records (ADR-051), lists, `T | null` and string-literal
   unions (an unknown literal is a decode error). **Variant types** (a discriminated union such as
   `{kind:"a",..} | {kind:"b",..}`) are not accepted by `jsx-subset-v1.md` (a union is `T | null` or string
