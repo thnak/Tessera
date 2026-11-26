@@ -73,7 +73,9 @@ StyleEnvironment standard_environment(const StandardEnvironmentInputs& inputs) {
     environment.set("safe-area-inset-right", length(inputs.safe_area_right));
     environment.set("safe-area-inset-bottom", length(inputs.safe_area_bottom));
     environment.set("safe-area-inset-left", length(inputs.safe_area_left));
-    environment.set("preferred-text-scale", number(inputs.text_scale));
+    if (inputs.text_scale) {
+        environment.set("preferred-text-scale", number(*inputs.text_scale));
+    }
 
     // A grid that does not match its rectangles is a host bug; fall back to the one-segment
     // viewport rather than answering for a segment that has no rectangle.

@@ -121,8 +121,14 @@ public:
     PreparedPreviewSheets() = default;
 
     // Resolves `@media` against `media`; nothing is tokenized or parsed again.
+    // `environment` is what `env()` reads (ADR-074); null leaves every `env()` on its fallback.
     [[nodiscard]] tessera::ui::style::CompiledStyleSheet
-    resolve(const tessera::ui::style::MediaContext& media) const;
+    resolve(const tessera::ui::style::MediaContext& media,
+            const tessera::ui::style::StyleEnvironment* environment = nullptr) const;
+    // True when a variable any sheet reads through `env()` differs between the two environments.
+    [[nodiscard]] bool
+    environment_answer_can_change(const tessera::ui::style::StyleEnvironment& from,
+                                  const tessera::ui::style::StyleEnvironment& to) const;
     // True when moving between the two contexts can change what any sheet's `@media` answers.
     [[nodiscard]] bool media_answer_can_change(const tessera::ui::style::MediaContext& from,
                                                const tessera::ui::style::MediaContext& to) const;

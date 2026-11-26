@@ -3342,6 +3342,9 @@ function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::parse_v
 function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::resolve_viewport_length
 function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::viewport_extent
 
+header include/tessera/ui/style/window_environment.hpp
+function include/tessera/ui/style/window_environment.hpp tessera::ui::style::window_environment
+
 header include/tessera/ui/text/bidi.hpp
 alias include/tessera/ui/text/bidi.hpp tessera::ui::text::BidiAdvance
 function include/tessera/ui/text/bidi.hpp tessera::ui::text::bidi_apply_visual_runs

@@ -66,6 +66,30 @@ ui::InputEvent to_input_event(const PreviewInput& input, double timestamp_s) {
     return event;
 }
 
+namespace {
+
+SceneMetrics metrics_of(const PreviewSession::Options& options) {
+    SceneMetrics metrics;
+    metrics.width = options.width;
+    metrics.height = options.height;
+    metrics.dpi_scale = options.dpi_scale;
+    metrics.posture = options.posture;
+    metrics.insets = options.insets;
+    metrics.cutouts = options.cutouts;
+    return metrics;
+}
+
+ui::style::CompiledStyleSheet initial_sheet(const PreviewSession::Options& options,
+                                            const ui::style::CompiledStyleSheet& fallback) {
+    if (!options.prepared.has_value()) {
+        return fallback;
+    }
+    const ui::style::StyleEnvironment environment = preview_environment(metrics_of(options));
+    return options.prepared->resolve(options.media, &environment);
+}
+
+} // namespace
+
 PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& component,
                                const ui::style::CompiledStyleSheet& sheet, Options options)
     : module_(module),
@@ -73,9 +97,10 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
       // A session given the media-independent form resolves it itself against the viewport it was
       // asked for (issue #436), so a caller cannot hand it a sheet compiled for a different
       // rectangle. A caller that passes a compiled sheet keeps it, which is every pre-#436 caller.
-      sheet_(options.prepared.has_value() ? options.prepared->resolve(options.media) : sheet),
+      sheet_(initial_sheet(options, sheet)),
       options_(std::move(options)),
-      media_(options_.media) {
+      media_(options_.media),
+      style_environment_(preview_environment(metrics_of(options_))) {
     layout_metrics_.width = options_.width;
     layout_metrics_.height = options_.height;
     layout_metrics_.dpi_scale = options_.dpi_scale;
@@ -269,16 +294,23 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     // breakpoint leaves `sheet_` - and the whole paint cache behind it - untouched.
     const ui::style::MediaContext media =
         preview_media_context(next.width, next.height, next.dpi_scale, next.posture);
+    // The environment (ADR-074) moves with the safe area and the posture the same way: a sheet is
+    // re-resolved only when a variable it reads has a new value.
+    const ui::style::StyleEnvironment environment = preview_environment(next);
     const bool restyle =
-        options_.prepared.has_value() && options_.prepared->media_answer_can_change(media_, media);
+        options_.prepared.has_value() &&
+        (options_.prepared->media_answer_can_change(media_, media) ||
+         options_.prepared->environment_answer_can_change(style_environment_, environment));
     const SceneMetrics previous = layout_metrics_;
     const ui::style::MediaContext previous_media = media_;
+    const ui::style::StyleEnvironment previous_environment = style_environment_;
 
     layout_metrics_ = next;
     if (restyle) {
-        sheet_ = options_.prepared->resolve(media);
+        sheet_ = options_.prepared->resolve(media, &environment);
     }
     media_ = media;
+    style_environment_ = environment;
     // `useBreakpoint()` reads the same media context the `@media` rules do (issue #692), so the
     // class is pushed here, before the pass that will paint it. A resize inside one class pushes
     // nothing, exactly as in `AppHost`.
@@ -288,8 +320,9 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
         // viewport that was never applied. The re-resolve is undone with it.
         layout_metrics_ = previous;
         media_ = previous_media;
+        style_environment_ = previous_environment;
         if (restyle) {
-            sheet_ = options_.prepared->resolve(previous_media);
+            sheet_ = options_.prepared->resolve(previous_media, &previous_environment);
         }
         return false;
     }

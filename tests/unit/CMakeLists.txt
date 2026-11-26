@@ -457,6 +457,18 @@ target_link_libraries(app_host_fold_media_tests PRIVATE
 
 add_test(NAME app_host_fold_media COMMAND app_host_fold_media_tests)
 
+# ADR-074 `env()` in the host: the variables follow the window metrics, and the cascade re-resolves
+# only for a variable a sheet reads.
+add_executable(app_host_environment_tests
+    app_host_environment_tests.cpp)
+
+target_link_libraries(app_host_environment_tests PRIVATE
+    tessera_app
+    tessera_runtime
+    tessera_harness_testing)
+
+add_test(NAME app_host_environment COMMAND app_host_environment_tests)
+
 # Embedded stylesheet registration (issue #81, ADR-048): blobs load in table (import-graph) order,
 # a later sheet wins an equal cascade key, and a corrupt blob is reported and skipped. Painting goes
 # through a deterministic CPU sink; no GPU, font or wall clock.

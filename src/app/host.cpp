@@ -222,6 +222,7 @@ void AppHost::Impl::rebuild_cascade() {
         }
         combined.append_sheet(ui::style::prepare_theme_stylesheet(theme_asset, active_theme_id),
                               ui::style::Origin::Theme);
+        combined.set_environment(style_environment);
         sheet = std::move(combined);
         return;
     }
@@ -232,6 +233,7 @@ void AppHost::Impl::rebuild_cascade() {
     }
     combined.append_sheet(ui::style::prepare_theme_stylesheet(theme_asset, active_theme_id),
                           ui::style::Origin::Theme);
+    combined.set_environment(style_environment);
     sheet = std::move(combined);
 }
 
@@ -490,6 +492,7 @@ void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
     }
     // The fold is part of the media context too (`device-posture`, the viewport-segment features).
     state.apply_fold(metrics.fold);
+    state.apply_environment(metrics);
     if (!state.safe_area.set_metrics(metrics, state.reduced_motion)) {
         return;
     }

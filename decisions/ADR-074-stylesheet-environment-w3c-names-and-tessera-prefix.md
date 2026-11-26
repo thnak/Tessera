@@ -179,7 +179,14 @@ Slices, one landing each, to be filed when this is accepted:
 3. The `--tessera-` variables, the continuous/discrete rule and the paint-only diagnostic, plus the
    Android feed for the angle.
 4. The preview and host fill the fold and environment from `FoldInfo` and the metrics in one shared
-   function, with the Studio and MCP agreeing.
+   function, with the Studio and MCP agreeing. **Implemented for the standard variables:**
+   `window_environment` (`window_environment.hpp`) is that one function.
+   `AppHost::set_window_metrics` calls it and `PreviewSession` calls it through `preview_environment`,
+   so the native preview, the Studio and an agent's snapshot share it. Both re-resolve only when a
+   variable a sheet reads has a new value; tests `app_host_environment` and `scene_environment`.
+   Known gaps: `WindowMetrics` carries no OS text scale, so `preferred-text-scale` does not exist
+   until a host supplies one (the fallback applies, not a made-up 1); and an `env()` in a node's
+   inline style is not in the sheet scan, so it follows a change only when something else restyles.
 
 Open questions for the owner: should reading the hinge angle be a declared permission in
 `permissions` (that spec lists no sensor category today and says nothing is on by default); and

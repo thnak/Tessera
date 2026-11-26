@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -50,7 +51,10 @@ struct StandardEnvironmentInputs {
     float safe_area_right = 0.0f;
     float safe_area_bottom = 0.0f;
     float safe_area_left = 0.0f;
-    float text_scale = 1.0f;
+    // Absent when the platform reported none: the variable then does not exist and an `env()`
+    // fallback applies, instead of a made-up 1.0 telling a stylesheet the user has the default
+    // scale.
+    std::optional<float> text_scale;
     // The segment grid, row-major: `segments_x * segments_y` rectangles. Empty means the single
     // whole-viewport segment given by `viewport_width` and `viewport_height`.
     float viewport_width = 0.0f;

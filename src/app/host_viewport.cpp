@@ -28,6 +28,7 @@
 
 #include "host_impl.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/style/window_environment.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -153,6 +154,37 @@ void AppHost::Impl::apply_fold(const hal::FoldInfo& fold) {
     if (cascade_moves) {
         apply_style_generation(ui::Dirty::Style | ui::Dirty::Paint | ui::Dirty::Render);
     }
+}
+
+// New `env()` values (ADR-074). The size is the host's own, because a snapshot that carries only
+// insets has no extent of its own.
+void AppHost::Impl::apply_environment(const hal::WindowMetrics& metrics) {
+    style::StyleEnvironment next = style::window_environment(metrics, config.width, config.height);
+    static const style::StyleEnvironment kNone;
+    const style::StyleEnvironment& before =
+        style_environment != nullptr ? *style_environment : kNone;
+    if (next == before) {
+        return;
+    }
+    const bool cascade_moves = environment_answer_can_change(before, next);
+    style_environment = std::make_shared<const style::StyleEnvironment>(std::move(next));
+    sheet.set_environment(style_environment);
+    if (cascade_moves) {
+        // A variable can feed any property, layout included.
+        apply_style_generation(ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint |
+                               ui::Dirty::Render);
+    }
+}
+
+bool AppHost::Impl::environment_answer_can_change(const style::StyleEnvironment& before,
+                                                  const style::StyleEnvironment& after) const {
+    if (base_prepared.has_value() && base_prepared->environment_answer_can_change(before, after)) {
+        return true;
+    }
+    return std::any_of(embedded_sheets.begin(), embedded_sheets.end(),
+                       [&](const style::PreparedStyleSheet& prepared) {
+                           return prepared.environment_answer_can_change(before, after);
+                       });
 }
 
 // True when resolving the sheet against `before` and against `after` can yield a different cascade.

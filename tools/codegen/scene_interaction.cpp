@@ -248,10 +248,17 @@ InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewO
     // against the sheet the page shows, or the state cells it reports would come from a differently
     // styled tree. The viewport is the media context too (issue #436), exactly as in
     // `prepare_scene()`.
+    SceneMetrics environment_metrics;
+    environment_metrics.width = options.width;
+    environment_metrics.height = options.height;
+    environment_metrics.dpi_scale = options.dpi_scale;
+    environment_metrics.posture = options.posture;
+    const ui::style::StyleEnvironment environment = preview_environment(environment_metrics);
     const ui::style::CompiledStyleSheet sheet =
         prepare_preview_sheets(evaluated->sheets)
             .prepared.resolve(preview_media_context(options.width, options.height,
-                                                    options.dpi_scale, options.posture));
+                                                    options.dpi_scale, options.posture),
+                              &environment);
     PreviewSession::Options session_options;
     session_options.width = options.width;
     session_options.height = options.height;
