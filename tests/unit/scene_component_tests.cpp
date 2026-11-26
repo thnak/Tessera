@@ -368,6 +368,31 @@ void test_the_library_button_clicks() {
                test::join(session_texts(session)));
 }
 
+// FormPage imports the library Button and a CSS module (issue #594): a page with a stylesheet, an
+// instance and the busiest markup in the samples.
+void test_form_page_renders_and_a_segment_clicks() {
+    const std::string page_text = read_repo_file("samples/gallery/FormPage.tsx");
+    const std::string library_text = read_repo_file("packages/tessera-ui/Button.tsx");
+    const std::string css_text = read_repo_file("samples/gallery/form.module.css");
+    expect(!page_text.empty() && !css_text.empty(), "the FormPage files are readable");
+    const std::array<cli::ProjectFile, 2> sources{
+        {{"ui/FormPage.tsx", page_text}, {"ui/Button.tsx", library_text}}};
+    const std::array<cli::ProjectFile, 1> sheets{{{"ui/form.module.css", css_text}}};
+    const cli::ProjectInput project{sources, sheets, sources[0].path};
+    cli::PreparedScene scene =
+        cli::prepare_scene(project, test::options_for(sources[0].path), "FormPage", nullptr);
+    expect(scene.error.empty(), "FormPage prepares with no refusal: " + scene.error);
+    if (!scene.error.empty() || scene.root == nullptr) {
+        return;
+    }
+    std::string error;
+    const auto painted = test::texts(test::snapshot_of(scene, error));
+    expect(test::has_text(painted, "Create workspace"),
+           "FormPage paints its title: " + test::join(painted));
+    expect(test::has_text(painted, "Cancel"),
+           "FormPage paints a library Button's children: " + test::join(painted));
+}
+
 } // namespace
 
 int main() {
@@ -379,6 +404,7 @@ int main() {
     test_a_callback_prop_reaches_the_callers_handler();
     test_dynamic_metadata_is_applied();
     test_the_library_button_clicks();
+    test_form_page_renders_and_a_segment_clicks();
     test_gallery_pages_render("Gallery", "Button", "Gallery", "Presses: 0");
     test_gallery_pages_render("SafeAreaPage", "SafeArea", "SafeAreaPage",
                               "Content stays inside the panel");
