@@ -131,6 +131,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     // a component without a requirement gains no include line.
     if (uses_services(component)) {
         writer.line("#include \"tessera/appfw/service_context.hpp\"");
+        writer.line("#include \"tessera/appfw/service_requirements.hpp\"");
         for (const std::string& header : service_headers(component)) {
             writer.line("#include \"" + header + "\"");
         }

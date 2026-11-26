@@ -83,7 +83,7 @@ std::string pointer_list(const ir::Component& component) {
 // use one is a collision diagnostic instead of a redeclaration error in the generated C++.
 constexpr std::string_view kGeneratedNames[] = {"attach_services", "services_",
                                                 "has_service_v",   "ServiceRequirement",
-                                                "service",         "service_unavailable"};
+                                                "service",         "service_unavailable", "required_services"};
 
 // One slot, one pointer. Two requirements on the same C++ interface would make `std::get<T*>`
 // ambiguous, and two with the same binding name would collide in the struct, so both are rejected
@@ -237,6 +237,20 @@ bool emit_service_accessors(CppWriter& writer, const ir::Component& component,
     writer.line("    } else {");
     writer.line("        return service_unavailable<T>();");
     writer.line("    }");
+    writer.line("}");
+    writer.line("// ADR-050 section 3.1 item 6: this component's requirements, for the composition");
+    writer.line("// root's startup validation (tessera::appfw::find_missing_services).");
+    writer.line("[[nodiscard]] static std::span<const tessera::appfw::RequiredService>");
+    writer.line("required_services() noexcept {");
+    writer.line("    static constexpr tessera::appfw::RequiredService kRequired[] = {");
+    for (const ir::Service& service : component.services) {
+        writer.line("        {" + service.type + "::kServiceId, \"" + service.type + "\", \"" +
+                    component.name + "\", \"" + service.source.file + ":" +
+                    std::to_string(service.source.line) + ":" +
+                    std::to_string(service.source.column) + "\"},");
+    }
+    writer.line("    };");
+    writer.line("    return kRequired;");
     writer.line("}");
     for (const ir::Service& service : component.services) {
         writer.line("// The service `" + service.id + "` (`" + service.name +

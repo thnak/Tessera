@@ -33,6 +33,24 @@ int main() {
     check(services.provide<demo::Navigator>(navigator).has_value(), "the Navigator is provided");
     check(services.freeze().has_value(), "the registry freezes");
 
+    // ADR-050 section 3.1 item 6: the component lists its requirement, and the startup check finds
+    // it satisfied here and missing from an empty scope, naming the TSX location.
+    {
+        const auto required = demo::Inbox::required_services();
+        check(required.size() == 1, "the component lists one requirement");
+        check(required[0].id == demo::Navigator::kServiceId, "the requirement carries the id");
+        check(required[0].component == "Inbox", "the requirement names the component");
+        check(required[0].source.find(":") != std::string_view::npos, "and the TSX location");
+        tessera::appfw::RequiredService missing[1];
+        check(tessera::appfw::find_missing_services(services, required, missing) == 0,
+              "a scope that provides the service has nothing missing");
+        tessera::appfw::ServiceContext empty;
+        check(empty.freeze().has_value(), "an empty scope freezes");
+        check(tessera::appfw::find_missing_services(empty, required, missing) == 1,
+              "an empty scope is missing the service");
+        check(missing[0].type == "demo::Navigator", "the missing entry names the interface");
+    }
+
     demo::Inbox inbox;
     tessera::ui::Node root(900);
     inbox.build(root);

@@ -72,7 +72,6 @@ the hook form in `rules` (checked against the manifest), `nav.push(...)` lowered
 Still open, each its own change:
 
 1. ~~`services.d.ts` generation~~ landed: `src/compiler/services/src/typings.cpp`, emitted by `regenerate` next to the generated base, ctest `services_typings`.
-2. **Startup validation of missing providers**, which needs the union of requirements across components
-   (ADR-050 section 3.1 item 6; AF1's runtime form already terminates with `TESSERA_APPFW_SERVICE_MISSING`).
+2. ~~Startup validation~~ landed as a seam: every generated base exposes `required_services()` (id, interface, component, TSX location), and `tessera::appfw::find_missing_services` / `report_missing_services` (`include/tessera/appfw/service_requirements.hpp`) check a list against a frozen scope. The composition root concatenates the lists of the components it mounts and calls it before any mount; wiring that into `Application` is open because `Application` does not own a `ServiceContext` yet. Test: `codegen_services_tsx_runtime`.
 3. **Manifest delivery** to Studio, preview and mcp callers, which pass no manifest today.
 4. **Effect bodies** stay native; only handler-body service calls lower to IR.

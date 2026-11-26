@@ -80,9 +80,10 @@ cannot silently drop a method.
 5. **The id check.** Codegen emits `static_assert(T::kServiceId == tessera::appfw::service_id("<id>"))` in
    the generated base, so a manifest id that disagrees with the C++ interface is a compile error, not a
    runtime miss.
-6. **Startup validation.** The union of the requirements of every compiled component is emitted as a
-   list of ids; `Application` checks it against the frozen scopes before P4 and reports every missing
-   provider with the component and TSX location (`TESSERA_APPFW_SERVICE_MISSING`).
+6. **Startup validation.** Each generated base exposes its requirements as `required_services()`; the
+   composition root takes the union of the components it mounts and checks it with
+   `find_missing_services` against the frozen scopes before P4, reporting every missing provider with
+   the component and TSX location (`TESSERA_APPFW_SERVICE_MISSING`).
 
 ## 4. Diagnostics
 
