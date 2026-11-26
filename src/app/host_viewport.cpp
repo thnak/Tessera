@@ -167,12 +167,16 @@ void AppHost::Impl::apply_environment(const hal::WindowMetrics& metrics) {
         return;
     }
     const bool cascade_moves = environment_answer_can_change(before, next);
+    // A hinge that moved is the only change a sheet can only paint with (ADR-074 section 4), so it
+    // restyles without a layout pass; anything else can feed a box.
+    const bool paint_only = style::differs_only_in_continuous(before, next);
     style_environment = std::make_shared<const style::StyleEnvironment>(std::move(next));
     sheet.set_environment(style_environment);
     if (cascade_moves) {
-        // A variable can feed any property, layout included.
-        apply_style_generation(ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint |
-                               ui::Dirty::Render);
+        // A discrete variable can feed any property, layout included.
+        apply_style_generation(paint_only ? ui::Dirty::Style | ui::Dirty::Paint | ui::Dirty::Render
+                                          : ui::Dirty::Style | ui::Dirty::Layout |
+                                                ui::Dirty::Paint | ui::Dirty::Render);
     }
 }
 

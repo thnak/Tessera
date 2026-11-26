@@ -3229,6 +3229,10 @@ class include/tessera/ui/style/style_environment.hpp tessera::ui::style::StyleEn
 struct include/tessera/ui/style/style_environment.hpp tessera::ui::style::EnvironmentSegment
 struct include/tessera/ui/style/style_environment.hpp tessera::ui::style::StandardEnvironmentInputs
 function include/tessera/ui/style/style_environment.hpp tessera::ui::style::collect_env_references
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::css_angle
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::css_length
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::differs_only_in_continuous
+function include/tessera/ui/style/style_environment.hpp tessera::ui::style::is_continuous_environment_name
 function include/tessera/ui/style/style_environment.hpp tessera::ui::style::standard_environment
 
 header include/tessera/ui/style/stylesheet_blob.hpp

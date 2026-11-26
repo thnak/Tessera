@@ -70,6 +70,21 @@ struct StandardEnvironmentInputs {
 // slice.
 [[nodiscard]] StyleEnvironment standard_environment(const StandardEnvironmentInputs& inputs);
 
+// `env()` variables whose value changes every frame while a user moves a device (ADR-074
+// section 4): today only `--tessera-hinge-angle`. A continuous variable may feed only a paint-only
+// property; `resolve_variables` drops a layout property that reads one, with a diagnostic.
+[[nodiscard]] bool is_continuous_environment_name(std::string_view name);
+
+// True when `before` and `after` differ, and every differing variable is continuous. The host reads
+// it to restyle for paint only, with no layout pass, when a hinge moves.
+[[nodiscard]] bool differs_only_in_continuous(const StyleEnvironment& before,
+                                              const StyleEnvironment& after);
+
+// CSS text for a value, as a variable substitutes it: `12px`, `34.5px`, `135deg`. At most four
+// decimals, no exponent, and a non-finite input reads as 0.
+[[nodiscard]] std::string css_length(float px);
+[[nodiscard]] std::string css_angle(float degrees);
+
 // The variable names a declaration value reads through `env()`, in order of appearance, including
 // ones inside a fallback. Strings are skipped.
 void collect_env_references(std::string_view value, std::vector<std::string>& names);

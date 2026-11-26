@@ -98,6 +98,7 @@ bool test_substitution() {
                  {"width", "env(viewport-segment-width   0 0)"},
                  {"margin-left", "env(safe-area-inset-left, 99px)"},
                  {"margin-right", "env(not-a-variable, 12px)"},
+                 {"transform", "rotate(env(not-a-variable,   5deg  ))"},
                  {"margin-top", "env(not-a-variable, var(--gap, 3px))"},
                  {"--inset", "env(safe-area-inset-top)"},
                  {"top", "var(--inset)"},
@@ -111,6 +112,8 @@ bool test_substitution() {
            expect(value_of(style, "margin-right") == "12px",
                   "a missing variable takes the fallback") &&
            expect(value_of(style, "margin-top") == "3px", "a fallback may hold var()") &&
+           expect(value_of(style, "transform") == "rotate(5deg)",
+                  "the padding around a fallback is not part of it") &&
            expect(value_of(style, "top") == "47px", "a custom property may hold env()") &&
            expect(value_of(style, "font-family") == "\"env(safe-area-inset-top)\"",
                   "a string is not a call");
@@ -194,12 +197,60 @@ bool test_answer_can_change() {
                   "a variable that appears changes the answer");
 }
 
+bool test_continuous_variables() {
+    StyleEnvironment env = standard_environment(phone_inputs());
+    env.set("--tessera-hinge-angle", css_angle(135.0f));
+    std::vector<StyleDiagnostic> diagnostics;
+    const ComputedStyle style =
+        compute({{"transform", "rotate(env(--tessera-hinge-angle, 180deg))"},
+                 {"opacity", "env(--tessera-hinge-angle, 0.5)"},
+                 {"width", "env(--tessera-hinge-angle, 10px)"},
+                 {"--spin", "env(--tessera-hinge-angle, 180deg)"},
+                 {"margin-left", "var(--spin)"},
+                 {"padding-left", "env(safe-area-inset-top)"}},
+                &env, &diagnostics);
+    // The same sheet with no sensor: the variable does not exist, the fallbacks apply.
+    const StyleEnvironment unmeasured = standard_environment(phone_inputs());
+    const ComputedStyle bare = compute({{"transform", "rotate(env(--tessera-hinge-angle, 180deg))"},
+                                        {"width", "env(--tessera-hinge-angle, 10px)"}},
+                                       &unmeasured);
+    StyleEnvironment moved = env;
+    moved.set("--tessera-hinge-angle", css_angle(136.0f));
+    StyleEnvironment inset_moved = env;
+    inset_moved.set("safe-area-inset-top", "1px");
+    return expect(is_continuous_environment_name("--tessera-hinge-angle") &&
+                      !is_continuous_environment_name("--tessera-ime-inset-top") &&
+                      !is_continuous_environment_name("safe-area-inset-top"),
+                  "only the hinge angle is continuous") &&
+           expect(value_of(style, "transform") == "rotate(135deg)", "a paint property reads it") &&
+           expect(value_of(style, "opacity") == "135deg",
+                  "any paint property takes the text; the type is its own grammar's concern") &&
+           expect(style.find("width") == nullptr || *style.find("width") != "135deg",
+                  "a layout property that reads it is dropped") &&
+           expect(style.find("margin-left") == nullptr || *style.find("margin-left") != "135deg",
+                  "so is one that reads it through a custom property") &&
+           expect(value_of(style, "padding-left") == "47px", "a discrete variable is still fine") &&
+           expect(diagnostics.size() == 2, "one diagnostic per dropped layout property") &&
+           expect(value_of(bare, "transform") == "rotate(180deg)",
+                  "no sensor: the paint fallback applies") &&
+           expect(bare.find("width") == nullptr || *bare.find("width") != "10px",
+                  "a layout property is invalid whether or not a sensor exists") &&
+           expect(differs_only_in_continuous(env, moved), "a moving hinge is continuous-only") &&
+           expect(!differs_only_in_continuous(env, inset_moved), "an inset is not") &&
+           expect(!differs_only_in_continuous(env, env), "equal environments are not a change") &&
+           expect(differs_only_in_continuous(unmeasured, env),
+                  "a hinge appearing is continuous-only") &&
+           expect(!differs_only_in_continuous(unmeasured, inset_moved),
+                  "an appearing hinge beside an inset change is not");
+}
+
 } // namespace
 
 int main() {
     return test_standard_variables() && test_substitution() &&
                    test_invalid_at_computed_value_time() && test_parse_time_validity() &&
-                   test_sheet_reads_env_through_compiled_sheet() && test_answer_can_change()
+                   test_sheet_reads_env_through_compiled_sheet() && test_answer_can_change() &&
+                   test_continuous_variables()
                ? 0
                : 1;
 }
