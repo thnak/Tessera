@@ -159,6 +159,7 @@ private:
     bool parse_import(ModuleItem& item);
     bool parse_reexport(ModuleItem& item);
     bool parse_type_alias(ModuleItem& item);
+    bool parse_interface(ModuleItem& item);
     bool parse_const_item(ModuleItem& item);
     // ADR-066 item 1: `const Name = (props: Props) => { ... }`, tried from parse_const_item and
     // rewound when the text is an ordinary constant instead.

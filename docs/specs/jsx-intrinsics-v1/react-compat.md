@@ -51,6 +51,8 @@ The edits a port is asked to make by hand each have a stable code, a location an
 | `Record<K, V>`, `Map<K, V>` | `TESSERA_JSX_TYPE_MAP` | `Entry[]` with `type Entry = { key: string; value: T }` until a map type exists |
 | `useState([])`, `useState({})` | `TESSERA_JSX_TYPE_STATE_UNTYPED` | `useState<Item[]>([])`, `useState<Item>({})` |
 
+Absorbed without an edit (typing rule 1, #547 slice 1): `interface X { ... }` and `export interface X { ... }` are the type alias `type X = { ... }`, and `import type` / `export type { }` were already accepted. `interface X extends Y` and a generic interface stay `TESSERA_JSX_SUBSET_TYPES` with the fix to write the members out. String `enum`, `as const` objects, `Partial`/`Pick`/`Omit`/`Required` and record intersections are the open part of #547.
+
 An inline object type on the props parameter stays accepted: the lowering already gives it a synthesized record, so no diagnostic is raised for it.
 
 ## 2. Event props and payloads (decided: Q1, option C)

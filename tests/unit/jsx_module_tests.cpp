@@ -123,6 +123,16 @@ void test_types_and_constants() {
     check(parse_module("export type P = int;").root->items[0].exported, "exported flag");
     check_eq(dump_module("const kMax: int = 10;\nexport const kName = \"x\";"),
              "(module\n  (const kMax : int (num 10))\n  (const kName (str \"x\")))", "constants");
+    // ADR-058 typing rule 1 (#547): an interface is the same module item as the alias it replaces.
+    check_eq(dump_module("export interface Props { initial: int; label?: string }"),
+             dump_module("export type Props = { initial: int; label?: string };"),
+             "an interface parses to the type alias of the same members");
+    check(parse_module("export interface P { a: int }").root->items[0].exported,
+          "an exported interface keeps the flag");
+    check_eq(codes(parse_module("interface P extends Q { a: int }")), "TESSERA_JSX_SUBSET_TYPES;",
+             "interface extends is rejected with the fix");
+    check_eq(codes(parse_module("interface P<T> { a: T }")), "TESSERA_JSX_SUBSET_TYPES;",
+             "a generic interface is rejected");
     check_eq(codes(parse_module("type Bad = any;")), "TESSERA_JSX_TYPE_ANY;",
              "type errors surface from aliases");
     check_eq(codes(parse_module("const a = ;")), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;",

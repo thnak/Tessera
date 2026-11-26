@@ -211,7 +211,7 @@ and no silent skipping.
 | State setter called during render | `TESSERA_REACT_SETTER_IN_RENDER` | Call it in a handler or an effect |
 | Missing or extra effect dependency | `TESSERA_REACT_EFFECT_DEPS` | Match dependencies exactly |
 | Missing key on a list element | `TESSERA_REACT_LIST_KEY` | Add `key` |
-| Types in `.jsx`; `enum`, `interface`, `never`, `object`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
+| Types in `.jsx`; `enum`, `interface ... extends`, a generic `interface`, `never`, `object`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
 | Array methods other than `.map`, `.filter` and `.slice` (`reduce`, `forEach`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Sort in a setter or in developer C++ |
 | Bare `number` type | `TESSERA_JSX_TYPE_NUMBER` | Write `int` or `float` (section 5) |
 | `any` or `unknown` as a type | `TESSERA_JSX_TYPE_ANY` | Write the concrete type, or declare a record (ADR-058 typing rule 3) |
