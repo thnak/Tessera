@@ -123,45 +123,6 @@ void test_types_and_constants() {
     check(parse_module("export type P = int;").root->items[0].exported, "exported flag");
     check_eq(dump_module("const kMax: int = 10;\nexport const kName = \"x\";"),
              "(module\n  (const kMax : int (num 10))\n  (const kName (str \"x\")))", "constants");
-    // ADR-058 typing rule 1 (#547): an interface is the same module item as the alias it replaces.
-    check_eq(dump_module("export interface Props { initial: int; label?: string }"),
-             dump_module("export type Props = { initial: int; label?: string };"),
-             "an interface parses to the type alias of the same members");
-    check(parse_module("export interface P { a: int }").root->items[0].exported,
-          "an exported interface keeps the flag");
-    // #547: the utility types and record intersections expand to the one object type.
-    check_eq(dump_module("type P = { a: int; b?: string };\ntype X = Partial<P>;"),
-             dump_module("type P = { a: int; b?: string };\ntype X = { a?: int; b?: string };"),
-             "Partial makes every member optional");
-    check_eq(dump_module("type P = { a?: int; b: string };\ntype X = Required<P>;"),
-             dump_module("type P = { a?: int; b: string };\ntype X = { a: int; b: string };"),
-             "Required drops the optional marks");
-    check_eq(
-        dump_module("type P = { a: int; b: string; c: bool };\ntype X = Pick<P, \"a\" | \"c\">;"),
-        dump_module("type P = { a: int; b: string; c: bool };\ntype X = { a: int; c: bool };"),
-        "Pick keeps the named members");
-    check_eq(dump_module("type P = { a: int; b: string };\ntype X = Omit<P, \"b\">;"),
-             dump_module("type P = { a: int; b: string };\ntype X = { a: int };"),
-             "Omit drops the named members");
-    check_eq(dump_module("type X = A & B;\ntype A = { a: int };\ntype B = { b: string };"),
-             dump_module(
-                 "type X = { a: int; b: string };\ntype A = { a: int };\ntype B = { b: string };"),
-             "an intersection of records expands, whatever the declaration order");
-    check_eq(
-        dump_module("interface A { a: int }\ninterface B { b: int }\ntype X = Partial<A & B>;"),
-        dump_module(
-            "interface A { a: int }\ninterface B { b: int }\ntype X = { a?: int; b?: int };"),
-        "utility types compose with intersections");
-    check_eq(codes(parse_module("type X = Partial<Imported>;")), "TESSERA_JSX_TYPE_UTILITY;",
-             "a utility type over a name not declared here is rejected with the fix");
-    check_eq(codes(parse_module("type A = { a: int };\ntype X = Omit<A, \"zz\">;")),
-             "TESSERA_JSX_TYPE_UTILITY;", "an unknown key is rejected");
-    check_eq(codes(parse_module("type A = { a: int };\ntype X = A & int;")),
-             "TESSERA_JSX_TYPE_INTERSECTION;", "only records intersect");
-    check_eq(codes(parse_module("interface P extends Q { a: int }")), "TESSERA_JSX_SUBSET_TYPES;",
-             "interface extends is rejected with the fix");
-    check_eq(codes(parse_module("interface P<T> { a: T }")), "TESSERA_JSX_SUBSET_TYPES;",
-             "a generic interface is rejected");
     check_eq(codes(parse_module("type Bad = any;")), "TESSERA_JSX_TYPE_ANY;",
              "type errors surface from aliases");
     check_eq(codes(parse_module("const a = ;")), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;",

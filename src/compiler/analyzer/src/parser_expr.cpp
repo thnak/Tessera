@@ -249,6 +249,14 @@ ExprPtr Parser::parse_postfix() {
             }
             std::string name(cur_.text);
             advance(LexMode::Code);
+            if (!optional_chain && !value_namespaces_.empty() &&
+                expr->kind == ExprKind::Identifier && value_namespaces_.contains(expr->text)) {
+                expr = resolve_namespace_member(std::move(expr), std::move(name), begin);
+                if (!expr) {
+                    return nullptr;
+                }
+                continue;
+            }
             operands.push_back(std::move(expr));
             expr = make_operator(optional_chain ? ExprKind::OptionalMember : ExprKind::Member,
                                  begin, std::move(name), std::move(operands));

@@ -9,6 +9,7 @@
 #include "tessera/compiler/jsx/parser.hpp"
 
 #include <cstdint>
+#include <map>
 #include <set>
 #include <string>
 #include <string_view>
@@ -161,6 +162,12 @@ private:
     bool parse_reexport(ModuleItem& item);
     bool parse_type_alias(ModuleItem& item);
     bool parse_interface(ModuleItem& item);
+    bool parse_enum(ModuleItem& item);
+    // After `const X = { ... }`: a trailing `as const`, and the literal members of the object.
+    bool finish_const_object(ModuleItem& item);
+    // `Color.Red` over a known namespace: the literal, or null (and a diagnostic) when the name has
+    // no such member. Returns the input untouched when `object` names no namespace.
+    ExprPtr resolve_namespace_member(ExprPtr object, std::string name, std::uint32_t begin);
     // parser_type_expand.cpp: Partial/Required/Pick/Omit and intersections of records, expanded
     // once the whole module is parsed so an alias may be declared after its use.
     void expand_type_forms(Module& module);
@@ -219,6 +226,17 @@ private:
     std::size_t brace_depth_ = 0; // `{` minus `}` consumed since the item start; for recovery
     Span closing_lt_;             // the `<` that started the closing tag found by parse_children
     std::size_t depth_ = 0;
+    // ADR-058 typing rule 1 (#547): the members of every string `enum` and `as const` object
+    // declared so far in the file. `Color.Red` is replaced by the literal at parse time, so the
+    // rules, lowering and IR only ever see a literal. A name declared after its use is not known
+    // yet, which is the same order TypeScript needs for an `enum` at module scope.
+    struct NamespaceMember {
+        std::string name;
+        ExprKind kind = ExprKind::String;
+        std::string text;
+        double number = 0.0;
+    };
+    std::map<std::string, std::vector<NamespaceMember>> value_namespaces_;
     std::size_t conditional_then_depth_ = 0; // > 0 while parsing the then-branch of `?:`
     bool in_component_ = false;      // inside a component body: enables the props-spread rule
     std::string props_name_;         // name of the props parameter, empty when destructured

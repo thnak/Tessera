@@ -210,6 +210,7 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_SUBSET_UNKNOWN_PROP", "subset-unknown-prop", Entry::kJsx,
             "<A data-x=\"1\"/>", 3, 6),
     fixture("TESSERA_JSX_TYPE_ANY", "type-any", Entry::kType, "any", 0, 3),
+    fixture("TESSERA_JSX_TYPE_ENUM", "type-enum", Entry::kModule, "enum E { A }\n", 9, 1, 1),
     fixture("TESSERA_JSX_TYPE_INTERSECTION", "type-intersection", Entry::kModule,
             "type A = { a: int };\ntype B = { a: int };\ntype C = A & B;\n", 32, 6, 2),
     fixture("TESSERA_JSX_TYPE_UTILITY", "type-utility", Entry::kModule,

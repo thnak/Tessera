@@ -118,8 +118,8 @@ bool Parser::parse_item(ModuleItem& item) {
             return parse_component(item);
         }
         if (!cur_.is_keyword("function") && !cur_.is_keyword("const") && !cur_.is_keyword("type") &&
-            !cur_.is_keyword("interface")) {
-            fail_unexpected("`function`, `const`, `type` or `interface` after `export`");
+            !cur_.is_keyword("interface") && !cur_.is_keyword("enum")) {
+            fail_unexpected("`function`, `const`, `type`, `interface` or `enum` after `export`");
             return false;
         }
     }
@@ -142,6 +142,9 @@ bool Parser::parse_item(ModuleItem& item) {
     }
     if (cur_.is_keyword("interface")) {
         return parse_interface(item);
+    }
+    if (cur_.is_keyword("enum")) {
+        return parse_enum(item);
     }
     if (cur_.is_keyword("function")) {
         // Spike #659: with the experimental switch on, a `use...` function is a hook declaration
@@ -376,34 +379,6 @@ bool Parser::parse_type_alias(ModuleItem& item) {
     return item.type != nullptr && expect_semicolon();
 }
 
-// ADR-058 typing rule 1 (#547): `interface X { ... }` is a `type X = { ... }`. A port writes
-// interfaces for props and records, and the two are the same thing once there is no declaration
-// merging, `extends` or generics, so the form is absorbed without an edit. The forms that would
-// need those are rejected with the fix instead of being half-lowered.
-bool Parser::parse_interface(ModuleItem& item) {
-    item.kind = ItemKind::TypeAlias;
-    advance(LexMode::Code); // `interface`
-    if (cur_.kind != TokenKind::Identifier) {
-        fail_unexpected("an interface name");
-        return false;
-    }
-    item.name = std::string(cur_.text);
-    item.name_span = cur_.span;
-    advance(LexMode::Code);
-    if (!at_punct("{")) {
-        const bool extends = cur_.text == "extends";
-        fail("TESSERA_JSX_SUBSET_TYPES",
-             extends ? "interface `extends` is not supported"
-                     : "a generic interface is not supported",
-             cur_.span,
-             extends ? "write the inherited members out, or use one `type` with all the members"
-                     : "declare one interface per concrete type");
-        return false;
-    }
-    item.type = parse_type_object(cur_.span.offset);
-    return item.type != nullptr;
-}
-
 bool Parser::parse_const_item(ModuleItem& item) {
     item.kind = ItemKind::Const;
     advance(LexMode::Code);
@@ -447,12 +422,12 @@ bool Parser::parse_const_item(ModuleItem& item) {
         item.name = name;
         item.name_span = name_span;
         item.exported = exported;
-        if (!expect_punct("=", LexMode::Code)) {
-            return false;
-        }
+        // The checkpoint is after the `=`, so the initializer is next: expecting `=` again here
+        // made every uppercase constant that starts with `(` or `{` (`const COLORS = { ... }`)
+        // fail.
     }
     item.init = parse_expr();
-    return item.init != nullptr && expect_semicolon();
+    return item.init != nullptr && finish_const_object(item) && expect_semicolon();
 }
 
 // `({ initials, size = 32 }: Props) => { ... }` or `() => { ... }`, with the body of a component
