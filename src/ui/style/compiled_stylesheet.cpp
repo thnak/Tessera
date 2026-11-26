@@ -327,7 +327,7 @@ CascadeTable CompiledStyleSheet::cascade(const StyleNode& node,
 
 ComputedStyle CompiledStyleSheet::compute(const StyleNode& node, const ComputedStyle* parent,
                                           const ContainerSizeSource* containers) const {
-    return registry_.compute_with_initial(parent, cascade(node, containers));
+    return registry_.compute_with_initial(parent, cascade(node, containers), environment_.get());
 }
 
 CompiledStyleSheet compile_stylesheet(std::string_view source, Origin origin,

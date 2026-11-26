@@ -5,6 +5,7 @@
 #include "tessera/ui/style/parser.hpp"
 #include "tessera/ui/style/selector.hpp"
 #include "tessera/ui/style/style_defaults.hpp"
+#include "tessera/ui/style/style_environment.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -297,8 +298,12 @@ private:
 // falls back to the declared fallback. A reference that resolves to nothing follows `unset`
 // semantics, so an inherited property keeps the parent's value and every other property is dropped
 // for the registry's initial-value pass.
+//
+// `env()` (ADR-074) substitutes in the same pass, from `environment`; null is an environment with
+// no variables, so every `env()` takes its fallback.
 void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
-                       std::vector<StyleDiagnostic>* diagnostics = nullptr);
+                       std::vector<StyleDiagnostic>* diagnostics = nullptr,
+                       const StyleEnvironment* environment = nullptr);
 
 // Computed-value time resolution of `font-size` to `<n>px`: `em` and `%` are relative to the
 // parent's font size, `rem` to the 16px root, `pt` is 4/3 px. Every later `em` (padding, margin,
@@ -307,6 +312,7 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
 void resolve_font_size(ComputedStyle& style, const ComputedStyle* parent);
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
-                            std::vector<StyleDiagnostic>* diagnostics = nullptr);
+                            std::vector<StyleDiagnostic>* diagnostics = nullptr,
+                            const StyleEnvironment* environment = nullptr);
 
 } // namespace tessera::ui::style

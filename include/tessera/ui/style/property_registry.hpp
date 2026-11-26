@@ -47,8 +47,9 @@ public:
 
     [[nodiscard]] ComputedStyle initial_style() const;
     void apply_initial_values(ComputedStyle& style) const;
-    [[nodiscard]] ComputedStyle compute_with_initial(const ComputedStyle* parent,
-                                                     const CascadeTable& cascade) const;
+    [[nodiscard]] ComputedStyle
+    compute_with_initial(const ComputedStyle* parent, const CascadeTable& cascade,
+                         const StyleEnvironment* environment = nullptr) const;
 
     // The registry's initial values, shared by every style this registry computes (issue #735,
     // slices E and F). A computed style is a delta over this table, so a default read is one

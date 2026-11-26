@@ -396,6 +396,9 @@ private:
     // The media context `sheet_` was resolved against (issue #436), so a viewport change can ask
     // whether a `@media` answer moves before resolving anything.
     ui::style::MediaContext media_;
+    // What `sheet_`'s `env()` was resolved against (ADR-074), so a safe-area or posture change can
+    // ask whether a variable a sheet reads moved before resolving anything.
+    ui::style::StyleEnvironment style_environment_;
     std::uint64_t cascade_generation_ = 1;
     eval::Scope scope_;
     StateCarryReport carry_report_;

@@ -126,7 +126,14 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
     const ui::style::MediaContext media =
         preview_media_context(options.width, options.height, options.dpi_scale, options.posture);
     PreviewSheets prepared = prepare_preview_sheets(evaluated->sheets);
-    scene.sheet = prepared.prepared.resolve(media);
+    // The device the document is laid out at, safe area included, answers `env()` too (ADR-074).
+    SceneMetrics environment_metrics;
+    environment_metrics.width = options.width;
+    environment_metrics.height = options.height;
+    environment_metrics.dpi_scale = options.dpi_scale;
+    environment_metrics.posture = options.posture;
+    const ui::style::StyleEnvironment environment = preview_environment(environment_metrics);
+    scene.sheet = prepared.prepared.resolve(media, &environment);
     scene.css_diagnostics = std::move(prepared.diagnostics);
     // Keep the sheets: the resolved sheet's rules view their file names (see `PreparedScene`).
     scene.sheets = std::move(prepared.prepared);

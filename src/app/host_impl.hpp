@@ -65,6 +65,13 @@ struct AppHost::Impl {
     // counts come from the window's `FoldInfo`. Re-resolves the cascade only when one of those
     // answers moved, and never reads the hinge angle, so a slow fold costs nothing here.
     void apply_fold(const hal::FoldInfo& fold);
+    // The `env()` half of a metrics snapshot (ADR-074): builds the standard variables from the
+    // snapshot and the current window size, and re-resolves the cascade only when a variable a
+    // sheet reads has a new value (`PreparedStyleSheet::environment_answer_can_change`).
+    void apply_environment(const hal::WindowMetrics& metrics);
+    [[nodiscard]] bool
+    environment_answer_can_change(const ui::style::StyleEnvironment& before,
+                                  const ui::style::StyleEnvironment& after) const;
     [[nodiscard]] bool media_answer_can_change(const ui::style::MediaContext& before,
                                                const ui::style::MediaContext& after) const;
     void rebuild_style_tree();
@@ -205,6 +212,9 @@ struct AppHost::Impl {
     // The fold the context was last built from, kept so a resize (which rebuilds the context from
     // the rectangle) carries the fold answers over instead of resetting them.
     hal::FoldInfo window_fold;
+    // What `env()` reads; null until the first metrics snapshot. `rebuild_cascade` hands it to
+    // every sheet it builds, so a restyle never loses it.
+    std::shared_ptr<const ui::style::StyleEnvironment> style_environment;
     // Cascade generations: 1 after construction, +1 for every rebuild of the resolved cascade
     // (`rebuild_cascade`). It is how "a resize that crosses no breakpoint does not rebuild the
     // cascade" is asserted in a test instead of inferred from a picture (issue #436).

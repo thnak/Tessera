@@ -7,6 +7,7 @@
 #include "tessera/ui/scene/text_wrap.hpp"
 #include "tessera/ui/style/safe_area_style.hpp"
 #include "tessera/ui/style/scene_style.hpp"
+#include "tessera/ui/style/window_environment.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -108,6 +109,10 @@ hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
     snapshot.insets = metrics.insets;
     snapshot.cutouts = metrics.cutouts;
     return snapshot;
+}
+
+ui::style::StyleEnvironment preview_environment(const SceneMetrics& metrics) {
+    return ui::style::window_environment(simulated_metrics(metrics), metrics.width, metrics.height);
 }
 
 SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,

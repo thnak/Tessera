@@ -169,11 +169,24 @@ Slices, one landing each, to be filed when this is accepted:
    `scene_fold_media`.
 2. `env()`: the function, fallback and invalid-at-computed-value-time rules, the referenced-name set
    on the prepared sheet, and the standard variables (`safe-area-inset-*`, `preferred-text-scale`,
-   `viewport-segment-*`).
+   `viewport-segment-*`). **Implemented as the engine half:** `StyleEnvironment` and
+   `standard_environment` (`style_environment.hpp`), substitution in `resolve_variables` (so `env()`
+   works inside a custom property, a fallback and `calc()`), `CompiledStyleSheet::set_environment`, and
+   `PreparedStyleSheet::environment_answer_can_change`. The referenced names are read from the
+   declaration text when asked, not stored, so the blob format does not change. **Not yet done:** the
+   host and the preview building the environment from `WindowMetrics` and `FoldInfo` and calling
+   `set_environment` (slice 4); until then a host sheet's `env()` takes its fallback.
 3. The `--tessera-` variables, the continuous/discrete rule and the paint-only diagnostic, plus the
    Android feed for the angle.
 4. The preview and host fill the fold and environment from `FoldInfo` and the metrics in one shared
-   function, with the Studio and MCP agreeing.
+   function, with the Studio and MCP agreeing. **Implemented for the standard variables:**
+   `window_environment` (`window_environment.hpp`) is that one function.
+   `AppHost::set_window_metrics` calls it and `PreviewSession` calls it through `preview_environment`,
+   so the native preview, the Studio and an agent's snapshot share it. Both re-resolve only when a
+   variable a sheet reads has a new value; tests `app_host_environment` and `scene_environment`.
+   Known gaps: `WindowMetrics` carries no OS text scale, so `preferred-text-scale` does not exist
+   until a host supplies one (the fallback applies, not a made-up 1); and an `env()` in a node's
+   inline style is not in the sheet scan, so it follows a change only when something else restyles.
 
 Open questions for the owner: should reading the hinge angle be a declared permission in
 `permissions` (that spec lists no sensor category today and says nothing is on by default); and

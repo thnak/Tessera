@@ -1162,6 +1162,37 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
     add_test(NAME scene_fold_media COMMAND scene_fold_media_tests)
 
+    # ADR-074 `env()` in the preview: the simulated device answers the standard variables through the
+    # host's `window_environment`, and a change re-resolves the running tree only for a variable a
+    # sheet reads.
+    add_executable(scene_environment_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_environment_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
+        ${_tessera_canvas_session_sources}
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_environment_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen
+                ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(scene_environment_tests PRIVATE
+        tessera_behavior
+        tessera_app
+        tessera_automation_scene
+        tessera_css_module
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_environment COMMAND scene_environment_tests)
+
     # The skin's safe area reaching the engine's layout (issue #171's skins slice,
     # `designer-studio-v1.md` sections 5.1 and 5.2): non-zero insets pad a `SafeArea`'s content by
     # exactly what the skin declared, zero insets leave the frame unchanged, a skin change is one

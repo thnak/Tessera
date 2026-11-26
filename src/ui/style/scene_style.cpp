@@ -280,7 +280,7 @@ void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node
             result.set(longhand.property, longhand.value);
         }
     }
-    resolve_variables(result, parent);
+    resolve_variables(result, parent, nullptr, sheet.environment());
     resolve_font_size(result, parent);
 }
 

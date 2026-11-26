@@ -9,6 +9,7 @@
 #include "tessera/ui/style/parser.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/selector.hpp"
+#include "tessera/ui/style/style_environment.hpp"
 
 #include <cstdint>
 #include <string>
@@ -98,6 +99,14 @@ struct PreparedStyleSheet {
     // the common case is exactly the "rebuild the cascade on every pixel" bug this exists to stop.
     [[nodiscard]] bool media_answer_can_change(const MediaContext& before,
                                                const MediaContext& after) const;
+
+    // True when a variable this sheet reads through `env()` differs between `before` and `after`
+    // (ADR-074 section 4). A sheet that never calls `env()` answers false for every pair, so a
+    // window that moves a safe-area inset re-resolves nothing for it; one that reads only
+    // `safe-area-inset-top` ignores a change to the other three. The references are read from the
+    // declaration text, not stored, so a sheet loaded from a blob answers the same way.
+    [[nodiscard]] bool environment_answer_can_change(const StyleEnvironment& before,
+                                                     const StyleEnvironment& after) const;
 };
 
 [[nodiscard]] std::uint64_t fnv1a64(std::string_view bytes);

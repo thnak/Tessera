@@ -207,7 +207,9 @@ preview_stylesheet_file(std::string_view stylesheet, std::string_view stylesheet
         stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file, stylesheet};
 }
 
-style::CompiledStyleSheet PreparedPreviewSheets::resolve(const style::MediaContext& media) const {
+style::CompiledStyleSheet
+PreparedPreviewSheets::resolve(const style::MediaContext& media,
+                               const style::StyleEnvironment* environment) const {
     std::vector<style::StylesheetSource> sources;
     sources.reserve(sheets_.size() + 1);
     // The user-agent defaults first, the same sheet the app host appends: the preview and a native
@@ -218,7 +220,19 @@ style::CompiledStyleSheet PreparedPreviewSheets::resolve(const style::MediaConte
         sources.push_back(
             style::StylesheetSource{paths_[index], &sheets_[index], style::Origin::Author, false});
     }
-    return style::CompiledStyleSheet(std::span<const style::StylesheetSource>(sources), {}, media);
+    style::CompiledStyleSheet compiled(std::span<const style::StylesheetSource>(sources), {},
+                                       media);
+    if (environment != nullptr) {
+        compiled.set_environment(std::make_shared<const style::StyleEnvironment>(*environment));
+    }
+    return compiled;
+}
+
+bool PreparedPreviewSheets::environment_answer_can_change(const style::StyleEnvironment& from,
+                                                          const style::StyleEnvironment& to) const {
+    return std::any_of(sheets_.begin(), sheets_.end(), [&](const style::PreparedStyleSheet& sheet) {
+        return sheet.environment_answer_can_change(from, to);
+    });
 }
 
 bool PreparedPreviewSheets::media_answer_can_change(const style::MediaContext& from,

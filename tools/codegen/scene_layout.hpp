@@ -8,6 +8,7 @@
 #include "tessera/ui/layout/layout_settle.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/style/style_environment.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
@@ -74,6 +75,12 @@ struct SceneMetrics {
 // `hal::resolve_safe_area` reads `logical_width`/`logical_height` to place the hinge band and a
 // fractional extent would make the band fractional too.
 [[nodiscard]] hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept;
+
+// The `env()` variables the simulated device answers (ADR-074): the standard names from the same
+// metrics the layout is given, through the one `window_environment` mapping the app host calls, so
+// a previewed phone or foldable and a device cannot answer `env(safe-area-inset-top)` differently.
+// The OS text scale is not part of a simulated device, so `preferred-text-scale` is absent.
+[[nodiscard]] ui::style::StyleEnvironment preview_environment(const SceneMetrics& metrics);
 
 // The text module and the scene/style modules this stage names live one namespace up.
 namespace text = tessera::ui::text;

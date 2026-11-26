@@ -45,6 +45,9 @@ add_library(tessera_style STATIC
     viewport_units.cpp
     parser.cpp
     prepared_stylesheet.cpp
+    style_environment.cpp
+    window_environment.cpp
+    var_color.cpp
     stylesheet_blob_read.cpp
     stylesheet_blob_write.cpp
     property_registry.cpp
