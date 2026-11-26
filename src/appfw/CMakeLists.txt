@@ -156,7 +156,9 @@ add_library(tessera_appfw_net STATIC
     net_redirect.cpp
     net_state.cpp
     net_types.cpp
-    net_url.cpp)
+    net_url.cpp
+    # The libcurl back end's error table (issue #836): pure, so every lane tests it.
+    net_curl_map.cpp)
 
 if (WIN32)
     # The code cross-check: `static_assert`s that the mapping's constants match `winhttp.h`. It has no
@@ -166,6 +168,28 @@ if (WIN32)
     # WinHTTP is an OS library (docs/specs/dependencies.md): no new third-party row. PUBLIC, because
     # this is a static library and whoever links it needs the import library too.
     target_link_libraries(tessera_appfw_net PUBLIC winhttp)
+    target_compile_definitions(tessera_appfw_net PUBLIC TESSERA_NET_HAS_WINHTTP=1)
+    set(TESSERA_NET_REAL_BACKEND ON)
+endif ()
+
+# The Linux back end (issue #836, ADR-052): libcurl's multi interface. The SYSTEM libcurl, so TLS and
+# the trust store are the distro's and arrive with its security updates (ADR-052 item 5); nothing is
+# vendored. Linked only into this module, so an app that does not use `net` links none of it. When no
+# libcurl is found the back end is simply not built and the seam reports `unsupported` through
+# `available()`; that is a status line, not an error.
+if (UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+    option(TESSERA_NET_CURL "Build the libcurl NetTransport (Linux, system libcurl)" ON)
+    if (TESSERA_NET_CURL)
+        find_package(CURL QUIET)
+        if (CURL_FOUND)
+            target_sources(tessera_appfw_net PRIVATE curl/net_curl.cpp)
+            target_link_libraries(tessera_appfw_net PUBLIC CURL::libcurl)
+            target_compile_definitions(tessera_appfw_net PUBLIC TESSERA_NET_HAS_CURL=1)
+            set(TESSERA_NET_REAL_BACKEND ON)
+        else ()
+            message(STATUS "Tessera: libcurl not found; the Linux net back end is not built")
+        endif ()
+    endif ()
 endif ()
 
 target_include_directories(tessera_appfw_net PUBLIC
@@ -414,19 +438,28 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(appfw_net_tests PRIVATE tessera_appfw_net tessera_runtime)
     add_test(NAME appfw_net COMMAND appfw_net_tests)
 
-    # The real-back-end lane (issue #835, networking-v1 section 5): the contract against the OS stack
-    # and an in-process loopback server. Opt-in, because it needs a listening socket and a thread;
-    # no test in it touches the external network.
+    # The real-back-end lane (issues #835 and #836, networking-v1 section 5): one contract file, run
+    # against whichever OS back end this build has (WinHTTP on Windows, libcurl on Linux) and an
+    # in-process loopback server. Opt-in, because it needs a listening socket and a thread; no test in
+    # it touches the external network.
     option(TESSERA_NET_LOOPBACK_TESTS "Run the net contract suite against a real back end over loopback" OFF)
-    if (WIN32 AND TESSERA_NET_LOOPBACK_TESTS)
-        add_executable(appfw_net_winhttp_tests
-            ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_winhttp_tests.cpp
+    if (TESSERA_NET_LOOPBACK_TESTS AND TESSERA_NET_REAL_BACKEND)
+        add_executable(appfw_net_loopback_tests
+            ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_loopback_tests.cpp
             ${PROJECT_SOURCE_DIR}/tests/unit/support/loopback_server.cpp)
-        target_include_directories(appfw_net_winhttp_tests PRIVATE
+        target_include_directories(appfw_net_loopback_tests PRIVATE
             ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests/unit)
-        target_link_libraries(appfw_net_winhttp_tests PRIVATE tessera_appfw_net tessera_runtime ws2_32)
-        add_test(NAME appfw_net_winhttp COMMAND appfw_net_winhttp_tests)
+        target_link_libraries(appfw_net_loopback_tests PRIVATE tessera_appfw_net tessera_runtime)
+        if (WIN32)
+            target_link_libraries(appfw_net_loopback_tests PRIVATE ws2_32)
+        endif ()
+        add_test(NAME appfw_net_loopback COMMAND appfw_net_loopback_tests)
     endif ()
+
+    add_executable(appfw_net_curl_map_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_curl_map_tests.cpp)
+    target_link_libraries(appfw_net_curl_map_tests PRIVATE tessera_appfw_net)
+    add_test(NAME appfw_net_curl_map COMMAND appfw_net_curl_map_tests)
 
     # The shell contract suite (issue #450, docs/specs/platform-shell-v1.md section 9): one TU per
     # acceptance group, so a failure names the rule. Deterministic end to end - `ManualClock` for

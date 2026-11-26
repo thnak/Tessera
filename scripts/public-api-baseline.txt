@@ -228,6 +228,26 @@ struct include/tessera/appfw/net_client.hpp tessera::appfw::NetDiagnostics
 struct include/tessera/appfw/net_client.hpp tessera::appfw::NetRequestStatus
 struct include/tessera/appfw/net_client.hpp tessera::appfw::NetTicket
 
+header include/tessera/appfw/net_curl.hpp
+class include/tessera/appfw/net_curl.hpp tessera::appfw::CurlTransport
+
+header include/tessera/appfw/net_curl_map.hpp
+function include/tessera/appfw/net_curl_map.hpp tessera::appfw::error_kind_for_curl_code
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlAbortedByCallback
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlCouldntConnect
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlCouldntResolveHost
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlCouldntResolveProxy
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlOperationTimedout
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlPeerFailedVerification
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlSslCacertBadfile
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlSslCertproblem
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlSslCipher
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlSslConnectError
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlSslIssuerError
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlUnsupportedProtocol
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlUrlMalformat
+constant include/tessera/appfw/net_curl_map.hpp tessera::appfw::kCurlWriteError
+
 header include/tessera/appfw/net_fake.hpp
 class include/tessera/appfw/net_fake.hpp tessera::appfw::FakeNet
 struct include/tessera/appfw/net_fake.hpp tessera::appfw::FakeNetScript

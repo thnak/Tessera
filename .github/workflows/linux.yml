@@ -34,7 +34,7 @@ jobs:
           sudo apt-get install -y \
             cmake ninja-build libvulkan-dev vulkan-tools \
             mesa-vulkan-drivers vulkan-validationlayers \
-            glslc glslang-tools libx11-dev xvfb xauth x11-utils
+            glslc glslang-tools libx11-dev xvfb xauth x11-utils libcurl4-openssl-dev
           python3 -m pip install --user "clang-format==$(cat tools/format-version.txt)"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
@@ -52,7 +52,7 @@ jobs:
           name: linux
 
       - name: Configure
-        run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_ENABLE_THORVG=ON
+        run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_ENABLE_THORVG=ON -DTESSERA_NET_LOOPBACK_TESTS=ON
 
       - name: Build
         run: cmake --build --preset ci
