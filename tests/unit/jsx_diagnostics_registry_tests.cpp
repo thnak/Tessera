@@ -22,6 +22,7 @@
 #include "tessera/compiler/jsx/lexer.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest_types.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -110,6 +111,26 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test, const std::stri
         }
         const SourceMap map(test.source);
         return rules::analyze_module(*parsed.root, map, test.limits).diagnostics;
+    }
+    case jsx_registry::Entry::kServices: {
+        // The services fixtures need a project manifest: one `Navigator` with `push` and `back`.
+        const ModuleParseResult parsed = parse_module(test.source, test.limits);
+        check(parsed.ok(), "services fixture parses cleanly: " + where);
+        if (!parsed.root) {
+            return {};
+        }
+        tessera::compiler::services::ManifestService nav;
+        nav.id = "demo.nav";
+        nav.name = "Navigator";
+        nav.cpp_type = "demo::Navigator";
+        nav.header = "demo/services.hpp";
+        nav.methods.push_back({"push", {{"route", "string"}}, "void"});
+        nav.methods.push_back({"back", {}, "void"});
+        tessera::compiler::services::ServicesManifest manifest;
+        manifest.services.push_back(std::move(nav));
+        const SourceMap map(test.source);
+        return rules::analyze_module(*parsed.root, map, test.limits, nullptr, nullptr, &manifest)
+            .diagnostics;
     }
     case jsx_registry::Entry::kNoCustomHooks: {
         // The switch-off path. `TESSERA_REACT_CUSTOM_HOOK` is only reachable with the switch off

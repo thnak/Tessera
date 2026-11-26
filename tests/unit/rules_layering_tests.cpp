@@ -53,9 +53,12 @@ int main() {
             }
             ++files;
             for (const auto& include : project_includes(entry.path())) {
-                const bool allowed = include.rfind("tessera/compiler/jsx/", 0) == 0 ||
-                                     include.rfind("tessera/compiler/rules/", 0) == 0 ||
-                                     include.find('/') == std::string::npos;
+                const bool allowed =
+                    include.rfind("tessera/compiler/jsx/", 0) == 0 ||
+                    include.rfind("tessera/compiler/rules/", 0) == 0 ||
+                    // The manifest types are header-only and dependency-free (ADR-050 3.1).
+                    include == "tessera/compiler/services/manifest_types.hpp" ||
+                    include.find('/') == std::string::npos;
                 check(allowed,
                       entry.path().filename().string() +
                           " includes a header outside the front end and the rules: " + include);

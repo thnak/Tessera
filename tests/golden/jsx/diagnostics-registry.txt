@@ -63,5 +63,9 @@ TESSERA_REACT_MEMO_DEPS	react-memo-deps	`label` is read but not listed; Tessera 
 TESSERA_REACT_NO_PREVIEW_BODY	react-no-preview-body	native handler `go` has an empty body, so the designer does nothing for its event
 TESSERA_REACT_PREVIEW_BODY	react-preview-body	the body of native handler `go` is not a preview body, so the designer does nothing for its event
 TESSERA_REACT_REDUCER_FORM	react-reducer-form	`reduce` is not a module-scope `function` declared in this file; the limited form needs its body to lower
+TESSERA_REACT_SERVICE_CALL_IN_RENDER	react-service-call-in-render	`nav.back(...)` is called while rendering; a service call is a side effect and may only run in a handler or an effect
+TESSERA_REACT_SERVICE_METHOD	react-service-method	service `Navigator` lists no method `pop`
+TESSERA_REACT_SERVICE_UNKNOWN	react-service-unknown	`Settings` is not a service interface listed in `ui/services.json`
+TESSERA_REACT_SERVICE_VALUE	react-service-value	service `nav` is only used by calling one of its methods
 TESSERA_REACT_UNKNOWN_HOOK	react-unknown-hook	unknown hook `useNothing`: only useState, useReducer, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are available
 TESSERA_REACT_UNSUPPORTED_API	react-unsupported-api	`useMemo` is not supported in V1
