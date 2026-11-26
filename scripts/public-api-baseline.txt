@@ -284,6 +284,9 @@ constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpDefaultPort
 constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpsDefaultPort
 constant include/tessera/appfw/net_url.hpp tessera::appfw::kMaxUrlLength
 
+header include/tessera/appfw/net_winhttp.hpp
+class include/tessera/appfw/net_winhttp.hpp tessera::appfw::WinHttpTransport
+
 header include/tessera/appfw/net_winhttp_map.hpp
 struct include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::WinHttpUrlParts
 function include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::error_kind_for_windows_error

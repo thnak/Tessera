@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <string_view>
 
@@ -341,6 +342,9 @@ void LoopbackServer::serve_connection(int fd) {
             requests_.push_back(std::move(request));
         }
         arrival_.notify_all();
+        if (response.delay_ms > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(response.delay_ms));
+        }
         (void)send_all(handle, render_response(response));
     }
     close_socket(handle);
