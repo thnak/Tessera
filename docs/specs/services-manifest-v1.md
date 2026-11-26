@@ -68,11 +68,11 @@ cannot silently drop a method.
 
 1. **`useService<Name>()`** (rules of hooks, top level of the component body) resolves `Name` against
    `services[].name`. A name not in the manifest, a concrete class, a string or a variable is
-   `TESSERA_CG_SERVICE_NOT_INTERFACE` with the TSX location (ADR-050 section 3.1 item 2).
+   `TESSERA_REACT_SERVICE_UNKNOWN` with the TSX location (ADR-050 section 3.1 item 2).
 2. **A call `svc.method(args)`** is checked against `methods[]`: an unknown method, a wrong argument count
    or an argument that does not convert to the declared IR type is a diagnostic naming the method and
    the manifest line. The call is accepted only in a handler or an effect (ADR-050 section 3.1 item 4);
-   in the render body it is `TESSERA_JSX_SERVICE_CALL_IN_RENDER`.
+   in the render body it is `TESSERA_REACT_SERVICE_CALL_IN_RENDER`. An unknown method is `TESSERA_REACT_SERVICE_METHOD`; using the service value other than as a call receiver is `TESSERA_REACT_SERVICE_VALUE`.
 3. **Lowering** adds one `ir::Component::services` entry per distinct service (`id`, `name`, `type`,
    `header`, `source`) and one call action per call. Codegen reads the IR only.
 4. **`services.d.ts`** is generated from the manifest: one `interface Name` per service with the listed
