@@ -118,12 +118,16 @@ bool seed_component_scope(const ir::Component& component, eval::Scope& scope, st
 } // namespace internal
 
 SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eval::Scope& scope,
-                             const ir::IrModule* module) {
+                             const ir::IrModule* module, InstanceScopes* instances) {
     SceneBuildResult result;
+    // A caller with no session keeps no instance state: the scopes live for this build only, so the
+    // frames in the result must not be used after it returns.
+    InstanceScopes local;
     if (!internal::seed_component_scope(component, scope, result.error)) {
         return result;
     }
-    internal::Builder builder(root, scope, result, module);
+    internal::Builder builder(root, scope, result, module,
+                              instances != nullptr ? instances : &local);
     // A failed build leaves `error` set for the caller; the tree is discarded, because a partially
     // built tree would be a snapshot of a program that does not exist.
     (void)builder.build(component);

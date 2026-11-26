@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -36,11 +37,12 @@ namespace tessera::compiler::codegen::cli::internal {
 class Builder final {
 public:
     Builder(ui::Node& root, eval::Scope& scope, SceneBuildResult& result,
-            const ir::IrModule* module = nullptr)
+            const ir::IrModule* module = nullptr, InstanceScopes* instances = nullptr)
         : root_(root),
           scope_(&scope),
           result_(result),
-          module_(module) {}
+          module_(module),
+          instances_(instances) {}
 
     // Builds `component`'s tree under `root_` (the window content node the caller owns).
     [[nodiscard]] bool build(const ir::Component& component);
@@ -86,16 +88,27 @@ private:
     bool build_instance(const ir::Node& node, ui::Node& host, std::size_t depth);
     bool build_slot(const ir::Node& slot, ui::Node& parent, std::size_t depth);
 
-    // What an instance replaces while its callee builds, restored when it is done.
-    struct CallerFrame {
+    // Everything an instance replaces while its callee builds, restored when it is done.
+    struct Context {
         eval::Scope* scope = nullptr;
         int loop_depth = 0;
         const std::vector<ir::Ref>* refs = nullptr;
         std::uint64_t salt = 0;
+        std::string key;       // the instance path ("" in the root component)
+        std::size_t frame = 0; // index into `result_.frames`
+        std::string loop_path; // loop item indices on the way down, so repeated instances differ
+    };
+    struct CallerFrame {
+        Context context;
         const ir::Node* instance = nullptr;
     };
-    void enter_frame(const CallerFrame& caller);
-    void leave_frame(const CallerFrame& caller);
+    [[nodiscard]] Context capture() const;
+    void apply(const Context& context);
+
+    // A metadata string the node supplies: its literal, or the value of a dynamic expression
+    // (kept alive in `result_.strings`). False with `result_.error` set when evaluation failed.
+    bool metadata_string(const ir::Node& node, std::string_view name, std::string_view& out,
+                         bool& present);
 
     ui::Node& root_;
     eval::Scope* scope_;
@@ -103,10 +116,13 @@ private:
     const ir::IrModule* module_ = nullptr;
     // The instances being built, innermost last: each entry is the caller's state to return to.
     std::vector<CallerFrame> frames_;
-    // Non-zero inside a callee: the instance's pre-order ordinal, mixed into automation ids so two
-    // instances of one component do not share the ids of its nodes.
+    InstanceScopes* instances_ = nullptr;
+    // Non-zero inside a callee: a hash of the instance path, mixed into automation ids so two
+    // instances of one component do not share the ids of its nodes (and the ids survive a rebuild).
     std::uint64_t salt_ = 0;
-    std::uint64_t instances_ = 0;
+    std::string instance_key_;
+    std::size_t frame_index_ = 0;
+    std::string loop_path_;
     eval::Evaluator evaluator_;
     std::uint64_t next_node_id_ = 2; // 1 is the window content root the caller owns
     int loop_depth_ = 0;

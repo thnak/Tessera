@@ -109,7 +109,10 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
 
     scene.root = std::make_unique<ui::Node>(1);
     eval::Scope scope;
-    const SceneBuildResult built = build_scene(chosen, *scene.root, scope, &scene.module);
+    SceneBuildResult built = build_scene(chosen, *scene.root, scope, &scene.module);
+    // The tree borrows the strings the build evaluated (a dynamic `className`), so they move into
+    // the scene that owns the tree.
+    scene.strings = std::move(built.strings);
     if (!built.error.empty()) {
         return failed(built.error);
     }

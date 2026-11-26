@@ -9,6 +9,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -25,6 +27,22 @@
 // `scripts/ci/scene_snapshot_parity.py` stays inside what is implemented; the omission is recorded
 // in docs/design/compiler-wasm.md section 7.1.
 namespace tessera::compiler::codegen::cli {
+
+// The state of every component instance, keyed by its instance path (`/node::3/node::9#2`: the
+// instance nodes from the root, plus the loop item indices). A session owns one across rebuilds so
+// an instance keeps its state cells when the tree is rebuilt, the way a generated instance does.
+using InstanceScopes = std::map<std::string, eval::Scope>;
+
+// One component frame of a built scene: the root component (frame 0) or one instance. A handler
+// runs against its frame's scope, and a `callProp` in it reaches the caller through `callbacks`.
+struct SceneInstanceFrame {
+    std::string key; // empty for the root
+    const ir::Component* component = nullptr;
+    std::size_t parent = 0;       // the caller's frame
+    eval::Scope* scope = nullptr; // owned by the `InstanceScopes` (or the caller's scope for 0)
+    // The caller's callbacks for this instance: the prop (event) name -> the caller's handler id.
+    std::map<std::string, std::string> callbacks;
+};
 
 // Scene-side limits, matching the harness's snapshot bounds so a preview tree can never be larger
 // than the document that reports it.
@@ -43,8 +61,9 @@ struct SceneBuildResult {
     // nothing more. Empty for a tree whose nodes declare no events.
     struct SceneEventHandler {
         std::uint64_t automation_id = 0;
-        std::string event;   // the IR/schema event name (`onClick`, `onKeyDown`, ...)
-        std::string handler; // the IR handler id: `handler::N` or `bind::name`
+        std::string event;     // the IR/schema event name (`onClick`, `onKeyDown`, ...)
+        std::string handler;   // the IR handler id: `handler::N` or `bind::name`
+        std::size_t frame = 0; // the component frame the handler belongs to (0 is the root)
     };
     std::vector<SceneEventHandler> handlers;
     // The IR source span of every built scene node, keyed by the scene node id the walk assigned
@@ -71,6 +90,13 @@ struct SceneBuildResult {
         std::uint64_t node_id = 0;
     };
     std::vector<SceneRefTarget> ref_targets;
+    // The component frames of this build, root first. Pointers inside refer to the scopes the build
+    // was given, so they are valid for as long as those scopes are.
+    std::vector<SceneInstanceFrame> frames;
+    // Storage for metadata strings the build evaluated (a dynamic `className`): `ui::Node` borrows
+    // its metadata, so these must live as long as the tree does. A deque keeps addresses stable
+    // while it grows and when it is moved.
+    std::deque<std::string> strings;
 };
 
 // Builds the tree of `component` under `root`. `root` is the window content node: it is given the
@@ -91,7 +117,7 @@ struct SceneBuildResult {
 // `module` is where a user component instance (`NodeKind::Component`) finds its callee. Without it
 // an instance is reported as unsupported, which is what a caller that has no project gets.
 [[nodiscard]] SceneBuildResult build_scene(const ir::Component& component, ui::Node& root,
-                                           eval::Scope& scope,
-                                           const ir::IrModule* module = nullptr);
+                                           eval::Scope& scope, const ir::IrModule* module = nullptr,
+                                           InstanceScopes* instances = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

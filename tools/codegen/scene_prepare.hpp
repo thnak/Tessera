@@ -13,6 +13,7 @@
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,6 +42,8 @@ struct PreparedScene {
     std::string error;
     // The lowered, identity-assigned IR the tree borrows from.
     tessera::compiler::ir::IrModule module;
+    // The metadata strings the build evaluated, which the tree borrows (declared before `root`).
+    std::deque<std::string> strings;
     // The root `ui::Node` (id 1) whose child is the component's tree, styled and laid out with
     // absolute boxes written back by `apply_layout`.
     std::unique_ptr<tessera::ui::Node> root;

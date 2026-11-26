@@ -30,7 +30,8 @@ const std::vector<ir::Action> kNoActions{};
 
 void PreviewSession::attach_size_observations(const SceneBuildResult& built) {
     for (const SceneBuildResult::SceneEventHandler& handler : built.handlers) {
-        if (handler.event != "onSizeChange") {
+        // Only the root component's observations are attached; an instance's is a later slice.
+        if (handler.event != "onSizeChange" || handler.frame != 0) {
             continue;
         }
         ui::Node* const node = node_by_automation_id(handler.automation_id);

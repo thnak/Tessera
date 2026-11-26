@@ -114,6 +114,35 @@ void apply_inline_style(const ir::Node& node, ui::Node& scene) {
 
 } // namespace
 
+bool Builder::metadata_string(const ir::Node& node, std::string_view name, std::string_view& out,
+                              bool& present) {
+    present = false;
+    const auto found = node.props.find(std::string(name));
+    if (found == node.props.end() || !found->second) {
+        return true;
+    }
+    // A literal string is borrowed from the IR, as before. Anything else is evaluated against the
+    // scope being built (a `className` template over props and state) and kept in the result,
+    // because `ui::Node` borrows the text and the tree outlives this walk.
+    if (found->second->kind == ir::ExprKind::Literal) {
+        if (const auto* literal = std::get_if<std::string>(&found->second->literal)) {
+            out = *literal;
+            present = true;
+            return true;
+        }
+    }
+    std::string text;
+    if (!evaluate_text(evaluator_, *found->second, *scope_, text, result_.error)) {
+        return false;
+    }
+    if (text.empty() && found->second->kind != ir::ExprKind::Literal) {
+        return true; // a null/unset value is no attribute
+    }
+    out = result_.strings.emplace_back(std::move(text));
+    present = true;
+    return true;
+}
+
 bool Builder::build(const ir::Component& component) {
     // The window content node is a plain `View`, the shape `AppHost` gives a scene root; the
     // component's own root is its child, exactly as a generated base attaches its tree.
@@ -121,6 +150,7 @@ bool Builder::build(const ir::Component& component) {
     // The refs are borrowed for this build only, so the walk can record which scene node each one
     // resolved to (a behavior's target).
     set_component_refs(&component.refs);
+    result_.frames.push_back({"", &component, 0, scope_, {}});
     return build_node(component.root, root_, 0);
 }
 
@@ -180,15 +210,15 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     // id is how the session finds the handler to run, because `Node::bind_event` carries no IR
     // identity of its own. A node with a handler but no id cannot be addressed by a scripted click
     // (`click <automationId>`), so it is reported rather than silently unbound.
-    // A callee's own handlers are not bound yet: they run against the callee's state and callback
-    // props, which the session's single scope cannot address (slice 2 of #594).
-    if (!node.events.empty() && !instance && salt_ == 0) {
+    // An instance node's events are the caller's callbacks (recorded by `build_instance`), not
+    // scene events. Any other node's handlers belong to the frame being built.
+    if (!node.events.empty() && !instance) {
         if (!has_id) {
             return fail("a node with an event handler has no automation id (`" + node.id +
                         "`), so nothing can address it");
         }
         for (const auto& [event, handler] : node.events) {
-            result_.handlers.push_back({id, event, handler});
+            result_.handlers.push_back({id, event, handler, frame_index_});
         }
     }
 
@@ -206,24 +236,41 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
 
     // Element metadata: the channels codegen fills (emit_node_attributes.cpp). They are how a
     // stylesheet selects the node and how the snapshot reports its accessible name.
-    if (const std::string* text = literal_string(node, "id")) {
-        scene.set_element_id(*text);
+    std::string_view meta;
+    bool present = false;
+    if (!metadata_string(node, "id", meta, present)) {
+        return false;
     }
-    if (const std::string* text = literal_string(node, "className")) {
-        scene.set_class_name(*text);
+    if (present) {
+        scene.set_element_id(meta);
     }
-    if (const std::string* text = literal_string(node, "role")) {
-        scene.set_role(*text);
+    if (!metadata_string(node, "className", meta, present)) {
+        return false;
     }
-    if (const std::string* text = literal_string(node, "tag")) {
-        scene.set_element_tag(*text);
+    if (present) {
+        scene.set_class_name(meta);
+    }
+    if (!metadata_string(node, "role", meta, present)) {
+        return false;
+    }
+    if (present) {
+        scene.set_role(meta);
+    }
+    if (!metadata_string(node, "tag", meta, present)) {
+        return false;
+    }
+    if (present) {
+        scene.set_element_tag(meta);
     }
     for (const auto& [name, value] : node.props) {
         if (name.rfind("aria-", 0) != 0) {
             continue;
         }
-        if (const std::string* text = literal_string(node, name)) {
-            (void)scene.set_aria(name, *text);
+        if (!metadata_string(node, name, meta, present)) {
+            return false;
+        }
+        if (present) {
+            (void)scene.set_aria(name, meta);
         }
     }
     apply_inline_style(node, scene);
