@@ -399,6 +399,7 @@ header include/tessera/appfw/service_requirements.hpp
 struct include/tessera/appfw/service_requirements.hpp tessera::appfw::RequiredService
 function include/tessera/appfw/service_requirements.hpp tessera::appfw::find_missing_services
 function include/tessera/appfw/service_requirements.hpp tessera::appfw::report_missing_services
+function include/tessera/appfw/service_requirements.hpp tessera::appfw::report_unresolved_services
 
 header include/tessera/appfw/service_runner.hpp
 class include/tessera/appfw/service_runner.hpp tessera::appfw::ServiceRunner

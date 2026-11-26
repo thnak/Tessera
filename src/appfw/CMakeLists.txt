@@ -300,6 +300,13 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(appfw_service_tests PRIVATE tessera_appfw_core)
     add_test(NAME appfw_service COMMAND appfw_service_tests)
 
+    # ADR-050 section 3.1 item 6: `Application::require_services` gates `launch()` on the services the
+    # generated components require.
+    add_executable(appfw_service_requirements_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_service_requirements_tests.cpp)
+    target_link_libraries(appfw_service_requirements_tests PRIVATE tessera_appfw_core)
+    add_test(NAME appfw_service_requirements COMMAND appfw_service_requirements_tests)
+
     # AF4 (issue #176, ADR-050 section 6): `Observable<T>` is a header-only template over the scene
     # module's `UpdateScheduler`, so this target links `tessera_scene` directly. The allocation test
     # is a separate TU on purpose: it replaces global `operator new`, which would count the other
