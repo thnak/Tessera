@@ -149,7 +149,11 @@ double WindowDevice::next_wait_seconds() {
     // when neither is - which the clamp below turns into the documented park.
     const double now = hal::steady_now_seconds();
     const runtime::PaceDecision pace = pacer_.ready(now);
-    const double pacer_wait = pace.render_now ? 0.0 : pace.wait_seconds;
+    // With no window there is nothing to present, so the pacer is never satisfied and would answer
+    // "render now" forever: a tray app's group would spin instead of parking. Only a timer (or a
+    // wake, see `set_completion_wake`) can give a window-less group work.
+    const double pacer_wait =
+        window_list_size_ == 0 ? runtime::kNoDeadline : (pace.render_now ? 0.0 : pace.wait_seconds);
     const double timer_wait =
         loop_ != nullptr ? loop_->next_timer_wait_seconds() : runtime::kNoDeadline;
     const double wait = pacer_wait < timer_wait ? pacer_wait : timer_wait;
@@ -191,7 +195,9 @@ WindowDevice::RunStats WindowDevice::run_windows(std::uint32_t max_frames) {
         if (max_frames > 0 && stats.presented >= max_frames) {
             break;
         }
-        const double wait = next_wait_seconds();
+        // A stop requested during this iteration (a completion's callback, a timer) ends the run
+        // now; parking first would hold the stop back for a whole idle wait.
+        const double wait = stop_requested_ ? 0.0 : next_wait_seconds();
         if (wait > 0.0) {
             ++stats.idle_waits;
             // Park on the group's own deadline. With no window there is no platform event wait to

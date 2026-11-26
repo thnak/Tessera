@@ -22,13 +22,18 @@
 
 #include "tessera/app/window.hpp"
 #include "tessera/app/window_device.hpp"
+#include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/runtime/async.hpp"
+#include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -224,6 +229,44 @@ void test_a_window_less_group_parks() {
     expect(stopped.presented == 0, "the stopped run presented nothing");
 }
 
+void test_a_worker_completion_wakes_a_parked_window_less_group() {
+    // Issue #842 on the tray path: an idle group with no timer parks at the idle clamp (250 ms).
+    // A worker's completion has to end that park, or every async result in a tray app is late.
+    WindowDevice group(device_options());
+    if (!group.available()) {
+        std::cout << "app_window_tray: skipped (no usable device)\n";
+        return;
+    }
+    tessera::runtime::CompletionQueue completions;
+    group.loop().set_completion_queue(&completions);
+    group.set_completion_wake(&completions);
+
+    std::atomic<int> ran{0};
+    std::thread worker([&completions, &group, &ran]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        // A burst: the three posts are one empty -> non-empty edge, so one wake.
+        for (int post = 0; post < 3; ++post) {
+            completions.post(tessera::runtime::CompletionPriority::Visible, [&group, &ran]() {
+                ++ran;
+                group.request_stop(); // runs on the UI thread, at the tick that drains the queue
+            });
+        }
+    });
+    const double begin = tessera::hal::steady_now_seconds();
+    const WindowDevice::RunStats stats = group.run_windows(0);
+    const double elapsed = tessera::hal::steady_now_seconds() - begin;
+    worker.join();
+    group.set_completion_wake(nullptr);
+    group.loop().set_completion_queue(nullptr);
+
+    expect(stats.stopped, "the completion ran on the UI thread and stopped the run");
+    expect(ran.load() == 3, "the burst's completions all ran");
+    expect(stats.presented == 0, "a window-less group presented nothing");
+    expect(stats.idle_waits == 1 && stats.iterations < 100,
+           "a window-less group parks instead of spinning");
+    expect(elapsed < 0.15, "the worker's post ended the park well before the 250 ms clamp");
+}
+
 void test_a_tray_app_activates_into_a_window() {
     // The whole acceptance in one sequence: start with no window, run the group loop, attach a
     // window on activation, and paint it.
@@ -257,6 +300,7 @@ int main() {
     test_showing_the_window_paints_it();
     test_hiding_again_stops_presenting();
     test_a_window_less_group_parks();
+    test_a_worker_completion_wakes_a_parked_window_less_group();
     test_a_tray_app_activates_into_a_window();
 
     if (g_failures != 0) {
