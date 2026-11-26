@@ -223,7 +223,8 @@ bool test_continuous_variables() {
                       !is_continuous_environment_name("safe-area-inset-top"),
                   "only the hinge angle is continuous") &&
            expect(value_of(style, "transform") == "rotate(135deg)", "a paint property reads it") &&
-           expect(value_of(style, "opacity") == "135", "opacity reads it") &&
+           expect(value_of(style, "opacity") == "135deg",
+                  "any paint property takes the text; the type is its own grammar's concern") &&
            expect(style.find("width") == nullptr || *style.find("width") != "135deg",
                   "a layout property that reads it is dropped") &&
            expect(style.find("margin-left") == nullptr || *style.find("margin-left") != "135deg",
@@ -248,7 +249,8 @@ bool test_continuous_variables() {
 int main() {
     return test_standard_variables() && test_substitution() &&
                    test_invalid_at_computed_value_time() && test_parse_time_validity() &&
-                   test_sheet_reads_env_through_compiled_sheet() && test_answer_can_change()
+                   test_sheet_reads_env_through_compiled_sheet() && test_answer_can_change() &&
+                   test_continuous_variables()
                ? 0
                : 1;
 }
