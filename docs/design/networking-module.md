@@ -24,10 +24,24 @@ otherwise duplicate and get subtly different:
 | the per-request state machine and the outcome vocabulary | `net_state.hpp/.cpp` |
 | the transport seam (one abstract class, no platform type) | `net_transport.hpp` |
 | `FakeNet`, the deterministic back end section 4 orders first | `net_fake.hpp/.cpp` |
+| `WinHttpTransport`, the Windows back end (#835), built on Windows only | `net_winhttp.hpp`, `windows/net_winhttp.cpp`, `net_winhttp_map.*` |
 | the client: `send`, `submit`, cancellation, the deadline, delivery | `net_client.hpp`, `net_client*.cpp` |
 | the contract suite of section 5 | `tests/unit/appfw_net_*` |
+| the same contract against WinHTTP over loopback (opt-in `TESSERA_NET_LOOPBACK_TESTS`) | `tests/unit/appfw_net_winhttp_tests.cpp` |
 
-Not landed, each with the reason: **WinHTTP**, **libcurl**, **browser `fetch`**, **NSURLSession**
+**WinHTTP (#835).** One async session per transport (`WINHTTP_FLAG_ASYNC`, status callback), so the OS
+stack owns connections, pooling, TLS, HTTP/2 and the system proxy (`AUTOMATIC_PROXY`); the framework
+adds none of those and exposes no switch for them. Decisions: redirects are never followed by WinHTTP
+(`REDIRECT_POLICY_NEVER`), so `NetClient` is the one follower and the cross-origin `Authorization` rule
+holds; cookies and WinHTTP's credential handling are disabled, so the request's headers are the
+caller's; the agent string is empty, so `User-Agent` is the module's; `max_response_bytes` stops the
+read and the request is closed. A cancelled token reaches WinHTTP through a closer thread the transport
+owns (a token callback runs on the cancelling thread and must not call into WinHTTP), and the
+destructor cancels what is in flight and waits for every handle. **Not distinguished yet:** `offline`
+(WinHTTP reports a lost connection as a connect failure, so it surfaces as `connect`); an `offline`
+signal needs the network-list API and is a follow-up.
+
+Not landed, each with the reason: **libcurl**, **browser `fetch`**, **NSURLSession**
 and **Android** (one PR per back end, and the Linux one needs dependency entries first); **TLS**
 (negotiated inside a back end, deliberately not owned by the framework - ADR-052 item 5);
 **HTTP/2 and HTTP/3** (the platform stack picks the version; `NetProtocol` only reports it, and

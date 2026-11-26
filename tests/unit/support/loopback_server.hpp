@@ -57,6 +57,11 @@ struct LoopbackResponse {
     // a back end with its own pooling expects; a test that wants "the server went away" sets it
     // true.
     bool close = false;
+
+    // How long to wait after reading the request before answering, so a test can hold a request in
+    // flight (a timeout, a cancel). The server is one thread, so a delayed answer also delays the
+    // next connection; a test keeps it short.
+    int delay_ms = 0;
 };
 
 // A server that answers from a script, in order, and records what it was sent.

@@ -50,6 +50,7 @@ jobs:
           -DTESSERA_ENABLE_THORVG=OFF
           -DTESSERA_PACKAGE_EXECUTABLES=static_runtime_probe
           -DTESSERA_WARNINGS_AS_ERRORS=ON
+          -DTESSERA_NET_LOOPBACK_TESTS=ON
 
       - name: Build
         run: cmake --build --preset ci
