@@ -97,6 +97,7 @@ target_include_directories(tessera_codegen_cli PRIVATE ${PROJECT_SOURCE_DIR}/too
 target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_codegen
     tessera_harness
+    tessera_services_manifest
     tessera_ir_ids
     tessera_lowering
     # A `*.module.css` is scoped before it is embedded (issue #463).
@@ -826,6 +827,38 @@ if (TESSERA_BUILD_TESTS)
                 tessera_scene tessera_appfw_core)
             target_compile_features(codegen_services_runtime_tests PRIVATE cxx_std_23)
             add_test(NAME codegen_services_runtime COMMAND codegen_services_runtime_tests)
+
+            # Issue #177, the TSX half: the same contract driven from a TSX click handler. The build
+            # compiles `nav.push("/compose")` through the real front end (analysed against a services
+            # manifest) into `Inbox.g.hpp`, and the test compiles that header against a hand-written
+            # `demo::Navigator` and clicks. The generator tool runs on the HOST, so a cross-compiling
+            # build skips it like the other generated fixtures.
+            if (NOT CMAKE_CROSSCOMPILING)
+                add_executable(codegen_services_tsx_emit
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_services_tsx_emit.cpp)
+                target_link_libraries(codegen_services_tsx_emit PRIVATE
+                    tessera_codegen tessera_lowering tessera_jsx_frontend tessera_react_rules
+                    tessera_ir tessera_services_types)
+                set(_tessera_services_tsx_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_services_tsx)
+                add_custom_command(
+                    OUTPUT ${_tessera_services_tsx_dir}/Inbox.g.hpp
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_services_tsx_dir}
+                    COMMAND codegen_services_tsx_emit ${_tessera_services_tsx_dir}
+                    DEPENDS codegen_services_tsx_emit
+                    VERBATIM)
+                add_executable(codegen_services_tsx_runtime_tests
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_services_tsx_runtime_tests.cpp
+                    ${_tessera_services_tsx_dir}/Inbox.g.hpp)
+                target_include_directories(codegen_services_tsx_runtime_tests PRIVATE
+                    ${_tessera_services_tsx_dir}
+                    ${_tessera_codegen_base_dev_dir}/services_tsx
+                    ${_tessera_codegen_base_dev_dir}/services)
+                target_link_libraries(codegen_services_tsx_runtime_tests PRIVATE
+                    tessera_scene tessera_appfw_core)
+                target_compile_features(codegen_services_tsx_runtime_tests PRIVATE cxx_std_23)
+                add_test(NAME codegen_services_tsx_runtime
+                    COMMAND codegen_services_tsx_runtime_tests)
+            endif ()
 
             # Compile-fail checks, the same shape as the codegen_base_* cases and taking the same
             # resource lock: both drive the shared build directory.
@@ -1982,6 +2015,7 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(codegen_diagnostics_json_tests PRIVATE
         tessera_codegen
         tessera_harness
+        tessera_services_manifest
         tessera_ir_ids
         tessera_lowering
         tessera_css_module

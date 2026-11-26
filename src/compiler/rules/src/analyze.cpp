@@ -52,7 +52,8 @@ const jsx::HookManifest& builtin_hook_manifest() {
 
 AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& map,
                               const jsx::Limits& limits, const jsx::HookManifest* manifest,
-                              const jsx::CallSiteMap* call_sites) {
+                              const jsx::CallSiteMap* call_sites,
+                              const services::ServicesManifest* services) {
     const jsx::HookManifest& hooks = manifest != nullptr ? *manifest : builtin_hook_manifest();
     jsx::DiagnosticSink sink(map, limits);
     AnalyzedModule result;
@@ -75,9 +76,12 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
         }
         Context ctx{item, analysis, sink, hooks, module, call_sites};
         ctx.module_contexts = &contexts;
+        ctx.services = services;
         check_hooks(ctx);
         check_contexts(ctx);
+        check_services(ctx);
         classify_arrows(ctx);
+        check_service_calls(ctx);
         check_effect_deps(ctx);
         check_memo_deps(ctx);
         analysis.ok = !ctx.failed;

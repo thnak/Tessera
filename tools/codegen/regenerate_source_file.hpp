@@ -12,6 +12,7 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/compiler/services/manifest_types.hpp"
 
 #include <memory>
 #include <string>
@@ -25,7 +26,8 @@ namespace tessera::compiler::codegen::cli::detail {
 // inlining it here would put the front end in every translation unit that reads a file.
 struct SourceFile {
     SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits = {},
-               const jsx::FrontEndOptions& options = {});
+               const jsx::FrontEndOptions& options = {},
+               const services::ServicesManifest* services = nullptr);
 
     SourceFile(const SourceFile&) = delete;
     SourceFile& operator=(const SourceFile&) = delete;

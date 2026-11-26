@@ -153,6 +153,34 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         body += method_name(entry->handler) + "(tessera::ui::Event{});\n";
         return true;
     }
+    // ADR-050 section 3.1 item 4 (issue #177): `nav.push(route)` calls the requirement's typed
+    // accessor, so it is the cached pointer attach_services() resolved at mount: no lookup, no
+    // registry. Each argument is an ordinary expression, so it reads props, state and the handler's
+    // payload exactly as a setter's value does.
+    if (action.kind == ir::ActionKind::CallService) {
+        const ir::Service* service = nullptr;
+        for (const ir::Service& candidate : component.services) {
+            if (candidate.id == action.target) {
+                service = &candidate;
+            }
+        }
+        if (service == nullptr) {
+            error = "a service call names `" + action.target + "`, which is not a requirement";
+            return false;
+        }
+        std::string call = service->name + "()." + action.method + "(";
+        for (std::size_t index = 0; index < action.args.size(); ++index) {
+            const ExprEmission argument =
+                emit_expr(*action.args[index], component, payload_field_locals(params));
+            if (!argument.error.empty()) {
+                error = argument.error;
+                return false;
+            }
+            call += (index == 0 ? "" : ", ") + argument.text;
+        }
+        body += call + ");\n";
+        return true;
+    }
     if (!action.value) {
         error = "an action has no value expression";
         return false;

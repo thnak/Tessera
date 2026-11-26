@@ -45,6 +45,12 @@ void Parser::check_call_rules(const Expr& call) {
     }
     const Expr& callee = *call.operands[0];
     const std::string& method = callee.text;
+    // A call on a `useService` binding is a service method, whatever its name (`nav.push`): the
+    // rules pass checks it against the project manifest.
+    if (!callee.operands.empty() && callee.operands[0]->kind == ExprKind::Identifier &&
+        service_bindings_.count(callee.operands[0]->text) != 0) {
+        return;
+    }
     if (is_rejected_array_method(method)) {
         report("TESSERA_JSX_SUBSET_ARRAY_METHOD",
                "array method `." + method + "` is not supported; only `.map` is", call.span,

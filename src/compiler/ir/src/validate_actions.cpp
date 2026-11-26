@@ -188,6 +188,27 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
             }
             continue;
         }
+        // ADR-050 section 3.1 item 4: a service call names one of the component's own requirements
+        // and a method, and its arguments are pure expressions like any action value. The manifest
+        // is the front end's input, so the IR checks only what the IR can know: the requirement
+        // exists and the call is well formed.
+        if (action.kind == ActionKind::CallService) {
+            if (!starts_with(action.target, "svc::") || scope.ids.count(action.target) == 0) {
+                context.report("TESSERA_IR_UNRESOLVED",
+                               "action target `" + action.target + "` is not a service requirement",
+                               where);
+            }
+            if (action.method.empty()) {
+                context.report("TESSERA_IR_MALFORMED", "a service call needs a method name", where);
+            }
+            if (action.value) {
+                context.report("TESSERA_IR_MALFORMED", "a service call carries no value", where);
+            }
+            for (const ExprPtr& arg : action.args) {
+                require_expr(context, scope, locals, arg.get(), where, "a service call argument");
+            }
+            continue;
+        }
         if (action.kind == ActionKind::CallProp) {
             const bool is_prop = starts_with(action.target, "prop::") &&
                                  scope.props.count(action.target.substr(6)) != 0;

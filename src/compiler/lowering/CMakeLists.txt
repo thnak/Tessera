@@ -114,6 +114,7 @@ if (NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(tessera_library_ir_gen PRIVATE
         tessera_codegen
         tessera_harness
+        tessera_services_manifest
         tessera_ir_ids
         tessera_lowering_core
         tessera_lowering_bootstrap

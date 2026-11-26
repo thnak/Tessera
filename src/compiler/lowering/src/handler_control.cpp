@@ -16,6 +16,15 @@ std::optional<ir::Action> lower_call_action(HookState& state, const jsx::Expr& s
         return std::nullopt;
     }
     const jsx::Expr& callee = *statement.operands[0];
+    // A service method is matched first: its name may be `focus` or `set`, and the receiver's
+    // symbol kind, not the method name, says which form this is.
+    if (callee.kind == jsx::ExprKind::Member && callee.operands.size() == 1 && callee.operands[0] &&
+        callee.operands[0]->kind == jsx::ExprKind::Identifier) {
+        std::optional<ir::Action> service = lower_service_call(state, statement, callee, names);
+        if (service || state.error) {
+            return service;
+        }
+    }
     if (callee.kind == jsx::ExprKind::Member && (callee.text == "focus" || callee.text == "blur") &&
         callee.operands.size() == 1 && callee.operands[0] &&
         callee.operands[0]->kind == jsx::ExprKind::Identifier) {
@@ -106,6 +115,35 @@ std::optional<ir::Action> lower_dispatch_call(HookState& state, const jsx::Expr&
     action.kind = ir::ActionKind::Dispatch;
     action.target = "state::" + cell->name;
     action.action = type_property->value->text;
+    return action;
+}
+
+// `nav.push(route)` (ADR-050 section 3.1 item 4). The analyzer already checked the method and the
+// argument count against the manifest, so this turns the call into an action: the requirement's
+// `svc::` id, the method name and the lowered arguments in call order. An argument is a pure
+// expression like any action value, so it may read props, state and the handler's parameters.
+std::optional<ir::Action> lower_service_call(HookState& state, const jsx::Expr& call,
+                                             const jsx::Expr& callee, ComponentNames& names) {
+    const rules::Symbol* receiver = state.context.analysis.find(callee.operands[0]->text);
+    if (receiver == nullptr || receiver->kind != rules::SymbolKind::Service) {
+        return std::nullopt; // not a service: the caller tries the other call forms
+    }
+    ir::Action action;
+    action.kind = ir::ActionKind::CallService;
+    action.target = "svc::" + receiver->name;
+    action.method = callee.text;
+    for (std::size_t index = 1; index < call.operands.size(); ++index) {
+        if (!call.operands[index]) {
+            fail_hook(state, "TESSERA_IR_MALFORMED", "a service call has an empty argument",
+                      call.span);
+            return std::nullopt;
+        }
+        ir::ExprPtr argument = lower_component_expression(state, *call.operands[index], names);
+        if (!argument) {
+            return std::nullopt;
+        }
+        action.args.push_back(std::move(argument));
+    }
     return action;
 }
 

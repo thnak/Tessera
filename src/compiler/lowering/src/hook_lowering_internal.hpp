@@ -84,6 +84,10 @@ void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& o
 // provider is `context:<Ctx>` and whose argument is the context's default value.
 void lower_context_use(HookState& state, std::size_t index, LoweredHooks& out,
                        const NameResolver& names);
+// ADR-050 section 3.1 (issue #177): one `useService<T>()` statement, lowered to an IR `services[]`
+// entry. The analyzer resolved `T` against the manifest, so the entry takes its C++ type and
+// header.
+void lower_service_hook(HookState& state, std::size_t index, LoweredHooks& out);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 // One `const [state, dispatch] = useReducer(reduce, initial)` in its accepted form (ADR-066 item

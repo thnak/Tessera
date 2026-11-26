@@ -95,7 +95,10 @@ bool is_hook_symbol(SymbolKind kind) {
            kind == SymbolKind::Ref || kind == SymbolKind::AnimatedValue ||
            // ADR-066 item 4: both names of a `useReducer` statement, so a statement that reads the
            // reducer's state or dispatch before its declaration is an order error like any other.
-           kind == SymbolKind::Dispatch;
+           kind == SymbolKind::Dispatch ||
+           // ADR-050 section 3.1: the binding of a `useService<T>()`, so a statement that calls it
+           // before its declaration is an order error like any other hook.
+           kind == SymbolKind::Service;
 }
 
 void check_nesting(Context& ctx) {

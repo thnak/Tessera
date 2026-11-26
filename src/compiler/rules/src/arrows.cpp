@@ -39,6 +39,12 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
         const Symbol* symbol = ctx.out.find(callee.text);
         return symbol != nullptr && symbol->kind == SymbolKind::StateSetter;
     }
+    // Checked before the animated `.set` form so a service method named `set` is not shadowed by
+    // it. ADR-050 section 3.1 item 4: `nav.push(route)` on a `useService` binding is a side effect
+    // an inline handler can run, so a body made of such calls needs no native binding.
+    if (is_service_call(ctx, expr)) {
+        return true;
+    }
     if (callee.kind == ExprKind::Member && callee.text == "set" && !callee.operands.empty() &&
         callee.operands[0]->kind == ExprKind::Identifier) {
         const Symbol* symbol = ctx.out.find(callee.operands[0]->text);

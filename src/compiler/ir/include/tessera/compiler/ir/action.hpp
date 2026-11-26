@@ -29,7 +29,20 @@ struct Param {
 // `Dispatch` (ADR-066 item 4) is one `dispatch({ type: "x" })`: `target` is the reducer state's
 // `state::` id and `action` the `type` literal. The generated listener indexes the state's dispatch
 // table and calls the handler it names, so the component needs no new state kind.
-enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If, Dispatch };
+// `CallService` (ADR-050 section 3.1 item 4, issue #177) is one `nav.push(route)` on a service the
+// component requires: `target` is the requirement's `svc::<name>` id, `method` the manifest method
+// and `args` its arguments in call order. The call is a side effect of a handler or an effect,
+// never a value, so it has no `value`.
+enum class ActionKind : std::uint8_t {
+    Set,
+    AnimSet,
+    Focus,
+    Blur,
+    CallProp,
+    If,
+    Dispatch,
+    CallService
+};
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
@@ -79,6 +92,10 @@ struct Action {
     // to the IR before this field existed.
     std::vector<Action> then_actions{};
     std::vector<Action> else_actions{};
+    // `CallService` only: the manifest method name and the argument expressions. Empty for every
+    // other kind, so an action without them is byte-identical to the IR before they existed.
+    std::string method{};
+    std::vector<ExprPtr> args{};
 };
 
 } // namespace tessera::compiler::ir

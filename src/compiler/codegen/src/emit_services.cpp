@@ -180,6 +180,18 @@ bool emit_service_accessors(CppWriter& writer, const ir::Component& component,
         const char* const separator = i + 1 == component.services.size() ? ";" : " ||";
         writer.line("    std::is_same_v<T, " + component.services[i].type + ">" + separator);
     }
+    // The manifest id is part of the contract: a header whose `kServiceId` is another name would
+    // register under an id the manifest never mentions, so the mismatch is caught at build time.
+    for (const ir::Service& service : component.services) {
+        if (service.registry_id.empty()) {
+            continue;
+        }
+        writer.line("static_assert(" + service.type +
+                    "::kServiceId == tessera::appfw::service_id(\"" + service.registry_id + "\"),");
+        writer.line("              \"TESSERA_CG_SERVICE_ID_MISMATCH: `" + service.type +
+                    "` is declared as `" + service.registry_id +
+                    "` in ui/services.json but its kServiceId is another name\");");
+    }
     writer.line("// Resolves every declared requirement once. The context is not retained, so a");
     writer.line("// lookup after this call is impossible (ADR-050 section 3 item 5).");
     writer.line("void attach_services(const tessera::appfw::ServiceContext& context) {");

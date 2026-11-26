@@ -449,11 +449,11 @@ std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> action
                 continue;
             }
         }
-        if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
-            continue; // focus is host state, not a state/anim value: the evaluator has no scene
-        }
-        if (action.kind == ir::ActionKind::CallProp) {
-            notify_prop_call(action); // the caller's callback, if a host models the caller
+        if (is_host_action(action.kind)) {
+            // focus, a callback prop and a service call are effects a host models, not values
+            if (auto done = run_host_action(action, scope); !done) {
+                return done;
+            }
             continue;
         }
         if (!action.value) {

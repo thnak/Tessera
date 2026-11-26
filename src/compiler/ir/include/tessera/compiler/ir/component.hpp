@@ -133,6 +133,12 @@ struct Service {
     std::string type;   // the C++ service interface, fully qualified (`demo::Navigator`)
     std::string header; // the header that declares `type` (`demo/services.hpp`)
     SourceSpan source;
+    // The manifest's reverse-DNS id (`demo.nav`), when the requirement came from a project
+    // `ui/services.json` (docs/specs/services-manifest-v1.md section 3 item 5). Codegen emits a
+    // `static_assert` that the C++ interface's `kServiceId` is `service_id(registry_id)`, so a
+    // manifest that disagrees with the header is a compile error, not a runtime miss. Empty means
+    // no check.
+    std::string registry_id{};
 };
 
 // Inline setter handler (section 2.1).

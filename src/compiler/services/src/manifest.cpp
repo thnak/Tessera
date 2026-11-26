@@ -5,7 +5,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
+#include <fstream>
 #include <initializer_list>
+#include <iterator>
 #include <string>
 #include <utility>
 
@@ -238,21 +241,6 @@ std::expected<ManifestService, ManifestError> read_service(const JsonValue& node
 
 } // namespace
 
-const ManifestMethod* ManifestService::find_method(std::string_view method) const noexcept {
-    const auto found = std::ranges::find(methods, method, &ManifestMethod::name);
-    return found == methods.end() ? nullptr : &*found;
-}
-
-const ManifestService* ServicesManifest::find_name(std::string_view name) const noexcept {
-    const auto found = std::ranges::find(services, name, &ManifestService::name);
-    return found == services.end() ? nullptr : &*found;
-}
-
-const ManifestService* ServicesManifest::find_id(std::string_view id) const noexcept {
-    const auto found = std::ranges::find(services, id, &ManifestService::id);
-    return found == services.end() ? nullptr : &*found;
-}
-
 bool is_manifest_type(std::string_view type, bool allow_void) {
     return (allow_void && type == "void") || is_value_type(type);
 }
@@ -303,6 +291,27 @@ std::expected<ServicesManifest, ManifestError> parse_services_manifest(std::stri
         manifest.services.push_back(std::move(*service));
     }
     return manifest;
+}
+
+std::expected<std::optional<ServicesManifest>, ManifestError>
+load_services_manifest(const std::filesystem::path& root) {
+    const std::filesystem::path path = root / "ui" / "services.json";
+    std::error_code exists_error;
+    if (!std::filesystem::is_regular_file(path, exists_error)) {
+        return std::optional<ServicesManifest>{};
+    }
+    std::ifstream stream(path, std::ios::binary);
+    if (!stream) {
+        return std::unexpected(
+            error("TESSERA_SVC_MANIFEST_SYNTAX", "", "ui/services.json cannot be read"));
+    }
+    const std::string text((std::istreambuf_iterator<char>(stream)),
+                           std::istreambuf_iterator<char>());
+    auto parsed = parse_services_manifest(text);
+    if (!parsed) {
+        return std::unexpected(std::move(parsed.error()));
+    }
+    return std::optional<ServicesManifest>(std::move(*parsed));
 }
 
 } // namespace tessera::compiler::services

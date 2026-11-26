@@ -25,6 +25,10 @@ enum class SymbolKind : std::uint8_t {
     // inline handler rather than a native one. Kept distinct from `StateSetter` because its
     // argument is an action object, not the state's value.
     Dispatch,
+    // ADR-050 section 3.1 (issue #177): `nav` of `const nav = useService<Navigator>();`. It is not
+    // a value: the only thing a component does with it is call a manifest method, so it has no IR
+    // expression and a call on it lowers to a `callService` action.
+    Service,
 };
 
 inline constexpr std::size_t kNoStatement = static_cast<std::size_t>(-1);

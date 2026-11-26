@@ -9,6 +9,7 @@
 #include "tessera/compiler/rules/effect_info.hpp"
 #include "tessera/compiler/rules/environment_info.hpp"
 #include "tessera/compiler/rules/reducer_info.hpp"
+#include "tessera/compiler/rules/service_info.hpp"
 #include "tessera/compiler/rules/symbol.hpp"
 
 #include <cstddef>
@@ -36,6 +37,9 @@ struct ComponentAnalysis {
     // A rejected one is a diagnostic and contributes no entry. The contexts themselves are
     // module-scope, so they live on AnalyzedModule.
     std::vector<ContextUseInfo> context_uses;
+    // ADR-050 section 3.1 (issue #177): `useService<T>()` statements in their accepted form, in
+    // body order. A rejected one is a diagnostic and contributes no entry.
+    std::vector<ServiceUseInfo> service_uses;
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

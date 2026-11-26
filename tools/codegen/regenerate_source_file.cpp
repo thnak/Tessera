@@ -7,7 +7,8 @@
 namespace tessera::compiler::codegen::cli::detail {
 
 SourceFile::SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits,
-                       const jsx::FrontEndOptions& options)
+                       const jsx::FrontEndOptions& options,
+                       const services::ServicesManifest* services)
     : path(std::move(file_path)),
       text(std::move(file_text)),
       parsed(jsx::parse_module(text, limits, options)),
@@ -25,7 +26,8 @@ SourceFile::SourceFile(std::string file_path, std::string file_text, const jsx::
     // diagnostic name the call site (section 8).
     expansion_sink = std::make_unique<jsx::DiagnosticSink>(map, limits);
     expansion = jsx::expand_custom_hooks(*parsed.root, map, options, *expansion_sink);
-    analyzed = rules::analyze_module(*parsed.root, map, limits, nullptr, &expansion.call_sites);
+    analyzed =
+        rules::analyze_module(*parsed.root, map, limits, nullptr, &expansion.call_sites, services);
 }
 
 bool SourceFile::parses() const {

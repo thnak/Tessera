@@ -64,6 +64,7 @@ target_link_libraries(tessera_mcp_core PUBLIC
     tessera_codegen
     tessera_hal_metrics
     tessera_harness
+    tessera_services_manifest
     tessera_ir
     tessera_ir_ids
     tessera_lowering

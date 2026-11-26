@@ -299,6 +299,9 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     // `behaviors` above. Without this the lowering produced them and dropped them, so no component
     // ever carried one and `useBreakpoint`/`useTheme` were unreachable.
     component.environment = std::move(hooks->environment);
+    // ADR-050 section 3.1 (issue #177): the `useService<T>()` requirements. Codegen resolves each
+    // once at mount, and a `callService` action names one by its `svc::` id.
+    component.services = std::move(hooks->services);
     component.root = std::move(*root);
     lowered.bindings = std::move(hooks->bindings);
     // Issue #463: the CSS module reads belong to the module pass, which compares them against every

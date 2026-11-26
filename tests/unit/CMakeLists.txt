@@ -3383,3 +3383,12 @@ add_executable(services_manifest_tests
 target_link_libraries(services_manifest_tests PRIVATE tessera_services_manifest)
 
 add_test(NAME services_manifest COMMAND services_manifest_tests)
+
+# `useService<T>()` from TSX (ADR-050 section 3.1, docs/specs/services-manifest-v1.md, issue #177):
+# the rules, the lowering and the evaluator half.
+add_executable(services_frontend_tests
+    services_frontend_tests.cpp)
+
+target_link_libraries(services_frontend_tests PRIVATE tessera_lowering tessera_ir_eval)
+
+add_test(NAME services_frontend COMMAND services_frontend_tests)
