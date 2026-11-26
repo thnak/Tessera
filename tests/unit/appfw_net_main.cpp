@@ -8,6 +8,7 @@
 //   * appfw_net_redirect_tests.cpp - the section 3 item 2 rules, headers, cleartext, redaction
 //   * appfw_net_thread_tests.cpp   - "never blocks the UI thread", the deadline as a timer
 //   * appfw_net_request_tests.cpp  - the interface table's defaults and the `send` coroutine
+//   * appfw_net_http_service_tests.cpp - `HttpService` through the registry and a wrapper (ADR-075)
 //
 // Every group is deterministic: `ManualClock`, `ManualIoExecutor`, `FakeNet`, a hand-fired
 // `TimerQueue` and a hand-drained `CompletionQueue`. No test in the suite opens a socket, reads a
@@ -24,6 +25,7 @@ int run_error_tests();
 int run_redirect_tests();
 int run_thread_tests();
 int run_request_tests();
+int run_http_service_tests();
 
 } // namespace net_test
 
@@ -33,6 +35,8 @@ int main() {
     const int redirects = net_test::run_redirect_tests();
     const int threads = net_test::run_thread_tests();
     const int requests = net_test::run_request_tests();
+    const int service = net_test::run_http_service_tests();
+    (void)service;
     (void)state;
     (void)errors;
     (void)redirects;

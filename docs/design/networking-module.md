@@ -29,6 +29,7 @@ otherwise duplicate and get subtly different:
 | the contract suite of section 5 | `tests/unit/appfw_net_*` |
 | the same contract against WinHTTP or libcurl over loopback (opt-in `TESSERA_NET_LOOPBACK_TESTS`) | `tests/unit/appfw_net_loopback_tests.cpp` |
 | the libcurl error table | `tests/unit/appfw_net_curl_map_tests.cpp` |
+| `HttpService` through the registry and a developer wrapper | `tests/unit/appfw_net_http_service_tests.cpp` |
 
 **WinHTTP (#835).** One async session per transport (`WINHTTP_FLAG_ASYNC`, status callback), so the OS
 stack owns connections, pooling, TLS, HTTP/2 and the system proxy (`AUTOMATIC_PROXY`); the framework
@@ -41,6 +42,12 @@ owns (a token callback runs on the cancelling thread and must not call into WinH
 destructor cancels what is in flight and waits for every handle. **Not distinguished yet:** `offline`
 (WinHTTP reports a lost connection as a connect failure, so it surfaces as `connect`); an `offline`
 signal needs the network-list API and is a follow-up.
+
+**`HttpService` (ADR-075 section 1).** The interface an app resolves with `useService`
+(`tessera.http`): `send`, `submit` and `cancel`, nothing more. `NetClient` is final and is the default
+implementation, so redirects, the cross-origin `Authorization` rule and the size cap stay in one place; a
+developer, a test or the Studio preview substitutes or wraps it (the test suite wraps it to add a header
+and shows cleartext is still refused underneath).
 
 **libcurl (#836).** The Linux back end uses the *system* libcurl (a distro dev package, no vendoring), so TLS
 and the trust store come from the distro and get its security updates. One `CURLM` per transport (so

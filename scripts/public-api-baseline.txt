@@ -97,6 +97,10 @@ alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileReadResult
 alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileResult
 alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileSystem
 
+header include/tessera/appfw/http_service.hpp
+class include/tessera/appfw/http_service.hpp tessera::appfw::HttpService
+struct include/tessera/appfw/http_service.hpp tessera::appfw::NetTicket
+
 header include/tessera/appfw/i18n_catalog.hpp
 class include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalog
 struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalogConfig
@@ -226,7 +230,6 @@ struct include/tessera/appfw/net_client.hpp tessera::appfw::NetClientConfig
 struct include/tessera/appfw/net_client.hpp tessera::appfw::NetDiagnostic
 struct include/tessera/appfw/net_client.hpp tessera::appfw::NetDiagnostics
 struct include/tessera/appfw/net_client.hpp tessera::appfw::NetRequestStatus
-struct include/tessera/appfw/net_client.hpp tessera::appfw::NetTicket
 
 header include/tessera/appfw/net_curl.hpp
 class include/tessera/appfw/net_curl.hpp tessera::appfw::CurlTransport

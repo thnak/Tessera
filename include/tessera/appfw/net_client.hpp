@@ -54,6 +54,7 @@
 
 #pragma once
 
+#include "tessera/appfw/http_service.hpp"
 #include "tessera/appfw/net_state.hpp"
 #include "tessera/appfw/net_transport.hpp"
 #include "tessera/appfw/net_types.hpp"
@@ -80,18 +81,6 @@ namespace detail {
 // `src/appfw/net_client_internal.hpp` so the public header carries no implementation detail.
 class NetClientImpl;
 } // namespace detail
-
-// A submitted request's identity. Opaque, comparable and stable for the record's lifetime: a slot
-// plus a generation, so a ticket whose record was evicted and whose slot was reused identifies
-// nothing rather than the new occupant.
-struct NetTicket {
-    std::uint64_t value = 0;
-
-    [[nodiscard]] explicit operator bool() const noexcept {
-        return value != 0;
-    }
-    [[nodiscard]] friend constexpr bool operator==(NetTicket, NetTicket) = default;
-};
 
 // A copyable snapshot of one request's state: what `status_of` returns, deliberately small (a
 // status query must never copy a 16 MiB body).
@@ -168,17 +157,17 @@ struct NetClientConfig {
 //
 // All five must outlive the client. Non-movable: a ticket names a record whose address must not
 // change, and the impl is shared with the in-flight attempts so a destroyed client cannot dangle.
-class NetClient {
+class NetClient final : public HttpService {
 public:
     // What `submit` delivers, on the thread that drains the completion queue. Exactly one call per
     // accepted `submit`, unless the client is destroyed first (then it is not called at all, and
     // the request simply ends with the client).
-    using Callback = std::function<void(NetResult)>;
+    using Callback = HttpService::Callback;
 
     NetClient(NetClientConfig config, NetTransport& transport, runtime::IoTaskExecutor& executor,
               runtime::CompletionQueue& completions, runtime::TimerQueue& timers,
               runtime::Clock& clock);
-    ~NetClient();
+    ~NetClient() override;
 
     NetClient(const NetClient&) = delete;
     NetClient& operator=(const NetClient&) = delete;
@@ -189,7 +178,7 @@ public:
     // empty on purpose; `token` is the cancellation input. The coroutine is lazy: nothing happens
     // until it is started or awaited.
     [[nodiscard]] runtime::Task<NetResult> send(NetRequest request,
-                                                runtime::CancellationToken token);
+                                                runtime::CancellationToken token) override;
 
     // The coroutine-free form, for a caller that is not itself a coroutine (a frame tick, an event
     // handler). Returns the ticket when the request was accepted, or the error when it was refused
@@ -200,13 +189,13 @@ public:
     // and it must not call `submit` re-entrantly from a resolution it caused: a redirect is handled
     // internally, never by recursion.
     [[nodiscard]] std::expected<NetTicket, NetError>
-    submit(NetRequest request, runtime::CancellationToken token, Callback on_done);
+    submit(NetRequest request, runtime::CancellationToken token, Callback on_done) override;
 
     // Explicit per-request cancellation (section 3 item 4). Resolves the request as `cancelled`,
     // cancels the attempt's token so the back end releases its connection, cancels the deadline and
     // invokes the callback once. False for an unknown or already-terminal ticket, which is what
     // makes a second cancel a no-op instead of a second delivery.
-    bool cancel(NetTicket ticket);
+    bool cancel(NetTicket ticket) override;
 
     // The frame-boundary drive point: resolves every request whose token was cancelled, so a back
     // end that ignores its token cannot hold a cancelled request past one tick. Cheap and
