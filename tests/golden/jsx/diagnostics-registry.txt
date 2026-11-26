@@ -40,9 +40,12 @@ TESSERA_JSX_SUBSET_OPERATOR	subset-operator	`**` is not supported
 TESSERA_JSX_SUBSET_SPREAD	subset-spread	spread is only allowed for the props parameter or an object literal
 TESSERA_JSX_SUBSET_STATEMENT	subset-statement	`if` is not supported
 TESSERA_JSX_SUBSET_STYLE_DYNAMIC	subset-style-dynamic	`style` must be an inline object literal
-TESSERA_JSX_SUBSET_TYPES	subset-types	type `any` is not supported
+TESSERA_JSX_SUBSET_TYPES	subset-types	type `never` is not supported
 TESSERA_JSX_SUBSET_UNKNOWN_PROP	subset-unknown-prop	attribute `data-x` is not an identifier
+TESSERA_JSX_TYPE_ANY	type-any	`any` is not a Tessera type
+TESSERA_JSX_TYPE_MAP	type-map	`Record` is deferred until Tessera has a map type
 TESSERA_JSX_TYPE_NUMBER	type-number	bare `number` is not a Tessera type
+TESSERA_JSX_TYPE_STATE_UNTYPED	type-state-untyped	an empty array initial has no element type
 TESSERA_REACT_BIND_ID	react-bind-id	malformed bind id `Foo`
 TESSERA_REACT_BIND_MISSING	react-bind-missing	handler `f` has no `// Note: bind::<id>` annotation and its body is not made of setter calls only
 TESSERA_REACT_BIND_POSITION	react-bind-position	`bind::` annotations go before a handler declaration or a `useEffect` statement inside a component

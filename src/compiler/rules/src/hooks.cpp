@@ -67,6 +67,19 @@ void check_state(Context& ctx, std::size_t index, const Statement& statement, co
                     statement.names.size() == 2 && call.operands.size() == 2;
     if (!ok) {
         form_error(ctx, "useState", statement, "const [x, setX] = useState<T>(init);");
+        return;
+    }
+    // ADR-058 typing rule 3: an empty `[]` or `{}` initial carries no type, and TypeScript would
+    // infer `never[]` / `{}` here. Say so with the one-line fix instead of the lowering's generic
+    // "needs a type argument".
+    const Expr& initial = *call.operands[1];
+    if (call.type_args.empty() && initial.kind == ExprKind::Array && initial.operands.empty()) {
+        ctx.error("TESSERA_JSX_TYPE_STATE_UNTYPED", "an empty array initial has no element type",
+                  initial.span, "write `useState<Item[]>([])`, naming the element type");
+    } else if (call.type_args.empty() && initial.kind == ExprKind::Object &&
+               initial.properties.empty() && initial.spread_base == nullptr) {
+        ctx.error("TESSERA_JSX_TYPE_STATE_UNTYPED", "an empty object initial has no type",
+                  initial.span, "write `useState<Item>({})`, naming a record type");
     }
 }
 

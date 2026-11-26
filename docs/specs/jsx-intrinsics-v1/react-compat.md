@@ -41,6 +41,18 @@ build, and therefore runs on a fresh checkout. Construct-level grading - which `
 `dangerouslySetInnerHTML` a file uses - belongs to the front end and arrives with typing rules 1-3
 of ADR-058 section 3, which are steps 2 and later of its order of work.
 
+### 1.2 One-line-fix typing diagnostics (ADR-058 typing rule 3, #548)
+
+The edits a port is asked to make by hand each have a stable code, a location and the fix in the message, so `port-check` can list them verbatim:
+
+| Written | Code | Fix |
+|---|---|---|
+| `any`, `unknown` | `TESSERA_JSX_TYPE_ANY` | the concrete type, or `type Item = { ... }` |
+| `Record<K, V>`, `Map<K, V>` | `TESSERA_JSX_TYPE_MAP` | `Entry[]` with `type Entry = { key: string; value: T }` until a map type exists |
+| `useState([])`, `useState({})` | `TESSERA_JSX_TYPE_STATE_UNTYPED` | `useState<Item[]>([])`, `useState<Item>({})` |
+
+An inline object type on the props parameter stays accepted: the lowering already gives it a synthesized record, so no diagnostic is raised for it.
+
 ## 2. Event props and payloads (decided: Q1, option C)
 
 Options for the payload of `onChange` on `TextInput`/`TextArea` (the other events have only one

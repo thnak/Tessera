@@ -206,10 +206,18 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_SUBSET_STATEMENT", "subset-statement", Entry::kExpression, "if", 0, 2),
     fixture("TESSERA_JSX_SUBSET_STYLE_DYNAMIC", "subset-style-dynamic", Entry::kJsx,
             "<A style={s}/>", 3, 9),
-    fixture("TESSERA_JSX_SUBSET_TYPES", "subset-types", Entry::kType, "any", 0, 3),
+    fixture("TESSERA_JSX_SUBSET_TYPES", "subset-types", Entry::kType, "never", 0, 5),
     fixture("TESSERA_JSX_SUBSET_UNKNOWN_PROP", "subset-unknown-prop", Entry::kJsx,
             "<A data-x=\"1\"/>", 3, 6),
+    fixture("TESSERA_JSX_TYPE_ANY", "type-any", Entry::kType, "any", 0, 3),
+    fixture("TESSERA_JSX_TYPE_MAP", "type-map", Entry::kType, "Record<string, int>", 0, 6),
     fixture("TESSERA_JSX_TYPE_NUMBER", "type-number", Entry::kType, "number", 0, 6),
+    fixture("TESSERA_JSX_TYPE_STATE_UNTYPED", "type-state-untyped", Entry::kRules,
+            "function A() {\n"
+            "  const [items, setItems] = useState([]);\n"
+            "  return <View/>;\n"
+            "}\n",
+            52, 2, 2),
     fixture("TESSERA_REACT_BIND_ID", "react-bind-id", Entry::kModule,
             "function A() {\n"
             "  // Note: bind::Foo\n"

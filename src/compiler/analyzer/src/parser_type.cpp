@@ -84,8 +84,16 @@ TypePtr Parser::parse_type_primary() {
         advance(LexMode::Code);
         type = make_type(TypeKind::Name, name_span);
         type->text = name;
-        if (name == "any" || name == "unknown" || name == "never" || name == "object" ||
-            name == "Function") {
+        // ADR-058 typing rule 3: the two types a port reaches for first get their own stable code
+        // and a one-line fix, so `port-check` can surface them as a single edit each.
+        if (name == "any" || name == "unknown") {
+            report("TESSERA_JSX_TYPE_ANY", "`" + name + "` is not a Tessera type", name_span,
+                   "write the concrete type, or declare a record: `type Item = { id: string }`");
+        } else if (name == "Record" || name == "Map" || name == "ReadonlyMap") {
+            report("TESSERA_JSX_TYPE_MAP",
+                   "`" + name + "` is deferred until Tessera has a map type", name_span,
+                   "use a list of records: `type Entry = { key: string; value: T }` and `Entry[]`");
+        } else if (name == "never" || name == "object" || name == "Function") {
             report("TESSERA_JSX_SUBSET_TYPES", "type `" + excerpt(name) + "` is not supported",
                    name_span, "use the types of the subset specification, section 5");
         } else if (name == "number") {
