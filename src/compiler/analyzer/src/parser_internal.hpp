@@ -149,6 +149,7 @@ private:
 
     // parser_type.cpp
     TypePtr parse_type_expr();
+    TypePtr parse_type_intersection();
     TypePtr parse_type_primary();
     TypePtr parse_type_object(std::uint32_t begin);
     TypePtr parse_type_function(std::uint32_t begin);
@@ -160,6 +161,9 @@ private:
     bool parse_reexport(ModuleItem& item);
     bool parse_type_alias(ModuleItem& item);
     bool parse_interface(ModuleItem& item);
+    // parser_type_expand.cpp: Partial/Required/Pick/Omit and intersections of records, expanded
+    // once the whole module is parsed so an alias may be declared after its use.
+    void expand_type_forms(Module& module);
     bool parse_const_item(ModuleItem& item);
     // ADR-066 item 1: `const Name = (props: Props) => { ... }`, tried from parse_const_item and
     // rewound when the text is an ordinary constant instead.

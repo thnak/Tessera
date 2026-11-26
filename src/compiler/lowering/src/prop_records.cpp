@@ -165,6 +165,8 @@ std::optional<std::string> lower_prop_type(const jsx::TypeNode& type,
         }
         return std::nullopt;
     }
+    case jsx::TypeKind::Intersection:
+        return std::nullopt; // expanded at module level; one left over was already reported
     case jsx::TypeKind::Object:
         // Issue #804 (owner decision): an anonymous object type in a value position names the
         // record the collection pass synthesized for it, so the prop type is that record's name.

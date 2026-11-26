@@ -42,7 +42,7 @@ TypePtr Parser::parse_type_expr() {
         return nullptr;
     }
     const std::uint32_t begin = cur_.span.offset;
-    TypePtr first = parse_type_primary();
+    TypePtr first = parse_type_intersection();
     if (!first || !at_punct("|")) {
         return fatal_ ? nullptr : std::move(first);
     }
@@ -50,7 +50,7 @@ TypePtr Parser::parse_type_expr() {
     uni->children.push_back(std::move(first));
     while (at_punct("|")) {
         advance(LexMode::Code);
-        TypePtr next = parse_type_primary();
+        TypePtr next = parse_type_intersection();
         if (!next) {
             return nullptr;
         }
@@ -58,6 +58,29 @@ TypePtr Parser::parse_type_expr() {
     }
     uni->span = span_from(begin);
     return finish_node(*uni) ? std::move(uni) : nullptr;
+}
+
+// `A & B` binds tighter than `|`, as in TypeScript. The module-level expansion turns an
+// intersection of records into one object type; anywhere else it stays a node the later passes
+// reject.
+TypePtr Parser::parse_type_intersection() {
+    const std::uint32_t begin = cur_.span.offset;
+    TypePtr first = parse_type_primary();
+    if (!first || !at_punct("&")) {
+        return fatal_ ? nullptr : std::move(first);
+    }
+    TypePtr both = make_type(TypeKind::Intersection, Span{});
+    both->children.push_back(std::move(first));
+    while (at_punct("&")) {
+        advance(LexMode::Code);
+        TypePtr next = parse_type_primary();
+        if (!next) {
+            return nullptr;
+        }
+        both->children.push_back(std::move(next));
+    }
+    both->span = span_from(begin);
+    return finish_node(*both) ? std::move(both) : nullptr;
 }
 
 TypePtr Parser::parse_type_primary() {
@@ -160,11 +183,6 @@ TypePtr Parser::parse_type_primary() {
             return nullptr;
         }
         type = std::move(array);
-    }
-    if (at_punct("&")) {
-        fail("TESSERA_JSX_SUBSET_TYPES", "intersection types are not supported", cur_.span,
-             "use an object type with all the members");
-        return nullptr;
     }
     return fatal_ ? nullptr : std::move(type);
 }

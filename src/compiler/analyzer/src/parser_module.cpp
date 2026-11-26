@@ -94,6 +94,7 @@ std::unique_ptr<Module> Parser::parse_module_root() {
         }
     }
     check_remaining_comments();
+    expand_type_forms(*module);
     return module;
 }
 

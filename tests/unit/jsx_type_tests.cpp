@@ -46,7 +46,7 @@ void test_rejected_types() {
         {"never", "TESSERA_JSX_SUBSET_TYPES;", true},
         {"object", "TESSERA_JSX_SUBSET_TYPES;", true},
         {"Function", "TESSERA_JSX_SUBSET_TYPES;", true},
-        {"A & B", "TESSERA_JSX_SUBSET_TYPES;", false},
+        {"A & B", "", true}, // expanded at module level (#547), a bare type is just parsed
         {"[int, string]", "TESSERA_JSX_SUBSET_TYPES;", false},
         {"typeof x", "TESSERA_JSX_SUBSET_TYPES;", false},
         {"", "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;", false},
