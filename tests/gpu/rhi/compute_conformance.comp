@@ -1,0 +1,51 @@
+#version 450
+// Compute conformance kernels (RHI 1.18, issue #684), one shader selected by a push constant so one
+// pipeline object serves each step. A test shader, compiled by the test's own rule, not part of the
+// shader manifest. Every result is exactly computable on the CPU, so a backend either matches or
+// fails.
+//   mode 0  write indirect-dispatch arguments: A[0..2] = (count, 1, 1)         (1 invocation)
+//   mode 1  clear a 16-bin histogram: A[i] = 0 for i < 16
+//   mode 2  histogram: atomicAdd(A[In[i] % 16], 1) for i < count
+//   mode 3  exclusive prefix sum of In[0..count) into A, one workgroup, shared memory
+layout(local_size_x = 256) in;
+layout(std430, binding = 0) buffer Out { uint data[]; } out_buf;
+layout(std430, binding = 1) readonly buffer In { uint data[]; } in_buf;
+layout(push_constant) uniform Push {
+    uint mode;
+    uint count;
+} pc;
+
+shared uint scan[256];
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (pc.mode == 0u) {
+        if (i == 0u) {
+            out_buf.data[0] = pc.count;
+            out_buf.data[1] = 1u;
+            out_buf.data[2] = 1u;
+        }
+    } else if (pc.mode == 1u) {
+        if (i < 16u) {
+            out_buf.data[i] = 0u;
+        }
+    } else if (pc.mode == 2u) {
+        if (i < pc.count) {
+            atomicAdd(out_buf.data[in_buf.data[i] % 16u], 1u);
+        }
+    } else {
+        // Hillis-Steele inclusive scan over one workgroup; the exclusive result is the neighbour.
+        uint l = gl_LocalInvocationID.x;
+        scan[l] = l < pc.count ? in_buf.data[l] : 0u;
+        barrier();
+        for (uint stride = 1u; stride < 256u; stride <<= 1u) {
+            uint add = l >= stride ? scan[l - stride] : 0u;
+            barrier();
+            scan[l] += add;
+            barrier();
+        }
+        if (l < pc.count) {
+            out_buf.data[l] = l == 0u ? 0u : scan[l - 1u];
+        }
+    }
+}

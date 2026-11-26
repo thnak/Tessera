@@ -508,6 +508,7 @@ public:
     void bind_compute_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
     void compute_push_constants(const void* data, std::size_t size) override;
     void dispatch(std::uint32_t x, std::uint32_t y, std::uint32_t z) override;
+    void dispatch_indirect(const rhi::Buffer& buffer, std::size_t offset) override;
     void compute_barrier() override;
     void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,
                      std::size_t size) override;

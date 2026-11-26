@@ -776,6 +776,27 @@ if (TARGET tessera_rhi_vulkan)
         target_link_libraries(compute_dispatch_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
         add_test(NAME compute_dispatch COMMAND compute_dispatch_tests)
         set_tests_properties(compute_dispatch PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+        # RHI 1.18 conformance kernels (issue #684): indirect dispatch, buffer atomics, a shared-memory
+        # prefix sum, with exact expected output. Same rule as the probe: no manifest entry.
+        set(TESSERA_COMPUTE_CONFORMANCE_HEADER
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/compute_conformance_comp_spv.h)
+        add_custom_command(
+            OUTPUT ${TESSERA_COMPUTE_CONFORMANCE_HEADER}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3
+                    ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_conformance.comp
+                    -o ${TESSERA_COMPUTE_CONFORMANCE_HEADER}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_conformance.comp
+            COMMENT "glslc compute_conformance.comp"
+            VERBATIM)
+        add_executable(compute_conformance_tests
+            rhi/compute_conformance_tests.cpp ${TESSERA_COMPUTE_CONFORMANCE_HEADER})
+        target_include_directories(compute_conformance_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        target_link_libraries(compute_conformance_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
+        add_test(NAME compute_conformance COMMAND compute_conformance_tests)
+        set_tests_properties(compute_conformance PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     endif()
 
     add_executable(vulkan_async_submit_tests

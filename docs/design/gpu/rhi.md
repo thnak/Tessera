@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.17**
-  (`0x00010011`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.18**
+  (`0x00010012`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -89,6 +89,10 @@ RHI versioning and capabilities (ADR-049):
   1.17 adds `CommandList::copy_buffer_to_texture` and `Device::supports_buffer_texture_copy()`
   ([ADR-072](../../../decisions/ADR-072-rhi-copy-buffer-to-texture.md), section 5.7); Vulkan and the null
   backend answer true, WebGPU and Metal false until their slices land.
+  1.18 adds `ComputeCapabilities`, `Device::compute_capabilities()` and `CommandList::dispatch_indirect`
+  ([`compute.md`](compute.md), issue #684); Vulkan implements them, and the null backend records compute
+  only when made with `create_null_compute_device`. WebGPU and Metal keep the defaults (zeroed capabilities,
+  throwing calls) until their slices land.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

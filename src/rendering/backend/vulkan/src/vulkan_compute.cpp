@@ -7,6 +7,7 @@
 #include "vulkan_compute.hpp"
 #include "vulkan_scope_guard.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -42,6 +43,33 @@ VulkanComputePipeline::~VulkanComputePipeline() {
         return;
     }
     release();
+}
+
+// Core Vulkan 1.0 limits plus the 1.1 subgroup size, which is optional information (0 when absent).
+// 32-bit buffer atomics and indirect dispatch are core requirements, so they hold wherever compute
+// does.
+void VulkanDevice::probe_compute_capabilities(const VkPhysicalDeviceLimits& limits) {
+    compute_caps_ = {};
+    if (storage_buffer_capacity_ == 0) {
+        return;
+    }
+    VkPhysicalDeviceSubgroupProperties subgroup{};
+    subgroup.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+    VkPhysicalDeviceProperties2 properties2{};
+    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    properties2.pNext = &subgroup;
+    vkGetPhysicalDeviceProperties2(physical_device_, &properties2);
+    compute_caps_.max_workgroup_size_x = limits.maxComputeWorkGroupSize[0];
+    compute_caps_.max_workgroup_size_y = limits.maxComputeWorkGroupSize[1];
+    compute_caps_.max_workgroup_size_z = limits.maxComputeWorkGroupSize[2];
+    compute_caps_.max_workgroup_invocations = limits.maxComputeWorkGroupInvocations;
+    // `dispatch` validates against 65535 on every device, so report no more than it accepts.
+    compute_caps_.max_workgroup_count =
+        std::min<std::uint32_t>(limits.maxComputeWorkGroupCount[0], kMaxDispatchCount);
+    compute_caps_.max_shared_memory_bytes = limits.maxComputeSharedMemorySize;
+    compute_caps_.subgroup_size = subgroup.subgroupSize;
+    compute_caps_.indirect_dispatch = true;
+    compute_caps_.buffer_atomics = true;
 }
 
 std::unique_ptr<rhi::ComputePipeline>
@@ -249,15 +277,36 @@ void VulkanCommandList::dispatch(std::uint32_t x, std::uint32_t y, std::uint32_t
     vkCmdDispatch(buffer_, x, y, z);
 }
 
+void VulkanCommandList::dispatch_indirect(const rhi::Buffer& buffer, std::size_t offset) {
+    ensure_recording("dispatch_indirect");
+    if (compute_pipeline_ == nullptr) {
+        throw std::logic_error("dispatch_indirect: missing compute pipeline");
+    }
+    const auto& vulkan_buffer = vulkan_cast<const VulkanBuffer>(buffer);
+    if (vulkan_buffer.usage() != rhi::BufferUsage::Storage) {
+        throw std::invalid_argument(
+            "dispatch_indirect: the buffer was not created with BufferUsage::Storage");
+    }
+    constexpr std::size_t kArgumentBytes = 3 * sizeof(std::uint32_t);
+    if (offset % 4 != 0 || offset > buffer.size() || buffer.size() - offset < kArgumentBytes) {
+        throw std::invalid_argument("dispatch_indirect: offset " + std::to_string(offset) +
+                                    " is not 4-byte aligned with 12 bytes inside the buffer");
+    }
+    vkCmdDispatchIndirect(buffer_, vulkan_buffer.handle(), static_cast<VkDeviceSize>(offset));
+}
+
 void VulkanCommandList::compute_barrier() {
     ensure_recording("compute_barrier");
+    // The destination also covers the indirect-argument read, so a pass that wrote the counts of a
+    // `dispatch_indirect` is ordered before it by the same barrier.
     VkMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+                            VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
     vkCmdPipelineBarrier(buffer_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &barrier, 0, nullptr, 0,
-                         nullptr);
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+                         0, 1, &barrier, 0, nullptr, 0, nullptr);
 }
 
 void VulkanCommandList::copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,

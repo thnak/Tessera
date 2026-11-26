@@ -1399,14 +1399,17 @@ function include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering
 
 header include/tessera/rendering/null/null_device.hpp
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandList
+class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullComputePipeline
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullPipeline
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullBufferTextureCopy
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandStats
+struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullDispatchRecord
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullDrawRecord
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullSampledTargetBind
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullStorageBufferBind
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullTargetRegionCopy
 enum include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandKind
+function include/tessera/rendering/null/null_device.hpp tessera::rendering::null::create_null_compute_device
 function include/tessera/rendering/null/null_device.hpp tessera::rendering::null::create_null_device
 
 header include/tessera/rendering/null/null_swapchain.hpp
@@ -1557,6 +1560,7 @@ constant include/tessera/rendering/rhi/timestamp.hpp tessera::rendering::rhi::kM
 header include/tessera/rendering/rhi/types.hpp
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::BufferDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::Color
+struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::ComputeCapabilities
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::ComputePipelineDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::DeviceDesc
 struct include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::Extent2D

@@ -315,6 +315,27 @@ struct ComputePipelineDesc {
 
 inline constexpr std::uint32_t kMaxComputeStorageBuffers = 8;
 
+// What a compute shader can rely on (RHI 1.18, issue #684), answered by
+// `Device::compute_capabilities()` and never inferred from the backend name. Value-initialized
+// (every field 0 or false) on a device whose `supports_compute()` is false.
+struct ComputeCapabilities {
+    std::uint32_t max_workgroup_size_x = 0;
+    std::uint32_t max_workgroup_size_y = 0;
+    std::uint32_t max_workgroup_size_z = 0;
+    // Upper bound on x * y * z of one workgroup (a shader's local_size product).
+    std::uint32_t max_workgroup_invocations = 0;
+    // Per-dimension limit on the workgroup counts of one `dispatch` or indirect dispatch.
+    std::uint32_t max_workgroup_count = 0;
+    // Bytes of `shared` memory one workgroup can declare.
+    std::uint32_t max_shared_memory_bytes = 0;
+    // The subgroup width, or 0 when the device does not report one (a shader must not assume it).
+    std::uint32_t subgroup_size = 0;
+    // `CommandList::dispatch_indirect` works.
+    bool indirect_dispatch = false;
+    // 32-bit integer atomics on a storage buffer (`atomicAdd` and friends).
+    bool buffer_atomics = false;
+};
+
 struct TextureDesc {
     Extent2D extent;
     TextureFormat format = TextureFormat::R8G8B8A8Unorm;

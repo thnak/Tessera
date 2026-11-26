@@ -418,6 +418,8 @@ void VulkanDevice::create_device() {
                                    ? properties.limits.maxPerStageDescriptorStorageBuffers
                                    : 0U;
     probe_timestamp_capability(properties);
+
+    probe_compute_capabilities(properties.limits);
 }
 
 void VulkanDevice::create_allocator() {

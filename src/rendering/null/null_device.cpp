@@ -87,6 +87,9 @@ void mark_target_content(const rhi::RenderTarget& target) {
 
 class NullDevice final : public rhi::Device {
 public:
+    explicit NullDevice(bool compute = false)
+        : compute_(compute) {}
+
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::Null;
     }
@@ -169,7 +172,51 @@ public:
     }
 
     std::unique_ptr<rhi::CommandList> create_command_list() override {
-        return std::make_unique<NullCommandList>();
+        return std::make_unique<NullCommandList>(compute_);
+    }
+
+    // Compute is opt-in (create_null_compute_device): the default null device keeps answering false
+    // so nothing that probes the capability starts taking a GPU route it cannot execute.
+    [[nodiscard]] bool supports_compute() const override {
+        return compute_;
+    }
+    // A fixed set (the usual desktop floor), so a test reading it is deterministic. The subgroup
+    // size is 0 (unreported): the null backend has no subgroup.
+    [[nodiscard]] rhi::ComputeCapabilities compute_capabilities() const override {
+        if (!compute_) {
+            return {};
+        }
+        rhi::ComputeCapabilities caps;
+        caps.max_workgroup_size_x = 1024;
+        caps.max_workgroup_size_y = 1024;
+        caps.max_workgroup_size_z = 64;
+        caps.max_workgroup_invocations = 1024;
+        caps.max_workgroup_count = 65535;
+        caps.max_shared_memory_bytes = 32768;
+        caps.indirect_dispatch = true;
+        caps.buffer_atomics = true;
+        return caps;
+    }
+    std::unique_ptr<rhi::ComputePipeline>
+    create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override {
+        if (!compute_) {
+            throw std::runtime_error("create_compute_pipeline: this backend has no compute "
+                                     "(supports_compute() is false)");
+        }
+        if (desc.spirv == nullptr || desc.spirv_size == 0 || desc.spirv_size % 4 != 0) {
+            throw std::invalid_argument(
+                "null create_compute_pipeline: SPIR-V is empty or not word-sized");
+        }
+        if (desc.storage_buffer_count == 0 ||
+            desc.storage_buffer_count > rhi::kMaxComputeStorageBuffers ||
+            desc.push_constant_size % 4 != 0) {
+            throw std::invalid_argument(
+                "null create_compute_pipeline: storage_buffer_count must be "
+                "1..kMaxComputeStorageBuffers and push_constant_size a "
+                "multiple of 4");
+        }
+        return std::make_unique<NullComputePipeline>(desc.storage_buffer_count,
+                                                     desc.push_constant_size);
     }
 
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
@@ -182,6 +229,9 @@ public:
     }
 
     void wait_idle() override {}
+
+private:
+    bool compute_ = false;
 };
 
 } // namespace
@@ -405,6 +455,10 @@ bool NullCommandList::wait(std::uint64_t) {
 
 std::unique_ptr<rhi::Device> create_null_device(const rhi::DeviceDesc&) {
     return std::make_unique<NullDevice>();
+}
+
+std::unique_ptr<rhi::Device> create_null_compute_device(const rhi::DeviceDesc&) {
+    return std::make_unique<NullDevice>(true);
 }
 
 } // namespace tessera::rendering::null

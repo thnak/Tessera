@@ -223,9 +223,9 @@ This page is the map and reading order for the framework.
 - [`design/gpu/frames.md`](design/gpu/frames.md) — frame lifecycle, frames in flight, barriers,
   uploads/readbacks, resize
 - [`design/gpu/resources.md`](design/gpu/resources.md) — buffers/textures/targets/samplers/memory
-- [`design/gpu/pipelines.md`](design/gpu/pipelines.md) — pipeline cache, descriptors, vertex layout,
-  shaders
+- [`design/gpu/pipelines.md`](design/gpu/pipelines.md) — pipeline cache, descriptors, vertex layout, shaders
 - [`design/gpu/backends.md`](design/gpu/backends.md) — Vulkan/WebGPU/null/software parity, capabilities
+- [`design/gpu/compute.md`](design/gpu/compute.md) — RHI compute 1.16 to 1.18, conformance kernels
 - [`design/gpu/offscreen-layers.md`](design/gpu/offscreen-layers.md) — render-pass break,
   `copy_target_region` and the bounded offscreen target pool (glass/layer seam, #242); also
   [`clip-records.md`](design/gpu/clip-records.md), the per-frame clip-record buffer (ADR-068)
