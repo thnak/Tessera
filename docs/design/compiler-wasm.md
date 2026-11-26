@@ -167,12 +167,13 @@ The tree is built on the **same `ui::Node` surface generated C++ uses** (`set_el
 native build would have built rather than a parallel model of it.
 
 **Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
-array rather than approximated: user component instances (`NodeKind::Component`, which needs prop
-binding and slot splicing), `CustomElement`, virtual collections, `Slot` positions, nested list
-templates, and inline-span `Text`. **Conditional and repeated children are evaluated** (issue #389)
+array rather than approximated: `CustomElement`, virtual collections, nested list
+templates, and inline-span `Text`. **User component instances are evaluated** (issue #594): a host `View` holds the callee's tree in its
+own scope, `{children}` splices at the `Slot` under the caller's scope. **Not yet inside an instance:**
+event handlers, state changes, callback props, dynamic `className`/`role`/`aria-*`. **Conditional and repeated children are evaluated** (issue #389)
 through the same evaluator and scope as text and clicks; `docs/design/preview-dynamic-children.md`
-states both decisions, the bounded subset and why there is no second evaluator. The gallery sample
-still imports a user component, so the corpus uses purpose-built sources. Dynamic inline-style values
+states both decisions, the bounded subset and why there is no second evaluator. The gallery sample's
+`Button` is an instance, so it paints but is not yet interactive. Dynamic inline-style values
 are not applied either (generated `apply_state` owns those); the preview lays out the initial tree.
 
 ### 7.2 The shared walk (one implementation, not two)

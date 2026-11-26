@@ -155,27 +155,23 @@ void test_bad_source_reports_a_reason() {
 }
 
 // A tree the preview cannot build says WHY (issue: a blank canvas that only reported "cannot be
-// previewed"): the construct is named, so the Studio can show "a user component instance ...".
+// previewed"): the construct is named, so the Studio can show "an inline-span `Text` ...".
 void test_an_unbuildable_tree_names_its_construct() {
     constexpr std::string_view kInstance = R"(export function Page(): Node {
   return (
     <View>
-      <Row />
+      <Text>Hello <b>bold</b></Text>
     </View>
   );
-}
-
-export function Row(): Node {
-  return <View><Text>Row</Text></View>;
 }
 )";
     cli::CanvasSceneSession session;
     const std::string error = session.start(source_for(kInstance, "ui/Page.tsx"));
-    expect(!error.empty(), "a user component instance is not previewable yet");
+    expect(!error.empty(), "an inline-span Text is not previewable yet");
     expect(!session.started(), "a failed start leaves the session unstarted");
     expect(error.find("TESSERA_SCENE_UNSUPPORTED") != std::string::npos,
            "the refusal is the preview's named diagnostic: " + error);
-    expect(error.find("user component instance") != std::string::npos,
+    expect(error.find("inline-span") != std::string::npos,
            "the refusal names the construct it cannot build: " + error);
 }
 

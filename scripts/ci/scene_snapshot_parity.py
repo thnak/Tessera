@@ -29,8 +29,8 @@ count on either side is a failure before any byte comparison.
 Why `samples/compiler-demo/Demo.tsx` is still not the corpus: its conditional child now *is* evaluated
 (issue #389), so the file prepares, but its `bind::sync` effect, its `useRef` and its `TextInput`
 `onChange` payload are outside this slice, and the corpus is meant to be the set of shapes whose whole
-tree the preview builds. `samples/gallery/Gallery.tsx` imports a user component, which is still
-`TESSERA_SCENE_UNSUPPORTED` (docs/design/compiler-wasm.md section 7.1). The static corpus below is
+tree the preview builds. `samples/gallery/Gallery.tsx` imports a user component, which the preview now
+evaluates (issue #594); its own event handlers are not bound yet (docs/design/compiler-wasm.md section 7.1). The static corpus below is
 joined by the two dynamic shapes #389 added -- a ternary's branches and a `map`'s items -- so the gate
 covers what the preview now evaluates instead of only what it always did.
 
@@ -221,11 +221,11 @@ CORPUS: Tuple[Tuple[object, ...], ...] = (
 """,
         3,
     ),
-    # Must be rejected: a user component instance is outside this slice. Both sides have to agree on an
-    # *empty* document, which is the one place where zero nodes is the expected answer and the minimum
-    # is therefore 0.
+    # Supported since issue #594: a user component instance. The host `View` of the instance holds the
+    # callee's own tree, so the document is View + host View + Text; an empty result would mean the
+    # instance stopped being built, which is the regression this case guards.
     (
-        "unsupported-component",
+        "component-instance",
         "ui/Nested-Component.tsx",
         """function Leaf(): Node {
   return <Text>Leaf</Text>;
@@ -239,7 +239,7 @@ export function Host(): Node {
   );
 }
 """,
-        0,
+        3,
     ),
     # Supported since issue #389: a conditional child. `flag` is true, so the `&&` branch is the shown
     # one and the tree is a View + the Text, not an empty document. The minimum is therefore a real

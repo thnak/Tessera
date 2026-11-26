@@ -110,7 +110,7 @@ bool Builder::build_children(const ir::Node& node, ui::Node& parent, std::size_t
 
 bool Builder::build_conditional_child(const ir::Node& child, ui::Node& parent, std::size_t depth) {
     bool show = false;
-    if (!detail::evaluate_condition(evaluator_, scope_, child, show, result_.error)) {
+    if (!detail::evaluate_condition(evaluator_, *scope_, child, show, result_.error)) {
         return false;
     }
     if (!show) {
@@ -118,9 +118,6 @@ bool Builder::build_conditional_child(const ir::Node& child, ui::Node& parent, s
         // so a false condition is a branch that is simply not in the tree, not a subtree skipped
         // because it could not be built.
         return true;
-    }
-    if (child.kind == ir::NodeKind::Slot) {
-        return unsupported("a `Slot` position (`" + child.id + "`) is not previewed yet");
     }
     return build_node(child, parent, depth + 1);
 }
@@ -134,14 +131,14 @@ bool Builder::build_repeated_child(const ir::Node& child, ui::Node& parent, std:
                            "`) is deferred; v1 generates one list level per template");
     }
     eval::List items;
-    if (!detail::evaluate_items(evaluator_, scope_, child, items, result_.error)) {
+    if (!detail::evaluate_items(evaluator_, *scope_, child, items, result_.error)) {
         return false;
     }
-    // A repeated child of a kind the preview does not build (a component instance, a virtual
-    // collection) is reported once, before the first item, rather than once per item.
-    if (child.kind == ir::NodeKind::Component || child.kind == ir::NodeKind::CustomElement ||
-        child.kind == ir::NodeKind::VirtualList || child.kind == ir::NodeKind::VirtualGrid ||
-        child.kind == ir::NodeKind::Slot) {
+    // A repeated child of a kind the preview does not build (a virtual collection) is reported
+    // once, before the first item, rather than once per item. A repeated component instance is
+    // built per item like any node: its props are evaluated with the item bound.
+    if (child.kind == ir::NodeKind::CustomElement || child.kind == ir::NodeKind::VirtualList ||
+        child.kind == ir::NodeKind::VirtualGrid || child.kind == ir::NodeKind::Slot) {
         return unsupported("a repeated `" + std::string(ir::node_kind_name(child.kind)) +
                            "` child (`" + child.id + "`) is not previewed yet");
     }
@@ -155,10 +152,10 @@ bool Builder::build_repeated_child(const ir::Node& child, ui::Node& parent, std:
             // The key is evaluated *inside* the item scope: a key like `key={i}` or `key={row}` is
             // a loop-local reference (ir-v1 section 5), so it is only resolvable with the item
             // bound.
-            LoopScope locals(scope_, *child.loop, items[index], static_cast<std::int32_t>(index));
+            LoopScope locals(*scope_, *child.loop, items[index], static_cast<std::int32_t>(index));
             bool present = false;
             std::uint64_t key = 0;
-            if (!detail::evaluate_item_key(evaluator_, scope_, child, present, key,
+            if (!detail::evaluate_item_key(evaluator_, *scope_, child, present, key,
                                            result_.error)) {
                 ok = false;
                 break;

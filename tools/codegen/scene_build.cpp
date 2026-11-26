@@ -38,8 +38,8 @@ namespace ir = tessera::compiler::ir;
 
 } // namespace
 
-SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eval::Scope& scope) {
-    SceneBuildResult result;
+namespace internal {
+bool seed_component_scope(const ir::Component& component, eval::Scope& scope, std::string& error) {
     // The state cells first, in declaration order, from their initializers: a node expression reads
     // them through `state::<name>` (ir-v1 section 4), so the scope must exist before the walk. This
     // is the evaluator's `initial_scope()` rule (tests/parity/parity_runner.cpp), kept in step with
@@ -62,7 +62,7 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
         }
         auto value = evaluator.evaluate(*initial, empty);
         if (!value) {
-            result.error = id + ": " + value.error().code + ": " + value.error().message;
+            error = id + ": " + value.error().code + ": " + value.error().message;
             return false;
         }
         // A float-typed cell holds a double even when its initial is written as an integer, as the
@@ -75,12 +75,12 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
     };
     for (const ir::State& state : component.state) {
         if (!add(state.id, state.type, state.initial)) {
-            return result;
+            return false;
         }
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
         if (!add(value.id, value.type, value.initial)) {
-            return result;
+            return false;
         }
     }
     // An `environment` hook value (docs/specs/jsx-subset-v1.md section 7.1, issue #692) is
@@ -113,7 +113,17 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
             }
         }
     }
-    internal::Builder builder(root, scope, result);
+    return true;
+}
+} // namespace internal
+
+SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eval::Scope& scope,
+                             const ir::IrModule* module) {
+    SceneBuildResult result;
+    if (!internal::seed_component_scope(component, scope, result.error)) {
+        return result;
+    }
+    internal::Builder builder(root, scope, result, module);
     // A failed build leaves `error` set for the caller; the tree is discarded, because a partially
     // built tree would be a snapshot of a program that does not exist.
     (void)builder.build(component);

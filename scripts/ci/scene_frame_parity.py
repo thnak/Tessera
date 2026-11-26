@@ -36,7 +36,7 @@ fails instead of silently comparing with a default.
 ## Why the corpus is not `samples/parity-demo`
 
 The *samples* in the acceptance sentence are the corpus the earlier preview gates use. The preview
-does not evaluate a user component instance (docs/design/compiler-wasm.md section 7.1); it does evaluate
+binds no event handler inside a user component instance (docs/design/compiler-wasm.md section 7.1); it does evaluate
 a conditional child and a repeated child (issue #389), so those shapes are no longer excluded for being
 unsupported. The corpus here is still the subset whose *pixels* this gate needs plus the paint-relevant
 cases P3 added - a filled box, a rounded box, nested clips, and a multi-column layout - because the

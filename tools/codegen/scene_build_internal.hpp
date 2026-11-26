@@ -5,6 +5,7 @@
 #include "scene_build.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/component.hpp"
+#include "tessera/compiler/ir/module.hpp"
 #include "tessera/compiler/ir/node.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -12,6 +13,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 // The IR -> scene walk behind `build_scene()`, split across two translation units so each one stays
 // inside the file-size limit (issue #389 pushed the walk past it):
@@ -25,12 +27,20 @@
 // decision is readable in one place instead of being spread over two files.
 namespace tessera::compiler::codegen::cli::internal {
 
+// Fills `scope` with a component's declared cells (state, animated values, environment, behavior
+// outputs) from their initializers. A cell already present is kept (a value carried across an
+// edit).
+[[nodiscard]] bool seed_component_scope(const ir::Component& component, eval::Scope& scope,
+                                        std::string& error);
+
 class Builder final {
 public:
-    Builder(ui::Node& root, eval::Scope& scope, SceneBuildResult& result)
+    Builder(ui::Node& root, eval::Scope& scope, SceneBuildResult& result,
+            const ir::IrModule* module = nullptr)
         : root_(root),
-          scope_(scope),
-          result_(result) {}
+          scope_(&scope),
+          result_(result),
+          module_(module) {}
 
     // Builds `component`'s tree under `root_` (the window content node the caller owns).
     [[nodiscard]] bool build(const ir::Component& component);
@@ -69,10 +79,34 @@ public:
 private:
     bool build_conditional_child(const ir::Node& child, ui::Node& parent, std::size_t depth);
     bool build_repeated_child(const ir::Node& child, ui::Node& parent, std::size_t depth);
+    // A user component instance (ADR in docs/design/preview-component-instances.md): props are
+    // evaluated in the caller's scope into a fresh callee scope, the callee's root is built under
+    // the instance's host node, and a `Slot` splices the instance's children back in under the
+    // caller's scope.
+    bool build_instance(const ir::Node& node, ui::Node& host, std::size_t depth);
+    bool build_slot(const ir::Node& slot, ui::Node& parent, std::size_t depth);
+
+    // What an instance replaces while its callee builds, restored when it is done.
+    struct CallerFrame {
+        eval::Scope* scope = nullptr;
+        int loop_depth = 0;
+        const std::vector<ir::Ref>* refs = nullptr;
+        std::uint64_t salt = 0;
+        const ir::Node* instance = nullptr;
+    };
+    void enter_frame(const CallerFrame& caller);
+    void leave_frame(const CallerFrame& caller);
 
     ui::Node& root_;
-    eval::Scope& scope_;
+    eval::Scope* scope_;
     SceneBuildResult& result_;
+    const ir::IrModule* module_ = nullptr;
+    // The instances being built, innermost last: each entry is the caller's state to return to.
+    std::vector<CallerFrame> frames_;
+    // Non-zero inside a callee: the instance's pre-order ordinal, mixed into automation ids so two
+    // instances of one component do not share the ids of its nodes.
+    std::uint64_t salt_ = 0;
+    std::uint64_t instances_ = 0;
     eval::Evaluator evaluator_;
     std::uint64_t next_node_id_ = 2; // 1 is the window content root the caller owns
     int loop_depth_ = 0;
