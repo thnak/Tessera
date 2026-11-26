@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
-// The net contract against the real WinHTTP back end, over an in-process loopback server (issue
-// #835, docs/specs/networking-v1.md section 5). Opt-in lane: `TESSERA_NET_LOOPBACK_TESTS=ON`, on
-// Windows. No test touches the external network: every request goes to 127.0.0.1.
+// The net contract against the real OS back end (WinHTTP on Windows, libcurl on Linux), over an
+// in-process loopback server (issues #835 and #836, docs/specs/networking-v1.md section 5). Opt-in
+// lane: `TESSERA_NET_LOOPBACK_TESTS=ON`. No test touches the external network: every request goes
+// to 127.0.0.1. One file for both back ends, because the contract is the same; only the transport
+// type and its name differ.
 //
 // Unlike the `FakeNet` suite this one is not deterministic by construction: the server is a real
 // socket on its own thread and the back end is the OS stack. So time is bounded, not manual. Every
@@ -15,7 +17,13 @@
 
 #include "support/loopback_server.hpp"
 #include "tessera/appfw/net_client.hpp"
+#if defined(TESSERA_NET_HAS_WINHTTP)
 #include "tessera/appfw/net_winhttp.hpp"
+#elif defined(TESSERA_NET_HAS_CURL)
+#include "tessera/appfw/net_curl.hpp"
+#else
+#error "the loopback lane needs a real back end: WinHTTP or libcurl"
+#endif
 #include "tessera/runtime/async.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/runtime/timer_queue.hpp"
@@ -35,6 +43,14 @@ namespace runtime = tessera::runtime;
 using tessera::net_test::LoopbackResponse;
 using tessera::net_test::LoopbackServer;
 using Clock = std::chrono::steady_clock;
+
+#if defined(TESSERA_NET_HAS_WINHTTP)
+using RealTransport = appfw::WinHttpTransport;
+constexpr std::string_view kBackendName = "winhttp";
+#else
+using RealTransport = appfw::CurlTransport;
+constexpr std::string_view kBackendName = "curl";
+#endif
 
 int failures = 0;
 
@@ -64,7 +80,7 @@ struct Stack {
     runtime::SteadyClock clock;
     runtime::TimerQueue timers{16};
     runtime::WorkerIoExecutor executor{completions};
-    appfw::WinHttpTransport transport{completions};
+    RealTransport transport{completions};
     appfw::NetClient client;
 };
 
@@ -109,9 +125,9 @@ bool is_error(const std::optional<appfw::NetResult>& result, appfw::NetErrorKind
 
 void test_identity() {
     Stack stack;
-    check(stack.transport.available(), "the WinHTTP session opened");
-    check(stack.transport.name() == "winhttp", "the transport names itself");
-    check(stack.client.transport_name() == "winhttp", "the client reports it");
+    check(stack.transport.available(), "the back end initialised");
+    check(stack.transport.name() == kBackendName, "the transport names itself");
+    check(stack.client.transport_name() == kBackendName, "the client reports it");
 }
 
 void test_get_response() {

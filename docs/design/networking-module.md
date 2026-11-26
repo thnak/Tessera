@@ -27,7 +27,8 @@ otherwise duplicate and get subtly different:
 | `WinHttpTransport`, the Windows back end (#835), built on Windows only | `net_winhttp.hpp`, `windows/net_winhttp.cpp`, `net_winhttp_map.*` |
 | the client: `send`, `submit`, cancellation, the deadline, delivery | `net_client.hpp`, `net_client*.cpp` |
 | the contract suite of section 5 | `tests/unit/appfw_net_*` |
-| the same contract against WinHTTP over loopback (opt-in `TESSERA_NET_LOOPBACK_TESTS`) | `tests/unit/appfw_net_winhttp_tests.cpp` |
+| the same contract against WinHTTP or libcurl over loopback (opt-in `TESSERA_NET_LOOPBACK_TESTS`) | `tests/unit/appfw_net_loopback_tests.cpp` |
+| the libcurl error table | `tests/unit/appfw_net_curl_map_tests.cpp` |
 
 **WinHTTP (#835).** One async session per transport (`WINHTTP_FLAG_ASYNC`, status callback), so the OS
 stack owns connections, pooling, TLS, HTTP/2 and the system proxy (`AUTOMATIC_PROXY`); the framework
@@ -41,8 +42,18 @@ destructor cancels what is in flight and waits for every handle. **Not distingui
 (WinHTTP reports a lost connection as a connect failure, so it surfaces as `connect`); an `offline`
 signal needs the network-list API and is a follow-up.
 
-Not landed, each with the reason: **libcurl**, **browser `fetch`**, **NSURLSession**
-and **Android** (one PR per back end, and the Linux one needs dependency entries first); **TLS**
+**libcurl (#836).** The Linux back end uses the *system* libcurl (a distro dev package, no vendoring), so TLS
+and the trust store come from the distro and get its security updates. One `CURLM` per transport (so
+requests share its connection cache) is driven by a thread the transport owns; `start()` queues and
+returns, and every completion is posted through the `CompletionQueue`. Decisions: `FOLLOWLOCATION` is 0
+(`NetClient` follows), peer and host verification are always on, curl's own `Accept`/`Expect`/
+`User-Agent`/`Content-Type` are suppressed unless the caller sent them, `max_response_bytes` aborts the
+write and maps back to `too_large`, and a cancelled token wakes the driver, which removes the transfer
+and so releases the connection. The proxy comes from the environment variables libcurl reads. The
+build is skipped with a status message where libcurl is not found.
+
+Not landed, each with the reason: **browser `fetch`**, **NSURLSession**
+and **Android** (one PR per back end); **TLS**
 (negotiated inside a back end, deliberately not owned by the framework - ADR-052 item 5);
 **HTTP/2 and HTTP/3** (the platform stack picks the version; `NetProtocol` only reports it, and
 section 7 leaves HTTP/3 to the platform); **WebSocket and server-sent events** (section 1

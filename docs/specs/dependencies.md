@@ -216,7 +216,7 @@ APIs. No platform type leaks into `ui/`. See [`os-events-v1.md`](os-events-v1.md
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| libcurl | V1 optional | curl (MIT-like) | `services/networking` | HTTP/HTTPS client |
+| libcurl | V1 optional | curl (MIT-like) | `services/networking` | HTTP/HTTPS client; on Linux the system library (#836: distro dev package, dynamic, not vendored, TLS from the distro) |
 | IXWebSocket | V1 optional | BSD-3-Clause | `services/networking` | WebSocket client |
 | mbedTLS | V1 optional | Apache-2.0 | `services/networking` | TLS |
 | OpenSSL | V1 optional alternative | Apache-2.0 | `services/networking` | TLS alternative |
