@@ -463,6 +463,17 @@ into the frame target (dropping the intermediate texture, with its own clip and 
 a possible second implementation; nothing measured needs it, so it is not built.
 `VectorStack` raises the rasterizer's pool bound to 96 MiB so a 4K output buffer is kept.
 
+**Where the dense 4K time goes (2026-11-27, RTX 4060, temporary shader experiments, not kept).** Dense
+fine pass, 4.13 ms median: with `segment_area` replaced by a no-op 1.63 ms, and with the list walk
+removed 0.80 ms (which still contains the 33 MB copy, about 0.55 ms). So the per-node coverage math is
+about 2.5 ms, the list walk and transform about 0.85 ms, the rest copy, box tests and blend. The
+sparse scene is the opposite (path loop, fixed by the tile mask). The next lever is to classify each
+(row, path) list once per tile instead of once per pixel: segments wholly left of the tile add a
+constant winding, wholly right add nothing, and only crossing segments need the per-pixel math,
+which cuts the redundant work about 16x. It changes the summation order of the winding (rounding, so
+goldens would be regenerated) and needs per-row shared lists with an overflow fallback in both the
+GLSL and the WGSL; it is not built because dense is already 4.10 to 4.16 ms against 4.17 ms.
+
 ## Alternatives, to be measured on the same 4K scenes
 
 | option | expected problem | status |
