@@ -676,6 +676,43 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # GPU path rasterizer against ThorVG on the committed corpus (issue #685): per-scene tolerance
+    # table in the test. Skips without Vulkan, compute or a ThorVG build.
+    add_executable(path_raster_thorvg_compare_tests
+        batched2d/path_raster_thorvg_compare_tests.cpp)
+    target_include_directories(path_raster_thorvg_compare_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_link_libraries(path_raster_thorvg_compare_tests PRIVATE
+        tessera_gpu tessera_path tessera_golden tessera_rhi_vulkan)
+    add_test(NAME path_raster_thorvg_compare COMMAND path_raster_thorvg_compare_tests)
+    set_tests_properties(path_raster_thorvg_compare PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Lavapipe goldens of the same corpus (tests/golden/gpu/path_raster/*.png). The ctest entry is
+    # registered on the lavapipe lane only (UNIX, a lavapipe manifest present); the test itself
+    # skips on a hardware device and writes only with --update-goldens on a software one.
+    add_executable(path_raster_golden_tests
+        batched2d/path_raster_golden_tests.cpp)
+    target_include_directories(path_raster_golden_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_compile_definitions(path_raster_golden_tests PRIVATE
+        TESSERA_PATH_RASTER_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/gpu/path_raster")
+    target_link_libraries(path_raster_golden_tests PRIVATE
+        tessera_gpu tessera_path tessera_harness_image tessera_rhi_vulkan)
+    if (UNIX)
+        find_file(TESSERA_PATH_RASTER_LAVAPIPE_ICD
+            NAMES lvp_icd.x86_64.json lvp_icd.json
+            PATHS /usr/share/vulkan/icd.d /etc/vulkan/icd.d)
+        if (TESSERA_PATH_RASTER_LAVAPIPE_ICD)
+            add_test(NAME path_raster_golden COMMAND path_raster_golden_tests)
+            set_tests_properties(path_raster_golden PROPERTIES
+                ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_PATH_RASTER_LAVAPIPE_ICD}"
+                SKIP_REGULAR_EXPRESSION "skipped"
+                FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+        endif()
+    endif()
+
     # PathTextureCache with the GPU rasterizer attached: routing, flush_gpu, fallback, eviction of a
     # queued raster. Skips without Vulkan, compute or ThorVG.
     add_executable(path_texture_cache_gpu_tests
