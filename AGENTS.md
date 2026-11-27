@@ -693,7 +693,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `Dispatch` action. Corpus 38→39, 24→26. `useContext` is still rejected, and the generated
       C++ for a reducer state is the next slice: codegen has no record table in its text-value
       typing, so `{state.count}` reports `TESSERA_CODEGEN_UNSUPPORTED` even though the IR is valid.
-- [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
+- [ ] Pending UI (ADR-067, Accepted 2026-11-28): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 
 
