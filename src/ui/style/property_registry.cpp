@@ -2,6 +2,7 @@
 
 #include "property_background.hpp"
 #include "property_list_style.hpp"
+#include "property_mask.hpp"
 #include "property_table.hpp"
 #include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
@@ -126,6 +127,9 @@ PropertyRegistry::PropertyRegistry() {
                       ShorthandKind::Box4};
     shorthands_["background"] =
         ShorthandInfo{{"background-color", "background-image"}, ShorthandKind::Pair};
+    shorthands_["mask"] =
+        ShorthandInfo{{"mask-image", "mask-position", "mask-size", "mask-repeat", "mask-mode"},
+                      ShorthandKind::Pair};
     shorthands_["gap"] = ShorthandInfo{{"row-gap", "column-gap"}, ShorthandKind::Pair};
     shorthands_["overflow"] = ShorthandInfo{{"overflow-x", "overflow-y"}, ShorthandKind::Pair};
     shorthands_["place-items"] =
@@ -225,6 +229,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     }
     if (property == "list-style") {
         return expand_list_style_shorthand(declaration);
+    }
+    if (property == "mask") {
+        return expand_mask_shorthand(declaration);
     }
     if (property == "background" || property == "text-decoration") {
         return property == "background" ? expand_background_shorthand(declaration)

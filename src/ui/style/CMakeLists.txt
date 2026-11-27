@@ -19,6 +19,8 @@ add_library(tessera_style STATIC
     color_functions.cpp
     gradient.cpp
     background_layers.cpp
+    mask_layers.cpp
+    property_mask.cpp
     gradient_internal.cpp
     gradient_linear.cpp
     gradient_radial.cpp

@@ -69,6 +69,10 @@ std::vector<std::string_view> components_of(std::string_view text) {
 
 } // namespace
 
+std::vector<std::string_view> split_layer_components(std::string_view text) {
+    return components_of(text);
+}
+
 bool is_window_backdrop_value(std::string_view text) {
     const std::string value = lower(text);
     return value == "none" || value == "auto" || value == "mica" || value == "acrylic" ||

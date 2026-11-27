@@ -24,6 +24,7 @@ add_library(tessera_paint STATIC
     scene_style_sync.cpp
     subtree_paint_cache.cpp
     paint_gradient.cpp
+    paint_mask_tiles.cpp
     paint_vector.cpp
     text_layout_cache.cpp)
 

@@ -64,6 +64,11 @@ constexpr PropertyDef kProperties[] = {
     // Same grammar as `background-image` (a list of gradients, painted bottom to top); the paint
     // pass draws it as the alpha mask of an isolated layer (issue #617, offscreen-layers.md 5.2).
     {"mask-image", "none", false},
+    // Per-layer geometry of the mask image list (mask_layers.hpp); a short list repeats cyclically.
+    {"mask-size", "auto", false},
+    {"mask-position", "0% 0%", false},
+    {"mask-repeat", "repeat", false},
+    {"mask-mode", "match-source", false},
     {"opacity", "1", false},
     {"font-family", "sans-serif", true},
     {"font-size", "16px", true},

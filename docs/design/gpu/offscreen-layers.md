@@ -261,8 +261,26 @@ slice behavior + tests + docs, nothing user-visible until the last:
    `paint_gradient` (cells tile a fractional box with no gap and no overlap), `layer_mask_gpu` (the
    Chromium comparison, and a translucent `background-image` ramp at a fractional position with
    anti-aliasing on and off, within 6 of the ideal ramp), `cpu_wide_golden`; reintroducing the
-   overlap fails all three. Still open: `mask-size`, `mask-position`, `mask-repeat`, `mask-mode`,
-   the `mask` shorthand, a `CpuCanvas` twin and the lavapipe golden.
+   overlap fails all three. Still open: a `CpuCanvas` twin and the lavapipe golden.
+5c. **Mask geometry and the `mask` shorthand (landed, issue #617).** `mask-size`, `mask-position`,
+   `mask-repeat` and `mask-mode` (`include/tessera/ui/style/mask_layers.hpp`) are per-layer lists that
+   repeat cyclically over `mask-image`. `paint_mask_image` reads them and, per layer, asks
+   `compute_mask_tiles` (`src/ui/paint/paint_mask_tiles.cpp`, pure arithmetic) for the tile rects: size
+   resolves against the border box (a gradient has no intrinsic size, so `auto`/`cover`/`contain` are
+   the box), position is `(area - tile) * fraction + px`, `repeat` backs up to the first tile reaching
+   the box, `space` spreads whole tiles with an even gap, `round` rescales to a whole count. Each tile
+   is one ordinary gradient draw resolved against the tile; if any tile reaches outside the box the
+   layer's draws sit in a `push_clip`/`pop_clip` of the box, so the mask still covers the border box
+   only. A layer whose geometry is the initial one takes the old single-draw path unchanged. More than
+   256 tiles (each tile is up to 1024 quads) or a zero-size tile paints nothing for that layer.
+   `mask-mode: luminance` rewrites every resolved stop's alpha to luminance (sRGB 0.2126/0.7152/0.0722)
+   times alpha, so it needs no shader: exact for opaque stops, and for translucent ones the encoded-space
+   ramp interpolates luminance-times-alpha rather than luminance of the interpolated colour (a small
+   difference, documented not measured). `match-source` is `alpha` for gradients. Not implemented:
+   `mask-origin`, `mask-clip`, `mask-composite` (the `mask` shorthand rejects them whole), em/rem/calc
+   lengths. The `mask` shorthand (`property_mask.cpp`) expands each layer into the five longhands.
+   Tests: `mask_layers` (parsers, lists, registry grammar, shorthand) and `paint_mask_geometry` (tile
+   placement, repeat/space/round, clip, layer cycling, cap, luminance; mutation-checked).
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
