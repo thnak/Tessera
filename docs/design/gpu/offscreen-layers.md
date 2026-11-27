@@ -446,7 +446,7 @@ the layer path only needs a composite draw with the target as a texture, which i
 #227 itself shipped the non-isolated rule instead - the effective opacity product folded into
 every primitive of the subtree, no offscreen target ([`../paint-pass.md`](../paint-pass.md)
 section 14.1) - so true group isolation, shared-element snapshots and stacking contexts still
-wait on this seam.
+wait on this seam. Retained layers (#617): [`offscreen-layers-retention.md`](offscreen-layers-retention.md).
 
 ## 6. Testing and determinism
 

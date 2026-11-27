@@ -11,6 +11,7 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -185,6 +186,10 @@ struct PushLayerOp {
     LayerDraw layer;
 };
 
+struct RetainLayerOp {
+    LayerRetention retention;
+};
+
 // One recorded sink call: the kind tag plus the payload that kind owns. `kind` is kept beside the
 // variant rather than derived from the active alternative because the three gradient kinds share
 // one alternative and the two asset kinds share another.
@@ -200,6 +205,9 @@ struct PaintOp {
         PushClip,
         PushTransform,
         PushLayer,
+        // Recorded only with `record_pops`, right before the layer's PushLayer: a replay asks the
+        // sink whether it holds the layer and, if so, skips everything up to the matching PopLayer.
+        RetainLayer,
         DrawText,
         DrawVector,
         DrawImage,
@@ -223,7 +231,7 @@ struct PaintOp {
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
                                  GradientRefOp, PushClipOp, PushTransformOp, DrawTextOp,
-                                 DrawAssetOp, DrawBackdropOp, PushLayerOp>;
+                                 DrawAssetOp, DrawBackdropOp, PushLayerOp, RetainLayerOp>;
 
     Kind kind = Kind::FillRect;
     Payload payload = FillRectOp{};
@@ -356,6 +364,21 @@ public:
     [[nodiscard]] bool contains(NodeId node) const {
         return entries_.find(node) != entries_.end();
     }
+    // Owners that may hold a retained layer in the sink (#617): registered when a clean layer asks,
+    // forgotten when a dirty one reports. Only these (and their ancestors) need the cull exemption.
+    void note_retained_owner(NodeId node, bool holds) {
+        if (holds) {
+            retained_owners_.insert(node);
+        } else if (!retained_owners_.empty()) {
+            retained_owners_.erase(node);
+        }
+    }
+    [[nodiscard]] bool is_retained_owner(NodeId node) const {
+        return !retained_owners_.empty() && retained_owners_.count(node) != 0;
+    }
+    [[nodiscard]] bool has_retained_owners() const {
+        return !retained_owners_.empty();
+    }
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
@@ -403,6 +426,7 @@ public:
         [[nodiscard]] bool supports_layers() const override;
         void push_layer(const LayerDraw& layer) override;
         void pop_layer() override;
+        [[nodiscard]] bool retain_layer(const LayerRetention& retention) override;
         [[nodiscard]] bool begin_layer_mask() override;
         void end_layer_mask() override;
         [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override;
@@ -435,6 +459,12 @@ public:
         // False while a non-add mask layer the target declined is open: its draws are not
         // forwarded.
         bool part_live_ = true;
+        // A retained layer (issue #617): the target holds the layer's pixels, so what the pass
+        // paints inside it is recorded (a later replay may need it) but not forwarded.
+        // `retain_pending_` is set between the target's "yes" and the layer's push_layer();
+        // `retained_depth_` counts open layers from that push to its matching pop (0 = forwarding).
+        bool retain_pending_ = false;
+        std::uint32_t retained_depth_ = 0;
     };
 
 private:
@@ -448,6 +478,7 @@ private:
 
     using Lru = std::list<NodeId>;
     using Map = std::map<NodeId, Entry>;
+    std::set<NodeId> retained_owners_;
 
     static std::size_t entry_bytes(const PaintCacheSignature& signature,
                                    const std::optional<PaintData>& payload,

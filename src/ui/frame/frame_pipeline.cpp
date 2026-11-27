@@ -275,6 +275,7 @@ void FramePipeline::invalidate_paint_cache() {
     // only way to guarantee the next frame is byte-identical to an uncached paint.
     paint_cache_.invalidate();
     subtree_cache_.clear();
+    ++retain_epoch_;
     // `background_layers_` is deliberately NOT reset here: it is keyed by style identity, and a
     // restyle hands the node a new entries block, so it can never serve a pre-restyle parse. The
     // entries it still holds for retired identities are bounded by the cache's own LRU budget.
@@ -379,6 +380,9 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     }
     result.full_redraw = result.redraw_plan.full_redraw;
     result.should_render = !result.redraw_plan.scissors.empty();
+    if (!dirty_->empty() && !(result.should_render && result.full_redraw)) {
+        ++retain_epoch_;
+    }
     frame_due_ = result.should_render;
     return result;
 }
@@ -390,6 +394,9 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         return result;
     }
     const InterpolationPaintView view = interpolation_view();
+    if (!view.empty()) {
+        ++retain_epoch_; // a view paints without the cache, so it cannot drop a retained layer
+    }
     paint::PaintContext context;
     context.reduce_effects = reduce_effects_;
     context.high_contrast = high_contrast_;
@@ -401,6 +408,8 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
         context.subtree_cache = &subtree_cache_;
+        context.retain_layers = config_.retain_layers;
+        context.retain_epoch = retain_epoch_;
     }
     if (!view.empty()) {
         context.view = &view;
@@ -418,6 +427,9 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         return result;
     }
     const InterpolationPaintView view = interpolation_view();
+    if (!view.empty()) {
+        ++retain_epoch_; // a view paints without the cache, so it cannot drop a retained layer
+    }
     paint::PaintContext context;
     context.reduce_effects = reduce_effects_;
     context.high_contrast = high_contrast_;
@@ -430,6 +442,8 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         // which differs every frame, so a list keyed on it would never hit (issue #476). It still
         // drops the lists of the dirty subtrees it visits.
         context.retain_draw_list = plan.full_redraw;
+        context.retain_layers = config_.retain_layers && plan.full_redraw;
+        context.retain_epoch = retain_epoch_;
     }
     if (!view.empty()) {
         context.view = &view;
@@ -448,6 +462,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     if (plan.scissors.empty()) {
         return result;
     }
+    ++retain_epoch_; // a partial repaint cannot reach a layer's sink, see retain_epoch_
     paint::ClippedPaintSink clipped(sink, plan.scissors);
     result.stats = paint::paint_scene(root, styles, clipped, context);
     result.painted = true;

@@ -111,7 +111,21 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
     bool skipping_mask = false;
     bool skipping_part = false; // a non-add mask layer the sink declined
     using Op = rendering::gpu::MaskCompositeOp;
+    // A retained layer (issue #617): when the sink holds the layer's pixels, everything between its
+    // push and its matching pop is skipped; the pop still runs, it composites. `retained_depth`
+    // counts the layers opened since the retained push (0 = replaying).
+    bool retain_pending = false;
+    std::uint32_t retained_depth = 0;
     for (const PaintOp& op : ops) {
+        if (retained_depth > 0) {
+            if (op.kind == PaintOp::Kind::PushLayer) {
+                ++retained_depth;
+                continue;
+            }
+            if (op.kind != PaintOp::Kind::PopLayer || --retained_depth > 0) {
+                continue;
+            }
+        }
         if (skipping_mask && op.kind != PaintOp::Kind::EndLayerMask) {
             continue;
         }
@@ -119,6 +133,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
             continue;
         }
         switch (op.kind) {
+        case PaintOp::Kind::RetainLayer:
+            retain_pending = sink.retain_layer(std::get<RetainLayerOp>(op.payload).retention);
+            break;
         case PaintOp::Kind::BeginLayerMask:
             skipping_mask = !sink.begin_layer_mask();
             break;
@@ -193,6 +210,10 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
             break;
         case PaintOp::Kind::PushLayer:
             sink.push_layer(std::get<PushLayerOp>(op.payload).layer);
+            if (retain_pending) {
+                retain_pending = false;
+                retained_depth = 1;
+            }
             break;
         case PaintOp::Kind::DrawText: {
             const auto& draw = std::get<DrawTextOp>(op.payload);
@@ -344,6 +365,7 @@ void PaintCache::invalidate() {
 void PaintCache::clear() {
     entries_.clear();
     lru_.clear();
+    retained_owners_.clear();
     bytes_ = 0;
 }
 

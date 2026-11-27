@@ -20,19 +20,25 @@ void PaintCache::Recorder::record(PaintOp op) {
 
 void PaintCache::Recorder::fill_rect(const rhi::Rect& rect, const rhi::Color& color) {
     record(PaintOp{PaintOp::Kind::FillRect, FillRectOp{rect, color}});
-    target_.fill_rect(rect, color);
+    if (retained_depth_ == 0) {
+        target_.fill_rect(rect, color);
+    }
 }
 
 void PaintCache::Recorder::fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
                                              float radius) {
     record(PaintOp{PaintOp::Kind::FillRoundedRect, FillRoundedRectOp{rect, color, radius}});
-    target_.fill_rounded_rect(rect, color, radius);
+    if (retained_depth_ == 0) {
+        target_.fill_rounded_rect(rect, color, radius);
+    }
 }
 
 void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color,
                                              float radius, float width) {
     record(PaintOp{PaintOp::Kind::FillRoundedRing, FillRoundedRingOp{rect, color, radius, width}});
-    target_.fill_rounded_ring(rect, color, radius, width);
+    if (retained_depth_ == 0) {
+        target_.fill_rounded_ring(rect, color, radius, width);
+    }
 }
 
 bool PaintCache::Recorder::supports_box_shadow() const {
@@ -45,14 +51,16 @@ void PaintCache::Recorder::fill_box_shadow(const BoxShadowDraw& draw) {
     record(PaintOp{
         PaintOp::Kind::FillBoxShadow,
         FillBoxShadowOp{draw.box, draw.carve, draw.color, draw.radius, draw.sigma, draw.inset}});
-    target_.fill_box_shadow(draw);
+    if (retained_depth_ == 0) {
+        target_.fill_box_shadow(draw);
+    }
 }
 
 void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillLinearGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || (mask_live_ && part_live_)) {
+    if (retained_depth_ == 0 && (!in_mask_ || (mask_live_ && part_live_))) {
         target_.fill_linear_gradient(draw);
     }
 }
@@ -61,7 +69,7 @@ void PaintCache::Recorder::fill_conic_gradient(const ConicGradientDraw& draw) {
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillConicGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || (mask_live_ && part_live_)) {
+    if (retained_depth_ == 0 && (!in_mask_ || (mask_live_ && part_live_))) {
         target_.fill_conic_gradient(draw);
     }
 }
@@ -70,7 +78,7 @@ void PaintCache::Recorder::fill_radial_gradient(const RadialGradientDraw& draw) 
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillRadialGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || (mask_live_ && part_live_)) {
+    if (retained_depth_ == 0 && (!in_mask_ || (mask_live_ && part_live_))) {
         target_.fill_radial_gradient(draw);
     }
 }
@@ -79,14 +87,18 @@ void PaintCache::Recorder::push_clip(const RoundedClip& clip) {
     record(PaintOp{PaintOp::Kind::PushClip, PushClipOp{clip}});
     clip_ = clip;
     pushed_clip_ = true;
-    target_.push_clip(clip);
+    if (retained_depth_ == 0) {
+        target_.push_clip(clip);
+    }
 }
 
 void PaintCache::Recorder::pop_clip() {
     if (record_pops_) {
         record(PaintOp{PaintOp::Kind::PopClip, FillRectOp{}});
     }
-    target_.pop_clip();
+    if (retained_depth_ == 0) {
+        target_.pop_clip();
+    }
 }
 
 bool PaintCache::Recorder::supports_layers() const {
@@ -98,14 +110,39 @@ bool PaintCache::Recorder::supports_layers() const {
 void PaintCache::Recorder::push_layer(const LayerDraw& layer) {
     record(PaintOp{PaintOp::Kind::PushLayer, PushLayerOp{layer}});
     pushed_layer_ = true;
+    if (retained_depth_ > 0) {
+        ++retained_depth_; // a layer inside a retained one: recorded, never forwarded
+        return;
+    }
     target_.push_layer(layer);
+    if (retain_pending_) {
+        retain_pending_ = false;
+        retained_depth_ = 1;
+    }
 }
 
 void PaintCache::Recorder::pop_layer() {
     if (record_pops_) {
         record(PaintOp{PaintOp::Kind::PopLayer, FillRectOp{}});
     }
+    if (retained_depth_ > 1) {
+        --retained_depth_;
+        return;
+    }
+    retained_depth_ = 0; // the retained layer's own pop is forwarded: it composites
     target_.pop_layer();
+}
+
+// The op is recorded so a replay can ask again. The pass is always told "no": a recording pass
+// must paint the layer's whole content (a later replay may need it if the target lets go of the
+// pixels), so a "yes" from the target only stops the forwarding, see `retained_depth_`.
+bool PaintCache::Recorder::retain_layer(const LayerRetention& retention) {
+    if (!record_pops_) {
+        return target_.retain_layer(retention);
+    }
+    record(PaintOp{PaintOp::Kind::RetainLayer, RetainLayerOp{retention}});
+    retain_pending_ = retained_depth_ == 0 && target_.retain_layer(retention);
+    return false;
 }
 
 // A mask is recorded only into a subtree draw list (`record_pops`): a masked node is never recorded
@@ -118,7 +155,7 @@ bool PaintCache::Recorder::begin_layer_mask() {
     }
     record(PaintOp{PaintOp::Kind::BeginLayerMask, FillRectOp{}});
     in_mask_ = true;
-    mask_live_ = target_.begin_layer_mask();
+    mask_live_ = retained_depth_ == 0 && target_.begin_layer_mask();
     return true;
 }
 
@@ -171,14 +208,18 @@ bool PaintCache::Recorder::supports_backdrop() const {
 void PaintCache::Recorder::push_transform(const rhi::Mat3& transform) {
     record(PaintOp{PaintOp::Kind::PushTransform, PushTransformOp{transform}});
     pushed_transform_ = true;
-    target_.push_transform(transform);
+    if (retained_depth_ == 0) {
+        target_.push_transform(transform);
+    }
 }
 
 void PaintCache::Recorder::pop_transform() {
     if (record_pops_) {
         record(PaintOp{PaintOp::Kind::PopTransform, FillRectOp{}});
     }
-    target_.pop_transform();
+    if (retained_depth_ == 0) {
+        target_.pop_transform();
+    }
 }
 
 void PaintCache::Recorder::draw_text(const TextDraw& run) {
@@ -193,7 +234,9 @@ void PaintCache::Recorder::draw_text(const TextDraw& run) {
     draw.baseline = run.baseline;
     draw.lcd = run.lcd;
     record(PaintOp{PaintOp::Kind::DrawText, std::move(draw)});
-    target_.draw_text(run);
+    if (retained_depth_ == 0) {
+        target_.draw_text(run);
+    }
 }
 
 void PaintCache::Recorder::draw_vector(const VectorDraw& draw) {
@@ -207,7 +250,9 @@ void PaintCache::Recorder::draw_vector(const VectorDraw& draw) {
     asset.scale = draw.scale;
     asset.tint = draw.tint;
     record(PaintOp{PaintOp::Kind::DrawVector, std::move(asset)});
-    target_.draw_vector(draw);
+    if (retained_depth_ == 0) {
+        target_.draw_vector(draw);
+    }
 }
 
 void PaintCache::Recorder::draw_image(const ImageDraw& draw) {
@@ -222,12 +267,16 @@ void PaintCache::Recorder::draw_image(const ImageDraw& draw) {
     asset.tint = draw.tint;
     asset.decode_original = draw.decode_original;
     record(PaintOp{PaintOp::Kind::DrawImage, std::move(asset)});
-    target_.draw_image(draw);
+    if (retained_depth_ == 0) {
+        target_.draw_image(draw);
+    }
 }
 
 void PaintCache::Recorder::draw_backdrop(const BackdropDraw& draw) {
     record(PaintOp{PaintOp::Kind::DrawBackdrop, DrawBackdropOp{draw}});
-    target_.draw_backdrop(draw);
+    if (retained_depth_ == 0) {
+        target_.draw_backdrop(draw);
+    }
 }
 
 PaintRecord PaintCache::Recorder::finish() {

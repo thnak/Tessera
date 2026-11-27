@@ -11,6 +11,7 @@
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/gpu/glass_compositor.hpp"
 #include "tessera/rendering/gpu/layer_filter.hpp"
+#include "tessera/rendering/gpu/layer_retention.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/gpu/vertex_arena.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
@@ -90,38 +91,29 @@ public:
     // Returns a target once its last use is recorded, so this frame may reuse it.
     void release_offscreen_target(const rhi::RenderTarget* target);
     [[nodiscard]] std::uint32_t offscreen_target_count() const;
-    // Pool state: targets, peak live, bytes and refused requests (each painted without its effect).
+    // Pool state: targets, peak live, bytes and refused requests.
     [[nodiscard]] OffscreenPoolStats offscreen_stats() const;
     // Destroys the free pooled targets: call from an idle driver once every frame's GPU work is
     // done (`all_complete`). The frame path also trims on its own. Never call inside a frame.
     void trim_offscreen_targets(bool all_complete);
 
     // --- Glass backdrop composite (docs/specs/glass-v1.md sections 3-5, issue #244) -------------
-    // Executes one glass node's backdrop on this frame's command list, at the node's paint
-    // position: the pass is broken (pending geometry flushed first), the 3-sigma dependency region
-    // is copied out of the frame target into a pooled target, the horizontal Gaussian runs into a
-    // second pooled target sampling that copy, the pass is resumed with LoadOp::Load, and the
-    // vertical pass composites the result back through the node's rounded clip with the
-    // saturate/brightness/ contrast matrix and the folded node opacity. Above
-    // `Batched2DConfig::glass.max_backdrop_area` the blur target is half the region and the
-    // vertical pass upsamples bilinearly.
-    //
+    // Executes one glass node's backdrop at the node's paint position: break the pass, copy the
+    // 3-sigma region into a pooled target, blur it horizontally into a second one, resume, and
+    // composite the vertical pass through the node's rounded clip (color matrix, folded opacity).
     // Returns false, recording nothing, when the effect cannot run (no glass pipelines or pool, a
     // pass-through sigma, an unreadable frame target, no free pooled target): the caller paints the
     // node without it. Never blocks or throws on the frame path.
     [[nodiscard]] bool draw_backdrop(const GlassBackdropDraw& draw);
 
     // --- Isolated layers (docs/design/gpu/offscreen-layers.md section 5.2, issue #227) ----------
-    // Renders everything between push_layer() and pop_layer() into a pooled target the size of the
-    // frame, then composites it once with `opacity` applied to the group, so overlapping children
-    // fade as a unit. `box` is the group's bounds in paint coordinates; the composite is limited to
-    // its device-space bounds, the frame scissor and the damage regions. The layer shares the
-    // frame's coordinate system, clips and scissors; layers nest and must pair. `filter` (issue
-    // #617) runs on the layer's pixels first (before the mask and the opacity), on one to three
-    // pooled scratch targets (layer_filters_applied() / layer_filters_unsupported()). A layer that
-    // cannot be isolated - no composite pipeline or pool, a multisampled frame, no free target, or
-    // an empty box - paints flat: its opacity is multiplied into every primitive inside it
-    // (paint-pass.md 14.1) and its filter is skipped. Nothing throws or blocks.
+    // Renders everything between push_layer() and the matching pop_layer() into a pooled
+    // frame-sized target, then composites it once with `opacity` on the group. `box` is the
+    // group's paint-space bounds; the composite is limited to its device bounds, the frame scissor
+    // and the damage regions. Layers nest and must pair. `filter` (issue #617) runs on the layer
+    // first (before the mask and the opacity). A layer that cannot be isolated (no composite
+    // pipeline or pool, a multisampled frame, no free target, an empty box) paints flat: its
+    // opacity multiplies into every primitive (paint-pass.md 14.1) and its filter is skipped.
     void push_layer(const rhi::Rect& box, float opacity, const LayerFilterChain& filter = {});
     void pop_layer();
     // Masks the innermost open isolated layer (issue #617): begin_layer_mask() redirects drawing to
@@ -149,7 +141,18 @@ public:
     }
     // True when layers can be isolated at all (composite pipeline and pool).
     [[nodiscard]] bool layers_supported() const;
-    // Layers of this frame that opened an offscreen target / painted flat.
+    // Retained layers (offscreen-layers-retention.md). Call right before push_layer() with the
+    // node's `owner` id, the `key` every input of its pixels is folded into, and whether the node
+    // and subtree are `clean`. True: the cache holds the finished pixels, push_layer()/pop_layer()
+    // composite them and nothing between may be drawn. False: draw as usual; a clean node is cached
+    // at pop_layer(), a dirty one drops its entry. Never throws.
+    [[nodiscard]] bool retain_layer(std::uint64_t owner, std::uint64_t key, bool clean);
+    // Not final (image loading, glass that could not run): the open layer is not retained.
+    void note_layer_degraded() {
+        ++retain_.degraded;
+    }
+    [[nodiscard]] RetainedLayerStats retained_layer_stats() const;
+    // Layers of this frame isolated / painted flat.
     [[nodiscard]] std::uint32_t layers_isolated() const {
         return layers_isolated_;
     }
@@ -157,25 +160,18 @@ public:
         return layers_flat_;
     }
 
-    // True when draw_backdrop() can execute: both glass pipelines are configured, the offscreen
-    // pool is enabled and the sink is inside a frame. Callers use it to report an unsupported
-    // backdrop draw instead of pretending it painted glass.
+    // True when draw_backdrop() can execute (glass pipelines, pool, inside a frame).
     [[nodiscard]] bool glass_supported() const;
 
-    // Blur + composite draws recorded so far (diagnostics and the benchmark).
+    // Blur + composite draws recorded so far.
     [[nodiscard]] std::uint32_t glass_draws() const;
 
     // --- Texture arrays (RHI 1.7, issue #480 part 2) -------------------------------------------
-    // Supplies the descriptor-indexing pipeline. It must be created from
-    // `vulkan::batched2d_array_pipeline_desc` with the frame's format and sample count, and only on
-    // a device whose `texture_array_capacity()` is non-zero. Null (the default) means "no array":
-    // every texture change ends the batch, which is the one-set-per-texture path. Set between
-    // frames, like the other policy.
-    //
-    // With a pipeline, a batch may hold quads over up to `texture_array_capacity()` textures: the
-    // renderer binds them as one array and each vertex carries its slot, so interleaved images and
-    // glyph pages share one draw instead of one per switch. The pixels are identical either way -
-    // the array path only changes how the same texels are addressed.
+    // Supplies the descriptor-indexing pipeline (`vulkan::batched2d_array_pipeline_desc`, only on a
+    // device whose `texture_array_capacity()` is non-zero). Null means one set per texture. With
+    // one, a batch may hold quads over up to that many textures, each vertex carrying its slot, so
+    // interleaved images and glyph pages share a draw; pixels are identical either way. Set between
+    // frames.
     void set_texture_array_pipeline(rhi::Pipeline* pipeline);
     [[nodiscard]] bool texture_array_supported() const {
         return array_pipeline_ != nullptr;
@@ -305,18 +301,12 @@ public:
 
     // --- 4x presentation (docs/design/display-aware-rendering.md section 4, S8) ----------------
     // Draws `source`'s readable image into `destination` as one full-target textured quad with
-    // `pipeline`. A 4x target is read through its resolved image (RHI 1.3), so this is the GPU-only
-    // way to present a multisampled frame: `blit_target` accepts 1-sample sources only, so an
-    // adaptive render-scale target can be blitted while a 4x one cannot. The quad stretches the
-    // source to the destination with the source target's own sampler state (linear by default),
-    // which also covers a simultaneous adaptive-scale downgrade.
-    //
-    // Call after end(): the source's pass must be closed, and RHI 1.3 requires the sampled bind
-    // outside a render pass. `pipeline` must be single-sampled and match `destination`/
-    // `destination_desc` (the present pass renders into the 1-sample frame target); the caller's
-    // `destination_desc` carries the frame's clear color and is normally the same desc a direct
-    // frame would use. `source` must be a non-presentable target that already holds rendered
-    // content. Contract violations throw (std::logic_error/std::invalid_argument), like begin().
+    // `pipeline`, the GPU-only way to present a multisampled frame (`blit_target` takes 1-sample
+    // sources only). The quad stretches the source with its own sampler state, which also covers
+    // an adaptive-scale downgrade. Call after end() (RHI 1.3: the sampled bind is outside a pass).
+    // `pipeline` must be single-sampled and match `destination`/`destination_desc`, which carries
+    // the frame's clear color; `source` must be non-presentable and hold rendered content.
+    // Contract violations throw (std::logic_error/std::invalid_argument), like begin().
     void present_target(rhi::CommandList& commands, const rhi::RenderTarget& destination,
                         const rhi::RenderTargetDesc& destination_desc,
                         const rhi::RenderTarget& source, rhi::Pipeline& pipeline);
@@ -404,7 +394,16 @@ private:
         LayerFilterChain filter;
         rhi::RenderTarget* scratch = nullptr;
         rhi::RenderTarget* spare = nullptr;
+        LayerRetainFrame retain; // retained-layer bookkeeping (layer_retention.hpp)
     };
+    // Retained layers (batched2d_layer_retain.cpp): the hit path opens and closes a layer that only
+    // composites; a recording layer renders its whole box and copies it into the cache at the pop.
+    void push_retained_layer(const LayerRetainPending& pending, float opacity);
+    void pop_retained_layer(const LayerFrame& layer);
+    [[nodiscard]] rhi::RenderTarget* begin_retain_record(const LayerRetainPending& pending,
+                                                         const rhi::Scissor& region);
+    void finish_retain_record(const LayerFrame& layer);
+    [[nodiscard]] std::uint32_t degradations() const;
     // Runs the layer's pending filter chain once, before the mask or the composite. When it ran,
     // the layer pass is left closed (pass_broken_) on the layer's possibly replaced target.
     void run_layer_filters(LayerFrame& layer);
@@ -433,6 +432,7 @@ private:
     bool pass_broken_ = false;
 
     GlassCompositor glass_;
+    LayerRetainState retain_;
     std::vector<LayerFrame> layers_;
     // Product of the opacities of the open flat layers, folded into every emitted colour.
     float alpha_scale_ = 1.0f;

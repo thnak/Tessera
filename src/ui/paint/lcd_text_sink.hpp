@@ -99,6 +99,9 @@ public:
     void pop_layer() override {
         target_->pop_layer();
     }
+    [[nodiscard]] bool retain_layer(const LayerRetention& retention) override {
+        return target_->retain_layer(retention);
+    }
     [[nodiscard]] bool begin_layer_mask() override {
         return target_->begin_layer_mask();
     }

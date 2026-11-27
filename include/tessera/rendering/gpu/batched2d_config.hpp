@@ -38,6 +38,12 @@ struct Batched2DConfig {
     // A pooled target unused for this many frames is destroyed (never sooner than
     // frames_in_flight), so a scene that stops using layers gives the memory back. 0 never trims.
     std::uint32_t offscreen_idle_trim_frames = 120;
+    // Retained layers (offscreen-layers-retention.md): the finished pixels of an unchanged
+    // masked, filtered or faded group are kept so a later frame composites them instead of drawing
+    // the subtree again. At most this many entries (0 disables), within this many bytes, which are
+    // charged to `max_offscreen_bytes` too. A retained layer never takes a live layer's share.
+    std::uint32_t max_retained_layers = 32;
+    std::uint64_t max_retained_bytes = 64ull * 1024 * 1024;
 
     // Glass cost limits (glass-v1 sections 5 and 8), the same runtime keys the paint pass uses:
     // `glassMaxBlurRadius` (CSS px) and `glassMaxBackdropArea` (the half-resolution threshold).

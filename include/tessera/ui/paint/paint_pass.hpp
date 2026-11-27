@@ -84,6 +84,9 @@ struct PaintStats {
     // Mask layers (issue #617) whose repeat needed more than 256 tiles, so only the first 256 were
     // drawn. Zero for a mask that fits; a non-zero count means a mask-size that is too small.
     std::size_t mask_layers_truncated = 0;
+    // Layers the sink composited from pixels it retained (issue #617): their box, children and mask
+    // were not emitted, so their nodes are counted in neither `nodes` nor the draw counters.
+    std::size_t retained_layers = 0;
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
@@ -168,6 +171,16 @@ struct PaintContext {
     // other sink, and a culled node, keeps the non-isolated rule of paint-pass.md 14.1. False (the
     // default) is every golden and every pre-layer behaviour.
     bool isolate_group_opacity = false;
+    // Retained layers (issue #617, docs/design/gpu/offscreen-layers-retention.md): a masked,
+    // filtered or isolated-opacity node asks the sink whether it holds the node's pixels before it
+    // paints, and skips its whole subtree when it does. Needs the per-node cache and no PaintView
+    // (both fingerprint what the key covers). Off by default: only a sink that retains layers
+    // (Batched2DSink on a renderer with the offscreen pool) answers yes, so it changes nothing
+    // else.
+    bool retain_layers = false;
+    // Folded into every retained-layer key: the owner bumps it when anything the key and the dirty
+    // flags cannot see may have changed (a style generation, a frame painted without the pass).
+    std::uint64_t retain_epoch = 0;
     rendering::gpu::GlassLimits glass{};
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.

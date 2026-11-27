@@ -29,6 +29,7 @@ or asset decoding. Those have their own docs.
 | [`backends.md`](backends.md) | Vulkan/WebGPU/null/software parity and capabilities |
 | [`compute.md`](compute.md) | RHI compute: pipelines, dispatch and indirect dispatch, capabilities, barriers, conformance kernels (#683, #684) |
 | [`offscreen-layers.md`](offscreen-layers.md) | Render-pass break, `copy_target_region`, bounded offscreen pool (#242) |
+| [`offscreen-layers-retention.md`](offscreen-layers-retention.md) | Retained layers: keep the pixels of a static masked/filtered/faded group; keys, invalidation, budget, damage, measurements (#617) |
 | [`offscreen-layers-filters.md`](offscreen-layers-filters.md) | `filter` functions on isolated layers: blur, drop-shadow, colour functions (#617) |
 | [`webgpu-backend.md`](webgpu-backend.md) | WebGPU backend first slice, status, remaining work |
 | [`metal-backend.md`](metal-backend.md) | Metal mapping: sync, resource lifetime, `CAMetalLayer`, errors |

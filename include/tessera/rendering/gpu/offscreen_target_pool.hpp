@@ -115,6 +115,27 @@ public:
     }
     [[nodiscard]] OffscreenPoolStats stats() const;
 
+    // Retained layers (layer_retention.hpp) own their targets but charge the bytes to this pool's
+    // cap, so one number bounds every byte of layer memory. charge() reserves `bytes` when the
+    // total stays within `max_bytes` (false: refused, nothing charged); refund() gives them back
+    // once the image is destroyed. retire() adopts a target a frame in flight may still read: it is
+    // kept alive, its bytes still charged, until `last_used_frame` has rotated (like a regrown
+    // target), then destroyed with its bytes refunded.
+    [[nodiscard]] bool charge(std::uint64_t bytes);
+    void refund(std::uint64_t bytes);
+    void retire(std::unique_ptr<rhi::RenderTarget> target, std::uint64_t last_used_frame,
+                std::uint64_t bytes);
+    // Bytes of a single-sampled target of `extent` in the current frame format.
+    [[nodiscard]] std::uint64_t bytes_for(rhi::Extent2D extent) const {
+        return extent_bytes(extent);
+    }
+    [[nodiscard]] rhi::TextureFormat format() const {
+        return format_;
+    }
+    [[nodiscard]] rhi::Device& device() const {
+        return *device_;
+    }
+
 private:
     struct Entry {
         std::unique_ptr<rhi::RenderTarget> target;

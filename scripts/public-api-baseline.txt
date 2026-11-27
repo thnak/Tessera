@@ -1387,6 +1387,14 @@ enum include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::Col
 constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kColorFunctionsPerOp
 constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kMaxLayerFilterOps
 
+header include/tessera/rendering/gpu/layer_retention.hpp
+class include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::RetainedLayerCache
+struct include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::LayerRetainFrame
+struct include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::LayerRetainPending
+struct include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::LayerRetainState
+struct include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::RetainedLayerConfig
+struct include/tessera/rendering/gpu/layer_retention.hpp tessera::rendering::gpu::RetainedLayerStats
+
 header include/tessera/rendering/gpu/mask_composite.hpp
 enum include/tessera/rendering/gpu/mask_composite.hpp tessera::rendering::gpu::MaskCompositeOp
 
@@ -2693,6 +2701,9 @@ function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::conic_fi
 function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::linear_fill
 function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::radial_fill
 
+header include/tessera/ui/paint/layer_retention.hpp
+struct include/tessera/ui/paint/layer_retention.hpp tessera::ui::paint::LayerRetention
+
 header include/tessera/ui/paint/paint_cache.hpp
 class include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCache
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawAssetOp
@@ -2712,6 +2723,7 @@ struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintRecord
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushClipOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushLayerOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushTransformOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::RetainLayerOp
 alias include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientPayload
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::extend_paint_clip_hash
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::replay_paint_ops

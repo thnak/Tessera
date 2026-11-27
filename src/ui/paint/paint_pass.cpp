@@ -8,6 +8,7 @@
 #include "paint_frame.hpp"
 #include "paint_gradient.hpp"
 #include "paint_image.hpp"
+#include "paint_layer_retention.hpp"
 #include "paint_list_marker.hpp"
 #include "paint_node_parts.hpp"
 #include "paint_properties.hpp"
@@ -109,12 +110,19 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // Only a dirty node that actually has a record can leave a stale one behind (a node with none
     // is simply painted fresh whenever it is next visited), so the first frame of a scene, whose
     // cache is empty, culls as freely as a clean one (issue #257).
+    // A retained layer (#617) goes stale the same way: a dirty node that may hold one is never
+    // culled (it must be seen to drop its layer), and a dirty subtree is kept only while some layer
+    // is held at all. With none held, culling is exactly as without retention.
     const bool records_dirty =
-        pass.cacheable && node.dirty() != Dirty::Clean && pass.cache->contains(node.id());
+        (pass.retain_layers && pass.cache != nullptr &&
+         (node.dirty() != Dirty::Clean || node.subtree_dirty() != Dirty::Clean) &&
+         pass.cache->is_retained_owner(node.id())) ||
+        (pass.cacheable && node.dirty() != Dirty::Clean && pass.cache->contains(node.id()));
     // A skipped subtree must not hide a dirty descendant's record either; an empty cache has none.
     const bool subtree_records_dirty =
         records_dirty ||
-        (pass.cacheable && node.subtree_dirty() != Dirty::Clean && !pass.cache->empty());
+        (pass.cacheable && node.subtree_dirty() != Dirty::Clean &&
+         (!pass.cache->empty() || (pass.retain_layers && pass.cache->has_retained_owners())));
     // Subtree cull (issue #735, slice C): one test at the root rejects every node in the subtree.
     if (pass.cull != nullptr &&
         detail::may_skip_subtree(node, painted_world, *pass.cull, interpolated, open_frame,
@@ -269,7 +277,14 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (own_opacity > 0.0f && rect.width > 0.0f && rect.height > 0.0f && sink.supports_layers()) {
         filter = detail::layer_filter_chain(style, detail::current_color(style), context.glass);
     }
-    const bool layered = masked || !filter.empty();
+    // A node that may keep its pixels (#617) is not per-node recorded either: the sink is asked
+    // before the layer opens, and a hit skips everything a record would replay.
+    const bool group_candidate = pass.isolate_group_opacity && own_opacity < 1.0f &&
+                                 own_opacity > 0.0f && !node.children().empty() &&
+                                 rect.width > 0.0f && rect.height > 0.0f && sink.supports_layers();
+    const bool retaining = pass.retain_layers && signature.has_value() &&
+                           (masked || !filter.empty() || group_candidate);
+    const bool layered = masked || !filter.empty() || retaining;
     if (layered && pass.cache != nullptr) {
         pass.cache->erase(node.id());
     }
@@ -306,8 +321,26 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     child_scope.in_layer = scope.in_layer || isolate_group;
     if (isolate_group) {
         constexpr float kReach = 1.0e6f;
-        own->push_layer(
-            LayerDraw{{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach}, own_opacity, filter});
+        const rhi::Rect whole_frame{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach};
+        const LayerDraw layer{retaining ? detail::retained_layer_box(node, rect) : whole_frame,
+                              own_opacity, filter};
+        if (retaining && pass.cache != nullptr) {
+            pass.cache->note_retained_owner(node.id(), node.dirty() == Dirty::Clean &&
+                                                           node.subtree_dirty() == Dirty::Clean);
+        }
+        if (retaining &&
+            detail::push_layer_retained(*own, node, *signature, layer, masked, pass.retain_epoch)) {
+            // The sink composites the pixels it holds at the pop: no box, children or mask.
+            own->pop_layer();
+            if (open_frame) {
+                own->pop_transform();
+            }
+            ++stats.retained_layers;
+            return;
+        }
+        if (!retaining) {
+            own->push_layer(layer);
+        }
     }
 
     if (rect.width > 0.0f && rect.height > 0.0f) {
@@ -418,36 +451,6 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
 
 } // namespace
 
-// The canvas background. A browser paints the root element's background over the whole canvas, and
-// when the root has none, the first child's (`body`) takes its place, so a page colour reaches
-// every edge of the window however short the content is. The window root here is the canvas: it is
-// the size of the window, its child is the app's root view, and the app's own children are the
-// author's code. It is painted under the root's own box, before everything, so the app's root view
-// keeps the size its layout gave it and only its colour is extended. An opaque colour only: a
-// translucent one would be blended twice (canvas, then the child's own box).
-std::optional<rhi::Color> canvas_background(const Node& root, StyleProvider& styles) {
-    if (!root.rendered() || root.children().empty()) {
-        return std::nullopt;
-    }
-    const auto background = [&styles](const Node& node) {
-        const style::ComputedStyle& style = styles.resolve(node);
-        return detail::color_value(style, "background-color", detail::current_color(style));
-    };
-    // The root's own background wins, translucent or not: its own pass paints it.
-    if (const auto own = background(root); own && own->a > 0.0f) {
-        return std::nullopt;
-    }
-    const Node& first = *root.children().front();
-    if (!first.rendered()) {
-        return std::nullopt;
-    }
-    const std::optional<rhi::Color> color = background(first);
-    if (!color || color->a < 1.0f) {
-        return std::nullopt;
-    }
-    return color;
-}
-
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;
@@ -467,6 +470,8 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.high_contrast = context.high_contrast;
     pass.lcd_text = context.lcd_text;
     pass.isolate_group_opacity = context.isolate_group_opacity;
+    pass.retain_layers = context.retain_layers && pass.cacheable;
+    pass.retain_epoch = context.retain_epoch;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
     pass.cull = context.cull.has_value() ? &*context.cull : nullptr;

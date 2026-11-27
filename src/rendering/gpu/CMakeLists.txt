@@ -21,12 +21,14 @@ add_library(tessera_gpu STATIC
     batched2d_layer_mask.cpp
     batched2d_mask_part.cpp
     batched2d_layer_filter.cpp
+    batched2d_layer_retain.cpp
     batched2d_seam.cpp
     clip_state_table.cpp
     clip_buffer.cpp
     glass_blur.cpp
     glass_compositor.cpp
     glass_filter.cpp
+    layer_retention.cpp
     offscreen_target_pool.cpp
     surface_renderer.cpp
     vertex_arena.cpp)
