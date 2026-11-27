@@ -86,5 +86,20 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         target_link_options(webgpu_path_raster_conformance PRIVATE
             "-sENVIRONMENT=node" "-sJSPI" "-sEXIT_RUNTIME=1" "-sNODERAWFS=1"
             "-sALLOW_MEMORY_GROWTH=1")
+
+        # The same program for a browser page (tools/webgpu_browser/run_path_raster.py serves it and
+        # drives Chrome): the goldens are preloaded into the Wasm file system at /goldens, and the
+        # page hands over the device as Module.preinitializedWebGPUDevice.
+        add_executable(webgpu_path_raster_web
+            smoke/webgpu_path_raster_conformance.cpp
+            smoke/webgpu_path_raster_measure.cpp)
+        target_include_directories(webgpu_path_raster_web PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${PROJECT_SOURCE_DIR}/tests/gpu/batched2d)
+        target_link_libraries(webgpu_path_raster_web PRIVATE
+            tessera_webgpu tessera_path tessera_harness_image)
+        target_link_options(webgpu_path_raster_web PRIVATE
+            "-sENVIRONMENT=web" "-sJSPI" "-sEXIT_RUNTIME=1" "-sALLOW_MEMORY_GROWTH=1"
+            "--preload-file" "${PROJECT_SOURCE_DIR}/tests/golden/gpu/path_raster@/goldens")
     endif()
 endif()
