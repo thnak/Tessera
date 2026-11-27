@@ -11,13 +11,15 @@ namespace {
 constexpr std::size_t kMinBytes = 4096;
 constexpr std::uint64_t kIndexLimit = std::numeric_limits<std::uint32_t>::max();
 
-// Shader bindings of the three resident buffers.
+// Shader bindings of the resident buffers: segments 0, strokes 4, dashes (every other binding, 5).
 constexpr std::size_t kSegsBinding = 0;
 constexpr std::size_t kStrokesBinding = 4;
-constexpr std::size_t kDashesBinding = 5;
 
 [[nodiscard]] std::size_t kind_of(std::size_t binding) {
-    return binding == kSegsBinding ? 0U : (binding == kStrokesBinding ? 1U : 2U);
+    if (binding == kSegsBinding) {
+        return 0U;
+    }
+    return binding == kStrokesBinding ? 1U : 2U;
 }
 
 } // namespace

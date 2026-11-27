@@ -183,6 +183,12 @@ public:
         return true;
     }
 
+    // RHI 1.17 (ADR-072 slice 3): `copy_buffer_to_texture` is a core encoder command; the path
+    // rasterizer's conformance run (webgpu_path_raster_conformance) exercises it.
+    [[nodiscard]] bool supports_buffer_texture_copy() const override {
+        return true;
+    }
+
     // The limits the device was created with, not the adapter's best: a device requested with the
     // default limits reports WebGPU's guaranteed floor (workgroup size 256, 16 KiB of shared
     // memory). Subgroup size is 0: it is not part of core WebGPU, so a shader must not assume it.

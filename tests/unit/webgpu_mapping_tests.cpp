@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
+#include "tessera/rendering/webgpu/path_raster_pipeline.hpp"
 #include "tessera/rendering/webgpu/shader_registry.hpp"
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
@@ -321,6 +322,36 @@ void test_builtin_wgsl() {
     }
 }
 
+// The path rasterizer's four passes (issue #685): one module, four entry points, compute contract
+// of docs/design/gpu/compute.md section 3.1 (read_write storage at 0..6, the push block at 8).
+void test_path_raster_programs() {
+    const wg::PathRasterPass passes[] = {wg::PathRasterPass::Clear, wg::PathRasterPass::Stroke,
+                                         wg::PathRasterPass::Bin, wg::PathRasterPass::Fine};
+    const char* entries[] = {"clear_main", "stroke_main", "bin_main", "fine_main"};
+    const tessera::rendering::path::GpuPathPipelineDescs descs = wg::path_raster_pipeline_descs();
+    const rhi::ComputePipelineDesc* in_order[] = {&descs.clear, &descs.stroke, &descs.bin,
+                                                  &descs.fine};
+    for (int i = 0; i < 4; ++i) {
+        const wg::WgslProgram program = wg::path_raster_wgsl_program(passes[i]);
+        expect(program.compute_entry == entries[i], "path raster pass entry point");
+        expect(program.source.find(std::string("fn ") + entries[i]) != std::string_view::npos,
+               "path raster module declares the entry point");
+        expect(in_order[i]->shader_id == wg::path_raster_shader_id(passes[i]) &&
+                   !in_order[i]->shader_id.empty(),
+               "path raster descriptor names its program");
+        expect(in_order[i]->storage_buffer_count == 7 && in_order[i]->push_constant_size == 4 &&
+                   in_order[i]->spirv == nullptr,
+               "path raster descriptor shape");
+        expect(i == 0 || in_order[i]->shader_id != in_order[i - 1]->shader_id,
+               "path raster ids differ per pass");
+    }
+    const std::string_view source = wg::path_raster_wgsl_program(wg::PathRasterPass::Fine).source;
+    expect(source.find("var<storage, read>") == std::string_view::npos,
+           "every path raster storage buffer is read_write");
+    expect(source.find("@group(0) @binding(8) var<uniform>") != std::string_view::npos,
+           "the push block is the uniform at kBindingComputePush");
+}
+
 } // namespace
 
 int main() {
@@ -336,6 +367,7 @@ int main() {
     test_builtin_registry();
     test_mip_downsample_program();
     test_builtin_wgsl();
+    test_path_raster_programs();
     if (g_failures != 0) {
         std::cerr << "webgpu_mapping: " << g_failures << " failure(s)\n";
         return 1;

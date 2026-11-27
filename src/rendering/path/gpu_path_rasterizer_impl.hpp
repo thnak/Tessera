@@ -47,19 +47,6 @@ constexpr std::size_t kBufferCount = 7;
     return (count + size - 1U) / size;
 }
 
-// Which of the buffers a pass reads or writes (bit n = binding n), taken from
-// shaders/path_raster.comp. Every pass reads the jobs table. A binding a pass does not declare is
-// not in its SPIR-V interface, so leaving it unwritten is valid. If a pass ever starts using
-// another buffer, this table and the shader change together, and the Vulkan pixel tests (validation
-// on) fail otherwise.
-constexpr std::uint32_t kJobsBit = 1U << kJobs;
-constexpr std::uint32_t kClearBindings = (1U << kWork) | kJobsBit;
-constexpr std::uint32_t kStrokeBindings =
-    (1U << kWork) | (1U << kStrokes) | (1U << kDashes) | kJobsBit;
-constexpr std::uint32_t kBinBindings = (1U << kSegs) | (1U << kPaths) | (1U << kWork) | kJobsBit;
-constexpr std::uint32_t kFineBindings =
-    (1U << kSegs) | (1U << kPaths) | (1U << kWork) | (1U << kOutput) | kJobsBit;
-
 struct GpuPathRasterizer::Impl {
     // The four pipelines one in-flight batch owns.
     struct Slot {
