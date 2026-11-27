@@ -320,6 +320,8 @@ not an independent check.
 and `--dense`: 13 overlapping fills; target 3840 x 2160 texture, 60 frames after 4 warm-up frames; the native column
 is the same tool on the same machine and GPU through Vulkan, run the same minute):
 
+First measurement (the fine pass visiting every path; the Vulkan columns are the same tool the same minute):
+
 | | WebGPU sparse | WebGPU dense | Vulkan sparse | Vulkan dense |
 |---|---|---|---|---|
 | CPU enqueue + flush (min / p50 / max, us) | 287 / 513 / 889 | 398 / 541 / 804 | 15 / 44 / 88 | 12 / 41 / 79 |
@@ -327,6 +329,26 @@ is the same tool on the same machine and GPU through Vulkan, run the same minute
 | 16 frames submitted, one wait: per frame (p50, ms) | 8.7 | 29.1 | n/a | n/a |
 | empty-queue wait, the host's floor (p50, ms) | 15.4 | 15.5 | n/a | n/a |
 | bytes the CPU wrote per frame | 7760 | 912 | 7760 | 912 |
+
+**After the per-tile path mask** (commit f6218b58 for the GLSL, ported to `fine_main`: `var<workgroup>
+tile_mask: array<atomic<u32>, 8>`, chunks of 256 paths, `atomicOr`, ascending-bit walk, no early return before the
+barriers, x-range early-outs in `segment_area`, `node == kNil` skip). WGSL needs the barriers in uniform control
+flow and the path count comes from a storage buffer, so invocation 0 stores it in a `var<workgroup>`, and every
+invocation reads it back with `workgroupUniformLoad` for the chunk loop bound. Dawn accepted the module. Pixels:
+the 27 scenes are unchanged against the lavapipe goldens (max premultiplied delta 0 in 24, 1 in the same 3, none
+over 4; same 20 bit-identical). Same host, same session:
+
+| | WebGPU sparse | WebGPU dense | Vulkan sparse | Vulkan dense |
+|---|---|---|---|---|
+| CPU enqueue + flush p50 (us) | 500 | 536 | 42 | 43 |
+| until done p50 (ms) | 14.9 (floor 15.5) | 30.5 (floor 15.5) | 1.55 | 4.75 |
+| 16 frames, one wait, per frame p50 (ms) | **5.8** (was 8.7) | **29.1** (was 29.1) | n/a | n/a |
+
+The mask helps WebGPU's sparse scene (8.7 to 5.8 ms per frame) and does nothing for the dense one, the same shape
+as on Vulkan (sparse 3.84 to 1.55 ms; dense 4.2 to 4.75 ms here, within this machine's run-to-run spread of the
+dense scene, 4.12 ms in the coordinator's run). The dense scene is the 13 full-frame fills, where every tile
+overlaps every path, so the mask removes nothing and WebGPU stays about 7x behind Vulkan there. Sparse is now
+about 3.7x Vulkan's time.
 
 Reading it: the first GPU row cannot be read as GPU time on WebGPU. Dawn-node resolves a completion about every
 15.5 ms (an empty queue takes 15.4 ms at the median), so the sparse figure is the polling floor and the dense one
@@ -362,11 +384,11 @@ frames.
 | per frame | median | min | max |
 |---|---|---|---|
 | CPU, enqueue + flush (nothing waits) | **0.042 ms** | 0.015 | 0.083 |
-| GPU until complete | 3.84 ms | 3.78 | 4.75 |
+| GPU until complete | 3.84 ms (**1.55 ms** after the per-tile path mask, f6218b58; min 1.53, max 1.94) | 3.78 | 4.75 |
 | bytes written by the CPU | 7,760 | 7,760 | 7,760 |
 
 The dense scene (`--dense`: 13 overlapping full-frame fills, 177 KB document) takes 0.041 ms of CPU,
-912 bytes per frame and **4.23 ms** until the GPU is done (min 4.10, max 5.39): 0.06 ms over the
+912 bytes per frame and **4.23 ms** until the GPU is done (min 4.10, max 5.39; after the path mask 4.75 ms here, min 4.03, max 5.19, no gain: every tile overlaps every path, and 4.12 ms in another run): 0.06 ms over the
 4.17 ms budget of 240 Hz, so "inside the 240 Hz budget on the dGPU" is **not** met by a hair on the
 RTX 4060 at full 4K (the figure includes the 33 MB copy into the texture and the submit round trip;
 the sparse scene is 3.84 ms). The second GPU of the manual gate has not been run here.
