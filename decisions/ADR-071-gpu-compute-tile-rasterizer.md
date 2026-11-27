@@ -21,7 +21,7 @@ ThorVG is the vector rasterizer today (ADR-057). It rasterizes on the CPU into a
 uploads as a texture. At 3840x2160 RGBA8 the cost scales with **pixel area**, and the upload is the
 smaller share, so moving only the copy to the GPU cannot fix it: the raster has to leave the CPU.
 
-| 4K step (median) | RX 5300M dGPU | Radeon iGPU | RTX 4060 box (Ryzen laptop CPU) |
+| 4K step (median) | RX 5300M dGPU | Radeon iGPU | RTX 4060 desktop (Ryzen 5 9600X) |
 |---|---|---|---|
 | ThorVG raster, sparse scene (30 shapes), incl. clear | 14.9 ms | 13.9 ms | **5.2 ms** |
 | ThorVG raster, dense scene (13 full-frame fills), incl. clear | 30.9 ms | 31.0 ms | **9.2 ms** |
