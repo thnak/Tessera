@@ -21,7 +21,14 @@ struct FilterFunction {
     ColorRgba color{0.0f, 0.0f, 0.0f, 1.0f};
     bool current_color = false; // DropShadow without a colour (or `currentcolor`): the text colour
 
-    [[nodiscard]] bool operator==(const FilterFunction&) const = default;
+    // Written out because ColorRgba has no operator==, so a defaulted one is deleted (clang rejects
+    // that under -Werror=defaulted-function-deleted).
+    [[nodiscard]] bool operator==(const FilterFunction& other) const {
+        return kind == other.kind && offset_x == other.offset_x && offset_y == other.offset_y &&
+               sigma == other.sigma && color.r == other.color.r && color.g == other.color.g &&
+               color.b == other.color.b && color.a == other.color.a &&
+               current_color == other.current_color;
+    }
 };
 
 // V1 bound on the folded list: adjacent `blur()`s fold exactly (Gaussians convolve, variances
