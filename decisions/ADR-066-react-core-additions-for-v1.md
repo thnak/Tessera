@@ -58,7 +58,10 @@ growing the codebase around the gaps, which makes each later change more expensi
    expression of its component's props and state, and a consumer resolves the nearest provider
    statically. A provider that cannot be resolved at compile time is `TESSERA_REACT_CONTEXT_DYNAMIC`.
 6. **Order.** (1) the parser and type-grammar gaps the spike measured — a module-scope helper
-   function, a destructured local, `readonly`, a JSDoc comment inside a props type; (2) cheap
+   function, a destructured local, `readonly`, a JSDoc comment inside a props type; (1b) the next layer
+   of type-grammar gaps the second spike corpus measured (qualified type names such as
+   `React.ReactNode`, `as const`, rest and array spread), then function-value forms (a functional
+   state updater, a named function expression argument); (2) cheap
    acceptances; (3) custom hooks (ADR-065); (4) handler control flow; (5) list and string
    expressions and record spread; (6) `useReducer` and `useContext`; the L rows of ADR-067 run in
    parallel with (4) to (6) because they touch different stages. Each step lands as one PR that
@@ -418,6 +421,28 @@ typing has no record table, so `<Text>{state.count}</Text>` reports `TESSERA_COD
 One slice: thread the module's record table through `printable_text_expression` and its eight call
 sites, and teach `declared_text_type` to resolve a dotted field through it.
 
+
+### Second spike corpus (recorded 2026-11-27, issue #660)
+
+A second, independent corpus of 43 components written in the idiom of everyday React and TypeScript
+(`tests/fixtures/corpus/react-port/`, measured by `scripts/corpus_react_port.py`; full tables in
+[`react-port-corpus-measurement.md`](../docs/design/react-port-corpus-measurement.md)). The first
+corpus was written from the coverage table, so this one tests whether the table's rows are the ones
+that matter. No file crashed the front end and none was rejected without a code.
+
+As written, the front end accepts **15 of 43 (34.9%)** and the pipeline **2 of 43 (4.7%)**. With the
+deliberately rejected `number` type name rewritten to `int` (a sensitivity run, not an acceptance),
+**22 of 43 (51.2%)** and **4 of 43 (9.3%)**. `TESSERA_JSX_TYPE_NUMBER` is the first error of 11 files.
+
+**The order changes: a step 1b precedes the remaining work.** With `number` cleared, the first
+blockers are type-grammar and function-value forms that this ADR does not name: qualified type names
+(`React.ReactNode`, `React.FC`, 3 files), `as const` (2), rest and array spread (2), a functional
+state updater and named function expressions (3), then component-body `if`/`switch`/`for` (3, a
+decided no) and effect mutation (3, native handler). The items still open in this ADR are small in the
+data: static `useContext` 1 file, which fails earlier on a missing `createContext` type argument;
+`.includes`/`.reduce` 2. Ten of 18 pipeline failures are schema and lowering rows, not React forms.
+The counts are small (a row of 1 or 2 files is a sighting) and the author of the files is the author
+of the measurement, so the order of 1b over the rest is a recommendation, not a settled ranking.
 
 ## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
