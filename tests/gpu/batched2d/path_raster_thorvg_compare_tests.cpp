@@ -125,10 +125,6 @@ constexpr Tolerance kTolerances[] = {
      "rounding only."},
 };
 
-// UNMEASURED rows are filled in from a --report run.
-constexpr Tolerance kTolerances[] = {
-    {"UNMEASURED", 255, 1.0, 1.0, ""},
-};
 
 int failures = 0;
 
