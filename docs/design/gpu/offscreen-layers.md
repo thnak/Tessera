@@ -347,7 +347,9 @@ slice behavior + tests + docs, nothing user-visible until the last:
    `filter_damage` (own field and flag, no leak between glass and filter, halo plus shadow, the region
    around an overflowing child, the filter walk, cull, frame pipeline), `filter_frame_target` (the window
    sees glass only; a filter frame copies and resamples nothing of the frame target; before/after
-   counters) and `layer_filter_gpu` (blur against the analytic Gaussian along rows, columns and the corner; a hard
+   counters), `filter_damage_gpu` (lavapipe: after a child moves inside a blurred node, the
+   damage-limited redraw equals a full redraw pixel for pixel; without the filter walk 308 pixels of a
+   128x128 frame keep stale blur) and `layer_filter_gpu` (blur against the analytic Gaussian along rows, columns and the corner; a hard
    and a soft shadow under the opaque box; opacity after the filter; the half-plane mask cutting a
    blurred layer exactly at its edge; the paint path for blur, shadow and a two-function chain; the
    fallbacks; recycled targets; validation clean). **Chromium comparison (measured 2026-11-27).** A
