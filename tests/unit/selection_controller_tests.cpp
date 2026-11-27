@@ -183,9 +183,9 @@ void test_a_drag_inside_one_cluster_is_not_a_change() {
     // and a drag that has not crossed a character boundary has not changed the picture.
     SelectionController controller;
     (void)controller.press(label(2, x_for_offset(3)));
-    const bool first = controller.drag(label(2, x_for_offset(3) + 0.01f));
+    // The first move may or may not cross a boundary, so its result is deliberately not checked.
+    (void)controller.drag(label(2, x_for_offset(3) + 0.01f));
     const bool second = controller.drag(label(2, x_for_offset(3) + 0.01f));
-    check(!first || first, "the first move may or may not cross a boundary");
     check(!second, "a repeated move at the same point is not a change");
 }
 
