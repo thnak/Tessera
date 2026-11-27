@@ -101,14 +101,14 @@ bool own_paint_is_bounded(const Node& node) {
 //
 // INVALIDATION. The cache is cleared by `mark_dirty(Dirty::Paint)` on the node and on every
 // ancestor it already walks, and every mutation that can move a painted pixel marks Paint:
-// `set_bounds`, `set_transform`, `set_paint_outsets`, `set_glass_blur_sigma`, `set_scroll_offset`,
-// `set_scrollport_insets`, `set_scrollable_x/y`, `set_paint_data`, `set_visible`,
-// `set_style_hidden`, `set_z_index`, and `add_child`/`insert_child`/`remove_child`. That is why the
-// mandated points need no separate call: they all reach `mark_dirty`. The two mutations that
-// deliberately mark no dirty domain are handled explicitly, because they still change the box:
-// `set_span_bounds` (derived paint data, no independent size) and `set_text_fits_box` (a layout
-// fact that decides whether a text payload is bounded). Nothing else can change a painted box
-// without marking Paint, so no stale box survives a mutation.
+// `set_bounds`, `set_transform`, `set_paint_outsets`, `set_glass_blur_sigma`, `set_filter_reach`,
+// `set_scroll_offset`, `set_scrollport_insets`, `set_scrollable_x/y`, `set_paint_data`,
+// `set_visible`, `set_style_hidden`, `set_z_index`, and `add_child`/`insert_child`/`remove_child`.
+// That is why the mandated points need no separate call: they all reach `mark_dirty`. The two
+// mutations that deliberately mark no dirty domain are handled explicitly, because they still
+// change the box: `set_span_bounds` (derived paint data, no independent size) and
+// `set_text_fits_box` (a layout fact that decides whether a text payload is bounded). Nothing else
+// can change a painted box without marking Paint, so no stale box survives a mutation.
 //
 // SOUNDNESS. A node whose own paint can leave its box - a text payload layout has not proved fits -
 // makes the whole subtree unbounded, and an unbounded box is never culled. That is the same
@@ -147,6 +147,10 @@ rhi::Rect NodeGeometryApi::subtree_paint_bounds() const {
         box = unbounded_paint_box();
     }
 
+    // A filtered node's layer holds its whole subtree, so the filter's halo surrounds the union of
+    // the children too (an overflowing child blurs just like the box does). The node's own box
+    // already carries the halo through its outsets, so only the children's union grows here.
+    const float halo = self.extent_.filter_reach();
     for (const auto& child : self.children_) {
         const rhi::Rect child_box = child->subtree_paint_bounds();
         if (!std::isfinite(child_box.width)) {
@@ -160,7 +164,12 @@ rhi::Rect NodeGeometryApi::subtree_paint_bounds() const {
             rhi::Mat3::translation(child->bounds().x - self.scroll_.scroll_x(),
                                    child->bounds().y - self.scroll_.scroll_y()) *
             child->placement_.transform();
-        box = union_rect(box, mapped_aabb(to_parent, child_box));
+        rhi::Rect mapped = mapped_aabb(to_parent, child_box);
+        if (halo > 0.0f) {
+            mapped = rhi::Rect{mapped.x - halo, mapped.y - halo, mapped.width + 2.0f * halo,
+                               mapped.height + 2.0f * halo};
+        }
+        box = union_rect(box, mapped);
     }
 
     self.extent_.store_box(box);
@@ -237,6 +246,20 @@ void NodeGeometryApi::set_glass_blur_sigma(float sigma) {
         // Layout and hit testing are unaffected (glass is paint only, glass-v1 section 3.4).
         self.mark_dirty(Dirty::Paint | Dirty::Render);
     }
+}
+
+void NodeGeometryApi::set_filter_reach(float reach) {
+    Node& self = node();
+    if (self.extent_.set_filter_reach(reach)) {
+        // Paint-visible: the filter's halo moves the node's painted box (the subtree box cache is
+        // cleared by the mark) and damage must cover the new dependency region.
+        self.mark_dirty(Dirty::Paint | Dirty::Render);
+    }
+}
+
+void NodeGeometryApi::set_filter_subtree(bool has_filter) {
+    // Derived like `glass_subtree`: it can only change after a style change already marked a node.
+    node().hints_.set_filter_subtree(has_filter);
 }
 
 void NodeGeometryApi::set_glass_subtree(bool has_glass) {

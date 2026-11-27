@@ -86,6 +86,9 @@ struct FrameRender {
     // Glass nodes whose full box was added to damage because accumulated damage intersected their
     // 3 sigma dependency region (docs/specs/glass-v1.md section 7).
     std::size_t glass_dependencies = 0;
+    // Filtered nodes whose whole region was added because accumulated damage touched their halo
+    // (docs/design/gpu/offscreen-layers.md section 5d).
+    std::size_t filter_dependencies = 0;
 };
 
 struct FramePaint {

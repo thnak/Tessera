@@ -37,6 +37,14 @@ public:
     void set_glass_subtree(bool on) noexcept {
         assign(kGlassSubtree, on);
     }
+    // The subtree contains a node with a layer `filter` (derived). Unlike `glass_subtree` this does
+    // not make the frame read its own target: the filter runs on pooled layer targets.
+    [[nodiscard]] bool filter_subtree() const noexcept {
+        return test(kFilterSubtree);
+    }
+    void set_filter_subtree(bool on) noexcept {
+        assign(kFilterSubtree, on);
+    }
     // Layout proved this node's text payload stays inside the content box (issue #490).
     [[nodiscard]] bool text_fits_box() const noexcept {
         return test(kTextFitsBox);
@@ -68,6 +76,7 @@ private:
         kTextFitsBox = 1u << 3,
         kHasItemKey = 1u << 4,
         kScrollAnimationActive = 1u << 5,
+        kFilterSubtree = 1u << 6,
     };
     [[nodiscard]] bool test(Bit bit) const noexcept {
         return (bits_ & bit) != 0;

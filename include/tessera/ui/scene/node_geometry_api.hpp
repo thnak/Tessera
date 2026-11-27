@@ -68,6 +68,16 @@ public:
     void set_glass_subtree(bool has_glass);
     [[nodiscard]] bool glass_subtree() const;
 
+    // Layer `filter` (blur()/drop-shadow(), issue #617): the node's own dependency, apart from the
+    // backdrop sigma. `filter_reach` is how far the filter chain reads and writes past the box in
+    // CSS px (0 = no filter); `filter_subtree` is the derived "this subtree contains a filtered
+    // node" flag that prunes the damage dependency walk. A filter runs on pooled layer targets, so
+    // unlike `glass_subtree` it never asks the window for an offscreen frame target.
+    void set_filter_reach(float reach);
+    [[nodiscard]] float filter_reach() const;
+    void set_filter_subtree(bool has_filter);
+    [[nodiscard]] bool filter_subtree() const;
+
     // Layout's text-fit fact (issue #490): true when layout proved this node's text payload stays
     // inside the content box paint uses. `apply_layout` rewrites it every pass, so it is false
     // until one proved it; paint re-checks the payload before trusting it.

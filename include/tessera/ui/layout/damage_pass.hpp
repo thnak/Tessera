@@ -34,6 +34,12 @@ DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccum
 [[nodiscard]] rendering::rhi::Rect node_glass_dependency_rect(const Node& node,
                                                               float dpi_scale = 1.0f);
 
+// The region a filtered node owns, in device pixels: its subtree paint box (the node, its children
+// and the filter's halo around both) mapped to the world. It is both the node's dependency region
+// and the box that must be repainted whole when damage touches it, because a filtered pixel
+// anywhere in it may depend on the changed one. Empty for a node with no layer `filter`.
+[[nodiscard]] rendering::rhi::Rect node_filter_region(const Node& node, float dpi_scale = 1.0f);
+
 class DamageTracker {
 public:
     explicit DamageTracker(std::size_t max_entries = 4096);
@@ -49,6 +55,14 @@ public:
     // frame has been accumulated and before the redraw plan is built.
     std::size_t add_glass_dependencies(const Node& root, rendering::DamageAccumulator& damage,
                                        float dpi_scale = 1.0f, float margin = 0.0f);
+
+    // The same rule for layer filters (docs/design/gpu/offscreen-layers.md section 5d): a filtered
+    // node whose region (`node_filter_region`) intersects the accumulated damage gets its whole
+    // region added, because the filter reads pixels up to its reach away. Pruned by the node's
+    // `filter_subtree` flag, independent of glass, and run before the glass walk so a backdrop
+    // blur sees the filter's repaint. Returns how many filtered nodes were added.
+    std::size_t add_filter_dependencies(const Node& root, rendering::DamageAccumulator& damage,
+                                        float dpi_scale = 1.0f, float margin = 0.0f);
 
     std::size_t prune_removed(const Node& root);
     void clear();
