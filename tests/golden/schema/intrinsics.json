@@ -2683,6 +2683,16 @@
     },
     {
       "kind": "keyword",
+      "name": "mask-origin",
+      "note": "per-layer border-box | padding-box | content-box"
+    },
+    {
+      "kind": "keyword",
+      "name": "mask-clip",
+      "note": "per-layer border-box | padding-box | content-box | no-clip"
+    },
+    {
+      "kind": "keyword",
       "name": "filter",
       "note": "none | blur() | drop-shadow(), applied to an isolated layer"
     },

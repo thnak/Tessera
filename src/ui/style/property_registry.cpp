@@ -128,9 +128,9 @@ PropertyRegistry::PropertyRegistry() {
                       ShorthandKind::Box4};
     shorthands_["background"] =
         ShorthandInfo{{"background-color", "background-image"}, ShorthandKind::Pair};
-    shorthands_["mask"] =
-        ShorthandInfo{{"mask-image", "mask-position", "mask-size", "mask-repeat", "mask-mode"},
-                      ShorthandKind::Pair};
+    shorthands_["mask"] = ShorthandInfo{{"mask-image", "mask-position", "mask-size", "mask-repeat",
+                                         "mask-mode", "mask-origin", "mask-clip"},
+                                        ShorthandKind::Pair};
     shorthands_["gap"] = ShorthandInfo{{"row-gap", "column-gap"}, ShorthandKind::Pair};
     shorthands_["overflow"] = ShorthandInfo{{"overflow-x", "overflow-y"}, ShorthandKind::Pair};
     shorthands_["place-items"] =

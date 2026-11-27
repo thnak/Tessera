@@ -27,10 +27,13 @@ bool is_repeat(const std::string& word) {
 }
 
 bool is_unsupported_part(const std::string& word) {
+    return word == "margin-box" || word == "add" || word == "subtract" || word == "intersect" ||
+           word == "exclude";
+}
+
+bool is_box(const std::string& word) {
     return word == "border-box" || word == "padding-box" || word == "content-box" ||
-           word == "margin-box" || word == "fill-box" || word == "stroke-box" ||
-           word == "view-box" || word == "no-clip" || word == "add" || word == "subtract" ||
-           word == "intersect" || word == "exclude";
+           word == "fill-box" || word == "stroke-box" || word == "view-box";
 }
 
 // The slash separates the position from the size; it is spaced out (outside parentheses, so the
@@ -59,6 +62,8 @@ struct Layer {
     std::string size;
     std::string repeat;
     std::string mode;
+    std::string origin;
+    std::string clip;
 };
 
 void append(std::string& list, const std::string& value, std::size_t index) {
@@ -97,6 +102,8 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
         bool have_mode = false;
         bool after_slash = false;
         int repeat_words = 0;
+        int box_words = 0;
+        bool no_clip = false;
         // The components view into this string, so it must outlive the loop.
         const std::string spaced = space_slashes(text);
         for (const std::string_view component : split_layer_components(spaced)) {
@@ -131,14 +138,34 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
                 }
                 ++repeat_words;
                 join(layer.repeat, word);
+            } else if (is_box(word)) {
+                // One box sets origin and clip; a second is the clip (CSS Masking 1 section 6.4).
+                if (++box_words > 2) {
+                    return reject("a mask layer carries at most two geometry boxes");
+                }
+                (box_words == 1 ? layer.origin : layer.clip) = word;
+            } else if (word == "no-clip") {
+                if (no_clip) {
+                    return reject("a mask layer carries at most one no-clip");
+                }
+                no_clip = true;
             } else if (is_unsupported_part(word)) {
-                return reject("mask-origin, mask-clip and mask-composite are not supported; '" +
-                              word + "' is ignored with the whole declaration");
+                return reject("mask-composite and margin-box are not supported; '" + word +
+                              "' is ignored with the whole declaration");
             } else if (after_slash) {
                 join(layer.size, word);
             } else {
                 join(layer.position, word);
             }
+        }
+        if (no_clip && box_words == 2) {
+            return reject("no-clip takes at most one geometry box (the origin)");
+        }
+        if (box_words == 1 && !no_clip) {
+            layer.clip = layer.origin;
+        }
+        if (no_clip) {
+            layer.clip = "no-clip";
         }
         if (after_slash && layer.size.empty()) {
             return reject("a mask layer's / needs a size after it");
@@ -158,6 +185,8 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
     std::string size;
     std::string repeat;
     std::string mode;
+    std::string origin;
+    std::string clip;
     for (std::size_t index = 0; index < layers.size(); ++index) {
         const Layer& layer = layers[index];
         append(image, layer.image, index);
@@ -165,6 +194,8 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
         append(size, layer.size.empty() ? "auto" : layer.size, index);
         append(repeat, layer.repeat.empty() ? "repeat" : layer.repeat, index);
         append(mode, layer.mode.empty() ? "match-source" : layer.mode, index);
+        append(origin, layer.origin.empty() ? "border-box" : layer.origin, index);
+        append(clip, layer.clip.empty() ? "border-box" : layer.clip, index);
     }
     const auto emit = [&](const char* property, std::string value) {
         result.declarations.push_back(
@@ -175,6 +206,8 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
     emit("mask-size", std::move(size));
     emit("mask-repeat", std::move(repeat));
     emit("mask-mode", std::move(mode));
+    emit("mask-origin", std::move(origin));
+    emit("mask-clip", std::move(clip));
     return result;
 }
 

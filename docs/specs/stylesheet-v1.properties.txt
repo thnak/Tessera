@@ -98,6 +98,8 @@ longhand mask-size paint
 longhand mask-position paint
 longhand mask-repeat paint
 longhand mask-mode paint
+longhand mask-origin paint
+longhand mask-clip paint
 longhand filter paint
 shorthand background paint
 shorthand mask paint

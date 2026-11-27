@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 //
 // The mask geometry longhands and the `mask` shorthand (issue #617): `mask-size`, `mask-position`,
-// `mask-repeat`, `mask-mode` parse to per-layer values, a short list repeats cyclically, an invalid
-// list drops its declaration with a diagnostic, and `mask` expands every longhand per layer.
+// `mask-repeat`, `mask-mode`, `mask-origin`, `mask-clip` parse to per-layer values, a short list
+// repeats cyclically, an invalid list drops its declaration with a diagnostic, and `mask` expands
+// every longhand per layer.
 
 #include "tessera/ui/style/mask_layers.hpp"
 #include "tessera/ui/style/property_registry.hpp"
@@ -149,7 +150,8 @@ const std::string* find(const PropertyExpansionResult& result, const char* prope
 bool registry_longhands() {
     const PropertyRegistry registry;
     bool ok = true;
-    for (const char* name : {"mask-size", "mask-position", "mask-repeat", "mask-mode"}) {
+    for (const char* name :
+         {"mask-size", "mask-position", "mask-repeat", "mask-mode", "mask-origin", "mask-clip"}) {
         ok = expect(registry.find(name) != nullptr, "the longhand is registered") && ok;
     }
     ok = expect(registry.find("mask-position")->initial == "0% 0%" &&
@@ -160,7 +162,8 @@ bool registry_longhands() {
     ok =
         expect(good.declarations.size() == 1 && good.diagnostics.empty(), "a valid list is kept") &&
         ok;
-    for (const char* name : {"mask-size", "mask-position", "mask-repeat", "mask-mode"}) {
+    for (const char* name :
+         {"mask-size", "mask-position", "mask-repeat", "mask-mode", "mask-origin", "mask-clip"}) {
         const auto bad = registry.expand(Declaration{name, "wat wat wat wat wat", false, 0});
         ok = expect(bad.declarations.empty() && bad.diagnostics.size() == 1,
                     "an invalid list drops the declaration with one diagnostic") &&
@@ -173,6 +176,71 @@ bool registry_longhands() {
     return ok;
 }
 
+bool boxes() {
+    bool ok = expect(parse_mask_origin("padding-box") == MaskBox::Padding &&
+                         parse_mask_origin(" CONTENT-BOX ") == MaskBox::Content &&
+                         parse_mask_origin("border-box") == MaskBox::Border,
+                     "the three boxes, case-insensitive");
+    ok = expect(parse_mask_origin("fill-box") == MaskBox::Content &&
+                    parse_mask_origin("stroke-box") == MaskBox::Border &&
+                    parse_mask_origin("view-box") == MaskBox::Border,
+                "the SVG boxes map as for an element with a CSS layout box") &&
+         ok;
+    ok = expect(parse_mask_clip("no-clip") == MaskBox::NoClip &&
+                    parse_mask_clip("padding-box") == MaskBox::Padding,
+                "mask-clip adds no-clip") &&
+         ok;
+    for (const char* bad : {"", "no-clip", "margin-box", "border-box padding-box", "10px"}) {
+        ok = expect(!parse_mask_origin(bad), "mask-origin outside the grammar") && ok;
+    }
+    for (const char* bad : {"", "margin-box", "no-clip no-clip"}) {
+        ok = expect(!parse_mask_clip(bad), "mask-clip outside the grammar") && ok;
+    }
+    const auto list = parse_mask_clip_list("padding-box, no-clip");
+    ok = expect(list && list->count == 2 && list->at_layer(0) == MaskBox::Padding &&
+                    list->at_layer(1) == MaskBox::NoClip && list->at_layer(2) == MaskBox::Padding,
+                "a list, repeating cyclically") &&
+         ok;
+    ok = expect(!parse_mask_origin_list("padding-box, no-clip"), "no-clip is not an origin") && ok;
+    return ok;
+}
+
+bool shorthand_boxes() {
+    const PropertyRegistry registry;
+    const auto expand = [&](const char* value) {
+        return registry.expand(Declaration{"mask", value, false, 0});
+    };
+    const auto pair = [](const auto& result, const char* name) {
+        const std::string* value = find(result, name);
+        return value == nullptr ? std::string("(none)") : *value;
+    };
+    const auto one = expand("linear-gradient(red, blue) padding-box");
+    bool ok =
+        expect(pair(one, "mask-origin") == "padding-box" && pair(one, "mask-clip") == "padding-box",
+               "one box sets origin and clip");
+    const auto two = expand("linear-gradient(red, blue) content-box padding-box");
+    ok =
+        expect(pair(two, "mask-origin") == "content-box" && pair(two, "mask-clip") == "padding-box",
+               "two boxes are origin then clip") &&
+        ok;
+    const auto no_clip = expand("linear-gradient(red, blue) content-box no-clip, none");
+    ok =
+        expect(pair(no_clip, "mask-origin") == "content-box, border-box" &&
+                   pair(no_clip, "mask-clip") == "no-clip, border-box",
+               "no-clip is the clip and the box before it is the origin; the other layer resets") &&
+        ok;
+    const auto alone = expand("linear-gradient(red, blue) no-clip");
+    ok = expect(pair(alone, "mask-origin") == "border-box" && pair(alone, "mask-clip") == "no-clip",
+                "no-clip alone leaves the origin initial") &&
+         ok;
+    const auto none = expand("none");
+    ok =
+        expect(pair(none, "mask-origin") == "border-box" && pair(none, "mask-clip") == "border-box",
+               "an unnamed box resets both") &&
+        ok;
+    return ok;
+}
+
 bool shorthand() {
     const PropertyRegistry registry;
     const auto expand = [&](const char* value) {
@@ -180,7 +248,7 @@ bool shorthand() {
     };
     const auto full = expand(
         "linear-gradient(red, blue) right 10px bottom 5px / 30px 40px no-repeat luminance, none");
-    bool ok = expect(full.diagnostics.empty() && full.declarations.size() == 5, "five longhands");
+    bool ok = expect(full.diagnostics.empty() && full.declarations.size() == 7, "seven longhands");
     ok = expect(find(full, "mask-image") &&
                     *find(full, "mask-image") == "linear-gradient(red, blue), none",
                 "the images keep their order") &&
@@ -218,9 +286,13 @@ bool shorthand() {
          ok;
 
     for (const char* bad :
-         {"", "url(a.png)", "linear-gradient(red, blue) border-box",
-          "linear-gradient(red, blue) add", "linear-gradient(red, blue) / 10px",
-          "linear-gradient(red, blue) 0 0 /", "linear-gradient(red, blue) alpha luminance",
+         {"", "url(a.png)", "linear-gradient(red, blue) margin-box",
+          "linear-gradient(red, blue) add", "linear-gradient(red, blue) subtract",
+          "linear-gradient(red, blue) border-box padding-box content-box",
+          "linear-gradient(red, blue) no-clip no-clip",
+          "linear-gradient(red, blue) border-box padding-box no-clip",
+          "linear-gradient(red, blue) / 10px", "linear-gradient(red, blue) 0 0 /",
+          "linear-gradient(red, blue) alpha luminance",
           "linear-gradient(red, blue) repeat-x repeat", "linear-gradient(red, blue), , none",
           "linear-gradient(red, blue) 10px 10px 10px 10px 10px",
           "linear-gradient(red, blue) linear-gradient(red, blue)"}) {
@@ -241,5 +313,7 @@ int main() {
     ok = lists() && ok;
     ok = registry_longhands() && ok;
     ok = shorthand() && ok;
+    ok = boxes() && ok;
+    ok = shorthand_boxes() && ok;
     return ok ? 0 : 1;
 }

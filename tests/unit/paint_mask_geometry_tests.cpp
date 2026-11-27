@@ -3,7 +3,8 @@
 // Mask geometry in the paint pass (issue #617): `mask-size`, `mask-position`, `mask-repeat` and
 // `mask-mode` decide where each mask layer's gradient is drawn inside the node's border box. The
 // stream is checked against hand-computed tiles: placement, repeat/space/round, the clip that cuts
-// an overflowing tile to the box, per-layer cycling, the tile cap and luminance stops.
+// an overflowing tile to the box, per-layer cycling, the tile cap and luminance stops, and the
+// `mask-origin` / `mask-clip` boxes (border, padding, content, no-clip).
 
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -80,6 +81,9 @@ public:
 
 using Log = std::vector<std::string>;
 
+// The stats of the latest paint(), for the checks that read a counter.
+PaintStats g_stats;
+
 constexpr const char* kRamp = "linear-gradient(90deg, #000000, #ffffff)";
 
 // One node at (10,10) 60x60 with the given mask properties (property/value pairs).
@@ -97,7 +101,7 @@ Log paint(std::initializer_list<std::pair<const char*, const char*>> mask) {
     }
     styles.set(2, style);
     LogSink sink;
-    paint_scene(root, styles, sink);
+    g_stats = paint_scene(root, styles, sink);
     return sink.log;
 }
 
@@ -197,11 +201,111 @@ bool layers_cycle_their_geometry() {
                  {"grad(10,10,20,20)a100-100", "grad(10,10,20,20)a100-100"});
 }
 
-bool too_many_tiles_paint_nothing() {
-    return check("a repeat past the tile cap draws no tile",
-                 paint({{"mask-image", kRamp}, {"mask-size", "1px 1px"}}), {}) &&
-           check("a zero-size tile draws nothing",
-                 paint({{"mask-image", kRamp}, {"mask-size", "0px 10px"}}), {});
+bool too_many_tiles_draw_the_first_ones() {
+    // 60x60 one-pixel tiles are 3600; the first 256 in row-major order are four full rows of 60
+    // and the first 16 of the fifth.
+    const Log log = paint({{"mask-image", kRamp}, {"mask-size", "1px 1px"}});
+    bool ok = expect(log.size() == 256, "a repeat past the tile cap draws the first 256 tiles");
+    ok = expect(!log.empty() && log.front() == "grad(10,10,1,1)a100-100" &&
+                    log[59] == "grad(69,10,1,1)a100-100" && log[60] == "grad(10,11,1,1)a100-100" &&
+                    log.back() == "grad(25,14,1,1)a100-100",
+                "in row-major order") &&
+         ok;
+    ok = expect(g_stats.mask_layers_truncated == 1, "and the cut is counted") && ok;
+    paint({{"mask-image", kRamp}, {"mask-size", "30px 30px"}});
+    ok = expect(g_stats.mask_layers_truncated == 0, "a repeat that fits is not counted") && ok;
+    return check("a zero-size tile draws nothing",
+                 paint({{"mask-image", kRamp}, {"mask-size", "0px 10px"}}), {}) &&
+           ok;
+}
+
+// A 4px border and 6px padding on the 60x60 node: padding box (14,14,52,52), content box
+// (20,20,40,40).
+constexpr std::initializer_list<std::pair<const char*, const char*>> kFramed = {
+    {"border-top-style", "solid"},
+    {"border-right-style", "solid"},
+    {"border-bottom-style", "solid"},
+    {"border-left-style", "solid"},
+    {"border-top-width", "4px"},
+    {"border-right-width", "4px"},
+    {"border-bottom-width", "4px"},
+    {"border-left-width", "4px"},
+    {"padding-top", "6px"},
+    {"padding-right", "6px"},
+    {"padding-bottom", "6px"},
+    {"padding-left", "6px"},
+    {"mask-image", kRamp}};
+
+Log paint_framed(std::initializer_list<std::pair<const char*, const char*>> extra) {
+    std::vector<std::pair<const char*, const char*>> all(kFramed);
+    all.insert(all.end(), extra.begin(), extra.end());
+    Node root{1};
+    root.set_bounds({0.0f, 0.0f, 100.0f, 100.0f});
+    auto node = std::make_unique<Node>(2);
+    node->set_bounds({10.0f, 10.0f, 60.0f, 60.0f});
+    root.add_child(std::move(node));
+    StubStyles styles;
+    ComputedStyle style;
+    for (const auto& [property, value] : all) {
+        style.set(property, value);
+    }
+    styles.set(2, style);
+    LogSink sink;
+    g_stats = paint_scene(root, styles, sink);
+    return sink.log;
+}
+
+bool check_framed(const char* message,
+                  std::initializer_list<std::pair<const char*, const char*>> extra,
+                  const Log& want) {
+    const Log got = paint_framed(extra);
+    return got == want || (expect(false, message), dump(got));
+}
+
+bool origin_and_clip_boxes() {
+    return check_framed("the initial boxes are the border box", {},
+                        {"grad(10,10,60,60)a100-100"}) &&
+           check_framed("mask-clip: padding-box cuts the border away",
+                        {{"mask-clip", "padding-box"}},
+                        {"clip(14,14,52,52)", "grad(10,10,60,60)a100-100", "unclip"}) &&
+           check_framed("mask-origin: content-box lays the image in the content box",
+                        {{"mask-origin", "content-box"}}, {"grad(20,20,40,40)a100-100"}) &&
+           check_framed("a content-box tile inside a padding-box clip needs no cut",
+                        {{"mask-origin", "content-box"}, {"mask-clip", "padding-box"}},
+                        {"grad(20,20,40,40)a100-100"}) &&
+           check_framed("a border-box tile is cut to the content-box clip",
+                        {{"mask-clip", "content-box"}},
+                        {"clip(20,20,40,40)", "grad(10,10,60,60)a100-100", "unclip"}) &&
+           check_framed("a padding-box repeat spills past the border box and is cut to it",
+                        {{"mask-origin", "padding-box"}, {"mask-size", "30px 30px"}},
+                        {"clip(10,10,60,60)", "grad(14,14,30,30)a100-100",
+                         "grad(44,14,30,30)a100-100", "grad(14,44,30,30)a100-100",
+                         "grad(44,44,30,30)a100-100", "unclip"}) &&
+           check_framed("the SVG box names map to the CSS boxes",
+                        {{"mask-origin", "fill-box"}, {"mask-clip", "stroke-box"}},
+                        {"grad(20,20,40,40)a100-100"});
+}
+
+bool no_clip_keeps_the_overflow() {
+    return check_framed(
+        "no-clip lets a tile reach past the border box",
+        {{"mask-size", "30px 60px"},
+         {"mask-position", "10px 0"},
+         {"mask-repeat", "repeat-x"},
+         {"mask-clip", "no-clip"}},
+        {"grad(-10,10,30,60)a100-100", "grad(20,10,30,60)a100-100", "grad(50,10,30,60)a100-100"});
+}
+
+bool an_empty_box_paints_nothing() {
+    return check_framed(
+               "a content box eaten by padding is empty, so is its clip",
+               {{"padding-left", "40px"}, {"padding-right", "40px"}, {"mask-clip", "content-box"}},
+               {}) &&
+           check_framed("and an image positioned in it",
+                        {{"padding-left", "40px"},
+                         {"padding-right", "40px"},
+                         {"mask-origin", "content-box"}},
+                        {});
 }
 
 bool luminance_turns_colour_into_alpha() {
@@ -227,7 +331,10 @@ int main() {
     ok = repeat_tiles_the_box() && ok;
     ok = space_and_round() && ok;
     ok = layers_cycle_their_geometry() && ok;
-    ok = too_many_tiles_paint_nothing() && ok;
+    ok = too_many_tiles_draw_the_first_ones() && ok;
+    ok = origin_and_clip_boxes() && ok;
+    ok = no_clip_keeps_the_overflow() && ok;
+    ok = an_empty_box_paints_nothing() && ok;
     ok = luminance_turns_colour_into_alpha() && ok;
     return ok ? 0 : 1;
 }

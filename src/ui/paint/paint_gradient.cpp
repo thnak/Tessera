@@ -316,7 +316,29 @@ struct MaskGeometry {
     style::MaskValueList<style::MaskPosition> positions;
     style::MaskValueList<style::MaskRepeat> repeats;
     style::MaskValueList<style::MaskMode> modes;
+    style::MaskValueList<style::MaskBox> origins;
+    style::MaskValueList<style::MaskBox> clips;
+    // The three boxes of the node, indexed by MaskBox (NoClip uses the border box).
+    std::array<rhi::Rect, 4> boxes{};
 };
+
+// The padding box is the border box inside the borders, the content box is the padding box inside
+// the padding (CSS Box 3); an inset that eats a whole axis leaves an empty box.
+void resolve_mask_boxes(const style::ComputedStyle& style, const rhi::Rect& border,
+                        MaskGeometry& geometry) {
+    const auto inset = [](const rhi::Rect& box, float left, float top, float right, float bottom) {
+        return rhi::Rect{box.x + left, box.y + top, std::max(0.0f, box.width - left - right),
+                         std::max(0.0f, box.height - top - bottom)};
+    };
+    const BorderWidths widths = border_widths(style, border);
+    const rhi::Rect padding = inset(border, widths.left, widths.top, widths.right, widths.bottom);
+    const auto pad = [&style](const char* name) {
+        return length_value(style, name).value_or(0.0f);
+    };
+    const rhi::Rect content = inset(padding, pad("padding-left"), pad("padding-top"),
+                                    pad("padding-right"), pad("padding-bottom"));
+    geometry.boxes = {border, padding, content, border};
+}
 
 // Walks a resolved layer list bottom to top and emits each gradient. Shared by the
 // `background-image` paint and the `mask-image` paint (issue #617): the same grammar and the same
@@ -339,25 +361,33 @@ void emit_layers(const style::BackgroundLayerList& list, const rhi::Rect& rect,
             continue;
         }
         const bool luminance = geometry->modes.at_layer(index) == style::MaskMode::Luminance;
-        const MaskTiling tiling = compute_mask_tiles(rect, geometry->sizes.at_layer(index),
-                                                     geometry->positions.at_layer(index),
-                                                     geometry->repeats.at_layer(index));
-        // A repeat past the tile cap (or a zero-size tile) paints nothing for this layer.
-        if (tiling.too_many || tiling.count == 0) {
+        // `mask-origin` is the positioning area the tiles are laid out in.
+        const style::MaskBox origin = geometry->origins.at_layer(index);
+        const MaskTiling tiling = compute_mask_tiles(
+            geometry->boxes[static_cast<std::size_t>(origin)], geometry->sizes.at_layer(index),
+            geometry->positions.at_layer(index), geometry->repeats.at_layer(index));
+        // A zero-size tile or area paints nothing for this layer.
+        if (tiling.count == 0) {
             continue;
         }
-        if (tiling.whole_box) {
-            emit_gradient(layer, rect, clip, opacity, luminance, sink, stats);
+        if (tiling.truncated) {
+            ++stats.mask_layers_truncated;
+        }
+        // `mask-clip` is the painting area: a tile outside it is cut away, and `no-clip` keeps it.
+        const style::MaskBox clip_box = geometry->clips.at_layer(index);
+        const rhi::Rect& clip_rect = geometry->boxes[static_cast<std::size_t>(clip_box)];
+        const bool clipped = clip_box != style::MaskBox::NoClip;
+        if (clipped && (clip_rect.width <= 0.0f || clip_rect.height <= 0.0f)) {
             continue;
         }
-        // A tile that reaches outside the border box is cut to it: the mask covers the box only.
-        if (tiling.overflows_box) {
-            sink.push_clip(RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f});
+        const bool cut = clipped && !tiles_within(tiling, clip_rect);
+        if (cut) {
+            sink.push_clip(RoundedClip{clip_rect, 0.0f, 0.0f, 0.0f, 0.0f});
         }
         for (std::size_t tile = 0; tile < tiling.count; ++tile) {
             emit_gradient(layer, tiling.tiles[tile], clip, opacity, luminance, sink, stats);
         }
-        if (tiling.overflows_box) {
+        if (cut) {
             sink.pop_clip();
         }
     }
@@ -413,8 +443,11 @@ void paint_mask_image(const style::ComputedStyle& style, const rhi::Rect& rect, 
     read("mask-position", geometry.positions, style::parse_mask_position_list);
     read("mask-repeat", geometry.repeats, style::parse_mask_repeat_list);
     read("mask-mode", geometry.modes, style::parse_mask_mode_list);
-    // mask-clip / mask-origin default to border-box, which is not rounded by border-radius, and the
-    // mask's own alpha is the whole value, so there is no node opacity to fold in.
+    read("mask-origin", geometry.origins, style::parse_mask_origin_list);
+    read("mask-clip", geometry.clips, style::parse_mask_clip_list);
+    resolve_mask_boxes(style, rect, geometry);
+    // The mask areas are never rounded by border-radius, and the mask's own alpha is the whole
+    // value, so there is no node opacity to fold in.
     emit_layers(*parsed, rect, RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f}, 1.0f, sink, stats,
                 &geometry);
 }
