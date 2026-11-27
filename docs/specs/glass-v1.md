@@ -173,6 +173,9 @@ region-local redraw, so the rule is explicit:
 - A glass node's **paint dependency** is its box expanded by `3 * sigma`. Any paint damage that
   intersects the dependency region dirties the glass node, and the damage rectangle of the frame is
   grown to the glass node's full filtered box (the part that would otherwise show stale blur).
+- A layer `filter` (blur, drop-shadow) is not glass: it has its own node field and subtree flag and
+  its own damage walk (`offscreen-layers.md` section 5d), and it does not make the window render an
+  offscreen frame target. Only a node with a `backdrop-filter` does.
 - Damage is computed as the union, then merged by the existing redraw plan; a union covering more
   than `fullRedrawThreshold` becomes a full redraw as usual.
 - A change under a glass node that does not move any pixel in its dependency region (an off-screen

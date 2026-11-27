@@ -55,26 +55,45 @@ int z_index_value(const style::ComputedStyle& style) {
     return static_cast<int>(std::clamp<long>(parsed, INT_MIN, INT_MAX));
 }
 
-// Returns whether this node's subtree contains a glass node (itself included).
-bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLimits& glass,
-               style::SyncMemo* memo, SceneStyleSyncResult& result) {
+// Which dependency kinds a subtree contains (the node itself included).
+struct SubtreeLayers {
+    bool glass = false;
+    bool filter = false;
+
+    void merge(const SubtreeLayers& other) {
+        glass = glass || other.glass;
+        filter = filter || other.filter;
+    }
+};
+
+// Folds a node's own facts and its children's flags into the node's two subtree bits.
+SubtreeLayers fold_subtree(Node& node, SubtreeLayers layers) {
+    for (const auto& child : node.children()) {
+        layers.merge({child->glass_subtree(), child->filter_subtree()});
+    }
+    node.set_glass_subtree(layers.glass);
+    node.set_filter_subtree(layers.filter);
+    return layers;
+}
+
+SubtreeLayers sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLimits& glass,
+                        style::SyncMemo* memo, SceneStyleSyncResult& result) {
     if (!node.rendered()) {
-        return false;
+        return {};
     }
     const style::ComputedStyle& style = styles.resolve(node);
     ++result.nodes;
     if (memo != nullptr && memo->hit(node.id(), style, node.bounds().width, node.bounds().height)) {
         // Applied already with this exact style and box: only the subtree walk is left.
-        const float applied = node.glass_blur_sigma();
-        if (applied > 0.0f) {
-            ++result.glass_nodes;
-        }
-        bool subtree_has_glass = applied > 0.0f;
+        SubtreeLayers layers{node.glass_blur_sigma() > 0.0f, node.filter_reach() > 0.0f};
+        result.glass_nodes += layers.glass ? 1 : 0;
+        result.filter_nodes += layers.filter ? 1 : 0;
         for (const auto& child : node.children()) {
-            subtree_has_glass = sync_node(*child, styles, glass, memo, result) || subtree_has_glass;
+            layers.merge(sync_node(*child, styles, glass, memo, result));
         }
-        node.set_glass_subtree(subtree_has_glass);
-        return subtree_has_glass;
+        node.set_glass_subtree(layers.glass);
+        node.set_filter_subtree(layers.filter);
+        return layers;
     }
 
     const int z_index = z_index_value(style);
@@ -101,14 +120,15 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     // culling reach and the damage region correct without ever growing the glyph ink box the fit
     // and culling code reads.
     const detail::TextShadowOutsets text_reach = detail::text_shadow_outsets(style);
-    // `filter` (issue #617) reaches past the box too: its blur halo and drop-shadow offset.
-    const detail::ShadowOutsets filter_reach = detail::filter_outsets(style, glass);
-    const Node::PaintOutsets outsets{
-        std::max({reach.left, text_reach.left, filter_reach.left}),
-        std::max({reach.top, text_reach.top, filter_reach.top}),
-        std::max({reach.right, text_reach.right, filter_reach.right}),
-        std::max({reach.bottom, text_reach.bottom, filter_reach.bottom}),
-        reach.blurred || text_reach.blurred || filter_reach.blurred};
+    // `filter` (issue #617) reaches past the box too: its blur halo and drop-shadow offset. The
+    // layer holds the node's own shadows, so the chain blurs them as well: the halo is added to the
+    // content's reach on each side, not maxed with it.
+    const detail::ShadowOutsets filter_halo = detail::filter_outsets(style, glass);
+    const Node::PaintOutsets outsets{std::max(reach.left, text_reach.left) + filter_halo.left,
+                                     std::max(reach.top, text_reach.top) + filter_halo.top,
+                                     std::max(reach.right, text_reach.right) + filter_halo.right,
+                                     std::max(reach.bottom, text_reach.bottom) + filter_halo.bottom,
+                                     reach.blurred || text_reach.blurred || filter_halo.blurred};
     const Node::PaintOutsets& current = node.paint_outsets();
     if (outsets.left != current.left || outsets.top != current.top ||
         outsets.right != current.right || outsets.bottom != current.bottom ||
@@ -120,33 +140,38 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     // Glass: the resolved sigma the damage dependency region is derived from. The clamp uses the
     // configured limit, so the stored value is exactly what paint will emit.
     const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
-    const float backdrop_sigma =
+    const float sigma =
         filter.has_value() ? rendering::gpu::clamp_glass_sigma(filter->blur_sigma, glass) : 0.0f;
-    // The stored value is the node's *dependency* sigma: a layer `filter` reads pixels up to its
-    // reach away, exactly like a backdrop blur reads 3 sigma, so the same damage dependency (and
-    // the same subtree flag) covers both. A drop-shadow's offset makes the reach one-sided; the
-    // largest side over 3 is the conservative symmetric stand-in.
-    const float filter_dependency =
-        std::max({filter_reach.left, filter_reach.top, filter_reach.right, filter_reach.bottom}) /
-        3.0f;
-    const float sigma = std::max(backdrop_sigma, filter_dependency);
-    if (sigma != node.glass_blur_sigma()) {
-        node.set_glass_blur_sigma(sigma);
+    // The stored values are fixed point, so "changed" is read back from the node, not guessed by
+    // comparing the unrounded input with the rounded store.
+    const float stored_sigma = node.glass_blur_sigma();
+    node.set_glass_blur_sigma(sigma);
+    if (node.glass_blur_sigma() != stored_sigma) {
         ++result.changed_glass;
     }
-    if (sigma > 0.0f) {
-        ++result.glass_nodes;
+
+    // Layer filter: its own dependency, never the backdrop sigma. The largest one-sided halo is the
+    // conservative symmetric reach (a drop-shadow's offset makes the halo one-sided).
+    const float filter_reach =
+        std::max({filter_halo.left, filter_halo.top, filter_halo.right, filter_halo.bottom});
+    const float stored_reach = node.filter_reach();
+    node.set_filter_reach(filter_reach);
+    if (node.filter_reach() != stored_reach) {
+        ++result.changed_filter;
     }
+    SubtreeLayers layers{node.glass_blur_sigma() > 0.0f, node.filter_reach() > 0.0f};
+    result.glass_nodes += layers.glass ? 1 : 0;
+    result.filter_nodes += layers.filter ? 1 : 0;
 
     if (memo != nullptr) {
         memo->put(node.id(), style, node.bounds().width, node.bounds().height);
     }
-    bool subtree_has_glass = sigma > 0.0f;
     for (const auto& child : node.children()) {
-        subtree_has_glass = sync_node(*child, styles, glass, memo, result) || subtree_has_glass;
+        layers.merge(sync_node(*child, styles, glass, memo, result));
     }
-    node.set_glass_subtree(subtree_has_glass);
-    return subtree_has_glass;
+    node.set_glass_subtree(layers.glass);
+    node.set_filter_subtree(layers.filter);
+    return layers;
 }
 
 } // namespace
@@ -176,9 +201,9 @@ SceneStyleSyncResult sync_scene_style_scoped(StyleProvider& styles,
     if (memo != nullptr) {
         memo->begin();
     }
-    // The ancestors of every root, nearest-last, so `glass_subtree` refolds bottom-up. A root's
-    // ancestors did not restyle, but their `glass_subtree` fact depends on their descendants, so
-    // they must be revisited after the roots below them.
+    // The ancestors of every root, nearest-last, so `glass_subtree` and `filter_subtree` refold
+    // bottom-up. A root's ancestors did not restyle, but those facts depend on their descendants,
+    // so they must be revisited after the roots below them.
     std::vector<Node*> ancestors;
     for (const Node* root_node : roots) {
         for (Node* parent = root_node->parent(); parent != nullptr; parent = parent->parent()) {
@@ -194,14 +219,11 @@ SceneStyleSyncResult sync_scene_style_scoped(StyleProvider& styles,
         sync_node(const_cast<Node&>(*root_node), styles, glass, memo, result);
     }
     for (Node* ancestor : ancestors) {
-        // Only the glass refold is owed here: the ancestor's own style and box are unchanged, so
+        // Only the subtree refold is owed here: the ancestor's own style and box are unchanged, so
         // its z-index/transform/outsets are already applied. Re-running the full sync would be
         // correct but would re-derive what the memo already proves.
-        bool subtree_has_glass = ancestor->glass_blur_sigma() > 0.0f;
-        for (const auto& child : ancestor->children()) {
-            subtree_has_glass = child->glass_subtree() || subtree_has_glass;
-        }
-        ancestor->set_glass_subtree(subtree_has_glass);
+        fold_subtree(*ancestor,
+                     {ancestor->glass_blur_sigma() > 0.0f, ancestor->filter_reach() > 0.0f});
     }
     if (memo != nullptr) {
         memo->sweep();

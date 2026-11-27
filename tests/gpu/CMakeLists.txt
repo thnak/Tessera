@@ -116,6 +116,14 @@ add_executable(layer_filter_null_tests
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_filter_null COMMAND layer_filter_null_tests)
 
+# What a layer `filter` needs from the window's frame target: nothing (no offscreen frame target, no
+# region copy or resample of it), unlike glass. Counters before/after on a filter-only scene.
+add_executable(filter_frame_target_tests
+    batched2d/filter_frame_target_tests.cpp)
+target_link_libraries(filter_frame_target_tests PRIVATE
+    tessera_gpu tessera_paint tessera_rhi_null)
+add_test(NAME filter_frame_target COMMAND filter_frame_target_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -707,6 +715,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Damage-limited redraw of a filtered node equals a full redraw (the filter dependency walk).
+    # Skips without a Vulkan device.
+    add_executable(filter_damage_gpu_tests
+        batched2d/filter_damage_gpu_tests.cpp)
+    target_link_libraries(filter_damage_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_frame tessera_layout tessera_runtime tessera_damage
+        tessera_golden tessera_rhi_vulkan)
+    add_test(NAME filter_damage_gpu COMMAND filter_damage_gpu_tests)
+    set_tests_properties(filter_damage_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # The mask-image lavapipe golden (issue #617): the CPU corpus's `masks` scene through the paint
     # path and the renderer's mask step on a software device, against tests/golden/gpu/mask_image.png
@@ -1038,6 +1055,19 @@ if (TARGET tessera_app_window)
     add_test(NAME app_window_capture COMMAND app_window_capture_tests)
     set_tests_properties(app_window_capture PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
+
+    # A filtered card (issue #617) presented through a real swapchain: the direct path reopens the
+    # swapchain image with a Load pass for its layer passes. Prints `skipped` without a presentation
+    # surface, which the property below turns into a skip.
+    add_executable(app_window_filter_tests
+        app_window_filter_tests.cpp)
+    target_compile_definitions(app_window_filter_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_filter_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_filter COMMAND app_window_filter_tests)
+    set_tests_properties(app_window_filter PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(app_window_smoke_tests
         app_window_smoke_tests.cpp)

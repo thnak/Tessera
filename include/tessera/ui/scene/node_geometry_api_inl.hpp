@@ -38,6 +38,12 @@ inline float NodeGeometryApi::glass_blur_sigma() const {
 inline bool NodeGeometryApi::glass_subtree() const {
     return node().hints_.glass_subtree();
 }
+inline float NodeGeometryApi::filter_reach() const {
+    return node().extent_.filter_reach();
+}
+inline bool NodeGeometryApi::filter_subtree() const {
+    return node().hints_.filter_subtree();
+}
 inline bool NodeGeometryApi::text_fits_box() const {
     return node().hints_.text_fits_box();
 }

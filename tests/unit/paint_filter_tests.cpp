@@ -7,8 +7,8 @@
 //    colour resolve against the node's text colour, and the node's opacity moves to the layer;
 //  - a per-node paint cache keeps painting the filter on clean frames, a subtree draw list records
 //    the chain and replays it verbatim;
-//  - the style sync widens the node's paint outsets and dependency sigma by the filter's reach, so
-//    damage and culling cover the halo.
+//  - the style sync widens the node's paint outsets and sets its own filter reach (never the
+//    backdrop sigma), so damage and culling cover the halo.
 
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -284,21 +284,24 @@ bool sync_widens_the_reach() {
     bool ok = expect(around.left == 12.0f && around.top == 12.0f && around.right == 12.0f &&
                          around.bottom == 12.0f,
                      "a blur reaches 3 sigma on every side") &&
-              expect(node.glass_blur_sigma() == 4.0f && blur.root.glass_subtree(),
-                     "and is a damage dependency of that sigma");
+              expect(node.filter_reach() == 12.0f && node.glass_blur_sigma() == 0.0f &&
+                         blur.root.filter_subtree() && !blur.root.glass_subtree(),
+                     "and is the filter's own damage dependency, not a backdrop sigma");
 
     Scene shadow("drop-shadow(10px 0 2px red)");
     tessera::ui::paint::sync_scene_style(shadow.root, shadow.styles, {});
     const Node::PaintOutsets& side = shadow.root.children()[0]->paint_outsets();
     ok = expect(side.left == 0.0f && side.right == 16.0f && side.top == 6.0f && side.bottom == 6.0f,
                 "a shadow reaches 3 sigma around its offset") &&
+         expect(shadow.root.children()[0]->filter_reach() == 16.0f,
+                "its dependency is the largest side") &&
          ok;
 
     Scene none("none");
     tessera::ui::paint::sync_scene_style(none.root, none.styles, {});
     return expect(none.root.children()[0]->paint_outsets().left == 0.0f &&
-                      none.root.children()[0]->glass_blur_sigma() == 0.0f &&
-                      !none.root.glass_subtree(),
+                      none.root.children()[0]->filter_reach() == 0.0f &&
+                      !none.root.filter_subtree() && !none.root.glass_subtree(),
                   "no filter, no reach") &&
            ok;
 }

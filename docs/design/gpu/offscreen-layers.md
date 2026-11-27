@@ -317,19 +317,39 @@ slice behavior + tests + docs, nothing user-visible until the last:
    `layer_filters_unsupported()`; a flat layer drops its whole chain. A filtered layer whose passes
    all fall back records exactly the plain layer stream, and one that ran leaves the layer pass
    closed instead of reopening an empty one.
-   **Damage.** A filter reads pixels up to its reach away, exactly like a backdrop blur reads 3
-   sigma, so `sync_scene_style` stores the filter's largest one-sided reach over 3 as the node's
-   dependency sigma (`glass_blur_sigma`, now "the larger of the backdrop sigma and the filter's
-   reach / 3") and folds the reach into the node's paint outsets. `DamageTracker` therefore expands
-   any damage that touches the halo to the whole node box (the glass dependency rule), the paint cull
-   keeps nodes whose halo is on screen, and the layer is drawn complete inside the damage regions
-   before it is blurred. Side effect: `glass_subtree` is true for a tree with a `filter`, so a
-   window renders such a frame through the per-slot offscreen target (as it does for glass);
-   `glass_nodes` counts both kinds.
+   **Damage.** A filter reads pixels up to its reach away, like a backdrop blur reads 3 sigma, but it
+   is not glass, so it has its own state (an earlier cut stored reach / 3 as the backdrop sigma, which
+   made every filtered tree a glass tree). `sync_scene_style` stores the chain's largest one-sided
+   halo in `Node::filter_reach` (16-bit fixed point, rounded up, in the four bytes the backdrop sigma
+   shares, so `sizeof(Node)` is unchanged) and the derived `Node::filter_subtree` bit, counts
+   `SceneStyleSyncResult::filter_nodes` apart from `glass_nodes`, and adds the halo to the node's own
+   shadow reach in the paint outsets (the layer holds the node's shadows and the chain blurs them, so
+   the reaches sum rather than max). `DamageTracker::add_filter_dependencies` runs before the glass
+   walk, pruned by `filter_subtree`: a filtered node whose region (`node_filter_region`, its cached
+   subtree paint box mapped to the world, which carries the halo around the box and around every
+   overflowing child) intersects the frame's damage gets the whole region added, because a filtered
+   pixel anywhere in it may depend on the changed one; `FrameRender::filter_dependencies` counts them.
+   The paint cull keeps a node whose halo is on screen (the outsets carry it) and the layer is drawn
+   complete inside the damage regions before it is blurred.
+   **Frame target.** `glass_subtree` is the only thing the window reads when it decides to render
+   through the per-slot offscreen frame target and resample it into the swapchain image (a glass frame
+   copies a region of the frame, and a swapchain image is neither copy source nor samplable). A filter
+   runs on pooled layer targets and only composites into the frame, so a filter-only tree keeps the
+   direct path: no frame-sized target and no full-frame resample. A node with both a backdrop-filter
+   and a `filter` is a glass tree through the glass flag alone. Measured on the null backend
+   (`filter_frame_target`, 1920x1080, one `blur(8px)` card): 5 render passes, 5 draws and 3 sampled
+   binds either way; routed like glass (the old behaviour) the same frame also holds a second frame
+   target (7.9 MB per frame slot) and records one full-frame resample (7.9 MB read + 7.9 MB written per
+   presented frame, 15.8 MB). Direct: 1 frame target, 0 blits, 0 region copies.
    Tests: `filter_value` (grammar, registry diagnostic, `@supports`), `paint_filter` (stream, clamp,
    colours, opacity, cache, replay, reach), `layer_filter_null` (pass and draw skeleton of a blur, a
    shadow and a masked blur, every fallback, the bounded pool over many frames) and
-   `layer_filter_gpu` (blur against the analytic Gaussian along rows, columns and the corner; a hard
+   `filter_damage` (own field and flag, no leak between glass and filter, halo plus shadow, the region
+   around an overflowing child, the filter walk, cull, frame pipeline), `filter_frame_target` (the window
+   sees glass only; a filter frame copies and resamples nothing of the frame target; before/after
+   counters), `filter_damage_gpu` (lavapipe: after a child moves inside a blurred node, the
+   damage-limited redraw equals a full redraw pixel for pixel; without the filter walk 308 pixels of a
+   128x128 frame keep stale blur) and `layer_filter_gpu` (blur against the analytic Gaussian along rows, columns and the corner; a hard
    and a soft shadow under the opaque box; opacity after the filter; the half-plane mask cutting a
    blurred layer exactly at its edge; the paint path for blur, shadow and a two-function chain; the
    fallbacks; recycled targets; validation clean). **Chromium comparison (measured 2026-11-27).** A

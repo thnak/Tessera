@@ -36,8 +36,14 @@ void hints_are_independent_bits() {
     hints.set_scroll_animation_active(true);
     check(hints.has_item_key() && hints.scroll_animation_active(), "two bits set");
     check(!hints.has_transform() && !hints.has_z_index() && !hints.glass_subtree() &&
-              !hints.text_fits_box(),
+              !hints.filter_subtree() && !hints.text_fits_box(),
           "other bits untouched");
+    hints.set_filter_subtree(true);
+    check(hints.filter_subtree() && !hints.glass_subtree(), "filter and glass subtree are apart");
+    hints.set_glass_subtree(true);
+    hints.set_filter_subtree(false);
+    check(!hints.filter_subtree() && hints.glass_subtree(), "clearing one leaves the other");
+    hints.set_glass_subtree(false);
     hints.set_has_item_key(false);
     check(!hints.has_item_key() && hints.scroll_animation_active(), "clear one bit only");
 }
@@ -84,6 +90,30 @@ void paint_extent_sanitizes_and_caches() {
     check(extent.set_glass_blur_sigma(-1.0f) && extent.glass_blur_sigma() == 0.0f,
           "negative sigma clamps to 0");
     check(!extent.set_glass_blur_sigma(nan), "NaN sigma equals the stored 0");
+
+    // The two scalars share four bytes as 16-bit fixed point; they round up, never down, and they
+    // are independent of each other.
+    check(extent.set_glass_blur_sigma(5.0f) && extent.glass_blur_sigma() == 5.0f &&
+              !extent.set_glass_blur_sigma(5.0f),
+          "a whole sigma step round-trips exactly and a repeat is no change");
+    check(extent.set_glass_blur_sigma(0.001f) && extent.glass_blur_sigma() >= 0.001f,
+          "a tiny sigma never rounds down to 0");
+    check(extent.set_glass_blur_sigma(1.0e9f) && extent.glass_blur_sigma() > 1000.0f,
+          "an absurd sigma saturates instead of wrapping");
+    check(extent.filter_reach() == 0.0f, "the reach starts at 0 and the sigma does not set it");
+    check(extent.set_filter_reach(12.0f) && extent.filter_reach() == 12.0f &&
+              !extent.set_filter_reach(12.0f),
+          "a whole reach round-trips exactly and a repeat is no change");
+    check(extent.glass_blur_sigma() > 1000.0f, "setting the reach leaves the sigma alone");
+    check(extent.set_filter_reach(4.3f) && extent.filter_reach() >= 4.3f &&
+              extent.filter_reach() < 4.6f,
+          "a fractional reach rounds up to the next step");
+    check(extent.set_filter_reach(1.0e9f) && extent.filter_reach() > 16000.0f,
+          "an absurd reach saturates");
+    check(extent.set_filter_reach(-3.0f) && extent.filter_reach() == 0.0f &&
+              !extent.set_filter_reach(nan),
+          "negative and NaN reaches count as 0");
+    extent.set_glass_blur_sigma(0.0f);
     check(extent.set_outsets(PaintOutsets{-1.0f, 2.0f, nan, 4.0f, false}), "outsets change");
     check(extent.outsets().left == 0.0f && extent.outsets().right == 0.0f &&
               extent.outsets().top == 2.0f,

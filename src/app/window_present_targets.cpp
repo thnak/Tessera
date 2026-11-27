@@ -59,7 +59,9 @@ WindowHost::Impl::prepare_paint_target(std::size_t frame_slot, const rhi::Extent
     // directly and the sink reports the glass draws as unsupported. With MSAA the frame target is
     // multisampled, which the backdrop copy cannot read, so glass reports its draws unsupported
     // for that generation (the documented bounded-cost fallback, glass-v1 section 8) and no extra
-    // target is allocated for it.
+    // target is allocated for it. A layer `filter` is deliberately not asked about here: it blurs
+    // on pooled layer targets and only composites into the frame, so `filter_subtree` keeps the
+    // direct path (offscreen-layers.md section 5d).
     const bool glass_frame = !choice.scaled && !choice.msaa && root.glass_subtree() &&
                              scaled_targets.resample_supported() &&
                              ensure_scaled_target(frame_slot, presented);
