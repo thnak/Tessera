@@ -151,7 +151,8 @@
         "tessera_webgpu",
         "tessera_webgpu_mapping",
         "webgpu_wasm_smoke",
-        "webgpu_compute_conformance"
+        "webgpu_compute_conformance",
+        "webgpu_path_raster_conformance"
       ]
     },
     {
