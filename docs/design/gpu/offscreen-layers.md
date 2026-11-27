@@ -407,7 +407,21 @@ slice behavior + tests + docs, nothing user-visible until the last:
     mask, filter or glass node paints without the effect - but it is counted: `offscreen_stats()`
     reports `exhausted` (this frame) and `exhausted_total` next to `peak_live`, `peak_live_max`, `bytes`
     and `peak_bytes`, and `layers_flat()` / `layer_masks_unsupported()` / `layer_filters_unsupported()`
-    keep saying which effect was lost.
+    keep saying which effect was lost. The window driver samples the pool after every frame
+    (`window_offscreen.cpp`): `WindowFrameStats::offscreen_peak_live`, `offscreen_bytes` and
+    `offscreen_refused`, and a `diagnostics::OffscreenPressureReporter`
+    (`include/tessera/diagnostics/offscreen_pressure.hpp`) that adds the refused requests to the
+    `gpu.offscreen.refused` counter, sets the `gpu.offscreen.peak_live` and `gpu.offscreen.bytes`
+    gauges, and writes ONE `TESSERA_GPU_OFFSCREEN_EXHAUSTED` warning per run (category `gpu`, with the
+    peak, the targets, the bytes, and the knob to turn) through the `Logger`. `WindowOptions::logger` and
+    `metrics` supply them; with no logger the window logs to its own stderr `FileLogSink`, with no
+    registry the metrics are skipped. A single-window driver that has used no layer for 2 seconds, with
+    its in-flight frames complete, calls `trim_offscreen_targets(true)` from its settled-scene branch,
+    so a static UI holds no layer memory; a multi-window group relies on the 120-frame trim, because
+    another window's frames may still read the shared pool. Tests: `diagnostics_offscreen` (counter,
+    gauges, one warning, optional halves, the stderr line format) and `app_window_offscreen` (a real
+    window: six masked boxes peak at two targets and refuse nothing; a pool capped at one target
+    counts the refusals, reports them in the stats and logs exactly once).
     **Measured (1920x1080, 12 masked sibling cards, default config, null backend sizes; a target is
     exactly 8,294,400 bytes).**
 

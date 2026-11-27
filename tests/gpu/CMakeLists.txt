@@ -1070,6 +1070,17 @@ if (TARGET tessera_app_window)
     # `WindowDevice`, closing one leaves the other running, and a resize of one does not relayout the
     # other. It runs on whatever device the lane has; a lane with no presentation surface prints
     # `skipped`, which the property below turns into a skip rather than a pass.
+    # The offscreen pool on a real window (offscreen-layers.md section 5e): six masked boxes need two
+    # live targets, and a pool too small for them is a counter, run stats and one warning.
+    add_executable(app_window_offscreen_tests
+        app_window_offscreen_tests.cpp)
+    target_compile_definitions(app_window_offscreen_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_offscreen_tests PRIVATE tessera_app_window tessera_diagnostics)
+    add_test(NAME app_window_offscreen COMMAND app_window_offscreen_tests)
+    set_tests_properties(app_window_offscreen PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     add_executable(app_window_multi_tests
         app_window_multi_tests.cpp)
     target_compile_definitions(app_window_multi_tests PRIVATE

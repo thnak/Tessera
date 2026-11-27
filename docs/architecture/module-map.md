@@ -176,6 +176,7 @@ Only `include/tessera/` is public. Current headers:
 | `diagnostics/trace.hpp` | bounded RAII spans + Chrome Trace JSON (B2) |
 | `diagnostics/overlay.hpp` | frame/metric overlay line model (B2) |
 | `diagnostics/metrics.hpp` | fixed-capacity atomic counters/gauges + snapshots (B2) |
+| `diagnostics/offscreen_pressure.hpp` | offscreen pool refusals as a counter, gauges and one warning per run |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/system_clock.hpp` | `Clock` adapter backed by the HAL timer (B2) |

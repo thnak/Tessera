@@ -704,6 +704,7 @@ class include/tessera/diagnostics/frame_budget.hpp tessera::diagnostics::FrameBu
 struct include/tessera/diagnostics/frame_budget.hpp tessera::diagnostics::FrameBudgetSample
 
 header include/tessera/diagnostics/log.hpp
+class include/tessera/diagnostics/log.hpp tessera::diagnostics::FileLogSink
 class include/tessera/diagnostics/log.hpp tessera::diagnostics::LogSink
 class include/tessera/diagnostics/log.hpp tessera::diagnostics::Logger
 class include/tessera/diagnostics/log.hpp tessera::diagnostics::MemoryLogSink
@@ -732,6 +733,10 @@ header include/tessera/diagnostics/metrics.hpp
 class include/tessera/diagnostics/metrics.hpp tessera::diagnostics::MetricsRegistry
 struct include/tessera/diagnostics/metrics.hpp tessera::diagnostics::MetricSample
 enum include/tessera/diagnostics/metrics.hpp tessera::diagnostics::MetricKind
+
+header include/tessera/diagnostics/offscreen_pressure.hpp
+class include/tessera/diagnostics/offscreen_pressure.hpp tessera::diagnostics::OffscreenPressureReporter
+struct include/tessera/diagnostics/offscreen_pressure.hpp tessera::diagnostics::OffscreenPressure
 
 header include/tessera/diagnostics/overlay.hpp
 class include/tessera/diagnostics/overlay.hpp tessera::diagnostics::OverlayModel

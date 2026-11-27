@@ -149,6 +149,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         vectors->flush();
     }
     renderer()->end();
+    observe_offscreen();
     if (msaa) {
         // A 4x target's multisample image is not a copy/blit source, so the frame is presented
         // through its resolved image instead (RHI 1.3 sampled target): one full-target quad on the

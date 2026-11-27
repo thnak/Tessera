@@ -5,7 +5,9 @@
 #include "tessera/app/host.hpp"
 #include "tessera/app/lifecycle_sink.hpp"
 #include "tessera/app/window_device.hpp"
+#include "tessera/diagnostics/log.hpp"
 #include "tessera/diagnostics/memory.hpp"
+#include "tessera/diagnostics/metrics.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
@@ -152,6 +154,9 @@ struct WindowOptions {
     // leaves the blink internal, so a caller with no text field keeps the old behaviour. Borrowed:
     // the app owns it and must clear this before the runtime dies.
     ui::text::TextInputRuntime* caret_target = nullptr;
+    // Borrowed sinks for the offscreen pool's warning and counters; null: stderr, none.
+    diagnostics::Logger* logger = nullptr;
+    diagnostics::MetricsRegistry* metrics = nullptr;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
@@ -189,6 +194,12 @@ struct WindowFrameStats {
     // default was found.
     diagnostics::ProcessMemory process_memory;
     diagnostics::GpuMemory gpu_memory;
+    // The offscreen pool (offscreen-layers.md 5e): targets and bytes held now, the peak live
+    // together in any frame, and the requests a cap refused over the run (each painted without its
+    // effect).
+    std::uint32_t offscreen_peak_live = 0;
+    std::uint64_t offscreen_bytes = 0;
+    std::uint64_t offscreen_refused = 0;
     // Caret visibility flips produced by a blink tick (two per visible+hidden period). A flip
     // requests exactly one frame, so this also counts the caret's frames.
     std::uint32_t caret_blinks = 0;
