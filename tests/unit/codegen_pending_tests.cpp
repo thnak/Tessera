@@ -47,6 +47,7 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
 }
 
 using tessera::test::codegen_pending::make_pending_module;
+using tessera::test::codegen_pending::make_pending_resource_module;
 
 std::string read_file(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
@@ -186,6 +187,88 @@ void test_generated_shape() {
           "the boundary is never attached to its parent");
 }
 
+bool contains(const std::string& text, std::string_view needle) {
+    return text.find(needle) != std::string::npos;
+}
+
+void test_resource_fixture_is_valid() {
+    std::string codes;
+    for (const ir::IrDiagnostic& diagnostic : ir::validate(make_pending_resource_module())) {
+        codes += diagnostic.code + ":" + diagnostic.message + "; ";
+    }
+    check_eq(codes, "", "the resource-driven fixture is a valid IR module");
+}
+
+// #656: a resource-driven component reads its resources through ResourceView members the host
+// binds, feeds one boundary slot per suspending read, and waits for the epoch the key change makes.
+void test_resource_shape() {
+    const auto result = generate_base(make_pending_resource_module());
+    check(result.has_value(), "the resource-driven sample generates");
+    if (!result) {
+        std::cerr << "  error: " << first_error(result) << "\n";
+        return;
+    }
+    check(result->size() == 1, "one header-only file per component");
+    const std::string& header = (*result)[0].text;
+    check_eq((*result)[0].path, "ResourceFeed.g.hpp", "deterministic generated-base path");
+    check(contains(header, "#include \"tessera/ui/pending/resource_view.hpp\""),
+          "the narrow view is included");
+    check(!contains(header, "fake_resource.hpp") && !contains(header, "FakeResource") &&
+              !contains(header, "pending_resource_"),
+          "a resource-driven component has no fake resource member");
+    check(contains(header, "tessera::ui::pending::ResourceView res_feed_view_;") &&
+              contains(header, "tessera::ui::pending::ResourceView res_tags_view_;"),
+          "each resource is a view member");
+    check(contains(header, "void bind_res_feed(const tessera::ui::pending::ResourceView& view);"),
+          "the host binds a view per resource");
+    check(contains(header, "suspense_2_.reset_reads(2);"),
+          "the boundary registers one read slot per suspending resource it covers");
+    check(contains(header, "this->pending_sync();"),
+          "build publishes the bound views before the first attach");
+    // One read per resource per sync, then the slots, the mark and the swap.
+    check(contains(header, "const tessera::ui::pending::ResourceState res_feed_now = "
+                           "res_feed_view_.read();"),
+          "sync reads each resource once");
+    check(contains(header, "(void)suspense_2_.set_read(0, res_feed_now.loading, "
+                           "res_feed_now.has_data, res_feed_now.epoch);") &&
+              contains(header, "(void)suspense_2_.set_read(1, res_tags_now.loading, "
+                               "res_tags_now.has_data, res_tags_now.epoch);"),
+          "each slot is fed from its resource");
+    check(contains(header, "(void)pending_transition_.observe(res_feed_now.loading, "
+                           "res_feed_now.epoch);"),
+          "the transition mark follows the resource whose key the marked setter writes");
+    // The mark waits for the epoch the key change produces (the host's fetch bumps it by one).
+    check(contains(header, "pending_transition_.begin(res_feed_view_.read().epoch + 1);"),
+          "the marked setter waits for the next epoch of its resource");
+    check(contains(header, "std::string(res_feed_status())"),
+          "a status read goes through the accessor");
+    check(!contains(header, "pending_begin_fetch") && !contains(header, "pending_resolve"),
+          "the fake resource seams are not emitted");
+}
+
+void test_resource_rejections() {
+    const auto expect_error = [](const ir::IrModule& module, std::string_view what) {
+        const auto result = generate_base(module);
+        check(!result.has_value(), what);
+        check(first_error(result).rfind("TESSERA_CODEGEN_", 0) == 0,
+              std::string(what) + " reports a TESSERA_CODEGEN_ code");
+    };
+    {
+        ir::IrModule module = make_pending_resource_module();
+        auto& text = module.components[0].root.children[0].children[0].children[0];
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::expr_part(ir::make_ref("res::feed.data")));
+        text.text = ir::make_template(std::move(parts));
+        expect_error(module, "reading `.data` is not generated yet");
+    }
+    {
+        ir::IrModule module = make_pending_resource_module();
+        module.components[0].resources[0].key = std::move(*ir::make_literal(std::string("fixed")));
+        module.components[0].resources[1].key = std::move(*ir::make_literal(std::string("fixed")));
+        expect_error(module, "a marked setter that writes no resource key is rejected");
+    }
+}
+
 void test_off_by_default() {
     // A component with neither a Suspense node nor a marked action must generate no pending code at
     // all, which is what keeps every committed golden byte-identical.
@@ -215,10 +298,19 @@ void test_off_by_default() {
 }
 
 void test_goldens(bool update) {
-    const auto result = generate_base(make_pending_module());
+    auto result = generate_base(make_pending_module());
     check(result.has_value(), "the pending golden sample generates");
     if (!result) {
         return;
+    }
+    // #656: the resource-driven component is a second golden in the same directory.
+    const auto resources = generate_base(make_pending_resource_module());
+    check(resources.has_value(), "the resource golden sample generates");
+    if (!resources) {
+        return;
+    }
+    for (const codegen::GeneratedFile& file : *resources) {
+        result->push_back(file);
     }
     const std::string directory = std::string(TESSERA_CODEGEN_GOLDEN_DIR) + "/pending";
     if (update) {
@@ -279,6 +371,9 @@ int main(int argc, char** argv) {
     }
     test_fixture_is_valid();
     test_generated_shape();
+    test_resource_fixture_is_valid();
+    test_resource_shape();
+    test_resource_rejections();
     test_off_by_default();
     test_goldens(false);
     test_determinism();

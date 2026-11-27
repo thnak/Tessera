@@ -135,6 +135,10 @@ void test_boundary_coverage() {
         "a suspending read in the fallback is outside the boundary",
         [](auto& m) { boundary(m).fallback->text = data_text("res::feed.data"); }, kNoBoundary);
     expect_resource(
+        "a status read inside the boundary ties the resource to it",
+        [](auto& m) { boundary(m).children[0].children[0].text = data_text("res::feed.status"); },
+        "");
+    expect_resource(
         "a suspending resource that no boundary reads has no boundary",
         [](auto& m) {
             boundary(m).children[0].children[0].text = ir::make_literal(std::string("static"));

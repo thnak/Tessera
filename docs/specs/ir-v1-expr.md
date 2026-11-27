@@ -125,6 +125,32 @@ Adding a function to this table is a change to this specification and to the eva
 - **Additive.** The expression kind is optional and `irVersion` stays `1` (section 12); a module
   without a record value is byte-identical to the IR before it existed.
 
+### 4.4 Resource references (additive, ADR-067)
+
+A component that calls `useResource` lists one `resources` entry per call (`id` `res::<name>`, `service`
+a declared `svc::` id, `method`, optional `suspend`, `key`, `source`; [`ir-v1.md`](ir-v1.md) section 2).
+Three dotted references read it, and only these three resolve; the bare id is a record and is
+`TESSERA_IR_UNRESOLVED`:
+
+| Reference | Value |
+|---|---|
+| `res::<name>.status` | `string`: `idle`, `loading`, `refreshing`, `success` or `error` (`Stale` is never produced) |
+| `res::<name>.data` | the service method's result, absent data reads as the IR zero value; its type is not carried by the IR, so the validator does not member-check it |
+| `res::<name>.error` | the failure of the last fetch, if any |
+
+- `key` is a scalar expression or an anonymous `record` of scalar expressions of state, props and
+  environment values, compared by value; a list, a nested record or a `res::` reference in a key is
+  `TESSERA_IR_UNSUPPORTED`, an undeclared `service` is `TESSERA_IR_UNRESOLVED`.
+- Coverage: a `suspend: true` resource must be read inside a `Suspense` child subtree of the same
+  component (any `res::<name>.*` reference there; the nearest boundary covers it), and its `.data`
+  must not be read outside every boundary (the fallback is outside). Otherwise
+  `TESSERA_SUSPENSE_NO_BOUNDARY`. A boundary covers at most 8 suspending resources
+  (`TESSERA_SUSPENSE_TOO_MANY_READS`). `ir::collect_suspense_reads` is the one implementation the
+  validator, the evaluator and codegen share.
+- Evaluator and codegen: the evaluator reads `.status` from the bound `PendingSession`; codegen
+  generates `.status` only (`.data`/`.error` are `TESSERA_CODEGEN_UNSUPPORTED` until the result
+  type has a source). The writer omits `resources` when empty.
+
 ## 5. Loop
 
 ```json
@@ -179,6 +205,15 @@ The `loop` is a field of the node it repeats; the key is that node's `key`:
 - Nested boundaries are allowed; nearest catches first.
 - The boundary is not painted and does not affect layout.
 - Semantics/exception policy: [`error-boundaries-v1.md`](error-boundaries-v1.md).
+
+## 5.2 Suspense
+
+`Suspense` has the shape of `ErrorBoundary` (one required `fallback`, exactly one child subtree, no
+props or events in V1) and is validated by the same rule (`TESSERA_IR_ERROR_BOUNDARY`). It shows the
+`fallback` while a suspending resource it covers (section 4.4) is Loading with no data and its child
+otherwise; it is not painted and does not affect layout. A `set` action may carry `"transition":
+true` (written only when true; `TESSERA_IR_TRANSITION` on anything but a state setter).
+Rationale and behavior: [`pending-ui-v1.md`](pending-ui-v1.md).
 
 ## 6. Binding
 
@@ -381,6 +416,9 @@ record cannot be an effect dependency.
   unchanged). An `irVersion` 1 consumer that does not know `types`/`record` would reject a module that
   uses them; in V1 the compiler and the evaluator ship together, so that is the accepted risk
   (ADR-051, owner decision).
+- The `Suspense` kind, the `transition` flag and the component `resources` list (sections 4.4, 5.2) are
+  additive and optional on the same terms: a module without them writes the same bytes as before
+  (`tests/golden/ir/resource.json` is the one golden that has them).
 - Versions of all schemas are tabulated in [`versioning-v1.md`](versioning-v1.md).
 - Snapshots and `bindings.json` record the IR version.
 

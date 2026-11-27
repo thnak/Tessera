@@ -13,6 +13,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dirty.hpp"
 #include "emit_events.hpp"
+#include "emit_resources.hpp"
 #include "emit_types_header.hpp"
 
 #include <cstddef>
@@ -211,7 +212,18 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         // current epoch *before* it assigns, so `isPending` is true from the moment the change is
         // applied. The mark is inert without a `Suspense`/transition surface, which is the default.
         if (action.transition) {
-            body += "pending_transition_.begin(pending_resource_.epoch());\n";
+            if (uses_resources(component)) {
+                // #656: the change starts a fetch for the new key, which the host performs and
+                // which bumps the resource epoch by exactly one; the mark waits for that epoch.
+                std::size_t index = 0;
+                if (!transition_resource(component, action.target, index, error)) {
+                    return false;
+                }
+                body += "pending_transition_.begin(" +
+                        resource_view_member(component.resources[index]) + ".read().epoch + 1);\n";
+            } else {
+                body += "pending_transition_.begin(pending_resource_.epoch());\n";
+            }
         }
         // A record-typed state cell splits into one bit per read leaf path (ADR-056 decision 1,
         // #834): a `set` of `{...state, name: x}` writes only the changed field's bit, and a

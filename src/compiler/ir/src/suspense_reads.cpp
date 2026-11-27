@@ -24,19 +24,25 @@ struct Collector {
           inside(source.resources.size(), 0),
           outside(source.resources.size(), 0) {}
 
+    // A read of any member inside a boundary ties the resource to it (the part of the tree that
+    // depends on the resource lives there); only `.data` read outside every boundary is an error,
+    // because `.status` and `.error` are always readable.
     void read(std::string_view id, std::size_t boundary) {
-        constexpr std::string_view kSuffix = ".data";
-        if (id.size() <= kSuffix.size() || id.substr(id.size() - kSuffix.size()) != kSuffix) {
+        const std::size_t dot = id.find('.');
+        if (dot == std::string_view::npos) {
             return;
         }
-        const std::string_view base = id.substr(0, id.size() - kSuffix.size());
+        const std::string_view base = id.substr(0, dot);
+        const bool data = id.substr(dot + 1) == "data";
         for (std::size_t index = 0; index < component.resources.size(); ++index) {
             const Resource& resource = component.resources[index];
             if (resource.id != base || !resource.suspend) {
                 continue;
             }
             if (boundary == kNone) {
-                ++outside[index];
+                if (data) {
+                    ++outside[index];
+                }
                 return;
             }
             ++inside[index];
@@ -98,6 +104,49 @@ struct Collector {
 };
 
 } // namespace
+
+namespace {
+
+bool reads_state(const Expr* expr, std::string_view target) {
+    if (expr == nullptr) {
+        return false;
+    }
+    if (expr->kind == ExprKind::Ref) {
+        const std::string_view id = expr->id;
+        if (id == target || (id.size() > target.size() && id.substr(0, target.size()) == target &&
+                             id[target.size()] == '.')) {
+            return true;
+        }
+    }
+    for (const ExprPtr& operand : expr->operands) {
+        if (reads_state(operand.get(), target)) {
+            return true;
+        }
+    }
+    for (const TemplatePart& part : expr->parts) {
+        if (reads_state(part.expr.get(), target)) {
+            return true;
+        }
+    }
+    for (const RecordField& field : expr->fields) {
+        if (reads_state(field.value.get(), target)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+std::optional<std::size_t> resource_keyed_by(const Component& component,
+                                             std::string_view state_id) {
+    for (std::size_t index = 0; index < component.resources.size(); ++index) {
+        if (reads_state(&component.resources[index].key, state_id)) {
+            return index;
+        }
+    }
+    return std::nullopt;
+}
 
 SuspenseReads collect_suspense_reads(const Component& component) {
     Collector collector(component);

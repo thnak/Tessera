@@ -1802,6 +1802,7 @@ struct include/tessera/runtime/data_store.hpp tessera::runtime::DataError
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKey
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKeyHash
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataSnapshot
+struct include/tessera/runtime/data_store.hpp tessera::runtime::PublishedState
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::DataStoreCore
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::FetchState
 enum include/tessera/runtime/data_store.hpp tessera::runtime::DataStatus
@@ -2816,6 +2817,13 @@ constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMinCont
 
 header include/tessera/ui/pending/fake_resource.hpp
 class include/tessera/ui/pending/fake_resource.hpp tessera::ui::pending::FakeResource
+
+header include/tessera/ui/pending/resource_view.hpp
+class include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceView
+struct include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceState
+
+header include/tessera/ui/pending/store_resource.hpp
+class include/tessera/ui/pending/store_resource.hpp tessera::ui::pending::StoreResource
 
 header include/tessera/ui/pending/suspense.hpp
 class include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspenseBoundary

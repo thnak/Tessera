@@ -36,6 +36,7 @@ add_library(tessera_codegen STATIC
     src/emit_services.cpp
     src/emit_behaviors.cpp
     src/emit_snapshot.cpp
+    src/emit_resources.cpp
     src/emit_suspense.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
@@ -1484,6 +1485,31 @@ if (TESSERA_BUILD_TESTS)
         target_compile_features(codegen_pending_parity_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_pending_parity COMMAND codegen_pending_parity_tests)
+    endif ()
+
+    # #656: the resource-driven component (ResourceViews instead of the fake resource). It needs a
+    # declared service, so it borrows the AF5 fixture's interface header and links the appfw core.
+    if (EXISTS ${_tessera_codegen_golden_dir}/pending/ResourceFeed.g.hpp AND
+        TARGET tessera_appfw_core)
+        foreach (_resource_test IN ITEMS runtime parity)
+            add_executable(codegen_pending_resource_${_resource_test}_tests
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_resource_${_resource_test}_tests.cpp
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending/ResourceFeed.cpp)
+            target_include_directories(codegen_pending_resource_${_resource_test}_tests PRIVATE
+                ${_tessera_codegen_golden_dir}/pending
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending
+                ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/services
+                ${PROJECT_SOURCE_DIR}/tests/unit)
+            target_compile_features(codegen_pending_resource_${_resource_test}_tests PRIVATE
+                cxx_std_23)
+            add_test(NAME codegen_pending_resource_${_resource_test}
+                COMMAND codegen_pending_resource_${_resource_test}_tests)
+        endforeach ()
+        target_link_libraries(codegen_pending_resource_runtime_tests PRIVATE
+            tessera_scene tessera_appfw_core tessera_runtime)
+        tessera_allow_allocator_override(codegen_pending_resource_runtime_tests)
+        target_link_libraries(codegen_pending_resource_parity_tests PRIVATE
+            tessera_scene tessera_appfw_core tessera_ir_eval)
     endif ()
 
     # The developer class (tests/unit/codegen_base/fixtures/Dynamic.hpp) over the committed base.

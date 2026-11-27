@@ -16,6 +16,18 @@ struct ResourceState {
     bool has_data = false;
     bool failed = false;
 
+    // The `res::<name>.status` value (async-data-v1.md section 1, lower case). `Stale` is never
+    // produced (pending-ui-v1.md section 12, question 1, resolved: the epoch is what is read).
+    [[nodiscard]] constexpr const char* status() const noexcept {
+        if (loading) {
+            return has_data ? "refreshing" : "loading";
+        }
+        if (failed) {
+            return "error";
+        }
+        return has_data ? "success" : "idle";
+    }
+
     // A suspending read: a fetch is in flight and there is nothing to show yet.
     [[nodiscard]] constexpr bool suspends() const noexcept {
         return loading && !has_data;

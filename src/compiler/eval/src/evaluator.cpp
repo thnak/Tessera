@@ -100,7 +100,7 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
                 }
             }
         }
-        return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id + "` is not in scope");
+        return unresolved_ref(expr);
     }
     case ir::ExprKind::Binary:
         return eval_binary(expr, scope, depth);
@@ -480,7 +480,7 @@ std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> action
         // `isPending` is true from the moment the change is applied. Inert without a session,
         // which is the default.
         if (action.transition && pending_ != nullptr) {
-            pending_->begin_transition();
+            pending_->begin_transition(action.target);
         }
         // The target keeps its type; an int widens into a float as C++ converts it.
         if (target->second.as_float() != nullptr && value->as_int() != nullptr) {

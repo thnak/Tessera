@@ -210,6 +210,14 @@ std::string_view declared_ir_type(const ir::Component& component, std::string_vi
             return env.type;
         }
     }
+    // A resource's `.status` is the lower-case status word (pending-ui-v1.md section 3.4). Its
+    // `.data` has the service method's result type, which the IR does not carry, so it has no
+    // printable type here.
+    for (const ir::Resource& resource : component.resources) {
+        if (resource.id + ".status" == id) {
+            return "string";
+        }
+    }
     // A behavior output (ADR-064 item 7): `beh::<name>.<field>` is printable when the manifest
     // declares the field's type, which is what makes `<Text>{press.pressed}</Text>` work.
     for (const ir::Behavior& behavior : component.behaviors) {

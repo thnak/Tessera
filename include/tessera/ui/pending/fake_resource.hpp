@@ -28,6 +28,7 @@ public:
     constexpr std::uint64_t begin_fetch() noexcept {
         ++epoch_;
         loading_ = true;
+        failed_ = false;
         return epoch_;
     }
 
@@ -41,6 +42,7 @@ public:
         value_ = value;
         has_data_ = true;
         loading_ = false;
+        failed_ = false;
         return true;
     }
 

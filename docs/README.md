@@ -187,7 +187,7 @@ This page is the map and reading order for the framework.
   announcements/platform bridges/tests
 - [`specs/networking-v1.md`](specs/networking-v1.md) — the `net` module: `fetch`-shaped interface, normative behavior, back ends and contract suite (ADR-052)
 - [`specs/async-data-v1.md`](specs/async-data-v1.md) — resource cache, fetch policy, mutations,
-  offline, pagination; pending UI (proposed draft): [`specs/pending-ui-v1.md`](specs/pending-ui-v1.md)
+  offline, pagination; pending UI (ADR-067, `try_published`/`ResourceView`, #656): [`specs/pending-ui-v1.md`](specs/pending-ui-v1.md)
 - [`specs/devtools-protocol-v1.md`](specs/devtools-protocol-v1.md) — local inspector, events,
   screenshots/traces, hot reload
 - [`specs/updates-and-distribution-v1.md`](specs/updates-and-distribution-v1.md) — signed

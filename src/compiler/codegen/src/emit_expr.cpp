@@ -47,6 +47,21 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         if (const LocalBinding* local = find_local(locals, expr.id)) {
             return ExprEmission{local->cpp, {}};
         }
+        // A resource (ADR-067 item 1, pending-ui-v1.md section 3.4): `res::<name>.status` reads the
+        // generated accessor over the resource's view. `.data` and `.error` have the service
+        // method's result type, which the IR does not carry, so they are not generated yet.
+        if (expr.id.rfind("res::", 0) == 0) {
+            const std::size_t dot = expr.id.find('.');
+            const std::string member = dot == std::string::npos ? "" : expr.id.substr(dot + 1);
+            if (member != "status") {
+                return fail("`" + expr.id +
+                            "` is not generated yet: only `.status` of a resource is, because "
+                            "`.data` and `.error` need the service method's result type");
+            }
+            std::string stem = member_name(expr.id.substr(0, dot));
+            stem.pop_back();
+            return ExprEmission{"std::string(" + stem + "_status())", {}};
+        }
         // A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>`
         // reads the generated accessor `<member><field>()`, which returns the manifest default
         // before the first attach and after detach. The dotted form is the only valid shape, so a
