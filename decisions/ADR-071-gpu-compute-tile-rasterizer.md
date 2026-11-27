@@ -472,7 +472,12 @@ sparse scene is the opposite (path loop, fixed by the tile mask). The next lever
 constant winding, wholly right add nothing, and only crossing segments need the per-pixel math,
 which cuts the redundant work about 16x. It changes the summation order of the winding (rounding, so
 goldens would be regenerated) and needs per-row shared lists with an overflow fallback in both the
-GLSL and the WGSL; it is not built because dense is already 4.10 to 4.16 ms against 4.17 ms.
+GLSL and the WGSL; **It was built and measured, and it is slower:** four barriers per overlapping path (reset, classify,
+total and compact, evaluate) plus a serial per-row compaction took the dense scene from 4.1 to 12.3 ms
+and the sparse scene from 1.32 to 1.67 ms on the RTX 4060, so it was reverted. Barrier-heavy
+per-tile cooperation does not pay here; a version that avoids the barriers (for example classifying in
+the bin pass, where the segment order is already known) is the remaining idea, not built. Dense stays
+at 4.10 to 4.16 ms against the 4.17 ms budget.
 
 ## Alternatives, to be measured on the same 4K scenes
 
