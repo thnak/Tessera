@@ -360,6 +360,18 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     ++image_stats_.draws;
 }
 
+bool Batched2DSink::supports_layers() const {
+    return renderer_->layers_supported();
+}
+
+void Batched2DSink::push_layer(const LayerDraw& layer) {
+    renderer_->push_layer(layer.box, layer.opacity);
+}
+
+void Batched2DSink::pop_layer() {
+    renderer_->pop_layer();
+}
+
 void Batched2DSink::draw_backdrop(const BackdropDraw& draw) {
     // The paint pass segments the frame at this call (glass-v1 section 4): everything before the
     // glass node is already recorded, so the renderer can break the pass here and read what the

@@ -181,6 +181,10 @@ struct DrawBackdropOp {
     BackdropDraw draw;
 };
 
+struct PushLayerOp {
+    LayerDraw layer;
+};
+
 // One recorded sink call: the kind tag plus the payload that kind owns. `kind` is kept beside the
 // variant rather than derived from the active alternative because the three gradient kinds share
 // one alternative and the two asset kinds share another.
@@ -195,6 +199,7 @@ struct PaintOp {
         FillConicGradient,
         PushClip,
         PushTransform,
+        PushLayer,
         DrawText,
         DrawVector,
         DrawImage,
@@ -203,11 +208,12 @@ struct PaintOp {
         // carry its own pops); a per-node record stores pops as flags and never holds these.
         PopClip,
         PopTransform,
+        PopLayer,
     };
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
                                  GradientRefOp, PushClipOp, PushTransformOp, DrawTextOp,
-                                 DrawAssetOp, DrawBackdropOp>;
+                                 DrawAssetOp, DrawBackdropOp, PushLayerOp>;
 
     Kind kind = Kind::FillRect;
     Payload payload = FillRectOp{};
@@ -225,6 +231,9 @@ struct PaintRecord {
     std::vector<GradientPayload> gradients;
     bool pushed_transform = false;
     bool pushed_clip = false;
+    // The node opened an isolated layer (issue #227): the pass closes it after the child walk,
+    // after the clip pop and before the transform pop, like the other pops.
+    bool pushed_layer = false;
     RoundedClip clip; // valid when pushed_clip; also feeds the children's clip fingerprint
     PaintCounts counts;
     // Effective opacity this node composited its own draws with and passes to its descendants
@@ -280,6 +289,13 @@ struct PaintCacheSignature {
     // PaintContext::lcd_text: a recorded text op carries `TextDraw::lcd`, which that permission
     // decided, so a record made under the other value must not replay.
     bool lcd_text = false;
+    // PaintContext::isolate_group_opacity on a sink that supports layers: a record made with a
+    // layer op (and a different opacity fold) must not replay when the other holds.
+    bool isolate_groups = false;
+    // The node paints inside an isolated layer: its text stays grayscale, so a record made with LCD
+    // eligibility must not replay there (an ancestor's own opacity does not change this node's
+    // inherited product once it is isolated, so the opacity bits alone cannot tell).
+    bool in_layer = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // Position of a list item among its parent's list items (0 for any other node): the counter of
@@ -374,6 +390,9 @@ public:
         [[nodiscard]] bool supports_backdrop() const override;
         void push_transform(const rhi::Mat3& transform) override;
         void pop_transform() override;
+        [[nodiscard]] bool supports_layers() const override;
+        void push_layer(const LayerDraw& layer) override;
+        void pop_layer() override;
         void draw_text(const TextDraw& run) override;
         void draw_vector(const VectorDraw& draw) override;
         void draw_image(const ImageDraw& draw) override;
@@ -394,6 +413,7 @@ public:
         RoundedClip clip_;
         bool pushed_clip_ = false;
         bool pushed_transform_ = false;
+        bool pushed_layer_ = false;
     };
 
 private:

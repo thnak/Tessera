@@ -2716,6 +2716,24 @@ target_link_libraries(paint_clip_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_clip COMMAND paint_clip_tests)
 
+# The isolated-layer sink seam (issue #227 slice 1): default off, forwarded by the recorder, stored as
+# a push op plus a pop flag (per node) or a pop op (subtree list).
+add_executable(paint_layer_tests
+    paint_layer_tests.cpp)
+
+target_link_libraries(paint_layer_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_layer COMMAND paint_layer_tests)
+
+# The isolated-layer producer in the paint pass (issue #227 slice 4): a faded group becomes one layer
+# when asked and supported, the opacity moves to the layer, the cache replays it and keys on it.
+add_executable(paint_layer_pass_tests
+    paint_layer_pass_tests.cpp)
+
+target_link_libraries(paint_layer_pass_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME paint_layer_pass COMMAND paint_layer_pass_tests)
+
 # `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
 # the coverage rule the CPU reference and the shader share.
 add_executable(clip_path_tests

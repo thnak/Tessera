@@ -175,6 +175,72 @@ source must not be a swapchain image; the same submission resamples it into the 
 
 ### 5.2 Isolated layers (#227)
 
+**Landing plan (issue #617 `mask`, then `filter`, are the first consumers).** One slice each, every
+slice behavior + tests + docs, nothing user-visible until the last:
+
+1. **Sink seam (landed, issue #227 slice 1).** `LayerDraw`, `PaintSink::supports_layers()`/`push_layer`/`pop_layer` (all default off), forwarded by `TextShadowSink` and `LcdTextSink`; `ClippedPaintSink` answers false until slice 2 replays a layer per damage region; `PaintCache::Recorder` records a push op and a `pushed_layer` flag (per node) or a pop op (subtree list), and the pass pops a replayed record's layer after the clip pop. Test: `paint_layer`. Original scope: `PaintSink::push_layer(const LayerDraw&)` / `pop_layer()`, default no-ops, so a sink that
+   ignores them paints the subtree flat (today's non-isolated behaviour). `LayerDraw` carries the
+   device-space box, the folded opacity and an optional mask. Wired through `ClippedPaintSink`,
+   `LcdTextSink`, `TextShadowSink`, the recorder (`PaintCache` ops) and replay, with the structure tests
+   that already guard `push_clip`/`pop_clip` balance.
+2. **Renderer layer path (landed, issue #227 slice 2).** `Batched2DRenderer::push_layer(box, opacity)` / `pop_layer()`
+   (`src/rendering/gpu/batched2d_layer.cpp`). The layer target is a pooled target the size of the frame,
+   so it shares the frame's coordinates, transform, clips and scissors and no origin shifts: flush,
+   close the frame pass, open a pass on the target cleared to transparent, draw, close, reopen the
+   frame pass and composite once per scissor (the frame clip, the layer's device box and each damage
+   region). The composite is `glass_blur.frag` mode 2 (and its WGSL twin): the batched pipeline's
+   straight-alpha blend over a transparent clear leaves premultiplied colour with a correct alpha, so
+   mode 2 divides the colour back and applies the group opacity once; the composite pipeline and
+   pool are the glass ones, so no new pipeline exists. A layer that cannot be isolated (no composite
+   pipeline or pool, a multisampled frame, an empty or off-frame box, or the bounded pool out of
+   targets: one frame never reuses a target, so the default pool of 4 holds four layers) paints flat:
+   its opacity multiplies into every primitive until the pop, which is the §14.1 rule. A
+   `backdrop-filter` inside an isolated layer sees the layer's content only, which is the CSS
+   backdrop-root behaviour. Tests: `layer_null` (pass and draw skeleton, nesting, the bound, the flat
+   fallbacks), `layer_gpu` (overlap isolation against the flat contrast, premultiplied accumulation,
+   nesting, scissor, repeated frames, validation clean). Limits to lift later: a frame-sized target
+   per layer (a box-sized target needs an origin shift of the transform and the clip records) and
+   the pool bound. Original scope: `Batched2DRenderer::push_layer`: flush, `break_pass()`, acquire a pooled target
+   for the box, draw the subtree into it (render pass on the target, clip and transform rebased to the
+   box origin), `pop_layer` composites it once through `bind_sampled_target`, then `resume_pass()`. A
+   pool that cannot hand out a target, or a frame target that cannot be read, paints flat and counts it
+   in a `LayerPaintStats::unsupported`, like the glass fallback. Null-backend structure test first, then
+   the lavapipe pixel test.
+3. **`CpuCanvas` twin (deferred; `CpuPaintSink` reports no layers and paints groups flat).** The canvas is an opaque framebuffer, so an exact twin cannot accumulate premultiplied alpha in it; the exact route is to replay the group's recorded ops (`PaintCache::Recorder` already captures every call) onto two scratch canvases, one cleared black and one white, and recover per pixel `P = C_black` and `A = 1 - (C_white - C_black)`, then write `B * (1 - opacity * A) + P * opacity`. Original scope: The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
+   GPU path to the existing tolerance.
+4. **Group opacity becomes isolated (landed behind `PaintContext::isolate_group_opacity`, default false, issue #227 slice 4).** `paint_node` opens a layer after the node's transform push and before its backdrop, shadow and box paint, closes it after the children, the clip pop and before the transform pop; the node's own opacity moves to the layer and the primitives inside carry only the ancestor product; text inside a layer is grayscale (`PaintScope::in_layer`); `isolate_groups` and `in_layer` are part of the paint-cache key. The box is the whole frame for now (the renderer clamps it to the frame, the clip and the damage). A culled node still fades its visible children flat. Tests: `paint_layer_pass` and the paint-path case of `layer_gpu`. Original scope: **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
+   same seam; the §14.1 product rule stays the fallback.
+5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
+   layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
+   (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
+   golden, and the property-status table updated.
+
+**Integration points found in `paint_node` (`src/ui/paint/paint_pass.cpp`), to settle in slice 1:**
+
+- *Where the layer opens.* After the node's own `push_transform` and before its backdrop, shadow and
+  box paint, so the node's box and its children are one group; it closes after the children and
+  before `pop_transform`. The existing `push_clip` wraps only the children and stays inside the layer.
+- *Layer box and space.* The device-space axis-aligned bounds of the node's visual box (box shadow
+  included) under the active transform, clamped to the clip and the frame. A rotated node composites
+  its bounding box, not its rotated rectangle; the composite draws the layer's own quad through the
+  same transform, so only the target allocation is the AABB.
+- *Opacity.* Today every primitive multiplies the ancestor opacity product (`child_scope.opacity`,
+  section 14.1 of `paint-pass.md`). A layer applies the node's own opacity once, at composite, so
+  inside a layer the child scope restarts at 1.0 and the record's `effective_opacity` is the
+  product outside it. A sink without `supports_layers()` keeps today's product rule, so the two
+  paths must agree on non-overlapping content (golden) and differ only where children overlap.
+- *Cache.* A per-node `PaintRecord` holds the node's own ops and pop flags. A layer adds
+  `pushed_layer` and the `LayerDraw` to the record (the pass pops it after the child walk, like
+  `pushed_clip`), and the subtree draw list (`record_pops`) records `PushLayer`/`PopLayer`
+  explicitly. A layer node's descendants' damage must dirty the layer's whole box, like a glass
+  node's dependencies (`DamageTracker::add_glass_dependencies`).
+- *Producers stay off until slice 2 is proven.* `supports_layers()` is false on every sink at first,
+  so slice 1 changes no recorded stream and no golden.
+
+Open decisions for the owner before slice 2: the composite needs a new shader (GLSL, WGSL and MSL
+twins through the shader chain, so it touches the `shader-cross` and `wgsl-validation` lanes), and
+the layer target's format and colour space must follow the sRGB/UNORM target rule.
+
 An isolated layer is the same seam with a different destination: render the subtree into a pooled
 target (render pass on the target, not a region copy), then composite it once. Because the pool
 hands out plain `RenderTarget`s - not region-copy scratch buffers - no new resource type is needed;

@@ -91,6 +91,13 @@ target_link_libraries(glass_paint_null_tests PRIVATE
     tessera_gpu tessera_paint tessera_rhi_null)
 add_test(NAME glass_paint_null COMMAND glass_paint_null_tests)
 
+# Isolated layers (issue #227 slice 2) on the null backend: the pass and draw skeleton of one layer,
+# nesting, the bounded pool, and the flat fallbacks. Runs everywhere.
+add_executable(layer_null_tests
+    batched2d/layer_null_tests.cpp)
+target_link_libraries(layer_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_null COMMAND layer_null_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -605,6 +612,15 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME glass_paint_gpu COMMAND glass_paint_gpu_tests)
     set_tests_properties(glass_paint_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # Isolated layers (issue #227 slice 2) on a real device: overlapping children composite as one
+    # faded image, the flat fallback differs where it must, premultiplied accumulation, nesting and
+    # scissor bounds, validation-clean. Skips without a Vulkan device.
+    add_executable(layer_gpu_tests
+        batched2d/layer_gpu_tests.cpp)
+    target_link_libraries(layer_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_gpu COMMAND layer_gpu_tests)
+    set_tests_properties(layer_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests
         batched2d/aa_edge_tests.cpp)
@@ -776,6 +792,27 @@ if (TARGET tessera_rhi_vulkan)
         target_link_libraries(compute_dispatch_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
         add_test(NAME compute_dispatch COMMAND compute_dispatch_tests)
         set_tests_properties(compute_dispatch PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+        # RHI 1.18 conformance kernels (issue #684): indirect dispatch, buffer atomics, a shared-memory
+        # prefix sum, with exact expected output. Same rule as the probe: no manifest entry.
+        set(TESSERA_COMPUTE_CONFORMANCE_HEADER
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/compute_conformance_comp_spv.h)
+        add_custom_command(
+            OUTPUT ${TESSERA_COMPUTE_CONFORMANCE_HEADER}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -mfmt=c --target-env=vulkan1.3
+                    ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_conformance.comp
+                    -o ${TESSERA_COMPUTE_CONFORMANCE_HEADER}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/rhi/compute_conformance.comp
+            COMMENT "glslc compute_conformance.comp"
+            VERBATIM)
+        add_executable(compute_conformance_tests
+            rhi/compute_conformance_tests.cpp ${TESSERA_COMPUTE_CONFORMANCE_HEADER})
+        target_include_directories(compute_conformance_tests PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated)
+        target_link_libraries(compute_conformance_tests PRIVATE tessera_rhi_vulkan tessera_rhi_null)
+        add_test(NAME compute_conformance COMMAND compute_conformance_tests)
+        set_tests_properties(compute_conformance PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     endif()
 
     add_executable(vulkan_async_submit_tests

@@ -1,6 +1,8 @@
 # ADR-071: A GPU compute tile rasterizer for vector paths
 
-- Status: **Proposed** (2026-11-24). Only the owner moves it to Accepted. The spike
+- Status: **Accepted with conditions** (2026-11-26, owner decision). Conditions: browser WebGPU numbers
+  are recorded and the comparison tolerance against ThorVG is defined before #685 ships; the CPU
+  raster stays the fallback for icon-sized and weak-GPU cases. Proposed on 2026-11-24. The spike
   (`tools/poc/compute_raster`, #683) and the production pieces have landed; the evidence table below
   holds the measurements and lists what is still open (browser WebGPU, the alternatives, the
   tolerance against ThorVG).

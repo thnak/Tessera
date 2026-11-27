@@ -84,7 +84,12 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // (ADR-072): the handoff from a compute pass's storage buffer to a texture a draw samples. The
 // command defaults to throwing and the capability to false, so no existing backend or caller
 // changes.
-inline constexpr std::uint32_t kRhiVersionMinor = 17;
+// 1.18 (2026-11-26): additive compute completion (issue #684, ADR-071): `ComputeCapabilities` and
+// `Device::compute_capabilities()` (workgroup size/count limits, shared memory, optional subgroup
+// size, indirect dispatch, buffer atomics) and `CommandList::dispatch_indirect`, with the null
+// backend able to record compute (opt-in `create_null_compute_device`). The new virtuals default to
+// zero/false/throws, so no existing backend or caller changes.
+inline constexpr std::uint32_t kRhiVersionMinor = 18;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

@@ -146,6 +146,12 @@ public:
     // an enabled blur-target pool). A sink without them paints the node without the effect, which
     // is the documented CPU-reference behavior of glass-v1 section 9.
     [[nodiscard]] bool supports_backdrop() const override;
+    // Isolated layers (issue #227): true when the renderer has the composite pipeline and the
+    // offscreen pool. A layer the renderer cannot isolate on a given frame paints flat, scaled by
+    // its opacity, so a producer may rely on this for the whole frame.
+    [[nodiscard]] bool supports_layers() const override;
+    void push_layer(const LayerDraw& layer) override;
+    void pop_layer() override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.

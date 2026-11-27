@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_rhi_null STATIC
+    null_compute.cpp
     null_device.cpp
     null_storage_buffer.cpp
     null_swapchain.cpp)

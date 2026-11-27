@@ -158,6 +158,13 @@ struct PaintContext {
     // (opacity 1, translate-only, not animated) before a run is marked `TextDraw::lcd`. False is
     // the golden and every pre-LCD behaviour.
     bool lcd_text = false;
+    // Isolate a faded group (issue #227, docs/design/gpu/offscreen-layers.md section 5.2): a node
+    // with `opacity` below 1 and children paints as one offscreen layer composited once, so
+    // overlapping children fade as a single image (CSS group opacity) instead of each primitive
+    // carrying the ancestor product. Only a sink that reports supports_layers() sees layers; every
+    // other sink, and a culled node, keeps the non-isolated rule of paint-pass.md 14.1. False (the
+    // default) is every golden and every pre-layer behaviour.
+    bool isolate_group_opacity = false;
     rendering::gpu::GlassLimits glass{};
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.

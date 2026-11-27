@@ -175,33 +175,23 @@ public:
     }
 
     // Binds `target` as a texture at descriptor `slot`, so a shader can read pixels a render target
-    // already holds. This is the RHI 1.3 sampled view of an offscreen target: the missing half of
-    // the isolated-layer seam (RHI 1.1 `copy_target_region`) and the capability the glass composite
-    // draws with (docs/design/gpu/offscreen-layers.md section 5.3, issue #254).
+    // already holds (RHI 1.3, the sampled half of the isolated-layer seam; the glass composite
+    // draws with it: docs/design/gpu/offscreen-layers.md section 5.3, issue #254).
     //
-    // Contract:
-    //  - `target` must be a non-presentable target that holds rendered content (a preceding render
-    //    pass, `copy_target_region` or `blit_target`), exactly like `copy_target_to_buffer`'s
-    //    source. A 4x target is read through its resolved image, which is also what readback and a
-    //    region copy observe.
-    //  - The sampler state is the target's own (`RenderTarget::filter()`/`address()`), fixed at
-    //    creation, so the bind allocates nothing and a target is always read with the same state.
-    //  - Record it outside a render pass, the same rule `copy_target_region` and `blit_target`
-    //    follow: the backend records the layout transition the sampler needs at that point, where
-    //    no attachment of an open pass is involved. Sampling the target of the pass being recorded
-    //    is therefore not expressible - which is the point, and why the consumer breaks its pass,
-    //    copies, binds, and only then opens the pass that reads the copy.
-    //  - A pipeline must have been bound (as for `bind_texture`), and it may be bound before
-    //    `begin_render_pass`: the usual recording order is `bind_pipeline` -> `bind_sampled_target`
-    //    -> `begin_render_pass` -> `set_viewport`/`set_scissor` -> `push_constants` -> `draw`.
-    //    `resume_pass()` in the batched renderer rebinds its own pipeline, so a caller that samples
-    //    a target and then resumes rebinds the sampling pipeline after the resume.
-    //  - The target is left in a shader-read state until something writes it again: a later
-    //    `begin_render_pass`, region copy or blit into the same target transitions it back, and a
-    //    later read (`copy_target_to_buffer`, another region copy, a blit source, another bind)
-    //    works from either state. Backends track it; the RHI exposes no image layout.
-    //  - `slot` selects the descriptor set like `bind_texture`'s slot; the bound pipeline's layout
-    //    must declare a combined image sampler there.
+    // Contract (rhi.md section 5.1 has the full rationale):
+    //  - `target` is non-presentable and holds rendered content (a pass, `copy_target_region` or
+    //    `blit_target`); a 4x target is read through its resolved image.
+    //  - The sampler state is the target's own (`filter()`/`address()`), fixed at creation.
+    //  - Record it outside a render pass: the backend records the layout transition here, so
+    //  sampling
+    //    the target of the open pass is not expressible. Break the pass, copy, bind, then open the
+    //    pass that reads the copy.
+    //  - A pipeline must be bound (it may be bound before `begin_render_pass`), and its layout must
+    //    declare a combined image sampler at `slot`, like `bind_texture`. `resume_pass()` rebinds
+    //    the renderer's own pipeline, so rebind the sampling pipeline after it.
+    //  - The target stays shader-readable until something writes it again; backends track the
+    //  layout
+    //    and the RHI exposes none.
     //  - Violations throw `std::invalid_argument` (presentable target, target without content) or
     //    `std::logic_error` (inside a render pass), never silently ignored.
     virtual void bind_sampled_target(std::uint32_t slot, const RenderTarget& target) = 0;
@@ -252,12 +242,10 @@ public:
     virtual void bind_compute_pipeline(const ComputePipeline& /*pipeline*/) {
         throw std::runtime_error("bind_compute_pipeline: this backend has no compute");
     }
-    // Binds `buffer` at binding `slot` of the bound compute pipeline's descriptor set. The buffer
-    // must be a `BufferUsage::Storage` buffer of this device and non-empty, `slot` below the
-    // pipeline's storage_buffer_count; violations throw std::invalid_argument. The set belongs to
-    // the pipeline object, so one submission binds a given pipeline's buffers once: two dispatches
-    // of the same pipeline with different buffers need two pipeline objects (or one buffer and a
-    // push-constant offset).
+    // Binds `buffer` (a non-empty `BufferUsage::Storage` buffer of this device) at `slot` below the
+    // pipeline's storage_buffer_count; violations throw std::invalid_argument. The descriptor set
+    // belongs to the pipeline object, so one submission binds a pipeline's buffers once (different
+    // buffers per dispatch need two pipeline objects, or one buffer and a push-constant offset).
     virtual void bind_compute_buffer(std::uint32_t /*slot*/, const Buffer& /*buffer*/) {
         throw std::runtime_error("bind_compute_buffer: this backend has no compute");
     }
@@ -267,11 +255,19 @@ public:
     // Runs `x * y * z` workgroups. Each count must be non-zero and within the device's limit
     // (65535 on every device this RHI targets); a zero or larger count throws
     // std::invalid_argument.
+    // RHI 1.18: like `dispatch`, with the three uint32 counts read from `buffer` at `offset` when
+    // the GPU executes it, so an earlier pass sizes the work. The buffer must be
+    // `BufferUsage::Storage`, the offset a multiple of 4 with 12 bytes in range (else
+    // std::invalid_argument), and `compute_capabilities().indirect_dispatch` true. Order it after
+    // the writer with a barrier.
+    virtual void dispatch_indirect(const Buffer& /*buffer*/, std::size_t /*offset*/) {
+        throw std::runtime_error("dispatch_indirect: this backend has no compute");
+    }
     virtual void dispatch(std::uint32_t /*x*/, std::uint32_t /*y*/, std::uint32_t /*z*/) {
         throw std::runtime_error("dispatch: this backend has no compute");
     }
-    // Makes every storage-buffer write recorded so far visible to the compute dispatches recorded
-    // after it. A dispatch that reads what an earlier one wrote needs one between them.
+    // Makes every storage-buffer write recorded so far visible to the dispatches (and indirect
+    // argument reads) recorded after it. A dispatch that reads what an earlier one wrote needs one.
     virtual void compute_barrier() {
         throw std::runtime_error("compute_barrier: this backend has no compute");
     }
@@ -406,6 +402,10 @@ public:
     // throws std::runtime_error and a caller keeps its CPU path.
     [[nodiscard]] virtual bool supports_compute() const {
         return false;
+    }
+    // RHI 1.18: the limits compute shaders are written against; all zero/false without compute.
+    [[nodiscard]] virtual ComputeCapabilities compute_capabilities() const {
+        return {};
     }
     virtual std::unique_ptr<ComputePipeline> create_compute_pipeline(const ComputePipelineDesc&) {
         throw std::runtime_error("create_compute_pipeline: this backend has no compute "

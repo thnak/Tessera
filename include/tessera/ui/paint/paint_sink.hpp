@@ -304,6 +304,14 @@ struct BoxShadowDraw {
     bool inset = false;  // paint inside `box` rather than outside `carve`
 };
 
+// One isolated layer (issue #227). `box` is the layer's bounds in paint coordinates (the node's
+// visual box, shadow included); `opacity` is applied once when the layer is composited, so the
+// group fades as a whole instead of each primitive carrying the ancestor product.
+struct LayerDraw {
+    rhi::Rect box;
+    float opacity = 1.0f;
+};
+
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -390,6 +398,18 @@ public:
         return false;
     }
     virtual void draw_backdrop(const BackdropDraw& /*draw*/) {}
+
+    // Optional isolated-layer hooks (issue #227, docs/design/gpu/offscreen-layers.md section 5.2).
+    // A sink that returns true from supports_layers() renders everything between push_layer and
+    // the matching pop_layer into an offscreen target and composites it once, so a group fades,
+    // masks or filters as a unit. A sink that returns false (the default) never sees the calls and
+    // paints the group flat, which is today's non-isolated behaviour. push/pop are balanced in
+    // paint order and nest with push_clip/push_transform.
+    [[nodiscard]] virtual bool supports_layers() const {
+        return false;
+    }
+    virtual void push_layer(const LayerDraw& /*layer*/) {}
+    virtual void pop_layer() {}
 };
 
 } // namespace tessera::ui::paint

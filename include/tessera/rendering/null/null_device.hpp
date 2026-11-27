@@ -71,7 +71,26 @@ enum class NullCommandKind : std::uint8_t {
     CopyTargetRegion,
     Blit,
     CopyBufferToTexture,
+    // RHI 1.16/1.18 compute, recorded only by a device made with `create_null_compute_device`.
+    BindComputePipeline,
+    BindComputeBuffer,
+    ComputePushConstants,
+    Dispatch,
+    DispatchIndirect,
+    ComputeBarrier,
+    CopyBuffer,
     Submit,
+};
+
+// One dispatch or dispatch_indirect request, in recording order. For an indirect one the counts are
+// read from the buffer's bytes at record time (the null backend executes no shader, so the bytes
+// are whatever the test wrote), and `indirect_offset` is where they were read.
+struct NullDispatchRecord {
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t z = 0;
+    bool indirect = false;
+    std::size_t indirect_offset = 0;
 };
 
 struct NullCommandStats {
@@ -96,6 +115,13 @@ struct NullCommandStats {
     // copy_buffer_to_texture() calls recorded, in order (RHI 1.17). An empty region is valid and
     // records nothing.
     std::vector<NullBufferTextureCopy> buffer_texture_copies;
+    // Compute (RHI 1.16/1.18): counters, plus one record per dispatch. The null backend runs no
+    // shader, so these are what a structural test asserts.
+    std::uint32_t compute_pipeline_binds = 0;
+    std::uint32_t compute_buffer_binds = 0;
+    std::uint32_t compute_barriers = 0;
+    std::uint32_t buffer_copies = 0;
+    std::vector<NullDispatchRecord> dispatches;
     std::vector<NullSampledTargetBind> sampled_targets;
     std::vector<NullStorageBufferBind> storage_buffer_records;
     // Ordered log of everything the list recorded.
@@ -131,8 +157,31 @@ private:
     rhi::PipelineDesc desc_;
 };
 
+// The null backend's compute pipeline: the validated request, nothing else.
+class NullComputePipeline final : public rhi::ComputePipeline {
+public:
+    NullComputePipeline(std::uint32_t storage_buffer_count, std::uint32_t push_constant_size)
+        : storage_buffer_count_(storage_buffer_count),
+          push_constant_size_(push_constant_size) {}
+    [[nodiscard]] std::uint32_t storage_buffer_count() const {
+        return storage_buffer_count_;
+    }
+    [[nodiscard]] std::uint32_t push_constant_size() const {
+        return push_constant_size_;
+    }
+
+private:
+    std::uint32_t storage_buffer_count_ = 0;
+    std::uint32_t push_constant_size_ = 0;
+};
+
 class NullCommandList final : public rhi::CommandList {
 public:
+    // `compute` mirrors the device's capability: a list from a default null device throws from
+    // every compute call, exactly like a backend without compute.
+    explicit NullCommandList(bool compute = false)
+        : compute_enabled_(compute) {}
+
     void begin_render_pass(const rhi::RenderTarget& target,
                            const rhi::RenderTargetDesc& desc) override;
     void end_render_pass() override;
@@ -155,6 +204,15 @@ public:
                      rhi::Filter filter) override;
     void copy_buffer_to_texture(const rhi::Buffer& source, rhi::Texture& destination,
                                 const rhi::BufferTextureCopy& copy) override;
+    // Compute (null_compute.cpp). Validated like the Vulkan backend, then recorded.
+    void bind_compute_pipeline(const rhi::ComputePipeline& pipeline) override;
+    void bind_compute_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
+    void compute_push_constants(const void* data, std::size_t size) override;
+    void dispatch(std::uint32_t x, std::uint32_t y, std::uint32_t z) override;
+    void dispatch_indirect(const rhi::Buffer& buffer, std::size_t offset) override;
+    void compute_barrier() override;
+    void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,
+                     std::size_t size) override;
     void submit() override;
     void submit_async() override;
     [[nodiscard]] bool is_complete() const override;
@@ -175,11 +233,19 @@ private:
     // The pipeline bound last, so a bind that needs the pipeline's layout (bind_storage_buffer,
     // RHI 1.12) can reject a bind the shader could never read. Null until bind_pipeline.
     const NullPipeline* current_pipeline_ = nullptr;
+    bool compute_enabled_ = false;
+    const NullComputePipeline* compute_pipeline_ = nullptr;
     bool submitted_ = false;
     bool in_pass_ = false;
     std::uint32_t pass_sample_count_ = 1;
 };
 
 std::unique_ptr<rhi::Device> create_null_device(const rhi::DeviceDesc& desc);
+
+// A null device that also records compute (RHI 1.16/1.18): `supports_compute()` is true, the
+// capabilities are a fixed deterministic set, and a command list records every compute call into
+// `NullCommandStats`. Opt-in because `create_null_device` must keep answering false, or
+// `GpuPathRasterizer::supported` would route null-backed runs to the GPU path.
+std::unique_ptr<rhi::Device> create_null_compute_device(const rhi::DeviceDesc& desc);
 
 } // namespace tessera::rendering::null

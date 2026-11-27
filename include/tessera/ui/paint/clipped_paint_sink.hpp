@@ -158,6 +158,13 @@ public:
         return target_->supports_backdrop();
     }
 
+    // Layers stay unsupported under damage replay until a layer is replayed once per damage region
+    // (issue #227 slice 2): the group would otherwise be composited per replay with the wrong
+    // clip. A producer asks this sink, sees false and paints the group flat.
+    [[nodiscard]] bool supports_layers() const override {
+        return false;
+    }
+
     // Matrices pass through to the target; damage regions stay in device space. Commands issued
     // under a matrix are replayed per region under a device-space clip (like text), because their
     // rects are frame-local and cannot be trimmed arithmetically. Clips arriving from the paint

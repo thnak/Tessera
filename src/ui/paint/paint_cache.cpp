@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // Bounded per-node paint cache: deterministic key validation, deterministic LRU eviction, exact
-// byte accounting, the recording sink that captures one node's emission, and the replay used on a
-// hit. Key rationale and the bypass list live in paint_cache.hpp.
+// byte accounting and the replay used on a hit (the recording sink is paint_cache_recorder.cpp).
+// Key rationale and the bypass list live in paint_cache.hpp.
 
 #include "tessera/ui/paint/paint_cache.hpp"
 
@@ -43,7 +43,8 @@ bool same_signature_impl(const PaintCacheSignature& lhs, const PaintCacheSignatu
            lhs.metrics_source_id == rhs.metrics_source_id &&
            lhs.device_scale_bits == rhs.device_scale_bits &&
            lhs.reduce_effects == rhs.reduce_effects && lhs.high_contrast == rhs.high_contrast &&
-           lhs.lcd_text == rhs.lcd_text && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
+           lhs.lcd_text == rhs.lcd_text && lhs.isolate_groups == rhs.isolate_groups &&
+           lhs.in_layer == rhs.in_layer && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
            lhs.glass_max_backdrop_area == rhs.glass_max_backdrop_area &&
            lhs.list_ordinal == rhs.list_ordinal;
 }
@@ -155,6 +156,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
         case PaintOp::Kind::PushTransform:
             sink.push_transform(std::get<PushTransformOp>(op.payload).transform);
             break;
+        case PaintOp::Kind::PushLayer:
+            sink.push_layer(std::get<PushLayerOp>(op.payload).layer);
+            break;
         case PaintOp::Kind::DrawText: {
             const auto& draw = std::get<DrawTextOp>(op.payload);
             TextDraw run;
@@ -202,161 +206,11 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
         case PaintOp::Kind::PopTransform:
             sink.pop_transform();
             break;
+        case PaintOp::Kind::PopLayer:
+            sink.pop_layer();
+            break;
         }
     }
-}
-
-PaintCache::Recorder::Recorder(PaintSink& target, bool record_pops)
-    : target_(target),
-      record_pops_(record_pops) {}
-
-void PaintCache::Recorder::record(PaintOp op) {
-    ops_.push_back(std::move(op));
-}
-
-void PaintCache::Recorder::fill_rect(const rhi::Rect& rect, const rhi::Color& color) {
-    record(PaintOp{PaintOp::Kind::FillRect, FillRectOp{rect, color}});
-    target_.fill_rect(rect, color);
-}
-
-void PaintCache::Recorder::fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
-                                             float radius) {
-    record(PaintOp{PaintOp::Kind::FillRoundedRect, FillRoundedRectOp{rect, color, radius}});
-    target_.fill_rounded_rect(rect, color, radius);
-}
-
-void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color,
-                                             float radius, float width) {
-    record(PaintOp{PaintOp::Kind::FillRoundedRing, FillRoundedRingOp{rect, color, radius, width}});
-    target_.fill_rounded_ring(rect, color, radius, width);
-}
-
-bool PaintCache::Recorder::supports_box_shadow() const {
-    return target_.supports_box_shadow();
-}
-
-void PaintCache::Recorder::fill_box_shadow(const BoxShadowDraw& draw) {
-    // The carve box rides in `carve`, whose radii already carry the border radius, so the record
-    // needs no second rect.
-    record(PaintOp{
-        PaintOp::Kind::FillBoxShadow,
-        FillBoxShadowOp{draw.box, draw.carve, draw.color, draw.radius, draw.sigma, draw.inset}});
-    target_.fill_box_shadow(draw);
-}
-
-void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {
-    gradients_.emplace_back(draw);
-    record(PaintOp{PaintOp::Kind::FillLinearGradient,
-                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    target_.fill_linear_gradient(draw);
-}
-
-void PaintCache::Recorder::fill_conic_gradient(const ConicGradientDraw& draw) {
-    gradients_.emplace_back(draw);
-    record(PaintOp{PaintOp::Kind::FillConicGradient,
-                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    target_.fill_conic_gradient(draw);
-}
-
-void PaintCache::Recorder::fill_radial_gradient(const RadialGradientDraw& draw) {
-    gradients_.emplace_back(draw);
-    record(PaintOp{PaintOp::Kind::FillRadialGradient,
-                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    target_.fill_radial_gradient(draw);
-}
-
-void PaintCache::Recorder::push_clip(const RoundedClip& clip) {
-    record(PaintOp{PaintOp::Kind::PushClip, PushClipOp{clip}});
-    clip_ = clip;
-    pushed_clip_ = true;
-    target_.push_clip(clip);
-}
-
-void PaintCache::Recorder::pop_clip() {
-    if (record_pops_) {
-        record(PaintOp{PaintOp::Kind::PopClip, FillRectOp{}});
-    }
-    target_.pop_clip();
-}
-
-bool PaintCache::Recorder::supports_transform() const {
-    return target_.supports_transform();
-}
-
-bool PaintCache::Recorder::supports_backdrop() const {
-    return target_.supports_backdrop();
-}
-
-void PaintCache::Recorder::push_transform(const rhi::Mat3& transform) {
-    record(PaintOp{PaintOp::Kind::PushTransform, PushTransformOp{transform}});
-    pushed_transform_ = true;
-    target_.push_transform(transform);
-}
-
-void PaintCache::Recorder::pop_transform() {
-    if (record_pops_) {
-        record(PaintOp{PaintOp::Kind::PopTransform, FillRectOp{}});
-    }
-    target_.pop_transform();
-}
-
-void PaintCache::Recorder::draw_text(const TextDraw& run) {
-    DrawTextOp draw;
-    draw.rect = run.rect;
-    if (!run.text.empty()) {
-        draw.text.assign(run.text.data(), run.text.size());
-    }
-    draw.font_size = run.font_size;
-    draw.font_weight = run.font_weight;
-    draw.color = run.color;
-    draw.baseline = run.baseline;
-    draw.lcd = run.lcd;
-    record(PaintOp{PaintOp::Kind::DrawText, std::move(draw)});
-    target_.draw_text(run);
-}
-
-void PaintCache::Recorder::draw_vector(const VectorDraw& draw) {
-    DrawAssetOp asset;
-    asset.rect = draw.rect;
-    if (!draw.asset.empty()) {
-        asset.asset.assign(draw.asset.data(), draw.asset.size());
-    }
-    asset.raster_width = draw.raster_width;
-    asset.raster_height = draw.raster_height;
-    asset.scale = draw.scale;
-    asset.tint = draw.tint;
-    record(PaintOp{PaintOp::Kind::DrawVector, std::move(asset)});
-    target_.draw_vector(draw);
-}
-
-void PaintCache::Recorder::draw_image(const ImageDraw& draw) {
-    DrawAssetOp asset;
-    asset.rect = draw.rect;
-    if (!draw.asset.empty()) {
-        asset.asset.assign(draw.asset.data(), draw.asset.size());
-    }
-    asset.raster_width = draw.raster_width;
-    asset.raster_height = draw.raster_height;
-    asset.scale = draw.scale;
-    asset.tint = draw.tint;
-    asset.decode_original = draw.decode_original;
-    record(PaintOp{PaintOp::Kind::DrawImage, std::move(asset)});
-    target_.draw_image(draw);
-}
-
-void PaintCache::Recorder::draw_backdrop(const BackdropDraw& draw) {
-    record(PaintOp{PaintOp::Kind::DrawBackdrop, DrawBackdropOp{draw}});
-    target_.draw_backdrop(draw);
-}
-
-PaintRecord PaintCache::Recorder::finish() {
-    PaintRecord record;
-    record.ops = std::move(ops_);
-    record.gradients = std::move(gradients_);
-    record.pushed_transform = pushed_transform_;
-    record.pushed_clip = pushed_clip_;
-    record.clip = clip_;
-    return record;
 }
 
 PaintCache::PaintCache(PaintCacheConfig config)
@@ -394,8 +248,8 @@ const PaintRecord* PaintCache::find(const PaintCacheSignature& signature,
     lru_.splice(lru_.end(), lru_, found->second.lru);
     ++counters_.hits;
     const PaintRecord& record = found->second.record;
-    counters_.replayed_draws +=
-        record.ops.size() + (record.pushed_clip ? 1 : 0) + (record.pushed_transform ? 1 : 0);
+    counters_.replayed_draws += record.ops.size() + (record.pushed_clip ? 1 : 0) +
+                                (record.pushed_transform ? 1 : 0) + (record.pushed_layer ? 1 : 0);
     return &record;
 }
 
@@ -412,8 +266,8 @@ void PaintCache::insert(PaintCacheSignature signature, const std::optional<Paint
     }
 
     const std::size_t bytes = entry_bytes(signature, payload, record);
-    const std::size_t calls =
-        record.ops.size() + (record.pushed_clip ? 1 : 0) + (record.pushed_transform ? 1 : 0);
+    const std::size_t calls = record.ops.size() + (record.pushed_clip ? 1 : 0) +
+                              (record.pushed_transform ? 1 : 0) + (record.pushed_layer ? 1 : 0);
     // Evict until the new entry fits both budgets. An entry larger than the whole byte budget is
     // not stored (the newest entry is only guaranteed to be kept when it fits).
     while (!entries_.empty() &&

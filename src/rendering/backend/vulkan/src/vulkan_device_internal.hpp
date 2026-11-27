@@ -128,6 +128,10 @@ public:
     [[nodiscard]] bool supports_buffer_texture_copy() const override {
         return true;
     }
+    // RHI 1.18 (issue #684): the limits probed once at device creation (vulkan_instance.cpp).
+    [[nodiscard]] rhi::ComputeCapabilities compute_capabilities() const override {
+        return compute_caps_;
+    }
     std::unique_ptr<rhi::ComputePipeline>
     create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override;
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
@@ -309,6 +313,9 @@ private:
     // The GPU-timestamp probe (docs/design/performance.md section 6.1), in
     // vulkan_timestamp_probe.cpp so device creation stays one responsibility per file.
     void probe_timestamp_capability(const VkPhysicalDeviceProperties& properties);
+    // RHI 1.18 (vulkan_compute.cpp): fills `compute_caps_` once `storage_buffer_capacity_` is
+    // known.
+    void probe_compute_capabilities(const VkPhysicalDeviceLimits& limits);
     void create_allocator();
     void create_descriptor_layout();
     // The array layout (RHI 1.7, issue #480 part 2): one COMBINED_IMAGE_SAMPLER binding holding
@@ -425,6 +432,8 @@ private:
     // RHI 1.12 (ADR-068): the per-stage storage-buffer descriptor limit this generation reported, 0
     // when the device cannot bind one. Cleared with the rest of the device generation.
     std::uint32_t storage_buffer_capacity_ = 0;
+    // RHI 1.18: the compute limits this generation reported; all zero when compute is unsupported.
+    rhi::ComputeCapabilities compute_caps_{};
 
     void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
         if (epoch == epoch_) {
