@@ -103,7 +103,7 @@ LayerFilterChain shadow_chain(float sigma) {
     op.offset_x = 4.0f;
     op.offset_y = 4.0f;
     op.sigma = sigma;
-    op.color = rhi::Color{0.0f, 0.0f, 0.0f, 0.5f};
+    op.set_tint(rhi::Color{0.0f, 0.0f, 0.0f, 0.5f});
     chain.push(op);
     return chain;
 }

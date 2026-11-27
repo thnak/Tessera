@@ -32,9 +32,9 @@ LayerFilterChain layer_filter_chain(const style::ComputedStyle& style,
             op.kind = LayerFilterOp::Kind::DropShadow;
             op.offset_x = function.offset_x;
             op.offset_y = function.offset_y;
-            op.color = function.current_color ? current_color
-                                              : rhi::Color{function.color.r, function.color.g,
-                                                           function.color.b, function.color.a};
+            op.set_tint(function.current_color ? current_color
+                                               : rhi::Color{function.color.r, function.color.g,
+                                                            function.color.b, function.color.a});
         }
         chain.push(op);
     }
