@@ -95,7 +95,17 @@ public:
     // target only after its frame is complete (frames_in_flight). Null when the pool is disabled or
     // every target is still in flight; the caller then paints that frame without the effect.
     [[nodiscard]] rhi::RenderTarget* acquire_offscreen_target(rhi::Extent2D extent);
+    // Hands a target from acquire_offscreen_target() back once its last use is recorded, so the
+    // pool may give it out again in this frame. Optional for a caller that holds it to frame end.
+    void release_offscreen_target(const rhi::RenderTarget* target);
     [[nodiscard]] std::uint32_t offscreen_target_count() const;
+    // Pool state: targets, peak live targets, bytes, and how many requests a cap refused (each of
+    // those painted without the layer, mask, filter or glass it asked for).
+    [[nodiscard]] OffscreenPoolStats offscreen_stats() const;
+    // Destroys the free pooled targets. Call from an idle driver with `all_complete` true once the
+    // GPU work of every frame is finished, so a static UI holds no layer memory; the frame path
+    // trims on its own after `offscreen_idle_trim_frames`. Never call it inside a frame.
+    void trim_offscreen_targets(bool all_complete);
 
     // --- Glass backdrop composite (docs/specs/glass-v1.md sections 3-5, issue #244) -------------
     // Executes one glass node's backdrop entirely on this frame's command list, at the node's paint

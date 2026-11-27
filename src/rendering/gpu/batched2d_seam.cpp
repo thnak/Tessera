@@ -59,8 +59,24 @@ rhi::RenderTarget* Batched2DRenderer::acquire_offscreen_target(rhi::Extent2D ext
     return glass_.acquire(extent);
 }
 
+void Batched2DRenderer::release_offscreen_target(const rhi::RenderTarget* target) {
+    if (in_frame_) {
+        glass_.release(target);
+    }
+}
+
 std::uint32_t Batched2DRenderer::offscreen_target_count() const {
     return glass_.target_count();
+}
+
+OffscreenPoolStats Batched2DRenderer::offscreen_stats() const {
+    return glass_.pool_stats();
+}
+
+void Batched2DRenderer::trim_offscreen_targets(bool all_complete) {
+    if (!in_frame_) {
+        glass_.trim(all_complete);
+    }
 }
 
 bool Batched2DRenderer::glass_supported() const {

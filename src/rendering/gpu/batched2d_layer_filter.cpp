@@ -139,6 +139,14 @@ void Batched2DRenderer::run_layer_filters(LayerFrame& layer) {
         ++layer_filters_applied_;
     }
 
+    // The chain's intermediates are dead: the scratch target was last read by the vertical pass,
+    // and after a drop-shadow `spare` holds the layer's old target, last read by the composite over
+    // its shadow. The mask and the next layer may reuse them.
+    glass_.release(layer.scratch);
+    glass_.release(layer.spare);
+    layer.scratch = nullptr;
+    layer.spare = nullptr;
+
     // Left broken on purpose: both callers close the layer pass next, so reopening it here would
     // record an empty pass.
     frame_target_ = layer.layer_target;

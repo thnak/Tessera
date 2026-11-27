@@ -111,6 +111,16 @@ add_executable(layer_mask_null_tests
     batched2d/layer_mask_null_tests.cpp)
 target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_mask_null COMMAND layer_mask_null_tests)
+# The offscreen target pool itself (offscreen-layers.md section 5e): in-frame and cross-frame
+# release, retirement, both caps, idle trim, zero steady-state allocation. Runs everywhere.
+add_executable(offscreen_pool_tests
+    batched2d/offscreen_pool_tests.cpp)
+target_link_libraries(offscreen_pool_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME offscreen_pool COMMAND offscreen_pool_tests)
+add_executable(layer_pool_null_tests
+    batched2d/layer_pool_null_tests.cpp)
+target_link_libraries(layer_pool_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_pool_null COMMAND layer_pool_null_tests)
 add_executable(layer_filter_null_tests
     batched2d/layer_filter_null_tests.cpp)
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
@@ -707,6 +717,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # The offscreen layer pool on a real device (issue #617, offscreen-layers.md section 5e): six and
+    # twelve sibling masked cards plus blurred cards all mask correctly on two recycled targets, at
+    # frame ring depths 1, 2 and 8, validation-clean. Skips without a Vulkan device.
+    add_executable(layer_pool_gpu_tests
+        batched2d/layer_pool_gpu_tests.cpp)
+    target_link_libraries(layer_pool_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_pool_gpu COMMAND layer_pool_gpu_tests)
+    set_tests_properties(layer_pool_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # The mask-image lavapipe golden (issue #617): the CPU corpus's `masks` scene through the paint
     # path and the renderer's mask step on a software device, against tests/golden/gpu/mask_image.png
