@@ -79,6 +79,7 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 - Pagination: append with stable keys; dedupe items; preserve scroll/selection.
 - Detail screens use the list item as placeholder while fetching.
 - Forms/validation use async data only through explicit resources; no hidden fetch in render.
+- Pending UI reads a key through `PublishedState` (`DataStore::try_published`, #656): status, has-value, error, version and epoch, copied without allocating and without waiting (a contended store mutex returns false and the caller keeps its last read). `suspends()` is `Loading` with no data, `refreshing()` is `Refreshing`, `fetching()` is either; `DataSnapshot` has the same predicates. `Stale` is declared but never produced: readers use `epoch`.
 - Accessibility announces loading/error at a bounded rate (limits in [`accessibility-v1.md`](accessibility-v1.md) section 10.1: identical messages within 250 ms, progress within 1 s).
 
 ## 7. Security and privacy

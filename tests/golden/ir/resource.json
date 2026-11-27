@@ -1,0 +1,211 @@
+{
+  "bindings": [],
+  "components": [
+    {
+      "componentId": "71",
+      "id": "comp::Feed",
+      "name": "Feed",
+      "resources": [
+        {
+          "id": "res::feed",
+          "key": {
+            "fields": [
+              {
+                "name": "query",
+                "value": {
+                  "id": "state::query",
+                  "kind": "ref"
+                }
+              }
+            ],
+            "kind": "record",
+            "type": ""
+          },
+          "method": "loadFeed",
+          "service": "svc::api",
+          "source": {
+            "column": 3,
+            "endColumn": 13,
+            "endLine": 3,
+            "file": "ui/Feed.tsx",
+            "length": 10,
+            "line": 3,
+            "offset": 20
+          },
+          "suspend": true
+        },
+        {
+          "id": "res::tags",
+          "key": {
+            "id": "state::query",
+            "kind": "ref"
+          },
+          "method": "loadTags",
+          "service": "svc::api",
+          "source": {
+            "column": 3,
+            "endColumn": 13,
+            "endLine": 4,
+            "file": "ui/Feed.tsx",
+            "length": 10,
+            "line": 4,
+            "offset": 30
+          }
+        }
+      ],
+      "root": {
+        "children": [
+          {
+            "id": "node::2",
+            "kind": "Text",
+            "source": {
+              "column": 3,
+              "endColumn": 13,
+              "endLine": 7,
+              "file": "ui/Feed.tsx",
+              "length": 10,
+              "line": 7,
+              "offset": 50
+            },
+            "text": {
+              "kind": "template",
+              "parts": [
+                "Tags: ",
+                {
+                  "id": "res::tags.status",
+                  "kind": "ref"
+                }
+              ]
+            },
+            "uiId": "702"
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "id": "node::5",
+                    "kind": "Text",
+                    "source": {
+                      "column": 3,
+                      "endColumn": 13,
+                      "endLine": 10,
+                      "file": "ui/Feed.tsx",
+                      "length": 10,
+                      "line": 10,
+                      "offset": 80
+                    },
+                    "text": {
+                      "kind": "template",
+                      "parts": [
+                        "Items: ",
+                        {
+                          "id": "res::feed.data",
+                          "kind": "ref"
+                        }
+                      ]
+                    },
+                    "uiId": "705"
+                  }
+                ],
+                "id": "node::4",
+                "kind": "View",
+                "source": {
+                  "column": 3,
+                  "endColumn": 13,
+                  "endLine": 9,
+                  "file": "ui/Feed.tsx",
+                  "length": 10,
+                  "line": 9,
+                  "offset": 70
+                },
+                "uiId": "704"
+              }
+            ],
+            "fallback": {
+              "id": "node::6",
+              "kind": "Text",
+              "source": {
+                "column": 3,
+                "endColumn": 13,
+                "endLine": 12,
+                "file": "ui/Feed.tsx",
+                "length": 10,
+                "line": 12,
+                "offset": 90
+              },
+              "text": {
+                "kind": "literal",
+                "value": "Loading"
+              },
+              "uiId": "706"
+            },
+            "id": "node::3",
+            "kind": "Suspense",
+            "source": {
+              "column": 3,
+              "endColumn": 13,
+              "endLine": 8,
+              "file": "ui/Feed.tsx",
+              "length": 10,
+              "line": 8,
+              "offset": 60
+            },
+            "uiId": "703"
+          }
+        ],
+        "id": "node::1",
+        "kind": "View",
+        "source": {
+          "column": 3,
+          "endColumn": 13,
+          "endLine": 6,
+          "file": "ui/Feed.tsx",
+          "length": 10,
+          "line": 6,
+          "offset": 40
+        },
+        "uiId": "701"
+      },
+      "services": [
+        {
+          "header": "demo/api.hpp",
+          "id": "svc::api",
+          "name": "api",
+          "source": {
+            "column": 3,
+            "endColumn": 13,
+            "endLine": 2,
+            "file": "ui/Feed.tsx",
+            "length": 10,
+            "line": 2,
+            "offset": 10
+          },
+          "type": "demo::Api"
+        }
+      ],
+      "source": {
+        "column": 1,
+        "endColumn": 11,
+        "endLine": 1,
+        "file": "ui/Feed.tsx",
+        "length": 10,
+        "line": 1,
+        "offset": 0
+      },
+      "state": [
+        {
+          "id": "state::query",
+          "initial": "",
+          "name": "query",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "irVersion": 1,
+  "module": {
+    "name": "feed"
+  },
+  "stylesheets": []
+}

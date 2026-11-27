@@ -7,10 +7,24 @@
 #include "tessera/compiler/eval/evaluator.hpp"
 
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace tessera::compiler::eval {
+
+std::expected<Value, EvalError> Evaluator::unresolved_ref(const ir::Expr& expr) const {
+    // #656: a resource's status comes from the pending session when the host bound one.
+    const std::size_t dot = expr.id.rfind('.');
+    if (pending_ != nullptr && dot != std::string::npos &&
+        std::string_view(expr.id).substr(dot + 1) == "status") {
+        if (const auto status = pending_->status_of(std::string_view(expr.id).substr(0, dot))) {
+            return Value::of_string(std::string(*status));
+        }
+    }
+    return std::unexpected(
+        EvalError{"TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id + "` is not in scope"});
+}
 
 std::expected<void, EvalError> Evaluator::run_host_action(const ir::Action& action,
                                                           const Scope& scope) {

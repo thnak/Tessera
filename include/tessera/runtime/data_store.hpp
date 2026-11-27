@@ -81,11 +81,44 @@ struct DataSnapshot {
         return value != nullptr;
     }
 
+    // The same predicates as PublishedState (pending-ui-v1.md section 3.3 item 2), in one place.
+    [[nodiscard]] bool suspends() const {
+        return status == DataStatus::Loading && value == nullptr;
+    }
+    [[nodiscard]] bool refreshing() const {
+        return status == DataStatus::Refreshing;
+    }
+
     template<typename T> [[nodiscard]] std::shared_ptr<const T> value_as() const {
         if (type != detail::type_token<T>()) {
             return nullptr;
         }
         return std::static_pointer_cast<const T>(value);
+    }
+};
+
+// The facts a pending UI reads about one key, nothing else (docs/specs/pending-ui-v1.md section
+// 3.3 items 2 and 3). It holds no key, no value and no pointer, so reading it never allocates and a
+// copy is a few words. `epoch` is the staleness counter of DataSnapshot, `version` the write
+// counter; a pending UI compares the first to drop a completion for a superseded key.
+struct PublishedState {
+    DataStatus status = DataStatus::Idle;
+    bool has_value = false;
+    bool has_error = false;
+    std::uint64_t version = 0;
+    std::uint64_t epoch = 0;
+
+    // A suspending read: a fetch is in flight and there is nothing to show yet.
+    [[nodiscard]] constexpr bool suspends() const noexcept {
+        return status == DataStatus::Loading && !has_value;
+    }
+    // Refreshing never suspends: the previous data stays on screen while a new fetch runs.
+    [[nodiscard]] constexpr bool refreshing() const noexcept {
+        return status == DataStatus::Refreshing;
+    }
+    // A fetch is in flight, with or without data (what `isPending` waits for).
+    [[nodiscard]] constexpr bool fetching() const noexcept {
+        return status == DataStatus::Loading || status == DataStatus::Refreshing;
     }
 };
 
@@ -179,6 +212,15 @@ public:
     template<typename T> [[nodiscard]] std::shared_ptr<const T> get(const DataKey& key) const {
         return snapshot(key).value_as<T>();
     }
+
+    // "What is published right now" for the UI thread (pending-ui-v1.md section 3.3 item 3). It
+    // copies PublishedState out without allocating, without touching LRU order and without ever
+    // waiting: it only try-locks the store mutex, so a writer on another thread makes it return
+    // false instead of blocking a frame. True means `out` holds the current state (Idle for a key
+    // that was never written); false means contended or a moved-from store, and `out` is left
+    // as it was, so the caller keeps rendering the state it read last. Completion is still
+    // announced through the CompletionQueue at a tick boundary; this is the read that follows it.
+    [[nodiscard]] bool try_published(const DataKey& key, PublishedState& out) const noexcept;
 
     // Subscribe to changes of one key. Observers are called on the draining thread, once per key
     // per tick, after at least one write/fetch-state change; they are not called by `observe`.

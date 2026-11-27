@@ -23,6 +23,11 @@ ir::IrModule make_rich_module();
 // a native-handler binding with a preview, an ErrorBoundary and a ref.
 ir::IrModule make_valid_module();
 
+// #656 (ADR-067 item 1): a Feed component with a service, a suspending resource keyed by a record
+// of scalars, a passive resource, and a Suspense boundary covering the suspending `.data` read
+// (golden tests/golden/ir/resource.json). Valid, so the resource validator tests mutate it.
+ir::IrModule make_resource_module();
+
 // docs/specs/ir-v1.md section 2.2 (ADR-051): a module with a record table and every record
 // position. Records, sorted by name:
 //   Size { w: int; h: int }

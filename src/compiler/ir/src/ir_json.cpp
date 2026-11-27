@@ -200,6 +200,22 @@ JsonValue to_json(const Component& component) {
         services.push(std::move(entry));
     }
     add_if_not_empty(json, "services", std::move(services));
+
+    // ADR-067 item 1 (pending-ui-v1.md section 3.4): omitted when the component reads no resource.
+    JsonValue resources = JsonValue::array();
+    for (const auto& resource : component.resources) {
+        JsonValue entry = JsonValue::object();
+        entry.set("id", JsonValue::string(resource.id));
+        entry.set("service", JsonValue::string(resource.service));
+        entry.set("method", JsonValue::string(resource.method));
+        if (resource.suspend) {
+            entry.set("suspend", JsonValue::boolean(true));
+        }
+        entry.set("key", expr_to_json(&resource.key));
+        entry.set("source", to_json(resource.source));
+        resources.push(std::move(entry));
+    }
+    add_if_not_empty(json, "resources", std::move(resources));
     return json;
 }
 
