@@ -401,7 +401,7 @@ backend cannot silently change pixels:
 
 Documented gaps, kept explicit instead of faked: no rounded/SDF rasterizer (a rounded rect paints
 its bounds, corners stay square), no rotation/scale/skew rasterizer (a transformed node paints its
-world-bounds AABB; translate is exact), gradients approximated as 64 dominant-axis bands, box
+world-bounds AABB; translate is exact), gradients evaluated per pixel with the shared ramp math, box
 shadows as stacked rect layers, no clip stack inside the canvas (clipping is a per-call rect from
 the sink), nearest-sample only (no resampling filter), and no geometric AA (glyph coverage is the
 exception). Rounded, rotating, and resampled shapes stay on the lavapipe corpus

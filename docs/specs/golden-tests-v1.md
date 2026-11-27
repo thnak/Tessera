@@ -100,7 +100,7 @@ the lavapipe side):
   square;
 - no rotation/scale/skew rasterizer: `PaintSink::supports_transform()` is false for the CPU sinks,
   so a transformed node paints its world-bounds AABB (translate is exact);
-- no gradient rasterizer: gradients are approximated by 64 dominant-axis bands in the CPU sink;
+- gradients are evaluated per pixel in the CPU sink with the shared ramp math (RHI 1.20), within 1-2/255 of the GPU;
 - box shadows are stacked rect layers (3-8 per blurred shadow), not a Gaussian blur;
 - `CpuCanvas` has no clip stack of its own: clipping is a per-call rect applied by the sink;
 - nearest-sample only: vector/image draws are exact when the raster extent equals the destination

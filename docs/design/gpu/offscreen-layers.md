@@ -261,7 +261,7 @@ slice behavior + tests + docs, nothing user-visible until the last:
    `paint_gradient` (cells tile a fractional box with no gap and no overlap), `layer_mask_gpu` (the
    Chromium comparison, and a translucent `background-image` ramp at a fractional position with
    anti-aliasing on and off, within 6 of the ideal ramp), `cpu_wide_golden`; reintroducing the
-   overlap fails all three. Still open: a `CpuCanvas` twin and the lavapipe golden.
+   overlap fails all three. (Superseded: gradients are now one per-fragment quad, [gradients.md](gradients.md); the overlap, bands and cell errors above no longer occur on the shader path, which measures 0-1/255 against Chromium.) Still open: the lavapipe golden.
 5c. **Mask geometry and the `mask` shorthand (landed, issue #617).** `mask-size`, `mask-position`,
    `mask-repeat` and `mask-mode` (`include/tessera/ui/style/mask_layers.hpp`) are per-layer lists that
    repeat cyclically over `mask-image`. `paint_mask_image` reads them and, per layer, asks

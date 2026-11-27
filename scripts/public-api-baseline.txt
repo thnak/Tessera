@@ -1262,9 +1262,11 @@ header include/tessera/rendering/gpu/batch_split.hpp
 struct include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::BatchSplitStats
 enum include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::BatchSplitReason
 
+header include/tessera/rendering/gpu/batched2d_config.hpp
+struct include/tessera/rendering/gpu/batched2d_config.hpp tessera::rendering::gpu::Batched2DConfig
+
 header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
-struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DConfig
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::CullStats
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::ShadowCarveBox
 
@@ -1330,6 +1332,32 @@ function include/tessera/rendering/gpu/glass_blur.hpp tessera::rendering::gpu::p
 
 header include/tessera/rendering/gpu/glass_compositor.hpp
 class include/tessera/rendering/gpu/glass_compositor.hpp tessera::rendering::gpu::GlassCompositor
+
+header include/tessera/rendering/gpu/gradient_math.hpp
+struct include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::Fill
+struct include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::Packed
+struct include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::Stop
+function include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::evaluate
+function include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::pack
+function include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::position
+function include/tessera/rendering/gpu/gradient_math.hpp tessera::rendering::gpu::gradient::ramp
+
+header include/tessera/rendering/gpu/gradient_records.hpp
+struct include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::GradientRecord
+enum include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::Kind
+function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::records_offset
+function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::stop_colors_offset
+function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::stop_offsets_offset
+function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::total_buffer_bytes
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kGradientMode
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kMaxGradientRecords
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kMaxGradientStops
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kMaxStopsPerGradient
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kStopColorBytes
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kStopOffsetBytes
+
+header include/tessera/rendering/gpu/gradient_table.hpp
+class include/tessera/rendering/gpu/gradient_table.hpp tessera::rendering::gpu::GradientTable
 
 header include/tessera/rendering/gpu/layer_filter.hpp
 struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterChain
@@ -1536,8 +1564,10 @@ class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::RenderTa
 class include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::Texture
 struct include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::DeviceMemoryStats
 struct include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::RhiCapabilities
-enum include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::DeviceRecoveryError
-enum include/tessera/rendering/rhi/device.hpp tessera::rendering::rhi::DeviceStatus
+
+header include/tessera/rendering/rhi/device_status.hpp
+enum include/tessera/rendering/rhi/device_status.hpp tessera::rendering::rhi::DeviceRecoveryError
+enum include/tessera/rendering/rhi/device_status.hpp tessera::rendering::rhi::DeviceStatus
 
 header include/tessera/rendering/rhi/swapchain.hpp
 class include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::RenderTarget
@@ -2626,6 +2656,12 @@ alias include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::rhi
 function include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::detail::clipped_rect
 function include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::detail::covers
 function include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::detail::region_rect
+
+header include/tessera/ui/paint/gradient_fill.hpp
+class include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::FillStops
+function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::conic_fill
+function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::linear_fill
+function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::radial_fill
 
 header include/tessera/ui/paint/paint_cache.hpp
 class include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCache
