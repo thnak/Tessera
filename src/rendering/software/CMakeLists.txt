@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_software STATIC
-    cpu_canvas.cpp)
+    cpu_canvas.cpp
+    cpu_layer.cpp)
 
 target_include_directories(tessera_software PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

@@ -195,5 +195,7 @@ struct Case {
 };
 
 [[nodiscard]] const std::vector<Case>& gradient_cases();
+// The `mask-image` case (issue #617), in `cpu_wide_mask_scenes.cpp`.
+[[nodiscard]] const std::vector<Case>& mask_cases();
 
 } // namespace tessera::poc::batched2d::cpu_wide_support

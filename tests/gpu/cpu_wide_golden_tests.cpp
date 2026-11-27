@@ -335,6 +335,9 @@ int main(int argc, char** argv) {
     for (const Case& gradient_case : gradient_cases()) {
         ok = run_case(gradient_case.name, gradient_case.build, gradient_case.check) && ok;
     }
+    for (const Case& mask_case : mask_cases()) {
+        ok = run_case(mask_case.name, mask_case.build, mask_case.check) && ok;
+    }
     ok = run_case("shadows", build_shadows_scene, check_shadows) && ok;
     if (!ok) {
         std::cerr << "cpu-wide-golden: FAILED\n";

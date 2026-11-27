@@ -371,7 +371,8 @@ endif()
 # `cpu_wide_golden_tests --update-goldens` on the CPU path.
 add_executable(cpu_wide_golden_tests
     cpu_wide_golden_tests.cpp
-    cpu_wide_gradient_scenes.cpp)
+    cpu_wide_gradient_scenes.cpp
+    cpu_wide_mask_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE
@@ -382,6 +383,17 @@ target_link_libraries(cpu_wide_golden_tests PRIVATE
     tessera_golden
     tessera_stb)
 add_test(NAME cpu_wide_golden COMMAND cpu_wide_golden_tests)
+
+# The CPU twin of isolated layers and layer masks through `CpuPaintSink` (issue #617): the sink calls,
+# the mask's refusals and the paint pass's group opacity. Vulkan-free.
+add_executable(cpu_layer_sink_tests
+    cpu_layer_sink_tests.cpp)
+target_include_directories(cpu_layer_sink_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_link_libraries(cpu_layer_sink_tests PRIVATE
+    tessera_paint
+    tessera_software)
+add_test(NAME cpu_layer_sink COMMAND cpu_layer_sink_tests)
 
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
