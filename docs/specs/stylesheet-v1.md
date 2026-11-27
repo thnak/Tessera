@@ -420,7 +420,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   top); the `background` shorthand puts the colour on the final layer only, and a `url()` layer is
   out of scope and is rejected with a diagnostic
   ([`background-layers.md`](../design/background-layers.md)).- Value forms V1 ignores on a recognised property (3D `transform`, any
-  `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`, any `filter` function other than `blur`/`drop-shadow`) produce a
+  `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`, any `filter` function but the ten of CSS Filter Effects 1 without `url()`/`calc()`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
   other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the

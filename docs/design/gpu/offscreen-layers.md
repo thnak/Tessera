@@ -403,8 +403,29 @@ slice behavior + tests + docs, nothing user-visible until the last:
    rgba(0,0,255,.5))` reads 98, 99, 95, 77, 10 (blue) at x = 36, 42, 44, 46, 50 on row 44, and a
    zero-blur shadow reads 128. The renderer matched at once (within 4 of 255, and equal to the
    analytic Gaussian with sigma = the written length, so the third `drop-shadow()` length is a
-   standard deviation); the values are asserted by `layer_filter_gpu`. Still open: the other `filter` functions (`brightness`, `contrast`, `opacity`, ...), a
-   `CpuCanvas` twin and the lavapipe golden.
+   standard deviation); the values are asserted by `layer_filter_gpu`. The other `filter` functions landed in 5f; still open: a CPU
+   twin of blur and drop-shadow and the lavapipe golden.
+5f. **`filter` colour functions (landed, issue #617).** `brightness()`, `contrast()`, `saturate()`,
+   `grayscale()`, `sepia()`, `invert()`, `opacity()` and `hue-rotate()` need no RHI change and no
+   pipeline. *Measured in Chromium 158* (`tests/fixtures/chromium_color_filter.hpp`, 530 opaque and 36
+   translucent samples, `CSS.supports` and computed values): a function works on the straight-alpha
+   colour (a translucent pixel stays `P = c' * a`; `opacity()` scales alpha only), grayscale/sepia use the
+   0.2126/0.7152/0.0722 weights and saturate/hue-rotate the rounded 0.213/0.715/0.072 of the spec,
+   **each function clamps its result to [0, 1] before the next** (a list is not one matrix:
+   `brightness(2) contrast(0.5)` on white is 191, folded it would be 255), a negative argument is
+   invalid, grayscale/sepia/invert/opacity clamp at 1 (the computed value of `invert(250%)` is 1), an
+   omitted argument is 1 (so `grayscale()` is the full effect) and hue-rotate takes deg, grad, rad,
+   turn or a bare 0. **Chain**: a `LayerFilterOp` of kind `ColorFunctions` carries up to three
+   (id, amount) pairs in the storage of the other kinds (amounts in `offset_x`, `offset_y`, `sigma`,
+   ids in `rgba`), so the 20-byte op and the chain's 64 bytes are unchanged; the paint pass packs adjacent
+   colour functions three to an op and the style layer rejects a list that needs more than three ops.
+   **Renderer**: `glass_blur.frag` mode 3 (the WGSL twin too) copies the layer 1:1 through the
+   functions (ids in `radii`, amounts in `factors` of the unchanged 112-byte block) into the scratch
+   target with the non-blending pipeline, and the scratch becomes the layer: one pass, no extra
+   target beyond a blur's. `color_filter.hpp` is the shared reference (shader, CPU twin and tests).
+   **CPU twin**: `apply_layer_color_filter` recovers the straight colour from the black/white pair.
+   Evidence: `filter_color` (grammar and formulas vs Chromium, 1/255), `cpu_color_filter` (3/255),
+   `layer_color_filter_gpu` (4/255, through paint -> sink -> shader), `layer_filter_null` (one pass).
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`, landed in 5d) as a layer post-process. Each with a Chromium comparison and a lavapipe
