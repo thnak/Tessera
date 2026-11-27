@@ -1514,7 +1514,7 @@ class include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering:
 struct include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathDocument
 struct include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathPipelineDescs
 struct include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuPathRasterizerConfig
-enum include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuRasterError
+alias include/tessera/rendering/path/gpu_path_rasterizer.hpp tessera::rendering::path::GpuRasterError
 
 header include/tessera/rendering/path/gpu_path_scene.hpp
 struct include/tessera/rendering/path/gpu_path_scene.hpp tessera::rendering::path::GpuPathScene
@@ -1549,6 +1549,11 @@ enum include/tessera/rendering/path/path_rasterizer.hpp tessera::rendering::path
 enum include/tessera/rendering/path/path_rasterizer.hpp tessera::rendering::path::RasterError
 function include/tessera/rendering/path/path_rasterizer.hpp tessera::rendering::path::make_path_rasterizer
 function include/tessera/rendering/path/path_rasterizer.hpp tessera::rendering::path::path_backend_available
+
+header include/tessera/rendering/path/path_renderer.hpp
+class include/tessera/rendering/path/path_renderer.hpp tessera::rendering::path::PathRenderer
+struct include/tessera/rendering/path/path_renderer.hpp tessera::rendering::path::GpuPathDocument
+enum include/tessera/rendering/path/path_renderer.hpp tessera::rendering::path::PathRenderError
 
 header include/tessera/rendering/path/path_scale.hpp
 function include/tessera/rendering/path/path_scale.hpp tessera::rendering::path::scale_path_shapes
