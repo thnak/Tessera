@@ -6,7 +6,9 @@
 #include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/metal/metal_shader_registry.hpp"
 
+#include <cstdint>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -38,7 +40,7 @@ bool check_table_matches_the_build() {
                       "an empty table resolves nothing");
     }
     return expect(!ids.empty(), "a populated table reports its ids") &&
-           expect(ids.size() == 2, "the table holds batched2d and glass_blur");
+           expect(ids.size() == 3, "the table holds batched2d, glass_blur and the storage probe");
 }
 
 bool check_known_ids_resolve() {
@@ -77,6 +79,49 @@ bool check_known_ids_resolve() {
                   "glass_blur fragment source includes metal_stdlib");
 }
 
+// True when the MSL declares `<name>` as a buffer argument at exactly `[[buffer(index)]]`.
+bool declares_slot(std::string_view source, std::string_view name, std::uint32_t index) {
+    const std::string needle =
+        "& " + std::string(name) + " [[buffer(" + std::to_string(index) + ")]]";
+    return source.find(needle) != std::string_view::npos;
+}
+
+// The command list binds the push-constant block and the storage buffer at the slots recorded in
+// the registry. SPIRV-Cross numbers them, so this pins the recorded values to the generated text:
+// a SPIRV-Cross or glslc change that renumbers a slot fails here, not as a wrong buffer at draw
+// time.
+bool check_buffer_slots_match_the_msl() {
+    if (!metal::has_msl_shaders()) {
+        return true;
+    }
+    const metal::MslProgram* batched2d = metal::find_msl_program(gpu::kBatched2dShaderId);
+    const metal::MslProgram* glass = metal::find_msl_program(gpu::kGlassBlurShaderId);
+    const metal::MslProgram* probe = metal::find_msl_program(metal::kStorageProbeShaderId);
+    if (!expect(batched2d != nullptr && glass != nullptr && probe != nullptr,
+                "every program resolves")) {
+        return false;
+    }
+    // The vertex stage keeps its push-constant block at buffer(0); the vertex stream lives at
+    // kVertexStreamIndex (30, metal_internal.hpp), well clear of it.
+    return expect(declares_slot(batched2d->vertex_source, "pc", 0),
+                  "batched2d vertex push constants are buffer(0)") &&
+           expect(batched2d->fragment_storage_buffer_index != metal::kNoMslBuffer &&
+                      declares_slot(batched2d->fragment_source, "clip_buffer",
+                                    batched2d->fragment_storage_buffer_index),
+                  "batched2d fragment clip_buffer is at its recorded slot") &&
+           expect(declares_slot(batched2d->fragment_source, "pc",
+                                batched2d->fragment_push_constant_index),
+                  "batched2d fragment push constants are at their recorded slot") &&
+           expect(declares_slot(glass->fragment_source, "pc", glass->fragment_push_constant_index),
+                  "glass_blur fragment push constants are at their recorded slot") &&
+           expect(glass->fragment_storage_buffer_index == metal::kNoMslBuffer,
+                  "glass_blur declares no storage buffer") &&
+           expect(probe->fragment_storage_buffer_index != metal::kNoMslBuffer &&
+                      declares_slot(probe->fragment_source, "records",
+                                    probe->fragment_storage_buffer_index),
+                  "the probe's records buffer is at its recorded slot");
+}
+
 bool check_lcd_id_is_absent() {
     // batched2d_lcd is Vulkan-only by contract (its manifest entry has no WebGPU source and the
     // cross step does not build it), so Metal must not resolve it. A pipeline asking for it has to
@@ -89,7 +134,8 @@ bool check_lcd_id_is_absent() {
 
 int main() {
     if (!check_unknown_id_is_null() || !check_table_matches_the_build() ||
-        !check_known_ids_resolve() || !check_lcd_id_is_absent()) {
+        !check_known_ids_resolve() || !check_buffer_slots_match_the_msl() ||
+        !check_lcd_id_is_absent()) {
         return 1;
     }
     return 0;

@@ -12,6 +12,13 @@ tessera_cross_compile_shader(batched2d
     FRAGMENT batched2d.frag
     AUTHORED_WGSL ${PROJECT_SOURCE_DIR}/src/rendering/backend/webgpu/shaders/batched2d.wgsl)
 
+# The storage-buffer conformance probe (RHI 1.12). Not a manifest program: its only consumer is the
+# conformance suite on backends that cross-compile (Metal).
+tessera_cross_compile_shader(storage_probe
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders
+    VERTEX fullscreen.vert
+    FRAGMENT storage_probe.frag)
+
 tessera_cross_compile_shader(glass_blur
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders
     VERTEX fullscreen.vert

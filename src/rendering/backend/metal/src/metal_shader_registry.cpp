@@ -26,6 +26,12 @@ constexpr char kGlassBlurVertMsl[] =
 constexpr char kGlassBlurFragMsl[] =
 #include "glass_blur_frag_msl.inc"
     ;
+constexpr char kStorageProbeVertMsl[] =
+#include "storage_probe_vert_msl.inc"
+    ;
+constexpr char kStorageProbeFragMsl[] =
+#include "storage_probe_frag_msl.inc"
+    ;
 
 #endif
 
@@ -42,9 +48,19 @@ struct Entry {
 // SPIRV-Cross emits `main0` for a GLSL `main` in both stages, so the entry names are the same for
 // every program here. They are recorded per program anyway: a future shader with a different entry
 // name must not silently inherit this one.
-constexpr std::array<Entry, 2> kEntries{{
-    {gpu::kBatched2dShaderId, MslProgram{kBatched2dVertMsl, kBatched2dFragMsl, "main0", "main0"}},
-    {gpu::kGlassBlurShaderId, MslProgram{kGlassBlurVertMsl, kGlassBlurFragMsl, "main0", "main0"}},
+//
+// The fragment slots are what SPIRV-Cross numbered in the generated MSL: batched2d declares the
+// clip record buffer first (buffer(0)) and the push-constant block second (buffer(1)); glass_blur
+// has only the push-constant block (buffer(0)); the probe has only its storage buffer (buffer(0)).
+// metal_shader_registry_tests checks each against the MSL text, so a tool upgrade that renumbers
+// them fails a test instead of binding the wrong buffer.
+constexpr std::array<Entry, 3> kEntries{{
+    {gpu::kBatched2dShaderId,
+     MslProgram{kBatched2dVertMsl, kBatched2dFragMsl, "main0", "main0", 1, 0}},
+    {gpu::kGlassBlurShaderId,
+     MslProgram{kGlassBlurVertMsl, kGlassBlurFragMsl, "main0", "main0", 0, kNoMslBuffer}},
+    {kStorageProbeShaderId,
+     MslProgram{kStorageProbeVertMsl, kStorageProbeFragMsl, "main0", "main0", 0, 0}},
 }};
 
 #else

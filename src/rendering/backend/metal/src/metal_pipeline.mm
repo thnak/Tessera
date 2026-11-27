@@ -24,8 +24,14 @@
 namespace tessera::rendering::metal {
 
 MetalPipeline::MetalPipeline(id<MTLRenderPipelineState> state, std::uint32_t sample_count,
-                             std::uint32_t push_constant_size)
-    : state_(state), sample_count_(sample_count), push_constant_size_(push_constant_size) {}
+                             std::uint32_t push_constant_size,
+                             std::uint32_t fragment_push_constant_index,
+                             std::uint32_t fragment_storage_buffer_index)
+    : state_(state),
+      sample_count_(sample_count),
+      push_constant_size_(push_constant_size),
+      fragment_push_constant_index_(fragment_push_constant_index),
+      fragment_storage_buffer_index_(fragment_storage_buffer_index) {}
 
 std::uint32_t MetalPipeline::sample_count() const {
     return sample_count_;
@@ -95,6 +101,20 @@ std::unique_ptr<rhi::Pipeline> MetalDevice::create_pipeline(const rhi::PipelineD
         throw std::runtime_error("metal create_pipeline: shader id '" +
                                  std::string(desc.shader_id) + "' has an empty MSL stage");
     }
+    // A read-only storage buffer (RHI 1.12, ADR-068) is only bindable if the program's fragment MSL
+    // declares one; refuse the request instead of building a pipeline whose bind can never reach
+    // the shader. The slot the pipeline reports is the program's, so a pipeline that did not ask
+    // for the buffer reports none and bind_storage_buffer rejects it.
+    if (desc.storage_buffer && !supports_storage_buffers()) {
+        throw std::runtime_error("metal create_pipeline: this device has no storage buffers");
+    }
+    if (desc.storage_buffer && program->fragment_storage_buffer_index == kNoMslBuffer) {
+        throw std::runtime_error("metal create_pipeline: shader id '" +
+                                 std::string(desc.shader_id) +
+                                 "' declares no storage buffer in its fragment MSL");
+    }
+    const std::uint32_t storage_index =
+        desc.storage_buffer ? program->fragment_storage_buffer_index : kNoMslBuffer;
 
     id<MTLLibrary> vertex_library = compile_library(device_, program->vertex_source, "vertex");
     id<MTLLibrary> fragment_library = compile_library(device_, program->fragment_source, "fragment");
@@ -128,17 +148,23 @@ std::unique_ptr<rhi::Pipeline> MetalDevice::create_pipeline(const rhi::PipelineD
 
     // The vertex layout comes from the RHI descriptor, not from the shader: the MSL declares
     // `[[stage_in]]` attributes by location, and Metal needs the stride and formats here.
-    MTLVertexDescriptor* vertex_descriptor = [[MTLVertexDescriptor alloc] init];
-    vertex_descriptor.layouts[0].stride = desc.vertex_layout.stride;
-    vertex_descriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-    for (std::uint32_t index = 0; index < desc.vertex_layout.attribute_count; ++index) {
-        const rhi::VertexAttribute& attribute = desc.vertex_layout.attributes[index];
-        vertex_descriptor.attributes[attribute.location].format =
-            to_metal_vertex_format(attribute.format);
-        vertex_descriptor.attributes[attribute.location].offset = attribute.offset;
-        vertex_descriptor.attributes[attribute.location].bufferIndex = 0;
+    //
+    // The stream sits at kVertexStreamIndex, not buffer(0): the vertex stage's push-constant block
+    // is buffer(0), and a vertex stream there would be overwritten by it. A fullscreen program has
+    // no attributes (it reads `vertex_id`), so it gets no descriptor at all.
+    if (desc.vertex_layout.attribute_count > 0) {
+        MTLVertexDescriptor* vertex_descriptor = [[MTLVertexDescriptor alloc] init];
+        vertex_descriptor.layouts[kVertexStreamIndex].stride = desc.vertex_layout.stride;
+        vertex_descriptor.layouts[kVertexStreamIndex].stepFunction = MTLVertexStepFunctionPerVertex;
+        for (std::uint32_t index = 0; index < desc.vertex_layout.attribute_count; ++index) {
+            const rhi::VertexAttribute& attribute = desc.vertex_layout.attributes[index];
+            vertex_descriptor.attributes[attribute.location].format =
+                to_metal_vertex_format(attribute.format);
+            vertex_descriptor.attributes[attribute.location].offset = attribute.offset;
+            vertex_descriptor.attributes[attribute.location].bufferIndex = kVertexStreamIndex;
+        }
+        descriptor.vertexDescriptor = vertex_descriptor;
     }
-    descriptor.vertexDescriptor = vertex_descriptor;
 
     NSError* error = nil;
     id<MTLRenderPipelineState> state = [device_ newRenderPipelineStateWithDescriptor:descriptor
@@ -152,7 +178,8 @@ std::unique_ptr<rhi::Pipeline> MetalDevice::create_pipeline(const rhi::PipelineD
         throw std::runtime_error(message);
     }
 
-    return std::make_unique<MetalPipeline>(state, desc.sample_count, desc.push_constant_size);
+    return std::make_unique<MetalPipeline>(state, desc.sample_count, desc.push_constant_size,
+                                           program->fragment_push_constant_index, storage_index);
 }
 
 } // namespace tessera::rendering::metal

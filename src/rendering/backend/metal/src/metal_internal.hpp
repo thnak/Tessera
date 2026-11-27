@@ -8,6 +8,7 @@
 
 #include "retire_queue.hpp"
 #include "tessera/rendering/metal/metal_mapping.hpp"
+#include "tessera/rendering/metal/metal_shader_registry.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
 #import <Metal/Metal.h>
@@ -15,6 +16,11 @@
 #include <memory>
 
 namespace tessera::rendering::metal {
+
+// The vertex-stage argument-table slot of the vertex stream. SPIRV-Cross puts the vertex shader's
+// push-constant block at buffer(0), and the argument table is shared by buffers and bytes, so the
+// stream lives at the top of the table (Metal allows 31 slots) instead of colliding with it.
+inline constexpr std::uint32_t kVertexStreamIndex = 30;
 
 // The device, as the command-list, pipeline and swapchain translation units see it. The definition
 // lives in metal_device.mm; this declaration is the seam between them, so each file can stay one
@@ -43,16 +49,16 @@ public:
                                              std::uint32_t sample_count) const override;
     [[nodiscard]] bool supports_dual_source_blend() const override;
     [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat format) const override;
-    // Metal has `[[buffer(n)]]` slots on the fragment stage, so a read-only storage buffer is
-    // expressible; the binding itself is not implemented yet (ADR-068 slice 2). Reporting false
-    // keeps a caller on the push-constant clip path instead of building a pipeline whose binding
-    // can never be satisfied. Flip this to true in the same change that implements
-    // bind_storage_buffer.
+    // A read-only storage buffer is a `[[buffer(n)]]` argument of the fragment function, which
+    // every Metal device has (ADR-068 slice 2, docs/design/gpu/metal-backend.md section 4.2). The
+    // pipeline-side requirement is that the program's MSL declares it; create_pipeline refuses a
+    // `PipelineDesc::storage_buffer` request for a program that does not.
     [[nodiscard]] bool supports_storage_buffers() const override {
-        return false;
+        return true;
     }
-    // RHI 1.20 (ADR-076): the gradient branch reads the record buffer, so Metal keeps the banded
-    // fallback until it answers true above (the default of supports_analytic_gradients() is false).
+    // RHI 1.20 (ADR-076): supports_analytic_gradients() stays at its default (false). The branch is
+    // in the cross-compiled batched2d MSL, but no Metal test renders a gradient quad, so the banded
+    // fallback remains until one does (docs/design/gpu/gradients.md section 4).
 
     [[nodiscard]] id<MTLDevice> device() const {
         return device_;
@@ -101,7 +107,7 @@ private:
 // release builds (docs/design/gpu/rhi.md section 6).
 class MetalBuffer final : public rhi::Buffer {
 public:
-    MetalBuffer(id<MTLBuffer> buffer, std::size_t size);
+    MetalBuffer(id<MTLBuffer> buffer, std::size_t size, rhi::BufferUsage usage);
 
     [[nodiscard]] std::size_t size() const override;
     void write(const void* data, std::size_t size, std::size_t offset) override;
@@ -110,12 +116,16 @@ public:
     [[nodiscard]] id<MTLBuffer> handle() const {
         return buffer_;
     }
+    [[nodiscard]] rhi::BufferUsage usage() const {
+        return usage_;
+    }
 
 private:
     void check_range(std::size_t size, std::size_t offset) const;
 
     id<MTLBuffer> buffer_;
     std::size_t size_;
+    rhi::BufferUsage usage_;
 };
 
 class MetalTexture final : public rhi::Texture {
@@ -146,9 +156,22 @@ private:
 class MetalPipeline final : public rhi::Pipeline {
 public:
     MetalPipeline(id<MTLRenderPipelineState> state, std::uint32_t sample_count,
-                  std::uint32_t push_constant_size);
+                  std::uint32_t push_constant_size, std::uint32_t fragment_push_constant_index,
+                  std::uint32_t fragment_storage_buffer_index);
 
     [[nodiscard]] std::uint32_t sample_count() const override;
+    // True when the program's MSL declares the read-only storage buffer and the descriptor asked
+    // for it (`PipelineDesc::storage_buffer`).
+    [[nodiscard]] bool declares_storage_buffer() const override {
+        return fragment_storage_buffer_index_ != kNoMslBuffer;
+    }
+    // The fragment `[[buffer(n)]]` slots of the push-constant block and the storage buffer.
+    [[nodiscard]] std::uint32_t fragment_push_constant_index() const {
+        return fragment_push_constant_index_;
+    }
+    [[nodiscard]] std::uint32_t fragment_storage_buffer_index() const {
+        return fragment_storage_buffer_index_;
+    }
     [[nodiscard]] id<MTLRenderPipelineState> state() const {
         return state_;
     }
@@ -160,6 +183,8 @@ private:
     id<MTLRenderPipelineState> state_;
     std::uint32_t sample_count_;
     std::uint32_t push_constant_size_;
+    std::uint32_t fragment_push_constant_index_;
+    std::uint32_t fragment_storage_buffer_index_;
 };
 
 class MetalRenderTarget final : public rhi::RenderTarget {

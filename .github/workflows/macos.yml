@@ -158,8 +158,10 @@ jobs:
 
       # The conformance entry is registered on every lane and skips when no Metal device exists.
       # On a hosted runner it may skip; the run is reported either way, and a skip is not a pass.
+      # -V prints every check's verdict, so a capability-gated check that skipped (no Metal device on
+      # the hosted runner) is distinguishable from one that ran and passed.
       - name: Conformance (Metal)
-        run: ctest --test-dir build/metal --output-on-failure -R gpu_conformance_metal
+        run: ctest --test-dir build/metal --output-on-failure -V -R gpu_conformance_metal
 
       - name: ccache statistics
         run: ccache --show-stats

@@ -141,7 +141,8 @@ void MetalDevice::mark_lost() {
 
 // --- buffers -----------------------------------------------------------------------------------
 
-MetalBuffer::MetalBuffer(id<MTLBuffer> buffer, std::size_t size) : buffer_(buffer), size_(size) {}
+MetalBuffer::MetalBuffer(id<MTLBuffer> buffer, std::size_t size, rhi::BufferUsage usage)
+    : buffer_(buffer), size_(size), usage_(usage) {}
 
 std::size_t MetalBuffer::size() const {
     return size_;
@@ -278,7 +279,7 @@ std::unique_ptr<rhi::Buffer> MetalDevice::create_buffer(const rhi::BufferDesc& d
     if (buffer == nil) {
         throw std::runtime_error("metal: newBufferWithLength failed");
     }
-    return std::make_unique<MetalBuffer>(buffer, desc.size);
+    return std::make_unique<MetalBuffer>(buffer, desc.size, desc.usage);
 }
 
 std::unique_ptr<rhi::Texture> MetalDevice::create_texture(const rhi::TextureDesc& desc) {
