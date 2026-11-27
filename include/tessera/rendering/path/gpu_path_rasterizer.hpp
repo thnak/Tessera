@@ -31,6 +31,11 @@ struct GpuPathRasterizerConfig {
     // Bound on the idle buffers the pool keeps between batches (capacity bytes); past it a returned
     // buffer is destroyed. 16 MiB holds a few dozen 256 px rasters or two 1024 px ones.
     std::uint64_t max_pooled_bytes = 16ULL * 1024ULL * 1024ULL;
+    // Device-resident geometry for document rasters (see GpuPathArena): fill edges, strokes and
+    // dashes of a document upload once and later rasters of it upload only their job record and
+    // path records. 0 disables it (every raster copies its geometry each flush, as before). A
+    // batch uses the resident copy only when every raster in it is resident.
+    std::uint64_t resident_bytes = 8ULL * 1024ULL * 1024ULL;
 };
 
 enum class GpuRasterError : std::uint8_t {
@@ -51,14 +56,18 @@ enum class GpuRasterError : std::uint8_t {
 class GpuPathRasterizer {
 public:
     struct Stats {
-        std::uint64_t jobs = 0;            // rasters submitted
-        std::uint64_t flushes = 0;         // submissions
-        std::uint32_t pending = 0;         // queued, not yet flushed
-        std::uint32_t in_flight = 0;       // flushed, not yet collected
-        std::uint32_t pipeline_slots = 0;  // pipeline sets created (one per batch in flight)
-        std::uint64_t buffers_created = 0; // device buffers allocated
-        std::uint64_t buffers_reused = 0;  // buffer requests served by the pool
-        std::uint64_t pooled_bytes = 0;    // idle buffer capacity held
+        std::uint64_t jobs = 0;             // rasters submitted
+        std::uint64_t flushes = 0;          // submissions
+        std::uint32_t pending = 0;          // queued, not yet flushed
+        std::uint32_t in_flight = 0;        // flushed, not yet collected
+        std::uint32_t pipeline_slots = 0;   // pipeline sets created (one per batch in flight)
+        std::uint64_t buffers_created = 0;  // device buffers allocated
+        std::uint64_t buffers_reused = 0;   // buffer requests served by the pool
+        std::uint64_t pooled_bytes = 0;     // idle buffer capacity held
+        std::uint64_t uploaded_bytes = 0;   // bytes the CPU wrote to device buffers, arena included
+        std::uint64_t resident_uploads = 0; // documents uploaded to the arena
+        std::uint64_t resident_hits = 0;    // document rasters served from the arena
+        std::uint32_t resident_documents = 0;
     };
 
     GpuPathRasterizer(rhi::Device& device, GpuPathPipelineDescs descs,

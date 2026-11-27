@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "gpu_path_arena.hpp"
 #include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_encoder.hpp"
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
@@ -74,17 +75,21 @@ struct GpuPathRasterizer::Impl {
         rhi::Texture* target = nullptr;
         rhi::Extent2D extent;
         std::size_t pitch = 0;
+        bool resident = false; // geometry lives in the arena at `slice`
+        GpuPathArena::Slice slice;
     };
 
     [[nodiscard]] std::expected<void, GpuRasterError>
     queue(std::shared_ptr<const EncodedGpuScene> scene, std::vector<std::uint32_t> paths,
-          float max_scale, rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes);
+          float max_scale, rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes,
+          bool resident_ok);
 
     struct Flight {
         std::unique_ptr<rhi::CommandList> list;
         std::unique_ptr<Slot> slot;
         std::array<std::unique_ptr<rhi::Buffer>, kBufferCount> buffers;
         std::uint32_t jobs = 0;
+        bool uses_arena = false; // bindings 0, 4 and 5 are the arena's, not this flight's
     };
 
     Impl(rhi::Device& target_device, GpuPathPipelineDescs pipeline_descs,
@@ -93,6 +98,33 @@ struct GpuPathRasterizer::Impl {
           descs(pipeline_descs),
           config(cache_config) {
         config.max_jobs_per_batch = std::clamp(config.max_jobs_per_batch, 1U, kMaxGroups);
+        if (config.resident_bytes != 0) {
+            arena = std::make_unique<GpuPathArena>(device, config.resident_bytes);
+        }
+    }
+
+    // True while a queued or in-flight raster reads the arena's buffers, so it must not be reset.
+    [[nodiscard]] bool arena_busy() const {
+        return std::any_of(pending.begin(), pending.end(),
+                           [](const Job& job) { return job.resident; }) ||
+               std::any_of(in_flight.begin(), in_flight.end(),
+                           [](const auto& flight) { return flight->uses_arena; });
+    }
+
+    // Makes `job`'s geometry resident, resetting a full arena when nothing reads it.
+    void make_resident(Job& job) {
+        if (!arena) {
+            return;
+        }
+        auto slice = arena->acquire(job.scene);
+        if (!slice && !arena_busy()) {
+            arena->reset();
+            slice = arena->acquire(job.scene);
+        }
+        if (slice) {
+            job.resident = true;
+            job.slice = *slice;
+        }
     }
 
     [[nodiscard]] std::unique_ptr<Slot> take_slot() {
@@ -189,6 +221,8 @@ struct GpuPathRasterizer::Impl {
     [[nodiscard]] std::unique_ptr<Flight> pack_and_record() {
         const std::uint32_t count = static_cast<std::uint32_t>(pending.size());
         const Totals total = totals_of(pending);
+        const bool all_resident = arena && std::all_of(pending.begin(), pending.end(),
+                                                       [](const Job& job) { return job.resident; });
         const auto words = [](std::uint64_t value, std::size_t minimum) {
             return std::max<std::size_t>(static_cast<std::size_t>(value), minimum) *
                    sizeof(std::uint32_t);
@@ -196,12 +230,16 @@ struct GpuPathRasterizer::Impl {
 
         auto flight = std::make_unique<Flight>();
         flight->jobs = count;
-        flight->buffers[kSegs] = acquire_buffer(words(total.segs, kGpuSegWords), false);
+        flight->uses_arena = all_resident;
+        if (!all_resident) {
+            flight->buffers[kSegs] = acquire_buffer(words(total.segs, kGpuSegWords), false);
+            flight->buffers[kStrokes] =
+                acquire_buffer(words(total.strokes, kGpuStrokeWords), false);
+            flight->buffers[kDashes] = acquire_buffer(words(total.dashes, kGpuDashWords), false);
+        }
         flight->buffers[kPaths] = acquire_buffer(words(total.paths, kGpuPathWords), false);
         flight->buffers[kWork] = acquire_buffer(words(total.work, 1), true);
         flight->buffers[kOutput] = acquire_buffer(words(total.output, 1), true);
-        flight->buffers[kStrokes] = acquire_buffer(words(total.strokes, kGpuStrokeWords), false);
-        flight->buffers[kDashes] = acquire_buffer(words(total.dashes, kGpuDashWords), false);
         flight->buffers[kJobs] =
             acquire_buffer(static_cast<std::size_t>(count) * sizeof(PathRasterJob), false);
 
@@ -215,6 +253,7 @@ struct GpuPathRasterizer::Impl {
         const auto put = [&](std::size_t binding, const std::vector<std::uint32_t>& data,
                              std::uint64_t at) {
             if (!data.empty()) {
+                uploaded_bytes += data.size() * sizeof(std::uint32_t);
                 flight->buffers[binding]->write(data.data(), data.size() * sizeof(std::uint32_t),
                                                 static_cast<std::size_t>(at) *
                                                     sizeof(std::uint32_t));
@@ -224,16 +263,23 @@ struct GpuPathRasterizer::Impl {
             const Job& job = pending[index];
             PathRasterJob& record = records[index];
             record.push = job.layout.push;
-            record.seg_base = static_cast<std::uint32_t>(base.segs);
+            record.seg_base = job.resident && all_resident ? job.slice.segs
+                                                           : static_cast<std::uint32_t>(base.segs);
             record.path_base = static_cast<std::uint32_t>(base.paths);
             record.work_base = static_cast<std::uint32_t>(base.work);
             record.out_base = static_cast<std::uint32_t>(base.output);
-            record.stroke_base = static_cast<std::uint32_t>(base.strokes);
-            record.dash_base = static_cast<std::uint32_t>(base.dashes);
-            put(kSegs, job.scene->segs, base.segs);
+            record.stroke_base = job.resident && all_resident
+                                     ? job.slice.strokes
+                                     : static_cast<std::uint32_t>(base.strokes);
+            record.dash_base = job.resident && all_resident
+                                   ? job.slice.dashes
+                                   : static_cast<std::uint32_t>(base.dashes);
+            if (!all_resident) {
+                put(kSegs, job.scene->segs, base.segs);
+                put(kStrokes, job.scene->strokes, base.strokes);
+                put(kDashes, job.scene->dashes, base.dashes);
+            }
             put(kPaths, job.paths, base.paths);
-            put(kStrokes, job.scene->strokes, base.strokes);
-            put(kDashes, job.scene->dashes, base.dashes);
             base.segs += job.scene->segs.size();
             base.paths += job.paths.size();
             base.strokes += job.scene->strokes.size();
@@ -246,6 +292,7 @@ struct GpuPathRasterizer::Impl {
             max_width = std::max(max_width, job.extent.width);
             max_height = std::max(max_height, job.extent.height);
         }
+        uploaded_bytes += records.size() * sizeof(PathRasterJob);
         flight->buffers[kJobs]->write(records.data(), records.size() * sizeof(PathRasterJob));
 
         flight->slot = take_slot();
@@ -260,7 +307,11 @@ struct GpuPathRasterizer::Impl {
             list.bind_compute_pipeline(pipeline);
             for (std::uint32_t binding = 0; binding < kBufferCount; ++binding) {
                 if ((used & (1U << binding)) != 0U) {
-                    list.bind_compute_buffer(binding, *flight->buffers[binding]);
+                    const bool resident =
+                        flight->uses_arena &&
+                        (binding == kSegs || binding == kStrokes || binding == kDashes);
+                    list.bind_compute_buffer(binding, resident ? arena->buffer(binding)
+                                                               : *flight->buffers[binding]);
                 }
             }
             list.compute_push_constants(&job_base, sizeof(job_base));
@@ -310,6 +361,8 @@ struct GpuPathRasterizer::Impl {
     std::uint64_t pooled_bytes = 0;
     std::uint64_t buffers_created = 0;
     std::uint64_t buffers_reused = 0;
+    std::unique_ptr<GpuPathArena> arena; // null when resident_bytes is 0
+    std::uint64_t uploaded_bytes = 0;
     std::vector<Job> pending;
     std::vector<std::unique_ptr<Flight>> in_flight;
     std::uint64_t jobs = 0;
@@ -337,7 +390,8 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
         encode_gpu_scene(gpu_scene_from_shapes(shapes), extent.width, extent.height));
     std::vector<std::uint32_t> paths = std::move(scene->paths);
     scene->paths.clear();
-    return impl_->queue(std::move(scene), std::move(paths), 1.0f, target, extent, max_row_nodes);
+    return impl_->queue(std::move(scene), std::move(paths), 1.0f, target, extent, max_row_nodes,
+                        false);
 }
 
 std::expected<void, GpuRasterError>
@@ -354,12 +408,12 @@ GpuPathRasterizer::enqueue(std::shared_ptr<const GpuPathDocument> document, floa
         make_path_records(document->encoded, matrices, extent.width, extent.height);
     std::shared_ptr<const EncodedGpuScene> scene(document, &document->encoded);
     return impl_->queue(std::move(scene), std::move(paths), document->max_scale, target, extent,
-                        max_row_nodes);
+                        max_row_nodes, true);
 }
 
 std::expected<void, GpuRasterError> GpuPathRasterizer::Impl::queue(
     std::shared_ptr<const EncodedGpuScene> scene, std::vector<std::uint32_t> paths, float max_scale,
-    rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes) {
+    rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes, bool resident_ok) {
     if (!GpuPathRasterizer::supported(device)) {
         return std::unexpected(GpuRasterError::unsupported);
     }
@@ -383,6 +437,9 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::Impl::queue(
     job.layout = *layout;
     job.target = &target;
     job.extent = extent;
+    if (resident_ok) {
+        make_resident(job);
+    }
     if (!fits(job)) {
         return std::unexpected(GpuRasterError::batch_full);
     }
@@ -457,6 +514,14 @@ GpuPathRasterizer::Stats GpuPathRasterizer::stats() const {
     stats.buffers_created = impl_->buffers_created;
     stats.buffers_reused = impl_->buffers_reused;
     stats.pooled_bytes = impl_->pooled_bytes;
+    stats.uploaded_bytes = impl_->uploaded_bytes;
+    if (impl_->arena) {
+        const auto arena = impl_->arena->stats();
+        stats.uploaded_bytes += arena.uploaded_bytes;
+        stats.resident_uploads = arena.uploads;
+        stats.resident_hits = arena.hits;
+        stats.resident_documents = arena.documents;
+    }
     return stats;
 }
 

@@ -281,6 +281,42 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
                                     std::to_string(worst) + ")") &&
              ok;
         ok = expect(is(both, 20, 5, 200, 40, 90), "the scaled document fills its rectangle") && ok;
+        // The document is resident after its first raster: a second raster at another scale, in a
+        // later flush, uploads only its job record and path records.
+        const auto before = docs.stats();
+        ok = expect(before.resident_uploads == 1 && before.resident_documents == 1,
+                    "the document was uploaded to the arena once") &&
+             ok;
+        auto other = blank_texture(device, {24, 16});
+        ok = expect(docs.enqueue(document, 2.0f, *other.texture, {24, 16}).has_value() &&
+                        docs.flush().has_value(),
+                    "a second scale of the same document") &&
+             ok;
+        wait_collect(docs, device);
+        const auto after = docs.stats();
+        const std::uint64_t expected_bytes =
+            sizeof(path::PathRasterJob) + document->encoded.path_count * path::kGpuPathWords * 4U;
+        ok =
+            expect(after.resident_uploads == 1 && after.resident_hits == before.resident_hits + 1 &&
+                       after.uploaded_bytes - before.uploaded_bytes == expected_bytes,
+                   "a resident raster uploads only its job and path records (" +
+                       std::to_string(after.uploaded_bytes - before.uploaded_bytes) + " vs " +
+                       std::to_string(expected_bytes) + ")") &&
+            ok;
+        // A batch mixing a resident and a legacy raster still renders both correctly.
+        auto mixed = blank_texture(device, big);
+        auto mixed_legacy = blank_texture(device, big);
+        ok = expect(docs.enqueue(document, 3.0f, *mixed.texture, big).has_value() &&
+                        docs.enqueue(scaled, *mixed_legacy.texture, big).has_value() &&
+                        docs.flush().has_value(),
+                    "mixed resident and legacy batch") &&
+             ok;
+        wait_collect(docs, device);
+        std::vector<Raster> mixed_pair;
+        mixed_pair.push_back(std::move(mixed));
+        mixed_pair.push_back(std::move(mixed_legacy));
+        ok = expect(draw(device, mixed_pair) == both, "a mixed batch matches the resident batch") &&
+             ok;
         ok = expect(!docs.enqueue(document, 8.0f, *pair[1].texture, big).has_value(),
                     "a scale above the document's bound is refused") &&
              ok;
