@@ -320,6 +320,16 @@ of 496 buffer requests only because the measurement raises `max_pooled_bytes` to
 default 16 MiB bound destroys a 4K output buffer (33 MB, 64 MiB pooled) after every flush, so a
 4K consumer must set the bound (or the default should follow the largest live target).
 
+**Integration as built.** The app already routes vectors through this: `VectorStack`
+(`src/app/window_vector.cpp`) owns the `GpuPathRasterizer` and attaches it to the
+`PathTextureCache`, `PaintSink` vector draws and `Icon` acquire textures, and the GPU copy fills
+them before the frame that samples them. The result is an ordinary textured quad, so clip state
+(ADR-068), the sRGB/UNORM rule and the batched 2D renderer apply unchanged, and null and
+`CpuCanvas` keep the ThorVG route. A separate `PathRenderer` seam that blends paths straight into
+the frame target would drop the intermediate texture but would need its own clip and blend handling;
+nothing measured needs it, so it is not built and the issue's item 3 is met by the texture route.
+`VectorStack` raises the rasterizer's pool bound to 96 MiB so a 4K output buffer is kept.
+
 ## Alternatives, to be measured on the same 4K scenes
 
 | option | expected problem | status |
