@@ -108,9 +108,14 @@ struct GlassBackdropDraw {
 // (the target holds the straight-alpha blur the composite pass reads); `composite` draws into the
 // frame target with alpha blending, so the rounded clip antialiases and `opacity` folds into the
 // result. Both are borrowed for the renderer's lifetime, like the 2D pipeline.
+//
+// `mask` is the composite program with `BlendMode::DestinationIn` (RHI 1.19): it multiplies a layer
+// target by the alpha of a mask target (issue #617). Optional; without it a masked layer paints
+// unmasked and the caller counts the mask as unsupported.
 struct GlassPipelines {
     rhi::Pipeline* blur = nullptr;
     rhi::Pipeline* composite = nullptr;
+    rhi::Pipeline* mask = nullptr;
 };
 
 // The push-constant block `glass_blur.frag` reads, one block per pass. It mirrors the shader's

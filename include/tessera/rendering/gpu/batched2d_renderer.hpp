@@ -165,6 +165,25 @@ public:
     // the group still fades and only overlapping content differs. Nothing throws or blocks.
     void push_layer(const rhi::Rect& box, float opacity);
     void pop_layer();
+    // Masks the innermost open isolated layer (issue #617). begin_layer_mask() redirects drawing to
+    // a second pooled target cleared to transparent and returns true; everything drawn until
+    // end_layer_mask() is the mask image (ordinary draws, ordinary alpha blending).
+    // end_layer_mask() then multiplies the layer by the mask's alpha (RHI 1.19 `DestinationIn`), so
+    // the group composites through the mask at the matching pop_layer(). Call it after the layer's
+    // content and before pop_layer(); layers must not be pushed inside it.
+    //
+    // Returns false, recording nothing, when the mask cannot run: the innermost layer is flat or
+    // already masked, no mask pipeline is configured, or the bounded pool has no free target. The
+    // caller then skips the mask draws, so the group paints unmasked (a documented fallback,
+    // counted in layer_masks_unsupported()), and must not call end_layer_mask().
+    [[nodiscard]] bool begin_layer_mask();
+    void end_layer_mask();
+    [[nodiscard]] std::uint32_t layer_masks_applied() const {
+        return layer_masks_applied_;
+    }
+    [[nodiscard]] std::uint32_t layer_masks_unsupported() const {
+        return layer_masks_unsupported_;
+    }
     // True when layers can be isolated by this renderer at all (composite pipeline and pool).
     [[nodiscard]] bool layers_supported() const;
     // Layers of this frame that opened an offscreen target / painted flat.
@@ -387,8 +406,15 @@ private:
         const rhi::RenderTarget* parent_target = nullptr;
         rhi::RenderTargetDesc parent_desc;
         rhi::RenderTarget* layer_target = nullptr;
+        rhi::RenderTargetDesc layer_desc;
         rhi::Scissor region;
+        // The mask target while begin_layer_mask() is open, and whether this layer was masked.
+        rhi::RenderTarget* mask_target = nullptr;
+        bool masked = false;
     };
+    // The scissors a layer composites (or is masked) through: the frame clip intersected with the
+    // layer's region, and with each damage region when the frame is damage-clipped.
+    [[nodiscard]] std::vector<rhi::Scissor> layer_scissors(const LayerFrame& layer) const;
     // Device-space pixel bounds of a paint-space box under the active transform and content scale,
     // clamped to the frame.
     [[nodiscard]] rhi::Scissor device_region(const rhi::Rect& box) const;
@@ -416,6 +442,8 @@ private:
     float alpha_scale_ = 1.0f;
     std::uint32_t layers_isolated_ = 0;
     std::uint32_t layers_flat_ = 0;
+    std::uint32_t layer_masks_applied_ = 0;
+    std::uint32_t layer_masks_unsupported_ = 0;
     ClipStateTable clips_;
     // Scaled vertices of the shape being pushed, reused so a content-scaled push allocates nothing
     // once it has grown to the largest polygon.

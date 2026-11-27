@@ -261,6 +261,7 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
         return false;
     }
     glass_blur_pipeline_ = std::move(glass.blur);
+    glass_mask_pipeline_ = std::move(glass.mask);
     glass_composite_pipeline_ = std::move(glass.composite);
 
     rendering::gpu::Batched2DConfig renderer_config{4096, true, false};
@@ -275,8 +276,8 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
 
     renderer_ = std::make_unique<rendering::gpu::Batched2DRenderer>(
         *device_, *pipeline_, *white_, renderer_config,
-        rendering::gpu::GlassPipelines{glass_blur_pipeline_.get(),
-                                       glass_composite_pipeline_.get()});
+        rendering::gpu::GlassPipelines{glass_blur_pipeline_.get(), glass_composite_pipeline_.get(),
+                                       glass_mask_pipeline_.get()});
     renderer_->set_lcd_pipeline(lcd_pipeline_.get());
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation
     // instead of reusing an atlas whose images died with the old device.
@@ -302,6 +303,7 @@ void WindowDevice::release_presentation() {
     pipeline_.reset();
     present_pipeline_.reset();
     lcd_pipeline_.reset();
+    glass_mask_pipeline_.reset();
     glass_blur_pipeline_.reset();
     glass_composite_pipeline_.reset();
     format_ = rhi::TextureFormat::R8G8B8A8Unorm;

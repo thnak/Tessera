@@ -210,6 +210,22 @@ slice behavior + tests + docs, nothing user-visible until the last:
    GPU path to the existing tolerance.
 4. **Group opacity becomes isolated (landed behind `PaintContext::isolate_group_opacity`, default false, issue #227 slice 4).** `paint_node` opens a layer after the node's transform push and before its backdrop, shadow and box paint, closes it after the children, the clip pop and before the transform pop; the node's own opacity moves to the layer and the primitives inside carry only the ancestor product; text inside a layer is grayscale (`PaintScope::in_layer`); `isolate_groups` and `in_layer` are part of the paint-cache key. The box is the whole frame for now (the renderer clamps it to the frame, the clip and the damage). A culled node still fades its visible children flat. Tests: `paint_layer_pass` and the paint-path case of `layer_gpu`. Original scope: **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
    same seam; the §14.1 product rule stays the fallback.
+5a. **Renderer mask path (landed, issue #617 slice 2; RHI 1.19).** `Batched2DRenderer::begin_layer_mask()` /
+   `end_layer_mask()` (`src/rendering/gpu/batched2d_layer_mask.cpp`), called after a layer's content and
+   before its `pop_layer()`. The mask image is drawn as ordinary content into a second pooled target
+   cleared to transparent, so seams, anti-aliasing and overlaps are the normal blend's (a mask drawn
+   straight into the layer with a destination-in blend would multiply at every AA edge and seam). At
+   `end_layer_mask()` that target is sampled into the layer target by the composite program
+   (`glass_blur.frag` mode 2, opacity 1) through a pipeline with `BlendMode::DestinationIn`
+   (`GlassPipelines::mask`), which scales every channel of the premultiplied layer by the mask's alpha:
+   `mask-mode: alpha`. No new shader, descriptor or capability. A mask that cannot run (no mask
+   pipeline, a flat or already-masked layer, no second pooled target) returns false and records
+   nothing, so the caller skips the mask draws and the group paints unmasked, counted in
+   `layer_masks_unsupported()`. Cost: one more pooled target and one fullscreen draw per masked layer
+   (the pool of 4 holds two masked layers a frame). Tests: `layer_mask_null` (skeleton and every
+   fallback) and `layer_mask_gpu` (opaque, half and undrawn mask, composition with opacity, the
+   unmasked fallback, repeated frames, validation clean). Still open: the sink seam and paint-cache ops
+   for a mask, then the `mask-image` property.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe

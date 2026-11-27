@@ -97,6 +97,7 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
     desc.sample_count = 1;
     desc.load_op = rhi::LoadOp::Clear;
     desc.clear_color = rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
+    layer.layer_desc = desc;
     frame_target_ = target;
     frame_desc_ = desc;
     commands_->begin_render_pass(*target, desc);
@@ -104,6 +105,22 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
     bind_frame_state();
     ++layers_isolated_;
     layers_.push_back(layer);
+}
+
+std::vector<rhi::Scissor> Batched2DRenderer::layer_scissors(const LayerFrame& layer) const {
+    std::vector<rhi::Scissor> scissors;
+    const rhi::Scissor limited = rhi::intersect(scissor_, layer.region);
+    if (damage_regions_.empty()) {
+        scissors.push_back(limited);
+    } else {
+        for (const rhi::Scissor& damage : damage_regions_) {
+            const rhi::Scissor part = rhi::intersect(limited, damage);
+            if (part.width > 0 && part.height > 0) {
+                scissors.push_back(part);
+            }
+        }
+    }
+    return scissors;
 }
 
 void Batched2DRenderer::pop_layer() {
@@ -129,18 +146,7 @@ void Batched2DRenderer::pop_layer() {
     pass_broken_ = true;
     bound_pipeline_ = nullptr;
 
-    std::vector<rhi::Scissor> scissors;
-    const rhi::Scissor limited = rhi::intersect(scissor_, layer.region);
-    if (damage_regions_.empty()) {
-        scissors.push_back(limited);
-    } else {
-        for (const rhi::Scissor& damage : damage_regions_) {
-            const rhi::Scissor part = rhi::intersect(limited, damage);
-            if (part.width > 0 && part.height > 0) {
-                scissors.push_back(part);
-            }
-        }
-    }
+    const std::vector<rhi::Scissor> scissors = layer_scissors(layer);
 
     GlassCompositor::FrameContext frame;
     frame.commands = commands_;
