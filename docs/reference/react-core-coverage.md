@@ -27,6 +27,10 @@ rejection reason is a parser gap (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`) that thi
 list at all.
 
 
+A second corpus (43 files in everyday TypeScript idiom, [measurement note](../design/react-port-corpus-measurement.md))
+adds the rows marked **measured, corpus 2** below: type-grammar and function-value forms the first
+corpus did not exercise. As written it is accepted 34.9% at the front end and 4.7% through the pipeline.
+
 ## 1. Hooks
 
 | React feature | Today | V1 | Cost | Notes |
@@ -66,6 +70,13 @@ list at all.
 | Portals | rejected | no | | The Layer host (ADR-064 tier 0) and `Overlay` cover it |
 | Class components, `async` components | rejected | no | | By design (ADR-036) |
 | Error boundaries | `ErrorBoundary` intrinsic with `fallback` | keep | | Not the class lifecycle API |
+| Qualified type names `React.ReactNode`, `React.FC<P>`, `React.MouseEvent` | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured, corpus 2: 3 of 43 files) | add | S | Not a React feature: the type grammar has no `A.B`. Resolve to the named type or accept and ignore `React.`; `children` typed `ReactNode` is `TESSERA_IR_SLOT` (write `Children`) |
+| `as const` on a returned tuple, `forwardRef<T, P>(...)` generic call | rejected (`TESSERA_JSX_PARSE_MISSING_SEMICOLON`, measured, corpus 2: 3 files) | `as const` add; `forwardRef` stays no | S | `as const` appears in custom hooks that return a tuple |
+| Rest in a destructuring pattern, array spread `[...rows]` | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured, corpus 2: 2 files) | no | | Keys must be known at compile time (spread props); `[...rows].sort()` copies to sort, and `sort` is later |
+| Bare `number` type | rejected (`TESSERA_JSX_TYPE_NUMBER`, measured, corpus 2: the first error of 11 of 43 files) | no (decided) | | Write `int` or `float` (`jsx-subset-v1.md` section 5). Listed because it hides every later row in a port: the measurement note reports a second run with it rewritten |
+| Functional state updater `setN(prev => prev + 1)`, inner `function`, `memo(function Row() {})` | rejected (`TESSERA_IR_UNSUPPORTED` or `TESSERA_JSX_SUBSET_FUNCTION_VALUE`, measured, corpus 2: 3 of 43 files) | add the updater (M); named function expression as an argument: later | M | The updater is the most common React state idiom: it reads the cell and writes the cell, so it lowers to `set(cell, f(cell))` for a pure arrow |
+| `createContext("x")` without a type argument, `useState(prop)` without one | rejected (`TESSERA_REACT_CONTEXT_FORM`, `TESSERA_IR_UNSUPPORTED`, measured, corpus 2: 2 files) | add inference from a literal or a typed prop | S | The message names the fix; the cost is a port edit, not a missing form |
+| Component-body `if` early return, `switch`, `for` | rejected (`TESSERA_JSX_SUBSET_STATEMENT`, measured, corpus 2: 3 of 43 files) | no (decided; handler control flow is section 5) | | The most common reason a real component is not a single return expression |
 | Module-scope helper functions | accepted (a lowercase `function` is a helper, not a component) | keep | | Not a React form: the parser used to treat every `function` declaration as a component, so a lowercase helper was a badly named component. A lowercase name now makes it a helper, whose body is skipped rather than lowered |
 | Destructured local `const { a } = b` | accepted (a rename inside the pattern is refused) | keep | | Not a React form: the parser accepted only a name or `[` after `const`. Each listed field binds the field of the same name; `{ a: c }` is `TESSERA_JSX_SUBSET_STATEMENT` because the subset has no rename form |
 | `readonly` type modifier | accepted and dropped | keep | | Not a React form: the type grammar had no `readonly`. It changes nothing the IR can express, so it is accepted rather than rejected |
@@ -98,6 +109,7 @@ list at all.
 | `??`, `?.` | rejected (`TESSERA_JSX_SUBSET_OPERATOR`, measured) | add | S | They map onto `optional<T>`: `a ?? b` and `a?.b` as IR expressions with a type rule |
 | String and number methods (`trim`, `toFixed`, `parseInt`) | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the call) | add a small allowlist | M | Total functions only (`trim`, `toUpperCase`, `toLowerCase`, `startsWith`, `slice`, `toFixed`, `parseIntOr`, `parseFloatOr`). A lowering row, not a parser row |
 | Object spread `{...state, x}` | rejected (`TESSERA_JSX_SUBSET_LITERAL`, measured) | add for records | M | Record update with known fields; needed by `useReducer` |
+| `.includes`, `.reduce`, `Math.max`/`Math.min`, `src={url}` | rejected (`TESSERA_JSX_SUBSET_ARRAY_METHOD`, `TESSERA_IR_UNSUPPORTED`, measured, corpus 2: 4 files) | later | M | Total functions of the string and number allowlist (section 4); `reduce` is a loop with an accumulator and stays native |
 | `style={{...}}` literal | accepted | keep | | A computed or spread style: no (keys must be static) |
 | `dangerouslySetInnerHTML`, `title`, `data-*` | rejected | no | | No V1 meaning |
 
@@ -143,6 +155,11 @@ because they are the first rejection of more files than any single React row.
 
 Items 4 and 5 change the IR allowlist and the handler IR, so each needs a short ADR or a spec change
 before code; items 1, 2, 3 and 6 do not change the IR except `Environment` for context.
+
+**Second corpus (43 files, 2026-11-27).** The data adds a step 1b before the rest: the next layer of
+type-grammar gaps (qualified names, `as const`, rest and array spread) and function-value forms, which
+no row above named; the rows are marked **measured, corpus 2**. Reducer and context are the smallest
+groups in the data and stay last. See [the measurement note](../design/react-port-corpus-measurement.md).
 
 **What the measurement also showed.** 12 of the 21 files the front end accepts fail later, and the
 reasons are schema and lowering rows (`TESSERA_IR_UNKNOWN_PROP`, `TESSERA_IR_UNSUPPORTED`,
