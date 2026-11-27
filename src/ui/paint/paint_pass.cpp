@@ -317,8 +317,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     child_scope.in_layer = scope.in_layer || isolate_group;
     if (isolate_group) {
         constexpr float kReach = 1.0e6f;
-        const LayerDraw layer{
-            {-kReach, -kReach, 2.0f * kReach, 2.0f * kReach}, own_opacity, filter};
+        const rhi::Rect whole_frame{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach};
+        const LayerDraw layer{retaining ? detail::retained_layer_box(node, rect) : whole_frame,
+                              own_opacity, filter};
         if (retaining &&
             detail::push_layer_retained(*own, node, *signature, layer, masked, pass.retain_epoch)) {
             // The sink composites the pixels it holds at the pop: no box, children or mask.

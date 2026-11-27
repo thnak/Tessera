@@ -5,6 +5,7 @@
 #include "tessera/rendering/gpu/layer_filter.hpp"
 #include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/paint/layer_retention.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
@@ -377,16 +378,6 @@ struct LayerDraw {
     rendering::gpu::LayerFilterChain filter = {};
 };
 
-// The identity of a retainable layer (issue #617, docs/design/gpu/offscreen-layers.md section 5.6):
-// `owner` is the scene node, `key` folds every input of the layer's pixels the pass can see (its
-// signature, opacity, filter and the cache generation), `clean` says the node and its subtree are
-// unchanged since the last paint.
-struct LayerRetention {
-    std::uint64_t owner = 0;
-    std::uint64_t key = 0;
-    bool clean = false;
-};
-
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -486,12 +477,10 @@ public:
     virtual void push_layer(const LayerDraw& /*layer*/) {}
     virtual void pop_layer() {}
 
-    // Retained layers (issue #617, offscreen-layers.md section 5.6). Called right before the
-    // push_layer() of a node that may keep its pixels. True means the sink already holds this
-    // layer's finished pixels: the next push_layer()/pop_layer() composite them, and the pass must
-    // emit nothing in between (no content, no children, no mask). False (the default) means draw
-    // the layer as usual; a clean node may then be kept by the sink, a dirty one is dropped from
-    // it.
+    // Retained layers (issue #617, offscreen-layers.md section 5.6), asked right before the
+    // push_layer() of a node that may keep its pixels. True: the sink holds the finished layer, so
+    // push_layer()/pop_layer() composite it and nothing may be emitted between them. False (the
+    // default): draw it; a clean node may be kept, a dirty one is dropped.
     [[nodiscard]] virtual bool retain_layer(const LayerRetention& /*retention*/) {
         return false;
     }

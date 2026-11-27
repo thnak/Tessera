@@ -3,6 +3,7 @@
 #include "paint_layer_retention.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <cmath>
 #include <cstring>
 
 namespace tessera::ui::paint::detail {
@@ -86,6 +87,16 @@ std::uint64_t layer_retention_key(const PaintCacheSignature& s, float own_opacit
     }
     h.add(epoch);
     return h.state;
+}
+
+rhi::Rect retained_layer_box(const Node& node, const rhi::Rect& rect) {
+    const rhi::Rect local = node.subtree_paint_bounds();
+    if (!std::isfinite(local.x) || !std::isfinite(local.y) || !std::isfinite(local.width) ||
+        !std::isfinite(local.height) || local.width <= 0.0f || local.height <= 0.0f) {
+        constexpr float kReach = 1.0e6f;
+        return rhi::Rect{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach};
+    }
+    return rhi::Rect{rect.x + local.x, rect.y + local.y, local.width, local.height};
 }
 
 bool push_layer_retained(PaintSink& sink, const Node& node, const PaintCacheSignature& signature,

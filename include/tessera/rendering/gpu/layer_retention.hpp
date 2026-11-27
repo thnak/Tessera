@@ -29,7 +29,7 @@ namespace tessera::rendering::gpu {
 // like a regrown pool target; nothing is destroyed under the GPU and nothing blocks.
 struct RetainedLayerConfig {
     // Entries held at once; 0 disables retention.
-    std::uint32_t max_entries = 8;
+    std::uint32_t max_entries = 32;
     // Bytes of all retained targets together; 0 means only the pool's own cap applies.
     std::uint64_t max_bytes = 64ull * 1024 * 1024;
     // Frames of non-use after which an entry is released; 0 never.

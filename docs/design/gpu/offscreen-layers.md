@@ -527,6 +527,21 @@ every primitive of the subtree, no offscreen target ([`../paint-pass.md`](../pai
 section 14.1) - so true group isolation, shared-element snapshots and stacking contexts still
 wait on this seam.
 
+### 5.6 Retained layers (#617)
+
+A masked, filtered or isolated-opacity node whose subtree is unchanged keeps its finished pixels
+between frames: `PaintSink::retain_layer` asks the sink before the layer opens, a "yes" skips the
+node's box, children and mask, and `pop_layer` composites an exact-size retained target
+(`glass_blur.frag` mode 2 with the entry's origin; no new shader, pipeline or RHI call). An entry is
+keyed by the node's whole paint signature, dropped when the node or a descendant is dirty, and
+bounded by `Batched2DConfig::max_retained_layers` (32) and `max_retained_bytes` (64 MiB), both inside
+`max_offscreen_bytes`; it is evicted LRU (never within its own frame), trimmed idle and on resize,
+and destroyed only after its frames in flight. Measured at 1080p with 16 masked and blurred cards,
+a steady full redraw drops from 65 to 17 passes and from 10.4 ms to 0.9 ms on a Radeon RX 5300M. The
+design, the invalidation table, the budget rules and the numbers are in
+[`offscreen-layers-retention.md`](offscreen-layers-retention.md). Tests: `layer_retain_null`,
+`paint_layer_retain`, `layer_retain_gpu`.
+
 ## 6. Testing and determinism
 
 - `tests/gpu/batched2d/renderer_seam_tests.cpp` (null, always runs): break/copy/resume records two

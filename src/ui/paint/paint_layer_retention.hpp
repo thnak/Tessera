@@ -21,6 +21,13 @@
 
 namespace tessera::ui::paint::detail {
 
+// The paint-space box a retained layer covers: the node's subtree paint box (the superset the paint
+// cull and the damage pass already rely on) placed at the node's origin `rect`. A layer the paint
+// pass opens without retention keeps the frame-sized box and lets the renderer clamp it; a retained
+// layer is stored at its own size, so a frame-sized box would cost a whole frame of memory per
+// node. An unbounded subtree (text that may overflow) has no box and falls back to the whole frame.
+[[nodiscard]] rhi::Rect retained_layer_box(const Node& node, const rhi::Rect& rect);
+
 // Asks `sink` whether it retains the node's layer, then pushes the layer either way. True: the sink
 // holds the pixels, so the caller pops the layer at once and paints nothing inside it.
 [[nodiscard]] bool push_layer_retained(PaintSink& sink, const Node& node,

@@ -716,6 +716,20 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_composite_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME layer_mask_composite_gpu COMMAND layer_mask_composite_gpu_tests)
     set_tests_properties(layer_mask_composite_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Retained layers (issue #617, offscreen-layers.md section 5.6) on a real device: a retained frame
+    # is byte-identical to the uncached paint across full, damage-clipped and changed frames. Skips
+    # without a Vulkan device.
+    add_executable(layer_retain_gpu_tests
+        batched2d/layer_retain_gpu_tests.cpp)
+    target_link_libraries(layer_retain_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_retain_gpu COMMAND layer_retain_gpu_tests)
+    set_tests_properties(layer_retain_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Frame cost of retained layers, retained vs uncached on the null backend and Vulkan. A tool for the
+    # measurements in docs/design/gpu/offscreen-layers-retention.md, not a test.
+    add_executable(layer_retain_bench
+        batched2d/layer_retain_bench.cpp)
+    target_link_libraries(layer_retain_bench PRIVATE tessera_gpu tessera_paint tessera_rhi_null
+                          tessera_rhi_vulkan)
     # Per-fragment gradients (ADR-076) on a real device: every kind against the CPU twin, the ramp
     # rules, transforms, clips, one-draw batching, the table limit and frames in flight. Skips
     # without a Vulkan device.
