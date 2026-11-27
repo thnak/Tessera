@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/mask_composite.hpp"
+#include "tessera/rendering/gpu/layer_filter.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 
@@ -45,5 +46,12 @@ void apply_layer_mask(CpuCanvas& black, CpuCanvas& white, const CpuCanvas& mask_
 // All four canvases must have the same size, otherwise nothing happens.
 void combine_mask_part(CpuCanvas& mask_black, CpuCanvas& mask_white, const CpuCanvas& part_black,
                        const CpuCanvas& part_white, gpu::MaskCompositeOp op);
+// `filter` colour functions (brightness() ... opacity(), issue #617): applies the functions of `op`
+// (a Kind::ColorFunctions op, see gpu/color_filter.hpp) in order to the layer's straight-alpha
+// colour, which is recovered from the pair (P = black, A = 1 - (white - black)), then writes the
+// result back as the pair of the new premultiplied colour and alpha. Like the GPU pass it runs
+// before the mask and the opacity, and a pixel the layer never drew stays untouched. The canvases
+// must have the same size, otherwise nothing happens.
+void apply_layer_color_filter(CpuCanvas& black, CpuCanvas& white, const gpu::LayerFilterOp& op);
 
 } // namespace tessera::rendering::software

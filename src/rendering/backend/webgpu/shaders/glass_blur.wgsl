@@ -38,6 +38,55 @@ fn sample_at(uv: vec2<f32>) -> vec4<f32> {
     return textureSampleLevel(u_texture, u_sampler, uv, 0.0);
 }
 
+// The CSS colour filter functions on a straight-alpha pixel (mode 3), mirrored from
+// include/tessera/rendering/gpu/color_filter.hpp. The ids are the ColorFunction enum of
+// layer_filter.hpp. Matrices are column-major: each column holds one input channel's coefficients.
+fn apply_color_function(id: i32, amount: f32, px: vec4<f32>) -> vec4<f32> {
+    var c = px.rgb;
+    var a = px.a;
+    if (id == 1) {
+        c = c * amount;
+    } else if (id == 2) {
+        c = c * amount + vec3<f32>((1.0 - amount) * 0.5);
+    } else if (id == 3) {
+        let k = 1.0 - clamp(amount, 0.0, 1.0);
+        c = mat3x3<f32>(
+            vec3<f32>(0.2126 + 0.7874 * k, 0.2126 - 0.2126 * k, 0.2126 - 0.2126 * k),
+            vec3<f32>(0.7152 - 0.7152 * k, 0.7152 + 0.2848 * k, 0.7152 - 0.7152 * k),
+            vec3<f32>(0.0722 - 0.0722 * k, 0.0722 - 0.0722 * k, 0.0722 + 0.9278 * k)) * c;
+    } else if (id == 4) {
+        let k = 1.0 - clamp(amount, 0.0, 1.0);
+        c = mat3x3<f32>(
+            vec3<f32>(0.393 + 0.607 * k, 0.349 - 0.349 * k, 0.272 - 0.272 * k),
+            vec3<f32>(0.769 - 0.769 * k, 0.686 + 0.314 * k, 0.534 - 0.534 * k),
+            vec3<f32>(0.189 - 0.189 * k, 0.168 - 0.168 * k, 0.131 + 0.869 * k)) * c;
+    } else if (id == 5) {
+        let s = amount;
+        c = mat3x3<f32>(
+            vec3<f32>(0.213 + 0.787 * s, 0.213 - 0.213 * s, 0.213 - 0.213 * s),
+            vec3<f32>(0.715 - 0.715 * s, 0.715 + 0.285 * s, 0.715 - 0.715 * s),
+            vec3<f32>(0.072 - 0.072 * s, 0.072 - 0.072 * s, 0.072 + 0.928 * s)) * c;
+    } else if (id == 6) {
+        let co = cos(amount);
+        let si = sin(amount);
+        c = mat3x3<f32>(
+            vec3<f32>(0.213 + co * 0.787 - si * 0.213, 0.213 - co * 0.213 + si * 0.143,
+                      0.213 - co * 0.213 - si * 0.787),
+            vec3<f32>(0.715 - co * 0.715 - si * 0.715, 0.715 + co * 0.285 + si * 0.140,
+                      0.715 - co * 0.715 + si * 0.715),
+            vec3<f32>(0.072 - co * 0.072 + si * 0.928, 0.072 - co * 0.072 - si * 0.283,
+                      0.072 + co * 0.928 + si * 0.072)) * c;
+    } else if (id == 7) {
+        let k = clamp(amount, 0.0, 1.0);
+        c = c * (1.0 - 2.0 * k) + vec3<f32>(k);
+    } else if (id == 8) {
+        a = a * clamp(amount, 0.0, 1.0);
+    } else {
+        return px;
+    }
+    return clamp(vec4<f32>(c, a), vec4<f32>(0.0), vec4<f32>(1.0));
+}
+
 fn pair_weight(offset: f32, sigma: f32) -> f32 {
     return exp(-(offset * offset) / (2.0 * sigma * sigma));
 }
@@ -64,7 +113,7 @@ fn sd_round_box(p: vec2<f32>, half_size: vec2<f32>, radius: f32) -> f32 {
 fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let frag = position.xy;
     var uv = frag * pc.texel_step;
-    if (pc.mode >= 0.5) {
+    if (pc.mode >= 0.5 && pc.mode <= 2.5) {
         uv = (frag - pc.region_origin) / max(pc.region_size, vec2<f32>(1.0));
     }
 
@@ -92,6 +141,17 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 
     if (pc.mode < 0.5) {
         return blurred;
+    }
+
+    // mode 3: colour filter functions over a layer (issue #617): ids in `radii`, amounts in
+    // `factors`, id 0 ends the list; the output is premultiplied again. See glass_blur.frag.
+    if (pc.mode > 2.5) {
+        let layer_a = blurred.a;
+        var px = vec4<f32>(select(vec3<f32>(0.0), blurred.rgb / max(layer_a, 1.0e-8), layer_a > 0.0), layer_a);
+        px = apply_color_function(i32(pc.radii.x + 0.5), pc.factors.x, px);
+        px = apply_color_function(i32(pc.radii.y + 0.5), pc.factors.y, px);
+        px = apply_color_function(i32(pc.radii.z + 0.5), pc.factors.z, px);
+        return vec4<f32>(px.rgb * px.a, px.a);
     }
 
     // mode 2: composite an isolated layer (issue #227): premultiplied layer colour back to straight
