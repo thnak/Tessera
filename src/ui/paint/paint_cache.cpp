@@ -365,6 +365,7 @@ void PaintCache::invalidate() {
 void PaintCache::clear() {
     entries_.clear();
     lru_.clear();
+    retained_owners_.clear();
     bytes_ = 0;
 }
 

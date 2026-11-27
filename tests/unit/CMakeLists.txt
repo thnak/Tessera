@@ -2777,6 +2777,12 @@ add_executable(paint_layer_retain_tests
     paint_layer_retain_tests.cpp)
 target_link_libraries(paint_layer_retain_tests PRIVATE tessera_paint tessera_style)
 add_test(NAME paint_layer_retain COMMAND paint_layer_retain_tests)
+# Retention must not defeat viewport culling: a dirty off-screen subtree with no retained layer is
+# not painted (issue #617; the cpu_benchmark and alloc budgets caught it once).
+add_executable(paint_retain_cull_tests
+    paint_retain_cull_tests.cpp)
+target_link_libraries(paint_retain_cull_tests PRIVATE tessera_paint tessera_style)
+add_test(NAME paint_retain_cull COMMAND paint_retain_cull_tests)
 add_executable(paint_mask_geometry_tests
     paint_mask_geometry_tests.cpp)
 

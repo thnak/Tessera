@@ -110,15 +110,19 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // Only a dirty node that actually has a record can leave a stale one behind (a node with none
     // is simply painted fresh whenever it is next visited), so the first frame of a scene, whose
     // cache is empty, culls as freely as a clean one (issue #257).
-    // A retained layer (#617) goes stale the same way, so with retention on a node whose subtree is
-    // dirty is never culled: it must be seen to drop its layer.
+    // A retained layer (#617) goes stale the same way: a dirty node that may hold one is never
+    // culled (it must be seen to drop its layer), and a dirty subtree is kept only while some layer
+    // is held at all. With none held, culling is exactly as without retention.
     const bool records_dirty =
-        (pass.retain_layers && node.subtree_dirty() != Dirty::Clean) ||
+        (pass.retain_layers && pass.cache != nullptr &&
+         (node.dirty() != Dirty::Clean || node.subtree_dirty() != Dirty::Clean) &&
+         pass.cache->is_retained_owner(node.id())) ||
         (pass.cacheable && node.dirty() != Dirty::Clean && pass.cache->contains(node.id()));
     // A skipped subtree must not hide a dirty descendant's record either; an empty cache has none.
     const bool subtree_records_dirty =
         records_dirty ||
-        (pass.cacheable && node.subtree_dirty() != Dirty::Clean && !pass.cache->empty());
+        (pass.cacheable && node.subtree_dirty() != Dirty::Clean &&
+         (!pass.cache->empty() || (pass.retain_layers && pass.cache->has_retained_owners())));
     // Subtree cull (issue #735, slice C): one test at the root rejects every node in the subtree.
     if (pass.cull != nullptr &&
         detail::may_skip_subtree(node, painted_world, *pass.cull, interpolated, open_frame,
@@ -320,6 +324,10 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         const rhi::Rect whole_frame{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach};
         const LayerDraw layer{retaining ? detail::retained_layer_box(node, rect) : whole_frame,
                               own_opacity, filter};
+        if (retaining && pass.cache != nullptr) {
+            pass.cache->note_retained_owner(node.id(), node.dirty() == Dirty::Clean &&
+                                                           node.subtree_dirty() == Dirty::Clean);
+        }
         if (retaining &&
             detail::push_layer_retained(*own, node, *signature, layer, masked, pass.retain_epoch)) {
             // The sink composites the pixels it holds at the pop: no box, children or mask.

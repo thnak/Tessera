@@ -11,6 +11,7 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -363,6 +364,21 @@ public:
     [[nodiscard]] bool contains(NodeId node) const {
         return entries_.find(node) != entries_.end();
     }
+    // Owners that may hold a retained layer in the sink (#617): registered when a clean layer asks,
+    // forgotten when a dirty one reports. Only these (and their ancestors) need the cull exemption.
+    void note_retained_owner(NodeId node, bool holds) {
+        if (holds) {
+            retained_owners_.insert(node);
+        } else if (!retained_owners_.empty()) {
+            retained_owners_.erase(node);
+        }
+    }
+    [[nodiscard]] bool is_retained_owner(NodeId node) const {
+        return !retained_owners_.empty() && retained_owners_.count(node) != 0;
+    }
+    [[nodiscard]] bool has_retained_owners() const {
+        return !retained_owners_.empty();
+    }
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
@@ -462,6 +478,7 @@ private:
 
     using Lru = std::list<NodeId>;
     using Map = std::map<NodeId, Entry>;
+    std::set<NodeId> retained_owners_;
 
     static std::size_t entry_bytes(const PaintCacheSignature& signature,
                                    const std::optional<PaintData>& payload,
