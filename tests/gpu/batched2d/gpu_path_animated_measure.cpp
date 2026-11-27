@@ -9,7 +9,7 @@
 // reports the CPU time of enqueue + flush (what the UI thread pays; nothing waits on the GPU), the
 // bytes the CPU wrote to device buffers, and, separately, the time until the GPU finished.
 //
-//   gpu_path_animated_measure [--frames N] [--blobs N]
+//   gpu_path_animated_measure [--frames N] [--blobs N] [--dense]
 
 #include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
@@ -77,6 +77,21 @@ using Clock = std::chrono::steady_clock;
     return shapes;
 }
 
+// Thirteen overlapping full-frame fills (the "dense" scene of cpu_to_gpu_4k_measure): every pixel
+// is covered by many paths, which is what stresses the bin and fine passes.
+[[nodiscard]] std::vector<path::PathShape> dense_scene() {
+    std::vector<path::PathShape> shapes;
+    for (int i = 0; i < 13; ++i) {
+        path::PathShape fill;
+        fill.path = blob(960.0f + static_cast<float>(i - 6) * 20.0f,
+                         540.0f + static_cast<float>(i % 5 - 2) * 15.0f, 1050.0f - 40.0f * i);
+        fill.paint.fill = path::Rgba8{static_cast<std::uint8_t>(30 + i * 15),
+                                      static_cast<std::uint8_t>(200 - i * 10), 120, 255};
+        shapes.push_back(std::move(fill));
+    }
+    return shapes;
+}
+
 struct Summary {
     double min = 0;
     double median = 0;
@@ -93,6 +108,12 @@ struct Summary {
 int main(int argc, char** argv) {
     int frames = 120;
     int blobs = 60;
+    bool dense = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--dense") == 0) {
+            dense = true;
+        }
+    }
     for (int i = 1; i + 1 < argc; i += 2) {
         if (std::strcmp(argv[i], "--frames") == 0) {
             frames = std::atoi(argv[i + 1]);
@@ -117,7 +138,7 @@ int main(int argc, char** argv) {
         path::GpuPathRasterizer rasterizer(*device, vk::path_raster_pipeline_descs(), config);
         (void)rasterizer.warm(2);
 
-        const auto shapes = scene(blobs);
+        const auto shapes = dense ? dense_scene() : scene(blobs);
         const auto document = path::make_gpu_document(shapes, 2.0f);
         rhi::TextureDesc texture_desc;
         texture_desc.extent = {kWidth, kHeight};

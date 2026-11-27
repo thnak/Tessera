@@ -305,6 +305,12 @@ frames.
 | GPU until complete | 3.84 ms | 3.78 | 4.75 |
 | bytes written by the CPU | 7,760 | 7,760 | 7,760 |
 
+The dense scene (`--dense`: 13 overlapping full-frame fills, 177 KB document) takes 0.041 ms of CPU,
+912 bytes per frame and **4.23 ms** until the GPU is done (min 4.10, max 5.39): 0.06 ms over the
+4.17 ms budget of 240 Hz, so "inside the 240 Hz budget on the dGPU" is **not** met by a hair on the
+RTX 4060 at full 4K (the figure includes the 33 MB copy into the texture and the submit round trip;
+the sparse scene is 3.84 ms). The second GPU of the manual gate has not been run here.
+
 Against the ThorVG baseline above on the same machine (raster 5.2 ms, upload 1.2 ms CPU side, 33 MB
 copied), the CPU cost drops by about 150x and the bytes by about 4,000x. The issue's "zero bytes
 after the first frame" is not met literally: 7,760 bytes is the job record (80) plus 64 per path,
