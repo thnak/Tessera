@@ -283,6 +283,12 @@ add_executable(gpu_path_animated_measure
     batched2d/gpu_path_animated_measure.cpp)
 target_link_libraries(gpu_path_animated_measure PRIVATE tessera_path tessera_rhi_vulkan)
 
+# Manual measurement tool (not a CTest): glyph outlines through the GPU path rasterizer, issue #686
+# step 2 (docs/design/text-gpu-raster.md).
+add_executable(glyph_gpu_raster_measure
+    batched2d/glyph_gpu_raster_measure.cpp)
+target_link_libraries(glyph_gpu_raster_measure PRIVATE tessera_path tessera_rhi_vulkan tessera_freetype)
+
 # Manual measurement tool (not a CTest): the number issue #480 part 2 is gated on. It paints an
 # interleaved image+text scene through the production paint path and reports the batch-split
 # attribution, so the texture share descriptor indexing would remove is measured instead of guessed.
