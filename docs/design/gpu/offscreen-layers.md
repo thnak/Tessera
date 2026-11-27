@@ -210,6 +210,59 @@ slice behavior + tests + docs, nothing user-visible until the last:
    GPU path to the existing tolerance.
 4. **Group opacity becomes isolated (landed behind `PaintContext::isolate_group_opacity`, default false, issue #227 slice 4).** `paint_node` opens a layer after the node's transform push and before its backdrop, shadow and box paint, closes it after the children, the clip pop and before the transform pop; the node's own opacity moves to the layer and the primitives inside carry only the ancestor product; text inside a layer is grayscale (`PaintScope::in_layer`); `isolate_groups` and `in_layer` are part of the paint-cache key. The box is the whole frame for now (the renderer clamps it to the frame, the clip and the damage). A culled node still fades its visible children flat. Tests: `paint_layer_pass` and the paint-path case of `layer_gpu`. Original scope: **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
    same seam; the §14.1 product rule stays the fallback.
+5a. **Renderer mask path (landed, issue #617 slice 2; RHI 1.19).** `Batched2DRenderer::begin_layer_mask()` /
+   `end_layer_mask()` (`src/rendering/gpu/batched2d_layer_mask.cpp`), called after a layer's content and
+   before its `pop_layer()`. The mask image is drawn as ordinary content into a second pooled target
+   cleared to transparent, so seams, anti-aliasing and overlaps are the normal blend's (a mask drawn
+   straight into the layer with a destination-in blend would multiply at every AA edge and seam). At
+   `end_layer_mask()` that target is sampled into the layer target by the composite program
+   (`glass_blur.frag` mode 2, opacity 1) through a pipeline with `BlendMode::DestinationIn`
+   (`GlassPipelines::mask`), which scales every channel of the premultiplied layer by the mask's alpha:
+   `mask-mode: alpha`. No new shader, descriptor or capability. A mask that cannot run (no mask
+   pipeline, a flat or already-masked layer, no second pooled target) returns false and records
+   nothing, so the caller skips the mask draws and the group paints unmasked, counted in
+   `layer_masks_unsupported()`. Cost: one more pooled target and one fullscreen draw per masked layer
+   (the pool of 4 holds two masked layers a frame). Tests: `layer_mask_null` (skeleton and every
+   fallback) and `layer_mask_gpu` (opaque, half and undrawn mask, composition with opacity, the
+   unmasked fallback, repeated frames, validation clean). 
+5b. **`mask-image` in the paint pass (landed, issue #617 slice 3).** `PaintSink::begin_layer_mask()` /
+   `end_layer_mask()` (default: refuse), forwarded by the wrapper sinks and implemented by
+   `Batched2DSink`. `paint_node` opens a layer for a node whose `mask-image` parses to at least one
+   gradient (`has_mask_image`), whatever `isolate_group_opacity` says; the node's own opacity moves to
+   the layer. After the children and the clip pop, and before `pop_layer`, it asks the sink to mask
+   and, if the sink agrees, emits the mask image (`paint_mask_image`: the same layer list and
+   gradient draws as `background-image`, border box, unrounded, no opacity fold). A sink that cannot
+   layer paints the node unmasked; one that refuses the mask paints the layer without the mask draws.
+   **Cache:** the mask paints after the children, which a per-node `PaintRecord` (prefix plus pop
+   flags) cannot hold, so a masked node is never per-node recorded and its stale entry is erased when
+   the mask appears (`paint_mask` pins that). Inside a retained subtree draw list the mask is recorded
+   as `BeginLayerMask`, the gradient fills and `EndLayerMask`; the recorder always records the fills
+   and forwards them only while its target agreed to mask, and replay skips a mask the replaying sink
+   refuses. Tests: `paint_mask` (stream order, opacity, every degraded case, stale-record guard,
+   subtree record and replay) and the paint-path case of `layer_mask_gpu`. **Chromium comparison (measured 2026-11-27).** The same
+   scene in Chromium and through the paint path (a 64x64 black frame, a #00ff00 box at (8,8) 48x48,
+   linear, radial and conic masks, opacity 1 and 0.5; reference values in
+   `tests/gpu/batched2d/layer_mask_chromium_reference.hpp`, asserted by `layer_mask_gpu`). The mask
+   path matched at once: nothing outside the box, only green inside, the node opacity composes with
+   the mask exactly, a linear ramp exact across its axis. **It also found a bug, now fixed:** alpha
+   along a translucent gradient came out up to +64 of 255 too high for linear, +72 for conic and +119
+   on the radial diagonal, never meaningfully below Chromium. Cause: the sink drew a gradient as
+   solid bands each grown by half a pixel (`band + 0.5`), so neighbouring bands overlapped and a
+   translucent stop composited twice there; opaque gradients hid it, and any `background-image` with
+   a translucent stop had the same error. **Fix:** the linear bands and the radial and conic cells now
+   abut exactly (`band_edge` in `paint_sink.hpp`: shared edge values, the far end exact). A plain
+   quad is hard-edged (the pixel-centre rule on the GPU and in `CpuCanvas`), so each pixel belongs to
+   exactly one band and no seam protection is needed. After the fix the linear ramp is within 2 of
+   Chromium, the radial cells within about 8 (the 32x32 cell quantisation, paint-pass.md section 13)
+   and the conic cells within 5. The conic grid was raised from 32x32 to 64x64 (`kConicBands`) after
+   the comparison showed +/-19 at 32x32. `tests/golden/baseline/cpu_wide/radials.png` (294 of 64000
+   pixels) and `conics.png` changed; the opaque linear, clip, layer and shadow baselines are
+   byte-identical. Regression tests:
+   `paint_gradient` (cells tile a fractional box with no gap and no overlap), `layer_mask_gpu` (the
+   Chromium comparison, and a translucent `background-image` ramp at a fractional position with
+   anti-aliasing on and off, within 6 of the ideal ramp), `cpu_wide_golden`; reintroducing the
+   overlap fails all three. Still open: `mask-size`, `mask-position`, `mask-repeat`, `mask-mode`,
+   the `mask` shorthand, a `CpuCanvas` twin and the lavapipe golden.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe

@@ -158,6 +158,15 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC1_COLOR;
         blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    } else if (desc.blend == rhi::BlendMode::DestinationIn) {
+        // Mask step (RHI 1.19): `dst * src.a` on every channel; the source colour is not read.
+        blend_attachment.blendEnable = VK_TRUE;
+        blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+        blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
     } else if (desc.blend == rhi::BlendMode::Alpha) {
         blend_attachment.blendEnable = VK_TRUE;
         blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;

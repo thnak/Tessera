@@ -15,6 +15,7 @@ add_library(tessera_gpu STATIC
     batched2d_texture_array.cpp
     batched2d_cull.cpp
     batched2d_layer.cpp
+    batched2d_layer_mask.cpp
     batched2d_seam.cpp
     clip_state_table.cpp
     clip_buffer.cpp

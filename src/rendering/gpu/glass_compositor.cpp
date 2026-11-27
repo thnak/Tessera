@@ -100,12 +100,30 @@ bool GlassCompositor::composite_layer(const FrameContext& frame, rhi::RenderTarg
     if (frame.commands == nullptr || frame.target == nullptr || !layers_supported(*frame.target)) {
         return false;
     }
+    composite_with(*glass_.composite, frame, layer, scissors, opacity);
+    return true;
+}
+
+bool GlassCompositor::mask_layer(const FrameContext& frame, rhi::RenderTarget& mask,
+                                 const std::vector<rhi::Scissor>& scissors) {
+    if (frame.commands == nullptr || frame.target == nullptr || !masks_supported() ||
+        frame.target->sample_count() != 1) {
+        return false;
+    }
+    // Opacity 1: the mask's own alpha is the whole factor, and the colour is ignored by the blend.
+    composite_with(*glass_.mask, frame, mask, scissors, 1.0f);
+    return true;
+}
+
+void GlassCompositor::composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,
+                                     rhi::RenderTarget& source,
+                                     const std::vector<rhi::Scissor>& scissors, float opacity) {
     rhi::CommandList& commands = *frame.commands;
-    const rhi::Extent2D layer_extent = layer.extent();
-    // Mode 2 samples the layer at uv = (fragcoord - region_origin) / region_size. The layer shares
-    // the frame's coordinate system (it is drawn with the same transform, clips and scissors), so
-    // the origin is zero and the size is the target's own, which maps a fragment onto its own
-    // texel even when the pooled target is larger than the frame.
+    const rhi::Extent2D layer_extent = source.extent();
+    // Mode 2 samples the source at uv = (fragcoord - region_origin) / region_size. The source
+    // shares the frame's coordinate system (it is drawn with the same transform, clips and
+    // scissors), so the origin is zero and the size is the target's own, which maps a fragment onto
+    // its own texel even when the pooled target is larger than the frame.
     GlassPushConstants layer_constants;
     layer_constants.region_size_x = static_cast<float>(layer_extent.width);
     layer_constants.region_size_y = static_cast<float>(layer_extent.height);
@@ -115,10 +133,10 @@ bool GlassCompositor::composite_layer(const FrameContext& frame, rhi::RenderTarg
     // Same ordering as compose(): the pipeline is bound before the sampled bind so the descriptor
     // set is recorded against the composite layout, then the frame pass is reopened and the
     // pipeline rebound.
-    commands.bind_pipeline(*glass_.composite);
-    commands.bind_sampled_target(0, layer);
+    commands.bind_pipeline(pipeline);
+    commands.bind_sampled_target(0, source);
     frame.seam.reopen();
-    commands.bind_pipeline(*glass_.composite);
+    commands.bind_pipeline(pipeline);
     commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(frame.extent.width),
                                         static_cast<float>(frame.extent.height)});
     commands.push_constants(&layer_constants, sizeof(layer_constants));
@@ -127,7 +145,6 @@ bool GlassCompositor::composite_layer(const FrameContext& frame, rhi::RenderTarg
         commands.draw(kFullscreenVertices);
         ++draws_;
     }
-    return true;
 }
 
 bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw& draw) {

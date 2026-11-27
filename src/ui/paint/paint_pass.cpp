@@ -256,10 +256,21 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
     ++stats.nodes;
 
+    // A node with `mask-image` paints its mask AFTER its children, which a per-node record cannot
+    // hold (it stores the prefix and pop flags), so it is never per-node recorded; a stale entry
+    // from before the mask appeared is dropped so a later clean frame cannot replay it. Its mask
+    // rides in the subtree draw list as ops instead (issue #617).
+    const float own_opacity = detail::opacity_value(style);
+    const bool masked = own_opacity > 0.0f && rect.width > 0.0f && rect.height > 0.0f &&
+                        sink.supports_layers() && detail::has_mask_image(style);
+    if (masked && pass.cache != nullptr) {
+        pass.cache->erase(node.id());
+    }
+
     // On a miss the node's own emission is captured while it is forwarded to the real sink.
     std::optional<PaintCache::Recorder> recording;
     PaintSink* own = &sink;
-    if (signature.has_value()) {
+    if (signature.has_value() && !masked) {
         recording.emplace(sink);
         own = &*recording;
     }
@@ -279,10 +290,10 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // primitives inside carry only the ancestor product. The box is the whole frame for now (the
     // renderer clamps it to the frame, the clip and the damage); a tighter subtree box is a later
     // refinement. `opacity: 0` paints nothing either way and stays on the flat path.
-    const float own_opacity = detail::opacity_value(style);
-    const bool isolate_group = pass.isolate_group_opacity && own_opacity < 1.0f &&
-                               own_opacity > 0.0f && !node.children().empty() &&
-                               rect.width > 0.0f && rect.height > 0.0f && own->supports_layers();
+    const bool isolate_group =
+        masked || (pass.isolate_group_opacity && own_opacity < 1.0f && own_opacity > 0.0f &&
+                   !node.children().empty() && rect.width > 0.0f && rect.height > 0.0f &&
+                   own->supports_layers());
     const float effective_opacity = scope.opacity * (isolate_group ? 1.0f : own_opacity);
     child_scope.opacity = effective_opacity;
     child_scope.in_layer = scope.in_layer || isolate_group;
@@ -381,6 +392,13 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     });
     if (pushed_clip) {
         sink.pop_clip();
+    }
+    // The mask goes in after the children and the clip pop, still inside the layer and the node's
+    // transform, so it covers the node's border box in its own frame. A sink that cannot mask this
+    // layer answers false and the group composites unmasked.
+    if (masked && sink.begin_layer_mask()) {
+        detail::paint_mask_image(style, rect, sink, stats);
+        sink.end_layer_mask();
     }
     if (isolate_group) {
         sink.pop_layer();

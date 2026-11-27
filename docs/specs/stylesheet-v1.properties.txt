@@ -93,6 +93,7 @@ shorthand inset positioning
 longhand color paint
 longhand background-color paint
 longhand background-image paint
+longhand mask-image paint
 shorthand background paint
 longhand opacity paint
 longhand box-shadow paint

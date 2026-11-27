@@ -89,7 +89,11 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // size, indirect dispatch, buffer atomics) and `CommandList::dispatch_indirect`, with the null
 // backend able to record compute (opt-in `create_null_compute_device`). The new virtuals default to
 // zero/false/throws, so no existing backend or caller changes.
-inline constexpr std::uint32_t kRhiVersionMinor = 18;
+// 1.19 (2026-11-27): additive `BlendMode::DestinationIn` (`dst * src.a` on all four channels), the
+// mask step of an isolated layer (issue #617, docs/design/gpu/offscreen-layers.md section 5.2).
+// The enumerator is appended so no existing value changes; Vulkan, WebGPU, Metal and the null
+// backend all express it with fixed blend factors, so there is no capability to query.
+inline constexpr std::uint32_t kRhiVersionMinor = 19;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

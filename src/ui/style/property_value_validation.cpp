@@ -203,7 +203,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     // list of `linear-gradient()` and `none`, painted bottom to top. A value outside it keeps the
     // declaration (the paint pass then draws no image) and says why, once. A `var()` reference is
     // substituted after this check, so it is judged on the resolved text instead.
-    if (property == "background-image") {
+    if (property == "background-image" || property == "mask-image") {
         const std::string_view text = trim(value);
         if (!detail::has_substitution_function(text) && !parse_background_layers(text)) {
             out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,

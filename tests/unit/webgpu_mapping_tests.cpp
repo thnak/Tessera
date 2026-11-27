@@ -128,6 +128,15 @@ void test_blend() {
                alpha.alpha.dst == wg::WgpuBlendFactor::OneMinusSrcAlpha &&
                alpha.alpha.op == wg::WgpuBlendOp::Add,
            "alpha alpha factors match the Vulkan backend");
+    // RHI 1.19: the mask step is `dst * src.a` on every channel, Vulkan's ZERO / SRC_ALPHA.
+    const wg::WgpuBlendState mask = wg::blend_state(rhi::BlendMode::DestinationIn);
+    expect(mask.enabled && wg::blend_mode_supported(rhi::BlendMode::DestinationIn),
+           "destination-in is expressible and enabled");
+    expect(mask.color.src == wg::WgpuBlendFactor::Zero &&
+               mask.color.dst == wg::WgpuBlendFactor::SrcAlpha &&
+               mask.alpha.src == wg::WgpuBlendFactor::Zero &&
+               mask.alpha.dst == wg::WgpuBlendFactor::SrcAlpha,
+           "destination-in factors match the Vulkan backend");
 }
 
 // RHI 1.5 (issue #471): WebGPU has one fragment output per target and no SRC1 blend factor, so

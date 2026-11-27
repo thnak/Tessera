@@ -563,11 +563,10 @@ caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferr
 `style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted,
 later duplicate wins; CSS angle 0=top, 90=right, 180=bottom) paints after `background-color`, before
 borders/content, inside border radius; opacity folds into stop alphas. Interpolation is encoded-space
-sRGB (V1); linear emission is 64 dominant-axis solid bands (exact on axes, banded otherwise), shared
+sRGB (V1); linear emission is 64 dominant-axis solid bands that abut (`band_edge`, #617), shared
 by CPU/GPU within 2/255 per channel. Radial has no dominant axis, so a 32x32 grid (`kRadialBands`) of
 solid cells from the shared `tessellate_radial_gradient` (`paint_sink.hpp`), so CPU/GPU emit identical
-geometry (no new shader); `repeating-*` is a stop-list transform (`expand_repeating_stops`).
-`background-image` is a **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
+geometry (no new shader; conic uses a finer 64x64 `kConicBands`); `repeating-*` is a stop-list transform (`expand_repeating_stops`).`background-image` is a **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
 
 ## 14. Isolated-layer seam (issue #242)The renderer can break its render pass without finishing the frame and copy one region of the frame
 target into an offscreen target: `Batched2DRenderer::break_pass()`/`resume_pass()` plus the RHI

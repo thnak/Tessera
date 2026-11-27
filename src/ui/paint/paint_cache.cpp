@@ -106,8 +106,23 @@ std::uint64_t extend_paint_clip_hash(std::uint64_t seed, const RoundedClip& clip
 
 void replay_paint_ops(const std::vector<PaintOp>& ops,
                       const std::vector<GradientPayload>& gradients, PaintSink& sink) {
+    // A recorded mask replays only while the sink agrees to mask: when it does not, everything up
+    // to the matching EndLayerMask is skipped and the group paints unmasked, as it would live.
+    bool skipping_mask = false;
     for (const PaintOp& op : ops) {
+        if (skipping_mask && op.kind != PaintOp::Kind::EndLayerMask) {
+            continue;
+        }
         switch (op.kind) {
+        case PaintOp::Kind::BeginLayerMask:
+            skipping_mask = !sink.begin_layer_mask();
+            break;
+        case PaintOp::Kind::EndLayerMask:
+            if (!skipping_mask) {
+                sink.end_layer_mask();
+            }
+            skipping_mask = false;
+            break;
         case PaintOp::Kind::FillRect: {
             const auto& draw = std::get<FillRectOp>(op.payload);
             sink.fill_rect(draw.rect, draw.color);

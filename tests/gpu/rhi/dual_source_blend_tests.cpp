@@ -83,6 +83,15 @@ bool check_null_records_the_mode() {
     ok = expect(alpha_recorded != nullptr && alpha_recorded->blend_mode() == BlendMode::Alpha,
                 "null still records BlendMode::Alpha unchanged") &&
          ok;
+    // RHI 1.19: the layer mask step is recorded as requested too.
+    tessera::rendering::rhi::PipelineDesc mask_desc;
+    mask_desc.blend = BlendMode::DestinationIn;
+    auto mask = device->create_pipeline(mask_desc);
+    const auto* mask_recorded =
+        dynamic_cast<const tessera::rendering::null::NullPipeline*>(mask.get());
+    ok = expect(mask_recorded != nullptr && mask_recorded->blend_mode() == BlendMode::DestinationIn,
+                "null records BlendMode::DestinationIn on the pipeline") &&
+         ok;
     return ok;
 }
 

@@ -61,6 +61,9 @@ constexpr PropertyDef kProperties[] = {
     {"color", "black", true},
     {"background-color", "transparent", false},
     {"background-image", "none", false},
+    // Same grammar as `background-image` (a list of gradients, painted bottom to top); the paint
+    // pass draws it as the alpha mask of an isolated layer (issue #617, offscreen-layers.md 5.2).
+    {"mask-image", "none", false},
     {"opacity", "1", false},
     {"font-family", "sans-serif", true},
     {"font-size", "16px", true},

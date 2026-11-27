@@ -96,6 +96,18 @@ public:
     [[nodiscard]] bool composite_layer(const FrameContext& frame, rhi::RenderTarget& layer,
                                        const std::vector<rhi::Scissor>& scissors, float opacity);
 
+    // True when a layer can be masked: layers are supported and the `DestinationIn` pipeline exists
+    // with a single-sample layout (issue #617).
+    [[nodiscard]] bool masks_supported() const {
+        return layers_configured() && glass_.mask != nullptr && glass_.mask->sample_count() == 1;
+    }
+    // Multiplies the layer target `frame.target` by the alpha of `mask` (a pooled target the
+    // renderer drew the mask image into over a transparent clear), once per scissor. The frame pass
+    // is reopened through the seam like composite_layer(). Returns false, recording nothing, when
+    // masks_supported() is false or the frame target is multisampled.
+    [[nodiscard]] bool mask_layer(const FrameContext& frame, rhi::RenderTarget& mask,
+                                  const std::vector<rhi::Scissor>& scissors);
+
     [[nodiscard]] rhi::RenderTarget* acquire(rhi::Extent2D extent);
     [[nodiscard]] std::uint32_t target_count() const {
         return pool_ != nullptr ? pool_->target_count() : 0;
@@ -110,6 +122,10 @@ public:
 
 private:
     [[nodiscard]] bool can_read_target(const rhi::RenderTarget& target) const;
+    // Samples `source` 1:1 into the frame target with `pipeline` (glass_blur.frag mode 2).
+    void composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,
+                        rhi::RenderTarget& source, const std::vector<rhi::Scissor>& scissors,
+                        float opacity);
 
     rhi::Device* device_ = nullptr;
     GlassPipelines glass_;

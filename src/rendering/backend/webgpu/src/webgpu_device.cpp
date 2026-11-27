@@ -66,6 +66,8 @@ WGPUVertexFormat to_wgpu(WgpuVertexFormat format) {
 
 WGPUBlendFactor to_wgpu(WgpuBlendFactor factor) {
     switch (factor) {
+    case WgpuBlendFactor::Zero:
+        return WGPUBlendFactor_Zero;
     case WgpuBlendFactor::One:
         return WGPUBlendFactor_One;
     case WgpuBlendFactor::SrcAlpha:

@@ -207,6 +207,23 @@ struct ConicGradientDraw {
 // bounded by the colour change across one cell, and a golden pins the exact result. 32 keeps a
 // 200 px box at ~6 px cells, which is smooth for the ramps V1 paints without a per-pixel shader.
 inline constexpr int kRadialBands = 32;
+// The conic grid is finer: 64 x 64 = 4096 solid quads at most, which halves the angular error of
+// the 32 grid (up to +/-19/255 against Chromium on a 360 degree ramp) for a bounded, still
+// shader-free cost.
+inline constexpr int kConicBands = 64;
+
+// The `index`-th of `count` equal divisions of [origin, origin + extent]. The last edge is the far
+// end exactly, and every band uses the same value for the edge it shares with its neighbour, so
+// adjacent solid bands abut with no gap and no overlap: a plain quad is hard-edged (the
+// pixel-centre rule on the GPU and in CpuCanvas), so each pixel belongs to exactly one band. The
+// bands used to be grown by half a pixel to hide seams that a hard-edged quad does not have, which
+// composited a translucent stop twice wherever two bands overlapped (found by the Chromium
+// comparison of `mask-image`, offscreen-layers.md section 5.2).
+inline float band_edge(float origin, float extent, int index, int count) {
+    return index >= count
+               ? origin + extent
+               : origin + extent * (static_cast<float>(index) / static_cast<float>(count));
+}
 
 // Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
 // `emit` for each. Cells whose centre falls outside the ellipse are skipped, so the fill is the
@@ -235,10 +252,13 @@ void tessellate_radial_gradient(const RadialGradientDraw& draw, Emit&& emit) {
             if (distance > 1.0f) {
                 continue;
             }
-            // The band is grown by half a pixel on the right/bottom so neighbouring cells meet
-            // without a seam under a fractional box (the same trick the linear bands use).
-            emit(RadialBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
-                             cell_width + 0.5f, cell_height + 0.5f},
+            // Cells abut exactly (see band_edge): no overlap, so a translucent ramp is not
+            // composited twice.
+            const float left = band_edge(draw.rect.x, draw.rect.width, column, kRadialBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kRadialBands);
+            const float top = band_edge(draw.rect.y, draw.rect.height, row, kRadialBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kRadialBands);
+            emit(RadialBand{{left, top, right - left, bottom - top},
                             sample_gradient_stops(draw.stops.data(), draw.stop_count, distance)});
         }
     }
@@ -250,11 +270,13 @@ struct ConicBand {
     rhi::Color color;
 };
 
-// Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
-// `emit` for each. A conic gradient has no dominant axis either, so it uses the same bounded grid
-// the radial one does: each cell is filled with the ramp colour at its centre, which is the
-// documented approximation (docs/design/paint-pass.md section 13). Cells whose centre falls outside
-// the box are skipped, so the fill is the box itself rather than its bounding rect.
+// Tessellates `draw` into at most kConicBands * kConicBands bands, in row-major order, and calls
+// `emit` for each. A conic gradient has no dominant axis either, so it uses a bounded grid like the
+// radial one, twice as fine (kConicBands): the colour changes with the angle, so a coarse cell is
+// visibly wrong near the centre where one cell spans a large angle: each cell is filled with the
+// ramp colour at its centre, which is the documented approximation (docs/design/paint-pass.md
+// section 13). Cells whose centre falls outside the box are skipped, so the fill is the box itself
+// rather than its bounding rect.
 //
 // The angle is measured from 12 o'clock clockwise, the CSS convention: `atan2(dx, -dy)` gives 0 at
 // the top and grows clockwise, which is why the y term is negated. A cell exactly at the centre has
@@ -263,12 +285,12 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
     if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
         return;
     }
-    const float cell_width = draw.rect.width / static_cast<float>(kRadialBands);
-    const float cell_height = draw.rect.height / static_cast<float>(kRadialBands);
+    const float cell_width = draw.rect.width / static_cast<float>(kConicBands);
+    const float cell_height = draw.rect.height / static_cast<float>(kConicBands);
     constexpr float kTau = 6.283185307179586f;
-    for (int row = 0; row < kRadialBands; ++row) {
+    for (int row = 0; row < kConicBands; ++row) {
         const float center_y = draw.rect.y + (static_cast<float>(row) + 0.5f) * cell_height;
-        for (int column = 0; column < kRadialBands; ++column) {
+        for (int column = 0; column < kConicBands; ++column) {
             const float center_x = draw.rect.x + (static_cast<float>(column) + 0.5f) * cell_width;
             const float dx = center_x - draw.center_x;
             const float dy = center_y - draw.center_y;
@@ -276,8 +298,11 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
             const float degrees = std::atan2(dx, -dy) * (360.0f / kTau);
             float turn = (degrees - draw.from_angle_degrees) / 360.0f;
             turn -= std::floor(turn); // into [0, 1)
-            emit(ConicBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
-                            cell_width + 0.5f, cell_height + 0.5f},
+            const float left = band_edge(draw.rect.x, draw.rect.width, column, kConicBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kConicBands);
+            const float top = band_edge(draw.rect.y, draw.rect.height, row, kConicBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kConicBands);
+            emit(ConicBand{{left, top, right - left, bottom - top},
                            sample_gradient_stops(draw.stops.data(), draw.stop_count, turn)});
         }
     }
@@ -410,6 +435,17 @@ public:
     }
     virtual void push_layer(const LayerDraw& /*layer*/) {}
     virtual void pop_layer() {}
+
+    // Layer mask (issue #617, offscreen-layers.md section 5.2). After a layer's content and before
+    // its pop_layer(), the paint pass calls begin_layer_mask(); a true return means every draw
+    // until end_layer_mask() is the mask image (alpha is the mask), so the group composites through
+    // it. False (the default) means the sink cannot mask this layer: the pass then skips the mask
+    // draws and the group paints unmasked, so a false return must leave the sink exactly as it was
+    // and end_layer_mask() must not follow. Only gradient fills are emitted between the two calls.
+    [[nodiscard]] virtual bool begin_layer_mask() {
+        return false;
+    }
+    virtual void end_layer_mask() {}
 };
 
 } // namespace tessera::ui::paint

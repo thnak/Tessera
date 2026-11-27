@@ -98,6 +98,13 @@ add_executable(layer_null_tests
 target_link_libraries(layer_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_null COMMAND layer_null_tests)
 
+# Layer masks (issue #617 slice 2) on the null backend: the pass and draw skeleton of a masked
+# layer and every fallback. Runs everywhere.
+add_executable(layer_mask_null_tests
+    batched2d/layer_mask_null_tests.cpp)
+target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_mask_null COMMAND layer_mask_null_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -620,6 +627,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_gpu COMMAND layer_gpu_tests)
     set_tests_properties(layer_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Layer masks (issue #617 slice 2) on a real device: the layer scaled by the mask's alpha, the
+    # hole where the mask drew nothing, composition with the group opacity, the unmasked fallback,
+    # validation-clean. Skips without a Vulkan device.
+    add_executable(layer_mask_gpu_tests
+        batched2d/layer_mask_gpu_tests.cpp)
+    target_link_libraries(layer_mask_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_mask_gpu COMMAND layer_mask_gpu_tests)
+    set_tests_properties(layer_mask_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests
