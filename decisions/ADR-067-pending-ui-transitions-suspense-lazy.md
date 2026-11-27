@@ -166,9 +166,12 @@ drops a stale epoch. Four gaps, none of them blocking, all recorded rather than 
 is lowered from TSX, so the fixture is hand-built IR, exactly as the ADR's risk note predicts. The
 `Suspense` node is in the IR and the validator, but no `.tsx` syntax produces it and
 `docs/specs/pending-ui-v1.md` does not exist yet. `useDeferredValue` and `lazy` (items 5 and 6) have
-no spike. The preview does not show the fallback or the pending state. And the GCC `-Werror` lane was
-**not run** for this spike: the remote Linux box was unreachable, so the evidence above is the
-Windows `dev` preset only (MSVC `/W4 /permissive- /WX`). The GCC lane must be run before Acceptance.
+no spike. The preview does not show the fallback or the pending state. The GCC lane
+was first skipped (the remote Linux box was unreachable) and then run on 2026-11-27: the `ci` preset
+(GCC 15.2, `-Werror`) builds and passes `pending_model`, `codegen_pending`,
+`codegen_pending_runtime` (including the zero-allocation assertion) and `codegen_pending_parity`;
+the same four pass on Windows (MSVC, `vs2026` Release). The recorded evidence now covers both
+compilers.
 
 ## Follow-up
 
