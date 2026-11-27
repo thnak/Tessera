@@ -1009,8 +1009,19 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       `canvas_viewport_limit` and `scripts/ci/preview_viewport_limits.mjs`; the slice also fixed
       `tessera_canvas_draw` being handed the logical rectangle instead of the physical extent the page
       sized. Evidence: `docs/design/canvas-input-session.md` §5.4, `designer-protocol-v1.md` §15.3.
-      **Open:** slice (b), the drag handles and the coalescing, blocked on #598 only (#599 is fixed
-      below).
+      **Open:** slice (b), the drag handles and the coalescing. Both bugs it was waiting on are
+      resolved: #599 fixed below, and #598 re-checked and not reproducible (also below).
+- [ ] #598: studio: "the canvas stays 320x240 after a viewport change". **Re-checked 2026-11-27 and it
+      does not reproduce** against `main`: with the suspected React-owned `width={320} height={240}`
+      restored on the element, `canvas.width` still follows the viewport, because the session writes
+      after React's commit and React never re-renders that leaf (the issue itself says "strong
+      suspect, not proven"). Rather than remove the attributes on a theory they were left alone, and
+      the property the issue is about is now a gate:
+      `scripts/ci/preview_browser_canvas_size.mjs` drives the Device menu in headless Chromium and
+      asserts the store follows the viewport, the CSS box keeps the logical size, and the two agree
+      with the reported DPR — at DPR 1 and at DPR 2 (768x1024 → a 1536x2048 store), which is also
+      where #599's geometry half lives, since a presented WebGPU frame cannot be read back in
+      headless Chromium. The issue stays open for whoever next sees the symptom on a real device.
 - [x] #599: studio/engine: at device pixel ratio 2 the app painted at half size in the top-left of
       the canvas — the paint side never applied the device scale, though the layout side was given
       it. `scene_frame_paint_tree()` now composes it onto every position, the border snapping and

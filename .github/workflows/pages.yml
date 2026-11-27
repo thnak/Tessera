@@ -74,6 +74,7 @@ on:
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/preview_browser_canvas_size.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -116,6 +117,7 @@ on:
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/preview_browser_canvas_size.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -533,6 +535,13 @@ jobs:
       - name: Canvas device handover (headless Chromium + SwiftShader)
         run: >-
           node scripts/ci/preview_browser_canvas_handover.mjs build/pages
+
+      # The canvas backing store and its CSS box follow the viewport through the Device menu, at DPR 1
+      # and 2 (issue #598). No device is needed for the property itself: it is `canvas.width`, which the
+      # session writes, against the frame counter the pane shows.
+      - name: Canvas size follows the viewport (headless Chromium)
+        run: >-
+          node scripts/ci/preview_browser_canvas_size.mjs build/pages
 
       # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
       # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why

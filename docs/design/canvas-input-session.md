@@ -363,6 +363,12 @@ The parity corpus's `dpr` case is the regression: a full-bleed box at DPR 2 must
 far corner of the doubled target. A check for "the clear colour is absent" would pass on a frame that
 painted nothing at all, so the assertion is on the box's colour.
 
+**Why the page half is only geometry.** A presented WebGPU frame is not composited by headless
+Chromium, so `drawImage` and `screenshot()` both return zeros however correct the paint is (the same
+limitation `canvas-session.ts` records for its own screenshot path). `scripts/ci/preview_browser_canvas_size.mjs`
+therefore asserts what the page owns - the backing store, the CSS box, and their agreement with the
+reported DPR, at DPR 1 and 2 - and leaves the pixels to the lavapipe case above.
+
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,
 attached by `canvas-session.ts`; `scripts/ci/preview_browser_canvas_pointer.mjs` is its browser acceptance

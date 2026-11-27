@@ -540,61 +540,39 @@ Corpus effect: `react/expressions/object-destructure-local.tsx` moved from
 moved from 10 to 11 pipeline-accepted files (20.0% to 22.0%) and `TESSERA_IR_UNRESOLVED` dropped
 from 4 to 3. The front-end numbers are unchanged.
 
-## 2026-11-27: the canvas viewport clamp (#690 slice a)
+## 2026-11-27: the Studio canvas viewport, three bugs on one path
 
-The Studio sizes the canvas from three sources that all end in the same place: a size a person types,
-a device profile's DPR, and a raw `viewport.set` carried over `postMessage`. Only one of them was ever
-range-checked, and it checked the wrong thing: `canvas_viewport_request` refused a non-positive extent
-and passed everything else through. A 4096x4096 typed size at DPR 4 asks for 1 GiB of backing store,
-and the failure that produces is not a clamped preview but a failed surface creation or a lost device,
-which is the case #690 calls "no input ... may take the preview down".
+The Studio sizes its canvas from a typed size, a device profile, and a raw `viewport.set`, and three
+separate defects sat on that path. They were fixed in order, each with the evidence that it was real.
 
-The fix is one pure function (`tools/codegen/canvas_viewport_request.cpp`) holding every path to extent
-1..8192, DPR 0.01..4 and a 256 MiB ceiling on extent x DPR x 4. Two decisions inside it are worth
-recording. First, **over a limit is clamped and reported, not refused**: the report carries `clamped`
-and the applied numbers, and the pane names the device it got, because a refusal leaves the developer
-with an unchanged picture and no hint why. Only a value that names no size at all - zero, negative,
-NaN, infinite - is refused, and it leaves the running picture alone. Second, **the byte cap reduces
-the DPR, never the logical extent**, so a clamp cannot move an `@media` breakpoint: the thing being
-limited is memory, and the layout is what a breakpoint observes.
+**The clamp (#690 slice a).** `canvas_viewport_request` refused a non-positive extent and passed
+everything else, so a 4096x4096 size at DPR 4 asked for 1 GiB of backing store; the failure that
+produces is a lost device, not a clamped preview. One pure rule now holds every path to extent
+1..8192, DPR 0.01..4 and a 256 MiB ceiling. Over a limit is **clamped and reported** (`clamped` in the
+report, named in the pane); a value that names no size is **refused**. The byte cap reduces the DPR,
+never the logical extent, so a clamp cannot move a breakpoint. The page needs its own copy because it
+sizes the store itself; the two are pinned to one table by ctest `canvas_viewport_limit` and
+`preview_viewport_limits.mjs`.
 
-The page needs its own copy because it sizes the backing store itself (`sizeToDevicePixels` writes
-`canvas.width`), so a size only the module clamped would still reach the browser unclamped - and the
-browser allocates before the module sees a number. The two copies are pinned to one table by
-`tests/unit/canvas_viewport_limit_tests.cpp` and `scripts/ci/preview_viewport_limits.mjs`, each of
-which asserts the numbers the other side also uses; a drift fails one of them.
+**The device scale (#599).** The layout side was told the ratio and the paint side never was, so a
+DPR-2 canvas painted 1:1 into the top-left quarter. `scene_frame_paint_tree()` now composes it onto
+positions, border snapping and the vector extent, as `src/app/window_frame.cpp` does; at 1.0 the
+transform is skipped and the goldens are byte-identical. The guard is a parity `dpr` case, and getting
+that test right took two silent passes worth recording: the case had no fill (the CLI loads no
+stylesheet file), and the assertion looked for *absence of the clear colour*, which a frame that
+painted nothing satisfies. It now asserts the box's own colour, and reverting `set_content_scale`
+turns it red.
 
-Reading the draw path while wiring this found a latent bug the clamp would have exposed:
-`tessera_canvas_draw` was handed the **logical** rectangle, not the physical extent the page had just
-sized and configured on the canvas. At every DPR the two differ, and they happened to agree in effect
-only because the page and the module derived the same scale; once a clamp can reduce the DPR they stop
-agreeing, and the honest value is the one the texture actually has. The draw call now receives
-`sizeToDevicePixels`'s result.
+**The page half, and one issue that did not reproduce (#598).** #598 reported the store stuck at
+320x240 and named its own suspect: the React-owned `width`/`height` attributes. Restoring them changed
+nothing - the session writes after React's commit and React never re-renders that leaf - so they were
+put back rather than removed on a theory. `preview_browser_canvas_size.mjs` now pins the property
+instead: driving the Device menu in headless Chromium, the store follows the viewport, the CSS box
+keeps the logical size, and both agree with the reported DPR at DPR 1 and 2.
 
-## 2026-11-27: the preview applies the device scale (#599)
-
-The last commit fixed the canvas viewport clamp; the issue it partially unblocked sat next to a
-long-reported bug that turned out to be the same path. #599 said that at DPR 2 the preview painted
-the app at half size in the top-left of the canvas. The report was right, and the cause was that the
-layout side was told the DPR while the paint side was not: `scene_frame_paint_tree()` recorded
-positions in CSS pixels straight into a target of `logical * dpi` device pixels, with no transform.
-
-This is not a preview-only concept. The app's frame composes exactly that ratio every frame
-(`apply_frame_transform` in `src/app/window_aa.cpp`), and it sets three things together because they
-must agree: the renderer's content scale (geometry), `PaintContext::device_scale` (border snapping,
-and the vector raster extent through the sink's `set_vector_device_scale`). The preview set none of
-them. All three are now set from one `content_scale_for(device_scale)`, on both entry points: the
-single-frame path takes `options.dpi_scale`, and `CanvasSceneSession` exposes the scale it laid out
-at so the session's `paint()` cannot disagree with its own layout.
-
-The guard matters as much as the fix. At 1.0 the transform is skipped and the commands are
-byte-identical, which the lavapipe goldens confirmed (DPR 1 re-rendered and compared byte for byte
-against the pre-change image). The `dpr` corpus case renders a full-bleed coloured box at DPR 2 and
-asserts the far corner of the doubled target is the box's colour. The first version of that check
-looked for *absence of the clear colour*, which a frame that painted nothing would also satisfy - the
-case had no fill at all until that was noticed. The final check is on the box's own colour, reads the
-PNG back with the standard library (the CLI writes non-interlaced 8-bit RGBA), and was verified by
-reverting the `set_content_scale` call: the gate went red with the far corner named.
-
-`tessera_canvas_draw` also took the **logical** rectangle rather than the physical extent the page
-sized; the two agreed only while both derived the same scale (#690).
+Two limits found the hard way. A presented WebGPU frame cannot be read back in headless Chromium
+(`drawImage` and `screenshot()` both return zeros), so the DPR-2 *pixels* are pinned on lavapipe and the
+browser gate stops at geometry. And the device controls are menu items whose DOM ids are derived from
+their row index, so a gate must drive them by label. `tessera_canvas_draw` also took the logical
+rectangle rather than the physical extent the page sized; the two agreed only while both derived the
+same scale, and it now takes what `sizeToDevicePixels` produced.
