@@ -498,8 +498,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       and damage walk). Each justified a renderer change, not a new shader: the offscreen layer pool
       now recycles inside the frame, caps bytes and trims idle, with refusals reported through
       `diagnostics::OffscreenPressureReporter` (PRs #928-#941, `runtime-config-v1.md` `offscreenMaxMb`
-      / `offscreenIdleSeconds`). **Open:** the `-webkit-mask*` alias family, and the eight filter
-      colour functions — PR #942 carries the latter.
+      / `offscreenIdleSeconds`). The eight filter **colour functions** (`brightness`, `contrast`,
+      `grayscale`, `sepia`, `saturate`, `hue-rotate`, `invert`, `opacity`) landed in #942: measured in
+      Chromium, packed up to three per `LayerFilterOp`, one 1:1 pass of the existing blur program
+      (mode 3), no new RHI feature, and the CPU twin runs them too. A masked, filtered or
+      isolated-opacity group is now **retained** across frames instead of re-rendered (#944: the
+      layer target stays bound until a dependency dirties, with `layer_retain_*` and
+      `paint_layer_retain` tests and a bench). **Open:** only the `-webkit-mask*` alias family.
 - [x] #622 `:has()` and `@scope` — both supported, no named exception: `@scope` styles a component's
       subtree without a class on every descendant and `:has()` lets a rule reach a nested region it
       hosts, which is what ADR-064 item 6's nested theme region needs; the `:has()` walk is bounded
@@ -729,7 +734,7 @@ owner-planned item and is not part of this milestone.
 device profiles, the workbench dock and the studio-side mock services have landed. What is left in
 this milestone is the IDE work listed under #584 (W5b-W9), #516, #567-#569 and #575-#583, the canvas
 viewport work (#690), the fold-hinge overlay (#433), the remaining MCP tools (#396), and the paint
-family's last two items (#617's `-webkit-mask` alias and the filter colour functions, PR #942).
+family's last item (#617's `-webkit-mask` alias; the filter colour functions landed in #942).
 
 - [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
