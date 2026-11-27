@@ -116,6 +116,14 @@ bool run(rhi::Device& device, bool report) {
             std::cout << "measured " << scene.name << " max=" << exact.max_channel_delta
                       << " over4=" << over4 << " over16=" << over16 << " gpu_ink=" << any_gpu
                       << " thorvg_ink=" << any_reference << "\n";
+            if (d16.mismatched != 0) {
+                const std::size_t at = d16.first_mismatch;
+                std::cout << "  first pixel over 16 at (" << at % kSize << "," << at / kSize
+                          << ") gpu rgba " << int(a[at * 4]) << "," << int(a[at * 4 + 1]) << ","
+                          << int(a[at * 4 + 2]) << "," << int(a[at * 4 + 3]) << " thorvg "
+                          << int(b[at * 4]) << "," << int(b[at * 4 + 1]) << ","
+                          << int(b[at * 4 + 2]) << "," << int(b[at * 4 + 3]) << "\n";
+            }
         }
         if (scene.expect_blank) {
             expect(!any_gpu && !any_reference, scene.name + ": both rasterizers leave it blank");

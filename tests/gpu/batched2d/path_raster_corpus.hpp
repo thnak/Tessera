@@ -262,7 +262,8 @@ inline void add_degenerate(std::vector<Scene>& out) {
     butt_dot.cap = path::GpuCap::butt;
     out.push_back(scene("degenerate_zero_length_dot",
                         {stroke({{24, 24}, {24, 24}}, dot), stroke({{64, 40}, {64, 40}}, square_dot),
-                         stroke({{40, 74}, {40, 74}}, butt_dot)}));
+                         stroke({{40, 74}, {40, 74}}, butt_dot),
+                         stroke({{8, 90}, {88, 90}}, Line{kBlue})}));
     Line through{kGreen};
     through.width = 6.0f;
     through.join = path::GpuJoin::miter;
