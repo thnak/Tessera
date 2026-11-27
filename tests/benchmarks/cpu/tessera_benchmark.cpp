@@ -13,6 +13,7 @@
 
 #include "benchmark_budget.hpp"
 #include "benchmark_fixture.hpp"
+#include "benchmark_profile.hpp"
 #include "benchmark_walk.hpp"
 
 #include <algorithm>
@@ -109,6 +110,14 @@ int main(int argc, char** argv) {
     // `--walk [rounds]`: the scene-walk report (no budget, never fails); see benchmark_walk.hpp.
     if (argc >= 2 && std::string_view(argv[1]) == "--walk") {
         return benchmark::run_scene_walk(argc >= 3 ? std::atoi(argv[2]) : 15);
+    }
+    // `--stage-profile [...]`: the per-stage frame profile of every reference scene
+    // (benchmark_profile.hpp); `--profile-check` is its deterministic ctest.
+    if (argc >= 2 && std::string_view(argv[1]) == "--stage-profile") {
+        return benchmark::run_stage_profile(argc, argv);
+    }
+    if (argc >= 2 && std::string_view(argv[1]) == "--profile-check") {
+        return benchmark::run_profile_check();
     }
     // `--profile [rounds]`: the one-text-change frame in a loop, for a sampling profiler. No
     // budget.

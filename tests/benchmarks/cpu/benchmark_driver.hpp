@@ -63,8 +63,11 @@ struct FramePhases {
 class BenchmarkDriver final {
 public:
     // `root` is borrowed and must outlive the driver. `viewport` is the logical content size.
+    // `pipeline` is the frame pipeline's config; the stage profile turns `cull_paint` off to
+    // measure a scene whose every node is on screen.
     BenchmarkDriver(ui::Node& root, ui::style::CompiledStyleSheet sheet,
-                    ui::layout::LayoutViewport viewport);
+                    ui::layout::LayoutViewport viewport,
+                    ui::frame::FramePipelineConfig pipeline = ui::frame::FramePipelineConfig{});
     ~BenchmarkDriver();
 
     BenchmarkDriver(const BenchmarkDriver&) = delete;

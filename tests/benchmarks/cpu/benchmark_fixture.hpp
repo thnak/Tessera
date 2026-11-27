@@ -8,6 +8,7 @@
 #pragma once
 
 #include "benchmark_driver.hpp"
+#include "benchmark_profile.hpp"
 #include "benchmark_scene.hpp"
 #include "benchmark_sink.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
@@ -18,6 +19,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace tessera::benchmark {
 
@@ -102,15 +104,42 @@ struct Totals {
     std::size_t glass_backdrops = 0;
 };
 
+// The device the fixture records on. `Null` is the deterministic default (and the only one the
+// gated benchmark uses); `Vulkan` records the same frames on a real device (lavapipe on the Linux
+// lane) so the stage profile can report the synchronous submit time. It needs a build with
+// TESSERA_BENCHMARK_HAS_VULKAN and a device, else construction throws.
+inline constexpr std::uint32_t kTargetWidth = static_cast<std::uint32_t>(kBenchmarkWidth);
+inline constexpr std::uint32_t kTargetHeight = static_cast<std::uint32_t>(kBenchmarkHeight);
+
+enum class BackendKind : std::uint8_t { Null, Vulkan };
+
+struct FixtureOptions {
+    BackendKind backend = BackendKind::Null;
+    // Declares the clip/gradient storage buffer on the frame pipeline, as the window's pipeline
+    // does, so the renderer uploads and binds it. Off for the gated benchmark, which has always
+    // recorded without it; the stage profile turns it on to count the real upload.
+    bool storage_pipeline = false;
+    // The frame pipeline's paint-pass culling (on by default, as in the window). Off paints every
+    // node of the scene, which models a screen whose whole tree is visible.
+    bool cull_paint = true;
+};
+
+[[nodiscard]] bool vulkan_backend_available() noexcept;
+
 class Fixture final {
 public:
-    Fixture();
+    explicit Fixture(FixtureOptions options = {});
     ~Fixture();
 
     Fixture(const Fixture&) = delete;
     Fixture& operator=(const Fixture&) = delete;
 
     [[nodiscard]] Measurement measure();
+    // The stage profile: one entry per reference scene, with the stage times of that frame and its
+    // counters (benchmark_profile.hpp). Run on a fresh fixture, like measure().
+    [[nodiscard]] std::vector<SceneProfile> profile();
+    // One cold full-repaint frame under `name`, for a fixture built with different options.
+    [[nodiscard]] SceneProfile profile_cold_frame(const char* name);
     // The one-text-change frame repeated `rounds` times on a scene that has already had its first
     // frame, for a sampling profiler (`--profile`): the cold first frame is excluded so the samples
     // describe the incremental path. Returns the mean frame time in milliseconds.
@@ -133,7 +162,11 @@ private:
     void edit_text(const char* text = nullptr);
     void edit_container();
     void enable_glass_bar();
+    // Records one frame the way the window does (begin_frame, paint, end) with every stage timed
+    // and its counters read. `damaged` paints through the frame's partial plan when it has one.
+    [[nodiscard]] SceneProfile profile_frame(const char* name, bool damaged);
 
+    FixtureOptions options_;
     std::unique_ptr<ui::Node> root_;
     SceneBuilder builder_;
     SceneTargets targets_{};

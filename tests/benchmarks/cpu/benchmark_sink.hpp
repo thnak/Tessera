@@ -11,7 +11,9 @@
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 
 namespace tessera::benchmark {
 
@@ -24,6 +26,9 @@ struct DrawListCounts {
     std::size_t rounded_fills = 0;
     std::size_t gradients = 0;
     std::size_t text_runs = 0;
+    // Non-whitespace bytes of the text runs: one glyph quad each once a font rasterizes them. The
+    // benchmark has no font, so this bounds the glyph geometry the stub leaves out.
+    std::size_t text_glyphs = 0;
     std::size_t images = 0;
     std::size_t vectors = 0;
     std::size_t clips = 0;
@@ -46,23 +51,39 @@ public:
     explicit CountingSink(ui::paint::Batched2DSink& batched)
         : batched_(&batched) {}
 
+    // Stage profile (--stage-profile): when on, the time spent inside the forwarded batch-build
+    // calls is summed, so a frame's paint time splits into the paint pass (building ops) and the
+    // sink (batching them). Off by default: the gated benchmark takes no extra clock reads. The
+    // accumulator is a plain integer, so timing allocates nothing.
+    void set_timing(bool on) noexcept {
+        timing_ = on;
+    }
+    [[nodiscard]] double sink_ms() const noexcept {
+        return static_cast<double>(sink_ns_) / 1.0e6;
+    }
+
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override {
         ++counts_.fills;
+        const Timed timed(*this);
         batched_->fill_rect(rect, color);
     }
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override {
         ++counts_.rounded_fills;
+        const Timed timed(*this);
         batched_->fill_rounded_rect(rect, color, radius);
     }
     void fill_linear_gradient(const ui::paint::GradientDraw& draw) override {
         ++counts_.gradients;
+        const Timed timed(*this);
         batched_->fill_linear_gradient(draw);
     }
     void push_clip(const ui::paint::RoundedClip& clip) override {
         ++counts_.clips;
+        const Timed timed(*this);
         batched_->push_clip(clip);
     }
     void pop_clip() override {
+        const Timed timed(*this);
         batched_->pop_clip();
     }
     [[nodiscard]] bool supports_transform() const override {
@@ -70,20 +91,27 @@ public:
     }
     void push_transform(const rhi::Mat3& transform) override {
         ++counts_.transforms;
+        const Timed timed(*this);
         batched_->push_transform(transform);
     }
     void pop_transform() override {
+        const Timed timed(*this);
         batched_->pop_transform();
     }
-    void draw_text(const ui::paint::TextDraw& /*run*/) override {
+    void draw_text(const ui::paint::TextDraw& run) override {
         ++counts_.text_runs;
+        for (const char ch : run.text) {
+            counts_.text_glyphs += (ch != ' ' && ch != '\n' && ch != '\t') ? 1u : 0u;
+        }
     }
     void draw_vector(const ui::paint::VectorDraw& draw) override {
         ++counts_.vectors;
+        const Timed timed(*this);
         batched_->draw_vector(draw);
     }
     void draw_image(const ui::paint::ImageDraw& draw) override {
         ++counts_.images;
+        const Timed timed(*this);
         batched_->draw_image(draw);
     }
     [[nodiscard]] bool supports_backdrop() const override {
@@ -91,6 +119,7 @@ public:
     }
     void draw_backdrop(const ui::paint::BackdropDraw& draw) override {
         ++counts_.backdrops;
+        const Timed timed(*this);
         batched_->draw_backdrop(draw);
     }
 
@@ -99,11 +128,38 @@ public:
     }
     void reset() noexcept {
         counts_.reset();
+        sink_ns_ = 0;
     }
 
 private:
+    using TimingClock = std::chrono::steady_clock;
+
+    // Adds the lifetime of one forwarded call to the accumulator when timing is on.
+    class Timed {
+    public:
+        explicit Timed(CountingSink& sink) noexcept
+            : sink_(sink.timing_ ? &sink : nullptr),
+              begin_(sink_ != nullptr ? TimingClock::now() : TimingClock::time_point{}) {}
+        ~Timed() {
+            if (sink_ != nullptr) {
+                sink_->sink_ns_ +=
+                    static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                   TimingClock::now() - begin_)
+                                                   .count());
+            }
+        }
+        Timed(const Timed&) = delete;
+        Timed& operator=(const Timed&) = delete;
+
+    private:
+        CountingSink* sink_;
+        TimingClock::time_point begin_;
+    };
+
     ui::paint::Batched2DSink* batched_ = nullptr;
     DrawListCounts counts_;
+    bool timing_ = false;
+    std::uint64_t sink_ns_ = 0;
 };
 
 } // namespace tessera::benchmark

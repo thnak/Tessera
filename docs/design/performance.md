@@ -466,6 +466,88 @@ only for a scene whose 12 000 nodes are all visible would a full paint still cos
 design (single UI thread, no worker recording) is unchanged.
 
 
+### 9.2 Per-stage frame profile
+
+`tessera_benchmark --stage-profile` answers "where does a frame's cost go" for every reference scene,
+so a GPU-driven-rendering or instancing decision rests on stage numbers, not on a guess. It records
+each scene's frame the way the window does and reports, per scene: the time of each stage (tick,
+style, layout, damage, paint pass = op build, sink/batch build, renderer begin, flush, and on a real
+device the synchronous submit) and the counters of what reaches the GPU. The counters are the
+engine's own: `PaintStats`, the batched renderer's cull/split/layer/offscreen stats, the null
+command list's recorded commands, and two counters added for this (`ClipBuffer::uploaded_bytes()` /
+`upload_calls()`, surfaced as `Batched2DRenderer::clip_upload_bytes()`, plus the benchmark sink's
+`text_glyphs`). Vertex bytes are `vertex_count() * 64`. Source: `tests/benchmarks/cpu/benchmark_profile.*`,
+`benchmark_fixture_profile.cpp`, `benchmark_stage_profile.cpp`.
+
+```bash
+tessera_benchmark --stage-profile                 # text table, median of 9 runs, null RHI
+tessera_benchmark --stage-profile --json --runs 21
+tessera_benchmark --stage-profile --no-timings    # counters only: deterministic, byte-identical
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+  tessera_benchmark --stage-profile --backend vulkan   # adds submit time (lavapipe on Linux)
+```
+
+Scenes: `cold_first_frame` (full cold style, layout and paint), `text_edit_full` and
+`container_resize` (incremental frame, full-target paint), `text_edit_damaged` (the same edit painted
+through the partial damage plan, as the window does), `repeat_full_repaint` (retained draw lists
+replayed), `glass_full_paint` (steady-state backdrop blur), and `cold_unculled` (the cold frame with
+`cull_paint` off, so all 12 000 nodes paint: a screen whose whole tree is visible). Timings exist only
+in the benchmark executable. The `cpu_stage_profile` CTest (`--profile-check`) runs no timing
+comparison: it checks that two collections print identical counters and that the counters describe the
+scenes (partial damage visits fewer nodes, the glass frame breaks the pass, vertex bytes are quads x 384).
+The Vulkan backend reports no recorded-command counters (`n/a`; the null command list owns those).
+
+First run (2026-11-27, GCC 15 Release, Xeon E5-2680 v4 2.4 GHz, null RHI, median of 21 runs; text is
+the deterministic stub, not rasterized). Times in ms:
+
+| scene | style | layout | paint pass | sink+begin+flush | total CPU | draws / passes | upload B |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| cold_first_frame | 159.0 | 233.4 | 10.17 | 0.055 | 403.1 | 19 / 1 | 16 368 |
+| text_edit_full | 0.90 | 2.29 | 0.95 | 0.009 | 4.16 | 2 / 1 | 1 344 |
+| container_resize | 0.26 | 1.55 | 0.27 | 0.011 | 2.09 | 4 / 1 | 2 208 |
+| text_edit_damaged | 0.01 | 1.31 | 0.18 | 0.007 | 1.51 | 3 / 1 | 2 208 |
+| repeat_full_repaint | 0.00 | 0.00 | 0.009 | 0.010 | 0.019 | 19 / 1 | 16 368 |
+| glass_full_paint | 0.00 | 0.00 | 0.26 | 0.016 | 0.27 | 20 / 3 | 16 464 |
+| cold_unculled | 158.9 | 232.4 | 104.3 | 0.067 | 496.1 | 19 / 1 | 16 736 |
+
+Submit time on lavapipe (Vulkan backend, same CPU; software rasterization of a 1280x800 target, so a
+CPU-fill number, not a GPU one): cold 15.3, text_edit_full 1.1, container_resize 1.3,
+text_edit_damaged 1.1, repeat_full_repaint 4.0, glass_full_paint 18.4 ms. Glass adds 2 pooled offscreen
+targets (457 920 B), 1 region copy, 2 sampled-target binds and 2 extra passes. The scene has no
+isolated opacity layers (`layers_isolated` 0). Counters of note: the paint pass culls 11 638 of 11 870
+nodes on the cold frame, the renderer culls 0 quads (25 on the unculled frame), and 17 of the 19
+cold-frame draws end on a texture switch (`split_texture`; the descriptor-indexed array path
+already exists and is not enabled in this profile).
+
+Reading (CPU build vs upload vs pass count vs fill):
+
+- **Cold frame, and a frame that restyles or re-lays-out the tree: CPU build.** Layout is 58% and
+  style 39% of 403 ms; paint is 2.5%. Nothing GPU-facing costs more than 0.06 ms.
+- **Incremental frames (the steady state): CPU build again**, split about 55% layout, 23% paint pass,
+  22% style, 1.5 to 4 ms in all. The sink, batch build, flush and upload stages are under 0.02 ms
+  together (0.2%), with 2 to 4 draws, 1 pass and at most 2.2 KB uploaded. Upload and pass count are
+  not the bottleneck.
+- **Replay and glass frames: a fraction of a millisecond of CPU**; what remains is fill/composite on the
+  GPU (4 and 18 ms on lavapipe, unmeasured on hardware). Pass count is 1, or 3 with glass.
+- **All 12 000 nodes visible: the paint pass's op build.** 104 ms, 8.7 us per node, against 0.07 ms for
+  sink and flush. This number understates batch and upload cost: the 10 039 text runs (101 257 glyphs)
+  draw nothing without a font. One glyph quad each would be 38.9 MB of vertices per frame (6 x 64 B);
+  the visible-region scene is 2 186 glyphs, 0.84 MB. Both are estimates (`text_glyph_bytes_est`), not
+  measurements.
+
+Recommendation: **GPU-driven culling is not justified.** CPU culling already removes 98% of the
+nodes before they cost anything, the renderer culls almost no quads, draws are at most 20 and passes at
+most 3, and the time is in style, layout and paint-pass op build, none of which GPU-driven rendering
+touches. **Instancing is not justified by this scene either** (16 KB per full frame); it would cut
+vertex bytes 6x (one 64 B instance per quad instead of six vertices) and only matters for a text-heavy,
+fully visible screen, where the estimate is tens of MB per frame. Decide that with a measurement, not
+the estimate: add a font-backed scene (glyph-atlas quads through the real sink) and re-run this
+profile. Cheaper wins first: first-frame style and layout, the per-node paint-pass cost, and the
+texture splits through the existing texture-array path. The stylesheet benchmark
+(`tests/benchmarks/stylesheet`) is counter-based by design (no wall clock); the profile's
+`stylesheet compile` line (0.23 ms for the scene's sheet) is the only startup-style timing, and
+the cascade cost per node is the style column above.
+
 ## 10. Open questions
 
 - Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).
