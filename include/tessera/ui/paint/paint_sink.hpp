@@ -207,8 +207,9 @@ struct ConicGradientDraw {
 // bounded by the colour change across one cell, and a golden pins the exact result. 32 keeps a
 // 200 px box at ~6 px cells, which is smooth for the ramps V1 paints without a per-pixel shader.
 inline constexpr int kRadialBands = 32;
-// The conic grid is finer: 64 x 64 = 4096 solid quads at most, which halves the angular error of the
-// 32 grid (up to +/-19/255 against Chromium on a 360 degree ramp) for a bounded, still shader-free cost.
+// The conic grid is finer: 64 x 64 = 4096 solid quads at most, which halves the angular error of
+// the 32 grid (up to +/-19/255 against Chromium on a 360 degree ramp) for a bounded, still
+// shader-free cost.
 inline constexpr int kConicBands = 64;
 
 // The `index`-th of `count` equal divisions of [origin, origin + extent]. The last edge is the far
@@ -272,9 +273,10 @@ struct ConicBand {
 // Tessellates `draw` into at most kConicBands * kConicBands bands, in row-major order, and calls
 // `emit` for each. A conic gradient has no dominant axis either, so it uses a bounded grid like the
 // radial one, twice as fine (kConicBands): the colour changes with the angle, so a coarse cell is
-// visibly wrong near the centre where one cell spans a large angle: each cell is filled with the ramp colour at its centre, which is the
-// documented approximation (docs/design/paint-pass.md section 13). Cells whose centre falls outside
-// the box are skipped, so the fill is the box itself rather than its bounding rect.
+// visibly wrong near the centre where one cell spans a large angle: each cell is filled with the
+// ramp colour at its centre, which is the documented approximation (docs/design/paint-pass.md
+// section 13). Cells whose centre falls outside the box are skipped, so the fill is the box itself
+// rather than its bounding rect.
 //
 // The angle is measured from 12 o'clock clockwise, the CSS convention: `atan2(dx, -dy)` gives 0 at
 // the top and grows clockwise, which is why the y term is negated. A cell exactly at the centre has
