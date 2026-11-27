@@ -157,7 +157,7 @@ class MetalPipeline final : public rhi::Pipeline {
 public:
     MetalPipeline(id<MTLRenderPipelineState> state, std::uint32_t sample_count,
                   std::uint32_t push_constant_size, std::uint32_t fragment_push_constant_index,
-                  std::uint32_t fragment_storage_buffer_index);
+                  std::uint32_t fragment_storage_buffer_index, bool uses_vertex_stream);
 
     [[nodiscard]] std::uint32_t sample_count() const override;
     // True when the program's MSL declares the read-only storage buffer and the descriptor asked
@@ -172,6 +172,11 @@ public:
     [[nodiscard]] std::uint32_t fragment_storage_buffer_index() const {
         return fragment_storage_buffer_index_;
     }
+    // False for a program that builds its geometry from `vertex_id` (a fullscreen triangle): a draw
+    // with it needs no vertex buffer.
+    [[nodiscard]] bool uses_vertex_stream() const {
+        return uses_vertex_stream_;
+    }
     [[nodiscard]] id<MTLRenderPipelineState> state() const {
         return state_;
     }
@@ -185,6 +190,7 @@ private:
     std::uint32_t push_constant_size_;
     std::uint32_t fragment_push_constant_index_;
     std::uint32_t fragment_storage_buffer_index_;
+    bool uses_vertex_stream_;
 };
 
 class MetalRenderTarget final : public rhi::RenderTarget {

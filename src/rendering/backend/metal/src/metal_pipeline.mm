@@ -26,12 +26,13 @@ namespace tessera::rendering::metal {
 MetalPipeline::MetalPipeline(id<MTLRenderPipelineState> state, std::uint32_t sample_count,
                              std::uint32_t push_constant_size,
                              std::uint32_t fragment_push_constant_index,
-                             std::uint32_t fragment_storage_buffer_index)
+                             std::uint32_t fragment_storage_buffer_index, bool uses_vertex_stream)
     : state_(state),
       sample_count_(sample_count),
       push_constant_size_(push_constant_size),
       fragment_push_constant_index_(fragment_push_constant_index),
-      fragment_storage_buffer_index_(fragment_storage_buffer_index) {}
+      fragment_storage_buffer_index_(fragment_storage_buffer_index),
+      uses_vertex_stream_(uses_vertex_stream) {}
 
 std::uint32_t MetalPipeline::sample_count() const {
     return sample_count_;
@@ -179,7 +180,8 @@ std::unique_ptr<rhi::Pipeline> MetalDevice::create_pipeline(const rhi::PipelineD
     }
 
     return std::make_unique<MetalPipeline>(state, desc.sample_count, desc.push_constant_size,
-                                           program->fragment_push_constant_index, storage_index);
+                                           program->fragment_push_constant_index, storage_index,
+                                           desc.vertex_layout.attribute_count > 0);
 }
 
 } // namespace tessera::rendering::metal

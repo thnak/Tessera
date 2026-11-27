@@ -52,6 +52,11 @@ namespace {
 class MetalCommandList final : public rhi::CommandList {
 public:
     explicit MetalCommandList(MetalDevice& device) : device_(device) {}
+    // A list dropped mid-pass (a validation error threw between begin and end) must still close its
+    // encoder: Metal aborts the process on an encoder released without endEncoding.
+    ~MetalCommandList() override {
+        end_encoder();
+    }
 
     void begin_render_pass(const rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc) override;
     void end_render_pass() override;
@@ -351,7 +356,7 @@ void MetalCommandList::push_constants(const void* data, std::size_t size) {
 void MetalCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_vertex) {
     require_pass("draw");
     require_pipeline("draw");
-    if (vertex_buffer_ == nullptr) {
+    if (pipeline_->uses_vertex_stream() && vertex_buffer_ == nullptr) {
         throw std::logic_error("metal draw: no vertex buffer is bound");
     }
     [encoder_ drawPrimitives:MTLPrimitiveTypeTriangle
