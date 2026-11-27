@@ -14,6 +14,9 @@
 // shader: the destination is cleared to the premultiplied shadow colour and the vertical pass
 // multiplies it by the blurred, offset alpha (mode 1 samples at `frag - region_origin`, which is
 // the offset), with a box large enough that the rounded-box coverage is 1 everywhere.
+//
+// The colour functions (brightness() ... opacity()) are a third use of the same program: mode 3
+// copies the layer 1:1 through the functions in one pass, so they need no pipeline of their own.
 
 #include "tessera/rendering/gpu/glass_compositor.hpp"
 
@@ -98,6 +101,46 @@ bool GlassCompositor::blur_layer(const FrameContext& frame, rhi::RenderTarget& s
     commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(desc.extent.width),
                                         static_cast<float>(desc.extent.height)});
     commands.push_constants(&vertical, sizeof(vertical));
+    for (const rhi::Scissor& scissor : scissors) {
+        commands.set_scissor(scissor);
+        commands.draw(kFullscreenVertices);
+        ++draws_;
+    }
+    commands.end_render_pass();
+    return true;
+}
+
+bool GlassCompositor::color_layer(const FrameContext& frame, rhi::RenderTarget& source,
+                                  rhi::RenderTarget& dest, const LayerFilterOp& op,
+                                  const std::vector<rhi::Scissor>& scissors) {
+    if (frame.commands == nullptr || !filters_supported(false) ||
+        op.kind != LayerFilterOp::Kind::ColorFunctions) {
+        return false;
+    }
+    rhi::CommandList& commands = *frame.commands;
+
+    GlassPushConstants push;
+    push.texel_step_x = texel(source.extent().width);
+    push.texel_step_y = texel(source.extent().height);
+    push.mode = 3.0f;
+    push.radius_tl = static_cast<float>(op.color_function(0));
+    push.radius_tr = static_cast<float>(op.color_function(1));
+    push.radius_br = static_cast<float>(op.color_function(2));
+    push.saturate = op.color_amount(0);
+    push.brightness = op.color_amount(1);
+    push.contrast = op.color_amount(2);
+
+    rhi::RenderTargetDesc desc = frame.desc;
+    desc.sample_count = 1;
+    desc.load_op = rhi::LoadOp::Clear;
+    desc.clear_color = rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
+    desc.extent = dest.extent();
+    commands.bind_pipeline(*glass_.blur);
+    commands.bind_sampled_target(0, source);
+    commands.begin_render_pass(dest, desc);
+    commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(desc.extent.width),
+                                        static_cast<float>(desc.extent.height)});
+    commands.push_constants(&push, sizeof(push));
     for (const rhi::Scissor& scissor : scissors) {
         commands.set_scissor(scissor);
         commands.draw(kFullscreenVertices);

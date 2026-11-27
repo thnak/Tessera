@@ -2699,7 +2699,7 @@
     {
       "kind": "keyword",
       "name": "filter",
-      "note": "none | blur() | drop-shadow(), applied to an isolated layer"
+      "note": "none | blur() | drop-shadow() | brightness() | contrast() | grayscale() | sepia() | saturate() | hue-rotate() | invert() | opacity(), applied to an isolated layer"
     },
     {
       "kind": "number",

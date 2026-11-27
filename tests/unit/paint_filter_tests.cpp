@@ -204,11 +204,11 @@ bool sigma_is_clamped() {
 
 bool nothing_to_filter_paints_no_layer() {
     bool ok = true;
-    for (const char* value :
-         {"none", "blur(0)", "blur(0px)", "brightness(2)", "blur(-1px)", "drop-shadow(", "url(#a)",
-          "", "drop-shadow(1px)", "drop-shadow(red)", "drop-shadow(1px 1px -2px red)",
-          "blur(1px) drop-shadow(1px 1px 1px red) blur(1px) blur(1px) "
-          "drop-shadow(1px 1px 1px red) blur(1px)"}) {
+    for (const char* value : {"none", "blur(0)", "blur(0px)", "brightness(1)", "brightness(-1)",
+                              "blur(-1px)", "drop-shadow(", "url(#a)", "", "drop-shadow(1px)",
+                              "drop-shadow(red)", "drop-shadow(1px 1px -2px red)",
+                              "blur(1px) drop-shadow(1px 1px 1px red) blur(1px) blur(1px) "
+                              "drop-shadow(1px 1px 1px red) blur(1px)"}) {
         Scene scene(value);
         LogSink sink(true);
         paint_scene(scene.root, scene.styles, sink);

@@ -158,7 +158,10 @@ struct GlassPushConstants {
     float brightness = 1.0f;
     float contrast = 1.0f;
     // 0 = horizontal into the blur target, 1 = vertical + composite, 2 = isolated-layer composite
-    // (issue #227): sample the layer, un-premultiply, apply `opacity`, no matrix and no clip.
+    // (issue #227): sample the layer, un-premultiply, apply `opacity`, no matrix and no clip,
+    // 3 = CSS colour filter functions over a layer (issue #617): a 1:1 copy that applies up to
+    // three functions, their ids (ColorFunction) in `radius_tl..radius_br` and amounts in
+    // `saturate, brightness, contrast`; `texel_step` maps the pixel as in mode 0.
     float mode = 0.0f;
     float opacity = 1.0f; // composite alpha weight (vertical pass only)
     // std140 pads the block to a 16-byte multiple; the shader never reads these.

@@ -2802,6 +2802,15 @@ add_executable(paint_filter_tests
 target_link_libraries(paint_filter_tests PRIVATE tessera_paint tessera_style)
 add_test(NAME paint_filter COMMAND paint_filter_tests)
 
+# The CSS colour filter functions of `filter` (issue #617), held to Chromium measurements.
+add_executable(filter_color_tests
+    filter_color_tests.cpp)
+target_include_directories(filter_color_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/ui/paint
+    ${PROJECT_SOURCE_DIR}/tests/fixtures)
+target_link_libraries(filter_color_tests PRIVATE tessera_paint tessera_style)
+add_test(NAME filter_color COMMAND filter_color_tests)
+
 # `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
 # the coverage rule the CPU reference and the shader share.
 add_executable(clip_path_tests

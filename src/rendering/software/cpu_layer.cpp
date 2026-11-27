@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/gpu/color_filter.hpp"
 #include "tessera/rendering/software/cpu_layer.hpp"
 
 #include <algorithm>
@@ -118,6 +119,36 @@ void combine_mask_part(CpuCanvas& mask_black, CpuCanvas& mask_white, const CpuCa
         for (std::size_t channel = 0; channel < 3; ++channel) {
             mask_black.pixels()[index + channel] = 0;
             mask_white.pixels()[index + channel] = to_byte(255.0f - alpha);
+        }
+    }
+}
+
+void apply_layer_color_filter(CpuCanvas& black, CpuCanvas& white, const gpu::LayerFilterOp& op) {
+    if (!same_size(black, white) || op.kind != gpu::LayerFilterOp::Kind::ColorFunctions ||
+        op.color_count() == 0) {
+        return;
+    }
+    const std::size_t pixel_count = static_cast<std::size_t>(black.width()) * black.height();
+    for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
+        std::uint8_t* const dark = &black.pixels()[pixel * 4];
+        std::uint8_t* const light = &white.pixels()[pixel * 4];
+        const int alpha_byte = layer_alpha(dark, light);
+        if (alpha_byte == 0) {
+            continue; // nothing drawn: every function keeps a transparent pixel transparent
+        }
+        const float alpha = static_cast<float>(alpha_byte) / 255.0f;
+        gpu::StraightPixel straight;
+        straight.r = std::min(static_cast<float>(dark[0]) / 255.0f / alpha, 1.0f);
+        straight.g = std::min(static_cast<float>(dark[1]) / 255.0f / alpha, 1.0f);
+        straight.b = std::min(static_cast<float>(dark[2]) / 255.0f / alpha, 1.0f);
+        straight.a = alpha;
+        gpu::apply_color_functions(op, straight);
+        const float new_alpha = std::round(straight.a * 255.0f);
+        const float colour[3] = {straight.r, straight.g, straight.b};
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            const float premultiplied = std::round(colour[channel] * straight.a * 255.0f);
+            dark[channel] = to_byte(premultiplied);
+            light[channel] = to_byte(premultiplied + (255.0f - new_alpha));
         }
     }
 }

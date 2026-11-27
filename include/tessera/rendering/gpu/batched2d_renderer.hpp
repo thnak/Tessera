@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/gpu/batch_split.hpp"
 #include "tessera/rendering/gpu/batched2d_config.hpp"
+#include "tessera/rendering/gpu/batched2d_cull_stats.hpp"
 #include "tessera/rendering/gpu/clip.hpp"
 #include "tessera/rendering/gpu/clip_buffer.hpp"
 #include "tessera/rendering/gpu/clip_state_table.hpp"
@@ -20,14 +21,6 @@
 #include <vector>
 
 namespace tessera::rendering::gpu {
-
-// Per-frame culling counters, reset by every begin. `quads_emitted` counts quads that reached the
-// vertex buffer; the two culled counters are quads dropped before it.
-struct CullStats {
-    std::uint32_t quads_emitted = 0;
-    std::uint32_t quads_culled = 0;               // outside the scissor or the damage regions
-    std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
-};
 
 // The carved-out box of a box shadow in local px: centre relative to the quad centre and half size.
 // All zero subtracts nothing (every primitive other than a shadow quad). Declared at namespace
@@ -325,6 +318,9 @@ public:
     }
     [[nodiscard]] std::uint32_t vertex_count() const;
     [[nodiscard]] std::uint32_t pending_batches() const;
+    [[nodiscard]] const ClipBuffer& clip_buffer() const {
+        return clip_buffer_;
+    }
     [[nodiscard]] const CullStats& cull_stats() const {
         return cull_stats_;
     }

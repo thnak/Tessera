@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/glass_blur.hpp"
+#include "tessera/rendering/gpu/layer_filter.hpp"
 #include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/gpu/offscreen_target_pool.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -151,6 +152,15 @@ public:
                                   rhi::RenderTarget& scratch, rhi::RenderTarget& dest,
                                   const FilterPass& pass,
                                   const std::vector<rhi::Scissor>& scissors);
+
+    // Colour filter functions (issue #617): one pass of glass_blur.frag mode 3 that copies `source`
+    // into `dest` (a different target) through up to three CSS colour functions, once per scissor.
+    // Nothing blurs, so `dest` only needs the layer's own region; outside the scissors it stays
+    // transparent, which is what the layer held there. The pass runs in its own render pass outside
+    // any open pass. Returns false, recording nothing, when filters_supported(false) is false.
+    [[nodiscard]] bool color_layer(const FrameContext& frame, rhi::RenderTarget& source,
+                                   rhi::RenderTarget& dest, const LayerFilterOp& op,
+                                   const std::vector<rhi::Scissor>& scissors);
 
     [[nodiscard]] rhi::RenderTarget* acquire(rhi::Extent2D extent);
     // Returns a target the caller is finished with to the pool, for reuse later in the same frame

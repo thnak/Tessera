@@ -1270,9 +1270,11 @@ enum include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::Batc
 header include/tessera/rendering/gpu/batched2d_config.hpp
 struct include/tessera/rendering/gpu/batched2d_config.hpp tessera::rendering::gpu::Batched2DConfig
 
+header include/tessera/rendering/gpu/batched2d_cull_stats.hpp
+struct include/tessera/rendering/gpu/batched2d_cull_stats.hpp tessera::rendering::gpu::CullStats
+
 header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
-struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::CullStats
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::ShadowCarveBox
 
 header include/tessera/rendering/gpu/clip.hpp
@@ -1323,6 +1325,15 @@ function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::
 header include/tessera/rendering/gpu/clip_state_table.hpp
 class include/tessera/rendering/gpu/clip_state_table.hpp tessera::rendering::gpu::ClipStateTable
 
+header include/tessera/rendering/gpu/color_filter.hpp
+struct include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::StraightPixel
+function include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::apply_color_function
+function include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::apply_color_functions
+function include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::color_filter_detail::saturate01
+constant include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::color_filter_detail::kLumaB
+constant include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::color_filter_detail::kLumaG
+constant include/tessera/rendering/gpu/color_filter.hpp tessera::rendering::gpu::color_filter_detail::kLumaR
+
 header include/tessera/rendering/gpu/glass_blur.hpp
 struct include/tessera/rendering/gpu/glass_blur.hpp tessera::rendering::gpu::GlassBackdropDraw
 struct include/tessera/rendering/gpu/glass_blur.hpp tessera::rendering::gpu::GlassBackdropPlan
@@ -1372,6 +1383,8 @@ class include/tessera/rendering/gpu/gradient_table.hpp tessera::rendering::gpu::
 header include/tessera/rendering/gpu/layer_filter.hpp
 struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterChain
 struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterOp
+enum include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::ColorFunction
+constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kColorFunctionsPerOp
 constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kMaxLayerFilterOps
 
 header include/tessera/rendering/gpu/layer_retention.hpp
@@ -1664,6 +1677,7 @@ class include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::soft
 struct include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::ShapedClip
 
 header include/tessera/rendering/software/cpu_layer.hpp
+function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::apply_layer_color_filter
 function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::apply_layer_mask
 function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::combine_mask_part
 function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::composite_layer
@@ -3188,7 +3202,9 @@ struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::Filter
 struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::FilterFunction
 struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::FilterParseResult
 function include/tessera/ui/style/filter_value.hpp tessera::ui::style::parse_filter
+constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kColorFunctionsPerOp
 constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kMaxFilterFunctions
+constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kMaxFilterOps
 
 header include/tessera/ui/style/gradient.hpp
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::ConicGradientValue

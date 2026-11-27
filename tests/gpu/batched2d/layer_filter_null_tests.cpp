@@ -254,6 +254,68 @@ bool fallbacks() {
     return ok;
 }
 
+LayerFilterChain color_chain(float amount) {
+    LayerFilterChain chain;
+    LayerFilterOp op;
+    op.set_color_function(0, tessera::rendering::gpu::ColorFunction::Brightness, amount);
+    op.set_color_function(1, tessera::rendering::gpu::ColorFunction::Invert, 1.0f);
+    chain.push(op);
+    return chain;
+}
+
+// A run of colour functions is one 1:1 pass: the layer is sampled into the scratch target, which
+// becomes the layer, so the chain costs one pass and no blur.
+bool color_functions_are_one_pass() {
+    Frame frame;
+    run(frame, color_chain(1.5f), false);
+    const std::vector<Kind> want{
+        Kind::BeginRenderPass,   // frame
+        Kind::EndRenderPass,     // closes at push_layer
+        Kind::BeginRenderPass,   // layer
+        Kind::Draw,              // content
+        Kind::EndRenderPass,     // layer closes for the filter
+        Kind::BindSampledTarget, // the layer
+        Kind::BeginRenderPass,   // the scratch target, which becomes the layer
+        Kind::Draw,
+        Kind::EndRenderPass,
+        Kind::BindSampledTarget, // the layer composite
+        Kind::BeginRenderPass,   // frame reopened
+        Kind::Draw,
+        Kind::EndRenderPass};
+    bool ok = expect(frame.fixture.skeleton() == want, "colour functions: pass and draw skeleton");
+    ok = expect(frame.renderer.layer_filters_applied() == 1 &&
+                    frame.renderer.layer_filters_unsupported() == 0,
+                "colour functions: counted as applied") &&
+         ok;
+    ok = expect(frame.renderer.offscreen_target_count() == 2,
+                "colour functions: the layer and one destination target") &&
+         ok;
+    // A blur after the colour pass still works on the swapped target and adds its two passes.
+    LayerFilterChain both = color_chain(1.5f);
+    both.push(blur_chain(2.0f).ops[0]);
+    Frame mixed;
+    run(mixed, both, false);
+    ok = expect(mixed.renderer.layer_filters_applied() == 2 &&
+                    mixed.renderer.offscreen_target_count() == 2 &&
+                    mixed.fixture.stats().begin_render_passes ==
+                        mixed.fixture.stats().end_render_passes,
+                "colour then blur: both applied over two pooled targets") &&
+         ok;
+    // Without the blur program (the colour pass is that program) or a free target, the layer paints
+    // unfiltered and the function is counted.
+    Frame no_blur({}, false, true);
+    ok = counted_fallback("no program skips the colour functions", no_blur, color_chain(1.5f), 1,
+                          3) &&
+         ok;
+    Batched2DConfig one;
+    one.max_offscreen_targets = 1;
+    Frame starved(one);
+    ok = counted_fallback("a pool with no destination skips the colour functions", starved,
+                          color_chain(1.5f), 1, 3) &&
+         ok;
+    return ok;
+}
+
 bool plain_layer_unchanged() {
     Frame frame;
     run(frame, LayerFilterChain{}, false);
@@ -278,8 +340,9 @@ bool bounded_over_many_frames() {
 
 int main() {
     try {
-        const bool ok = blur_order() && shadow_order() && filter_precedes_mask() && fallbacks() &&
-                        plain_layer_unchanged() && bounded_over_many_frames();
+        const bool ok = blur_order() && shadow_order() && color_functions_are_one_pass() &&
+                        filter_precedes_mask() && fallbacks() && plain_layer_unchanged() &&
+                        bounded_over_many_frames();
         if (!ok) {
             return 1;
         }

@@ -12,7 +12,10 @@ add_executable(tessera_benchmark
     benchmark_fixture.cpp
     benchmark_scene.cpp
     benchmark_walk.cpp
-    benchmark_budget.cpp)
+    benchmark_budget.cpp
+    benchmark_profile.cpp
+    benchmark_fixture_profile.cpp
+    benchmark_stage_profile.cpp)
 
 # The raster-image fixture bytes are embedded at build time (one small PNG shared by every image
 # node), so the benchmark needs no runtime filesystem and no third-party dependency.
@@ -33,6 +36,13 @@ target_link_libraries(tessera_benchmark PRIVATE
     tessera_scene
     tessera_runtime)
 
+# `tessera_benchmark --stage-profile` records the same frames on a real Vulkan device (lavapipe on the
+# Linux lane) when the backend is built, so the report can include the synchronous submit time.
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(tessera_benchmark PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(tessera_benchmark PRIVATE TESSERA_BENCHMARK_HAS_VULKAN)
+endif()
+
 # Issue #200 (held animations): the measurement that justified the change, kept as a guard.
 add_executable(held_animation_probe held_animation_probe.cpp)
 target_link_libraries(held_animation_probe PRIVATE tessera_app tessera_runtime)
@@ -43,6 +53,10 @@ add_test(
     NAME cpu_benchmark
     COMMAND tessera_benchmark
         ${PROJECT_SOURCE_DIR}/tests/golden/perf/cpu_benchmark.txt)
+
+# The stage profile's counters are deterministic (no clock): two collections must print the same
+# report and the counters must describe the scenes they are named for. Timings are never checked.
+add_test(NAME cpu_stage_profile COMMAND tessera_benchmark --profile-check)
 
 # The budgets are wall-clock milliseconds measured on an uninstrumented Release build. Sanitizer
 # instrumentation multiplies them, so the comparison is meaningless there; the sanitizer presets

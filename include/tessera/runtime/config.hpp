@@ -78,6 +78,12 @@ struct RuntimeConfig {
     // are identical either way. Last in the struct, like the glass fields, so positional aggregate
     // initialization of the older fields keeps its meaning.
     bool cull_draws = true;
+    // Offscreen layer pool memory (offscreen-layers.md section 5e): the byte cap on all pooled
+    // targets together, in MiB, and the seconds a lone settled window waits before releasing the
+    // pool. Both are read when the window is created (no live reload). Last in the struct so
+    // positional aggregate initialization of older fields keeps its meaning.
+    std::uint32_t offscreen_max_mb = 256;
+    double offscreen_idle_seconds = 2.0;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;
 };

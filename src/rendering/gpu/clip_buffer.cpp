@@ -34,6 +34,8 @@ void ClipBuffer::begin_frame() {
     current_->uploaded_vertices = 0;
     current_->uploaded_gradients = 0;
     current_->uploaded_stops = 0;
+    uploaded_bytes_ = 0;
+    upload_calls_ = 0;
 }
 
 void ClipBuffer::ensure_capacity(Slot& slot) {
@@ -59,6 +61,7 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
     if (current_->buffer == nullptr) {
         return nullptr;
     }
+    ++upload_calls_;
 
     // The record area is append-only within a frame, so only the records added since the last
     // upload are written. A set's range points at records that are already in the buffer, which is
@@ -72,6 +75,7 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
         const std::size_t count =
             (total_records - current_->uploaded_records) * sizeof(clip::ClipRecord);
         current_->buffer->write(records.data() + current_->uploaded_records, count, offset);
+        uploaded_bytes_ += count;
         current_->uploaded_records = total_records;
     }
 
@@ -85,6 +89,7 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
         const clip::ClipSetRange* source = sets.empty() ? &kEmpty : sets.data();
         current_->buffer->write(source, total_sets * sizeof(clip::ClipSetRange),
                                 clip::sets_offset(clip::kMaxClipRecords));
+        uploaded_bytes_ += total_sets * sizeof(clip::ClipSetRange);
         current_->uploaded_sets = total_sets;
     }
 
@@ -100,6 +105,7 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
         const std::size_t count =
             (total_vertices - current_->uploaded_vertices) * sizeof(clip::ClipVertex);
         current_->buffer->write(vertices.data() + current_->uploaded_vertices, count, offset);
+        uploaded_bytes_ += count;
         current_->uploaded_vertices = total_vertices;
     }
 
@@ -119,6 +125,8 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
             current_->buffer->write(
                 gradients->stop_offsets().data() + first, added * gradient::kStopOffsetBytes,
                 gradient::stop_offsets_offset() + first * gradient::kStopOffsetBytes);
+            uploaded_bytes_ += static_cast<std::uint64_t>(added) *
+                               (gradient::kStopColorBytes + gradient::kStopOffsetBytes);
             current_->uploaded_stops = total_stops;
         }
         const std::uint32_t total_gradients = std::min<std::uint32_t>(
@@ -129,6 +137,8 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
                                     (total_gradients - first) * sizeof(gradient::GradientRecord),
                                     gradient::records_offset() +
                                         first * sizeof(gradient::GradientRecord));
+            uploaded_bytes_ += static_cast<std::uint64_t>(total_gradients - first) *
+                               sizeof(gradient::GradientRecord);
             current_->uploaded_gradients = total_gradients;
         }
     }
@@ -141,6 +151,7 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
     header.gradient_count = current_->uploaded_gradients;
     header.gradient_stop_count = current_->uploaded_stops;
     current_->buffer->write(&header, sizeof(header), 0);
+    uploaded_bytes_ += sizeof(header);
 
     return current_->buffer.get();
 }

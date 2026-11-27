@@ -49,7 +49,7 @@ void WindowHost::Impl::trim_idle_offscreen(double now_seconds) {
     rendering::gpu::Batched2DRenderer* const batched = renderer();
     if (batched == nullptr || group == nullptr || group->window_count() != 1 ||
         stats.offscreen_bytes == 0 ||
-        now_seconds - offscreen_last_use_seconds < options.offscreen_idle_seconds) {
+        now_seconds - offscreen_last_use_seconds < options.runtime.offscreen_idle_seconds) {
         return;
     }
     // A non-blocking look at the frames this window has in flight: the GPU must be done with every

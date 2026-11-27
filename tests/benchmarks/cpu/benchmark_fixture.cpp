@@ -3,9 +3,16 @@
 #include "benchmark_fixture.hpp"
 #include "cpu_benchmark_assets.hpp"
 #include "tessera/rendering/null/null_device.hpp"
+#if defined(TESSERA_BENCHMARK_HAS_VULKAN)
+#include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
+#include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
+#include "tessera/rendering/vulkan/vulkan_device.hpp"
+#endif
 
+#include <array>
 #include <chrono>
 #include <cstdint>
+#include <exception>
 #include <stdexcept>
 #include <utility>
 
@@ -17,9 +24,6 @@ namespace nullrhi = tessera::rendering::null;
 namespace rhi = tessera::rendering::rhi;
 
 using Clock = std::chrono::steady_clock;
-
-constexpr std::uint32_t kTargetWidth = static_cast<std::uint32_t>(kBenchmarkWidth);
-constexpr std::uint32_t kTargetHeight = static_cast<std::uint32_t>(kBenchmarkHeight);
 
 [[nodiscard]] double milliseconds(Clock::time_point begin, Clock::time_point end) {
     return std::chrono::duration<double, std::milli>(end - begin).count();
@@ -36,16 +40,76 @@ constexpr std::uint32_t kTargetHeight = static_cast<std::uint32_t>(kBenchmarkHei
     return config;
 }
 
+[[nodiscard]] std::unique_ptr<rhi::Device> make_device(BackendKind backend) {
+    if (backend == BackendKind::Null) {
+        return nullrhi::create_null_device({});
+    }
+#if defined(TESSERA_BENCHMARK_HAS_VULKAN)
+    rhi::DeviceDesc desc;
+    desc.backend = rhi::Backend::Vulkan;
+    desc.validation = false;
+    return tessera::rendering::vulkan::create_vulkan_device(desc);
+#else
+    throw std::runtime_error("benchmark: this build has no Vulkan backend");
+#endif
+}
+
+[[nodiscard]] std::unique_ptr<rhi::Texture> make_white(rhi::Device& device) {
+    static constexpr std::array<std::uint8_t, 4> kWhite = {255, 255, 255, 255};
+    rhi::TextureDesc desc;
+    desc.extent = {1, 1};
+    desc.pixels = kWhite.data();
+    desc.row_pitch = 4;
+    return device.create_texture(desc);
+}
+
+enum class PipelineRole : std::uint8_t { Frame, GlassBlur, GlassComposite };
+
+[[nodiscard]] std::unique_ptr<rhi::Pipeline>
+make_pipeline(rhi::Device& device, const FixtureOptions& options, PipelineRole role) {
+#if defined(TESSERA_BENCHMARK_HAS_VULKAN)
+    if (options.backend == BackendKind::Vulkan) {
+        namespace vk = tessera::rendering::vulkan;
+        switch (role) {
+        case PipelineRole::Frame:
+            return device.create_pipeline(vk::batched2d_pipeline_desc());
+        case PipelineRole::GlassBlur:
+            return device.create_pipeline(vk::glass_blur_pipeline_desc(
+                rhi::TextureFormat::R8G8B8A8Unorm, rhi::BlendMode::None));
+        case PipelineRole::GlassComposite:
+            return device.create_pipeline(vk::glass_blur_pipeline_desc());
+        }
+    }
+#endif
+    rhi::PipelineDesc desc;
+    desc.storage_buffer = role == PipelineRole::Frame && options.storage_pipeline;
+    return device.create_pipeline(desc);
+}
+
 } // namespace
 
-Fixture::Fixture()
-    : root_(std::make_unique<ui::Node>(1)),
-      device_(nullrhi::create_null_device({})),
+bool vulkan_backend_available() noexcept {
+#if defined(TESSERA_BENCHMARK_HAS_VULKAN)
+    try {
+        const std::unique_ptr<rhi::Device> device = make_device(BackendKind::Vulkan);
+        return device != nullptr;
+    } catch (const std::exception&) {
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
+Fixture::Fixture(FixtureOptions options)
+    : options_(options),
+      root_(std::make_unique<ui::Node>(1)),
+      device_(make_device(options.backend)),
       target_(device_->create_render_target({{kTargetWidth, kTargetHeight}})),
-      white_(device_->create_texture({{1, 1}})),
-      pipeline_(device_->create_pipeline({})),
-      glass_blur_pipeline_(device_->create_pipeline({})),
-      glass_composite_pipeline_(device_->create_pipeline({})),
+      white_(make_white(*device_)),
+      pipeline_(make_pipeline(*device_, options_, PipelineRole::Frame)),
+      glass_blur_pipeline_(make_pipeline(*device_, options_, PipelineRole::GlassBlur)),
+      glass_composite_pipeline_(make_pipeline(*device_, options_, PipelineRole::GlassComposite)),
       commands_(device_->create_command_list()),
       renderer_(std::make_unique<rendering::gpu::Batched2DRenderer>(
           *device_, *pipeline_, *white_, rendering::gpu::Batched2DConfig{},
@@ -57,7 +121,10 @@ Fixture::Fixture()
       sink_(batched_) {
     targets_ = builder_.build(*root_);
     const ui::layout::LayoutViewport viewport{kBenchmarkWidth, kBenchmarkHeight, 1.0f};
-    driver_ = std::make_unique<BenchmarkDriver>(*root_, compile_benchmark_stylesheet(), viewport);
+    ui::frame::FramePipelineConfig pipeline;
+    pipeline.cull_paint = options.cull_paint;
+    driver_ = std::make_unique<BenchmarkDriver>(*root_, compile_benchmark_stylesheet(), viewport,
+                                                pipeline);
 }
 
 Fixture::~Fixture() = default;

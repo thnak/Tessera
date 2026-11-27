@@ -396,6 +396,27 @@ bool msaa_rule_reaches_the_presentation() {
     return ok;
 }
 
+// `offscreenMaxMb` reaches the pool as bytes, and a hand-built config can never hand the pool 0
+// (which it reads as "no cap") or an overflowing size.
+bool offscreen_max_mb_maps_to_pool_bytes() {
+    RuntimeConfig runtime;
+    bool ok = expect(tessera::app::window_offscreen_max_bytes(runtime) == 256ull * 1024 * 1024,
+                     "the default maps to the engine's former 256 MiB");
+    runtime.offscreen_max_mb = 64;
+    ok = expect(tessera::app::window_offscreen_max_bytes(runtime) == 64ull * 1024 * 1024,
+                "offscreenMaxMb is MiB") &&
+         ok;
+    runtime.offscreen_max_mb = 0;
+    ok = expect(tessera::app::window_offscreen_max_bytes(runtime) == 1024ull * 1024,
+                "a zero from a hand-built config clamps to 1 MiB, never 'no cap'") &&
+         ok;
+    runtime.offscreen_max_mb = 0xFFFFFFFFu;
+    ok = expect(tessera::app::window_offscreen_max_bytes(runtime) == 4096ull * 1024 * 1024,
+                "an oversized hand-built value clamps to 4096 MiB") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -404,6 +425,7 @@ int main() {
     ok = interpolation_key_maps_to_the_pipeline_config() && ok;
     ok = cull_draws_key_maps_to_the_paint_cull() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
+    ok = offscreen_max_mb_maps_to_pool_bytes() && ok;
     ok = adaptive_quality_keys_map_to_the_policy() && ok;
     ok = msaa_rule_reaches_the_presentation() && ok;
     ok = mapped_interpolation_reaches_the_paint_seam() && ok;

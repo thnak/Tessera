@@ -5,7 +5,9 @@
 // dispatches per glass node:
 //   mode 0: horizontal blur of the backdrop copy into a pooled blur target;
 //   mode 1: vertical blur into the frame target, plus the saturate/brightness/contrast color matrix
-//           and the node's rounded-box composite clip (so the effect adds no third pass).
+//           and the node's rounded-box composite clip (so the effect adds no third pass);
+//   mode 2: isolated-layer composite (issue #227);
+//   mode 3: CSS colour filter functions over a layer (issue #617), up to three, in order.
 //
 // Geometry is the fullscreen triangle of `fullscreen.vert` (`gl_VertexIndex`, no vertex buffer);
 // `gl_FragCoord` is the only coordinate input, so the direction, sigma and region are one
@@ -47,6 +49,51 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out vec4 out_color;
 
+// The colour filter functions of CSS Filter Effects on a straight-alpha pixel, mirrored from
+// include/tessera/rendering/gpu/color_filter.hpp (apply_color_function): same coefficients, same
+// clamp after every function. The ids are the ColorFunction enum of layer_filter.hpp.
+vec4 apply_color_function(int id, float amount, vec4 px) {
+    vec3 c = px.rgb;
+    float a = px.a;
+    if (id == 1) { // brightness
+        c *= amount;
+    } else if (id == 2) { // contrast
+        c = c * amount + vec3((1.0 - amount) * 0.5);
+    } else if (id == 3) { // grayscale
+        float k = 1.0 - clamp(amount, 0.0, 1.0);
+        c = mat3(0.2126 + 0.7874 * k, 0.2126 - 0.2126 * k, 0.2126 - 0.2126 * k,
+                 0.7152 - 0.7152 * k, 0.7152 + 0.2848 * k, 0.7152 - 0.7152 * k,
+                 0.0722 - 0.0722 * k, 0.0722 - 0.0722 * k, 0.0722 + 0.9278 * k) * c;
+    } else if (id == 4) { // sepia
+        float k = 1.0 - clamp(amount, 0.0, 1.0);
+        c = mat3(0.393 + 0.607 * k, 0.349 - 0.349 * k, 0.272 - 0.272 * k,
+                 0.769 - 0.769 * k, 0.686 + 0.314 * k, 0.534 - 0.534 * k,
+                 0.189 - 0.189 * k, 0.168 - 0.168 * k, 0.131 + 0.869 * k) * c;
+    } else if (id == 5) { // saturate
+        float s = amount;
+        c = mat3(0.213 + 0.787 * s, 0.213 - 0.213 * s, 0.213 - 0.213 * s,
+                 0.715 - 0.715 * s, 0.715 + 0.285 * s, 0.715 - 0.715 * s,
+                 0.072 - 0.072 * s, 0.072 - 0.072 * s, 0.072 + 0.928 * s) * c;
+    } else if (id == 6) { // hue-rotate, amount in radians
+        float co = cos(amount);
+        float si = sin(amount);
+        c = mat3(0.213 + co * 0.787 - si * 0.213, 0.213 - co * 0.213 + si * 0.143,
+                 0.213 - co * 0.213 - si * 0.787,
+                 0.715 - co * 0.715 - si * 0.715, 0.715 + co * 0.285 + si * 0.140,
+                 0.715 - co * 0.715 + si * 0.715,
+                 0.072 - co * 0.072 + si * 0.928, 0.072 - co * 0.072 - si * 0.283,
+                 0.072 + co * 0.928 + si * 0.072) * c;
+    } else if (id == 7) { // invert
+        float k = clamp(amount, 0.0, 1.0);
+        c = c * (1.0 - 2.0 * k) + vec3(k);
+    } else if (id == 8) { // opacity
+        a *= clamp(amount, 0.0, 1.0);
+    } else {
+        return px;
+    }
+    return clamp(vec4(c, a), vec4(0.0), vec4(1.0));
+}
+
 float pair_weight(float offset, float sigma) {
     return exp(-(offset * offset) / (2.0 * sigma * sigma));
 }
@@ -73,7 +120,8 @@ float sd_round_box(vec2 p, vec2 half_size, float radius) {
 // horizontal pass renders into a blur target as large as the region (or half of it); the vertical
 // pass renders into the frame target, so its uv is mapped from the region placement.
 void main() {
-    vec2 uv = pc.mode < 0.5
+    // Modes 0 and 3 read their source 1:1 through `texel_step`; the others map the region placement.
+    vec2 uv = (pc.mode < 0.5 || pc.mode > 2.5)
                   ? gl_FragCoord.xy * pc.texel_step
                   : (gl_FragCoord.xy - pc.region_origin) / max(pc.region_size, vec2(1.0));
 
@@ -100,6 +148,20 @@ void main() {
 
     if (pc.mode < 0.5) {
         out_color = blurred;
+        return;
+    }
+
+    // mode 3: colour filter functions over a layer (issue #617). The pass is a plain 1:1 copy with a
+    // per-pixel function, through the non-blending pipeline into a transparent target, so the
+    // output is the layer's premultiplied form again. The function ids ride in `radii` and their
+    // amounts in `factors` (the other fields are unused in this mode); id 0 ends the list.
+    if (pc.mode > 2.5) {
+        float alpha = blurred.a;
+        vec4 px = vec4(alpha > 0.0 ? blurred.rgb / alpha : vec3(0.0), alpha);
+        for (int i = 0; i < 3; ++i) {
+            px = apply_color_function(int(pc.radii[i] + 0.5), pc.factors[i], px);
+        }
+        out_color = vec4(px.rgb * px.a, px.a);
         return;
     }
 

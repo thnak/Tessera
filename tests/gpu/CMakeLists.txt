@@ -433,6 +433,17 @@ target_link_libraries(cpu_layer_sink_tests PRIVATE
     tessera_software)
 add_test(NAME cpu_layer_sink COMMAND cpu_layer_sink_tests)
 
+# The CSS colour filter functions on the CPU twin (issue #617), against Chromium measurements.
+add_executable(cpu_color_filter_tests
+    cpu_color_filter_tests.cpp)
+target_include_directories(cpu_color_filter_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d
+    ${PROJECT_SOURCE_DIR}/tests/fixtures)
+target_link_libraries(cpu_color_filter_tests PRIVATE
+    tessera_paint
+    tessera_software)
+add_test(NAME cpu_color_filter COMMAND cpu_color_filter_tests)
+
 # Exact rounded corners of the CPU sink (issue #617): a rounded rect, a rounded clip and a
 # gradient's rounded border box against an independent circle test, plus the anti-aliased mode.
 add_executable(cpu_rounded_sink_tests
@@ -758,6 +769,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # The CSS colour filter functions through the real path (issue #617), against Chromium.
+    add_executable(layer_color_filter_gpu_tests
+        batched2d/layer_color_filter_gpu_tests.cpp)
+    target_include_directories(layer_color_filter_gpu_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/fixtures)
+    target_link_libraries(layer_color_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_color_filter_gpu COMMAND layer_color_filter_gpu_tests)
+    set_tests_properties(layer_color_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # The offscreen layer pool on a real device (issue #617, offscreen-layers.md section 5e): six and
     # twelve sibling masked cards plus blurred cards all mask correctly on two recycled targets, at
     # frame ring depths 1, 2 and 8, validation-clean. Skips without a Vulkan device.
@@ -766,6 +786,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_pool_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_pool_gpu COMMAND layer_pool_gpu_tests)
     set_tests_properties(layer_pool_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Regression for the Vulkan barrier source scope of a recycled offscreen target (#617): a target a
+    # pass sampled is cleared again in the same list, validation-clean with synchronization validation
+    # (a TOP_OF_PIPE source scope is a write-after-read hazard). Skips without the validation layer.
+    add_executable(layer_recycle_barrier_gpu_tests
+        batched2d/layer_recycle_barrier_gpu_tests.cpp)
+    target_link_libraries(layer_recycle_barrier_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME layer_recycle_barrier_gpu COMMAND layer_recycle_barrier_gpu_tests)
+    set_tests_properties(layer_recycle_barrier_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Damage-limited redraw of a filtered node equals a full redraw (the filter dependency walk).
     # Skips without a Vulkan device.

@@ -59,6 +59,16 @@ public:
                                       const std::vector<clip::ClipVertex>& vertices,
                                       const GradientTable* gradients = nullptr);
 
+    // Bytes written by upload() since begin_frame(), and the number of upload() calls that wrote
+    // the buffer. Counters only: they let the benchmark's stage profile report the clip/gradient
+    // side of a frame's upload next to its vertex bytes without a second bookkeeping path.
+    [[nodiscard]] std::uint64_t uploaded_bytes() const {
+        return uploaded_bytes_;
+    }
+    [[nodiscard]] std::uint32_t upload_calls() const {
+        return upload_calls_;
+    }
+
     // The buffer the current frame last uploaded, or nullptr. The renderer binds this before a
     // draw.
     [[nodiscard]] rhi::Buffer* buffer() const {
@@ -82,6 +92,8 @@ private:
     std::vector<Slot> slots_;
     std::uint32_t slot_index_ = 0;
     Slot* current_ = nullptr;
+    std::uint64_t uploaded_bytes_ = 0;
+    std::uint32_t upload_calls_ = 0;
 };
 
 } // namespace tessera::rendering::gpu
