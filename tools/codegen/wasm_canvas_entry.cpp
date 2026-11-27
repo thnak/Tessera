@@ -317,21 +317,23 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_fold(const char* posture) {
 // moves by one only when the size crosses an `@media` breakpoint (a resize is a layout pass
 // otherwise), and `changed` says whether a frame is owed.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_viewport(int width, int height, float dpi) {
-    const cli::CanvasViewportRequest request = cli::canvas_viewport_request(width, height, dpi);
+    const cli::CanvasViewportRequest request =
+        cli::canvas_viewport_request(static_cast<float>(width), static_cast<float>(height), dpi);
     if (g_session == nullptr || !g_session->started() || !request.error.empty()) {
         const std::string error =
             request.error.empty()
                 ? std::string("no canvas session: call tessera_canvas_apply first")
                 : request.error;
-        return duplicate_out(cli::canvas_viewport_report_json(false, request.width, request.height,
-                                                              request.dpi, 0, error));
+        return duplicate_out(cli::canvas_viewport_report_json(
+            false, request.width, request.height, request.dpi, 0, request.clamped, error));
     }
     // The layout pass (and, when the size crosses a breakpoint, the cascade re-resolve) completes
     // INSIDE this call, so the page's next `tessera_canvas_draw` paints the new device on its first
     // frame - no pending state a later frame applies, and no frame of stale padding.
     const bool changed = g_session->set_viewport(request.width, request.height, request.dpi);
-    return duplicate_out(cli::canvas_viewport_report_json(
-        changed, request.width, request.height, request.dpi, g_session->cascade_generation(), {}));
+    return duplicate_out(
+        cli::canvas_viewport_report_json(changed, request.width, request.height, request.dpi,
+                                         g_session->cascade_generation(), request.clamped, {}));
 }
 
 // Changes the simulated skin's safe area of the RUNNING session (issue #171's skins slice) and

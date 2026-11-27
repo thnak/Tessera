@@ -539,3 +539,34 @@ Corpus effect: `react/expressions/object-destructure-local.tsx` moved from
 `pipeline=TESSERA_IR_UNRESOLVED` to `pipeline=ok`, so `tests/golden/corpus/react-front-end.txt`
 moved from 10 to 11 pipeline-accepted files (20.0% to 22.0%) and `TESSERA_IR_UNRESOLVED` dropped
 from 4 to 3. The front-end numbers are unchanged.
+
+## 2026-11-27: the canvas viewport clamp (#690 slice a)
+
+The Studio sizes the canvas from three sources that all end in the same place: a size a person types,
+a device profile's DPR, and a raw `viewport.set` carried over `postMessage`. Only one of them was ever
+range-checked, and it checked the wrong thing: `canvas_viewport_request` refused a non-positive extent
+and passed everything else through. A 4096x4096 typed size at DPR 4 asks for 1 GiB of backing store,
+and the failure that produces is not a clamped preview but a failed surface creation or a lost device,
+which is the case #690 calls "no input ... may take the preview down".
+
+The fix is one pure function (`tools/codegen/canvas_viewport_request.cpp`) holding every path to extent
+1..8192, DPR 0.01..4 and a 256 MiB ceiling on extent x DPR x 4. Two decisions inside it are worth
+recording. First, **over a limit is clamped and reported, not refused**: the report carries `clamped`
+and the applied numbers, and the pane names the device it got, because a refusal leaves the developer
+with an unchanged picture and no hint why. Only a value that names no size at all - zero, negative,
+NaN, infinite - is refused, and it leaves the running picture alone. Second, **the byte cap reduces
+the DPR, never the logical extent**, so a clamp cannot move an `@media` breakpoint: the thing being
+limited is memory, and the layout is what a breakpoint observes.
+
+The page needs its own copy because it sizes the backing store itself (`sizeToDevicePixels` writes
+`canvas.width`), so a size only the module clamped would still reach the browser unclamped - and the
+browser allocates before the module sees a number. The two copies are pinned to one table by
+`tests/unit/canvas_viewport_limit_tests.cpp` and `scripts/ci/preview_viewport_limits.mjs`, each of
+which asserts the numbers the other side also uses; a drift fails one of them.
+
+Reading the draw path while wiring this found a latent bug the clamp would have exposed:
+`tessera_canvas_draw` was handed the **logical** rectangle, not the physical extent the page had just
+sized and configured on the canvas. At every DPR the two differ, and they happened to agree in effect
+only because the page and the module derived the same scale; once a clamp can reduce the DPR they stop
+agreeing, and the honest value is the one the texture actually has. The draw call now receives
+`sizeToDevicePixels`'s result.

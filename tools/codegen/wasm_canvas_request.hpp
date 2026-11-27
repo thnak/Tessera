@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "canvas_viewport_request.hpp"
 #include "scene_canvas_patch.hpp"
 #include "scene_canvas_session.hpp"
 #include "tessera/hal/fold_posture.hpp"
@@ -45,18 +46,10 @@ namespace tessera::compiler::codegen::cli {
                                                 std::string_view posture_text, float width,
                                                 float height, float dpi, CanvasSessionSource& out);
 
-// One `tessera_canvas_set_viewport` request (issue #436): the logical rectangle and the DPR, or the
-// reason it was refused. A non-positive extent is an error rather than a fallback, because laying a
-// tree out at a degenerate rectangle and then reporting success would show the next frame at a size
-// nobody asked for.
-struct CanvasViewportRequest {
-    float width = 0.0f;
-    float height = 0.0f;
-    float dpi = 1.0f;
-    std::string error; // empty when the request is usable
-};
-
-[[nodiscard]] CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi);
+// One `tessera_canvas_set_viewport` request (issue #436), and the limits it is held to (issue
+// #690). Both live in `canvas_viewport_request.hpp` (included above): the rule is the one part of
+// the ABI a host lane can test with no device and no font, and this unit pulls in the font stack
+// through its session source.
 
 // One `tessera_canvas_patch` request (issue #171, designer-protocol-v1 section 10.2): the commit's
 // node, destination and payload, parsed from the ABI's raw strings.

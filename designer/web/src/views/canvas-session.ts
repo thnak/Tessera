@@ -253,7 +253,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   );
 
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
-  function resize(): { dpr: number; width: number; height: number } {
+  // `clamped` (issue #690) says a limit reduced the request, so the caller can name the device it got.
+  function resize(): { dpr: number; width: number; height: number; clamped: boolean } {
     const sized = sizeToDevicePixels(canvas, requestedViewport(options.environment));
     lastDpr = sized.dpr;
     return sized;
@@ -328,8 +329,20 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (factory === null || gpu === null || !visible) {
       return;
     }
-    const { dpr } = resize();
+    const sized = resize();
+    // The DPR the backing store was actually sized for, not the one asked for: the limits may have
+    // reduced it (issue #690), and the layout side must be handed the same scale the paint side is.
+    const dpr = sized.dpr;
     options.elements.statDpr.textContent = String(dpr);
+    if (sized.clamped) {
+      // A clamp is named, never silent: the developer asked for a size that is not legal, and the pane
+      // says which device it got instead of showing their number over a different one.
+      pane.setStatus(
+        `viewport clamped to ${Math.round(sized.width / dpr)}x${Math.round(sized.height / dpr)} ` +
+          `at DPR ${dpr}`,
+        "warning",
+      );
+    }
     // The layout viewport is the LOGICAL rectangle, and `width`/`height` above are the device-pixel
     // backing store. Passing the backing store as the viewport would lay the tree out at
     // `logical * dpr` and then scale it into the canvas - a 390x844 phone at DPR 2 would lay out at
@@ -337,6 +350,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     const viewport = requestedViewport(options.environment);
     const foldPosture = options.foldPosture();
     const target = source();
+    // The paint extent is the backing store the page just sized, NOT the logical rectangle: the
+    // canvas texture the page presents is that size, and asking for another would draw into a
+    // mismatched target (issue #690 - the two used to differ only by a DPR rounding and were
+    // therefore interchangeable; a clamped DPR makes them differ, so the honest value is passed).
+    const extent = { width: sized.width, height: sized.height };
     let applied: CanvasApplyReport;
     try {
       // The project is staged first (the module evaluates what is staged, from its entry), then applied
@@ -412,8 +430,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // `(...pointers, ...numbers)`.
       report = JSON.parse(
         callExport(gpu.module, "_tessera_canvas_draw", [], [
-          viewport.width,
-          viewport.height,
+          extent.width,
+          extent.height,
           viewPtr,
         ]),
       ) as CanvasFrameReport;
@@ -769,6 +787,15 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
           // A refused viewport (a degenerate size) is named, and the picture already there stays.
           pane.setStatus("viewport not applied: " + report.error, "warning");
           return;
+        }
+        if (report.clamped === true) {
+          // The engine reduced the request to fit its limits (issue #690). Name the device it applied,
+          // from the report's own numbers, rather than showing the toolbar's.
+          pane.setStatus(
+            `viewport clamped to ${Math.round(report.width)}x${Math.round(report.height)} ` +
+              `at DPR ${report.dpr}`,
+            "warning",
+          );
         }
       } catch (error) {
         pane.showFailed(String(error));

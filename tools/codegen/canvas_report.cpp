@@ -380,6 +380,13 @@ std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed
 
 std::string canvas_viewport_report_json(bool changed, float width, float height, float dpi,
                                         std::uint64_t cascade_generation, std::string_view error) {
+    return canvas_viewport_report_json(changed, width, height, dpi, cascade_generation, false,
+                                       error);
+}
+
+std::string canvas_viewport_report_json(bool changed, float width, float height, float dpi,
+                                        std::uint64_t cascade_generation, bool clamped,
+                                        std::string_view error) {
     std::string out = "{\"viewportVersion\":1";
     append_bool(out, "changed", changed);
     append_number(out, "width", static_cast<std::uint64_t>(width > 0.0f ? width : 0.0f));
@@ -387,6 +394,9 @@ std::string canvas_viewport_report_json(bool changed, float width, float height,
     // The DPR is a scale, not a count, so it keeps its fraction (`1.5` is a real device).
     out += ",\"dpr\":";
     out += std::to_string(dpi > 0.0f ? dpi : 1.0f);
+    // `clamped` (issue #690) says the request was reduced to fit the limits, so the pane can name
+    // the size it actually got instead of showing the toolbar's number over a different device.
+    append_bool(out, "clamped", clamped);
     append_number(out, "cascadeGeneration", cascade_generation);
     append_text(out, "error", error);
     out += "}\n";

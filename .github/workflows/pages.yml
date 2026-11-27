@@ -50,6 +50,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_viewport_limits.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -91,6 +92,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_viewport_limits.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -329,6 +331,9 @@ jobs:
 
       - name: Canvas zoom (fit, steps, anchored wheel zoom; never an input to the app)
         run: node scripts/ci/preview_canvas_zoom.mjs
+
+      - name: Canvas viewport limits (the clamp that keeps a size from losing the device)
+        run: node scripts/ci/preview_viewport_limits.mjs
 
       # The built half: `dist/index.html` is CSP-clean and its asset references resolve, the rendered
       # chrome carries every id the page's code looks up, the redirect stubs preserve the query and the

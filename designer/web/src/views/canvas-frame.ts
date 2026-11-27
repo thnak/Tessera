@@ -103,40 +103,23 @@ export interface CanvasViewportReport {
   height: number;
   dpr: number;
   cascadeGeneration?: number;
+  /**
+   * True when the engine reduced the request to fit the viewport limits (issue #690). The pane names
+   * the device it actually got, rather than showing the toolbar's number over a different size.
+   */
+  clamped?: boolean;
   error: string;
 }
 
-/** The logical viewport the preview lays out at when the toolbar has not moved. */
-export const VIEWPORT_WIDTH = 320;
-export const VIEWPORT_HEIGHT = 240;
-
-/** The rectangle the toolbar asked for, with sane fallbacks for a malformed value. */
-export function requestedViewport(
-  environment: () => { width: number; height: number; dpr: number },
-): { width: number; height: number; dpr: number } {
-  const requested = environment();
-  if (!requested || !requested.width || !requested.height) {
-    return { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, dpr: 1 };
-  }
-  return requested;
-}
-
-/**
- * Sizes `canvas`'s backing store to the requested viewport and device pixel ratio, and returns the physical
- * extent. The CSS box is set too: the backing store is the device-pixel size, and the box is the logical one.
- */
-export function sizeToDevicePixels(
-  canvas: HTMLCanvasElement,
-  requested: { width: number; height: number; dpr: number },
-): { dpr: number; width: number; height: number } {
-  const dpr = requested.dpr && requested.dpr > 0 ? requested.dpr : 1;
-  const width = Math.round(requested.width * dpr);
-  const height = Math.round(requested.height * dpr);
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  canvas.style.width = `${requested.width}px`;
-  canvas.style.height = `${requested.height}px`;
-  return { dpr, width, height };
-}
+// The viewport arithmetic (the default device, the limits, the clamp and the backing-store sizing)
+// lives in `canvas-viewport.ts` since issue #690, and is re-exported here so the session's imports
+// stay one list. The limits rule itself is `tools/codegen/canvas_viewport_request.cpp`.
+export {
+  VIEWPORT_HEIGHT,
+  VIEWPORT_LIMITS,
+  VIEWPORT_WIDTH,
+  clampViewport,
+  requestedViewport,
+  sizeToDevicePixels,
+} from "./canvas-viewport";
+export type { Viewport } from "./canvas-viewport";

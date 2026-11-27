@@ -998,6 +998,18 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       follow-up #408 left in `designer-studio-v1.md` section 6.1). #431 landed, so the preview well
       exists; drawn from the same `FoldInfo` the engine consumed, toggle off by default, excluded
       from screenshots and from any byte sent to the viewer. `ready`.
+- [ ] #690: studio: drag-resize the canvas viewport safely, plus the web-like responsive tools.
+      **Slice (a), the limits, landed** (2026-11-27): one clamp holds every size path — a typed size, a
+      device profile's DPR, a raw `viewport.set` — to extent 1..8192, DPR 0.01..4 and a 256 MiB
+      backing store, so no input can ask for a size the device cannot create. An over-limit value is
+      clamped and named (`clamped` in the viewport report, and the pane says which device it got); a
+      zero/negative/NaN value is refused and leaves the picture. The rule is one pure function
+      (`tools/codegen/canvas_viewport_request.cpp`) with the page's copy in
+      `designer/web/src/views/canvas-viewport.ts`, pinned to the same table by ctest
+      `canvas_viewport_limit` and `scripts/ci/preview_viewport_limits.mjs`; the slice also fixed
+      `tessera_canvas_draw` being handed the logical rectangle instead of the physical extent the page
+      sized. Evidence: `docs/design/canvas-input-session.md` §5.4, `designer-protocol-v1.md` §15.3.
+      **Open:** slice (b), the drag handles and the coalescing, blocked on #598 and #599.
 - [x] #436: engine: a window or emulator resize re-resolves `@media` and re-lays out the running
       preview in place — `AppHost::resize` now updates the media context, and `set_viewport` re-lays
       out the live session without re-evaluating the source (state cells, hover and focus survive;

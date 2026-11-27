@@ -65,6 +65,9 @@ export default defineConfig({
         "canvas-pane": "src/views/canvas-pane.ts",
         // The pane's zoom arithmetic, so `scripts/ci/preview_canvas_zoom.mjs` tests what the page ships.
         "canvas-zoom": "src/views/canvas-zoom.ts",
+        // The viewport limits and the clamp every canvas request goes through (issue #690), so
+        // `scripts/ci/preview_viewport_limits.mjs` tests the shipped rule against the engine's.
+        "canvas-viewport": "src/views/canvas-viewport.ts",
       },
       output: {
         format: "es",

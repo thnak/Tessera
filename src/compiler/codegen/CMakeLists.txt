@@ -343,6 +343,10 @@ if (NOT EMSCRIPTEN)
         # #390) is here for the same reason - `clear_canvas` and the pointer vocabulary are pure
         # over their arguments.
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # The viewport limits (issue #690) are pure over their arguments: no device, no font, no
+        # session. Split out of `wasm_canvas_request.cpp` so `canvas_viewport_limit_tests` can link
+        # the rule alone; both the page's clamp and the module's cite the same numbers.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_viewport_request.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${_tessera_canvas_session_sources})
     target_include_directories(tessera_canvas_report
@@ -498,6 +502,9 @@ else ()
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # The viewport limits (issue #690): the clamp `set_viewport` applies, in the unit that holds
+        # no device and no font.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_viewport_request.cpp
         # The skin's safe area as the ABI receives it (issue #171's skins slice), split out for the
         # same reason and on a real boundary: it is pure over its arguments, so the host lanes can
         # test the refusal rules without linking the GPU text stack.
@@ -1185,6 +1192,17 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_viewport COMMAND scene_viewport_tests)
+
+    # The canvas viewport limits (issue #690): the one clamp that keeps a typed size, a device
+    # profile's DPR or a raw `viewport.set` from asking the canvas for a backing store the device
+    # cannot create. Pure over three numbers, so it links no session, no device and no font: the
+    # page's half of the same rule is `scripts/ci/preview_viewport_limits.mjs`.
+    add_executable(canvas_viewport_limit_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/canvas_viewport_limit_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_viewport_request.cpp)
+    target_include_directories(canvas_viewport_limit_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
+    add_test(NAME canvas_viewport_limit COMMAND canvas_viewport_limit_tests)
 
     # ADR-074 in the preview: the simulated posture answers `@media (device-posture)` and the
     # viewport-segment features through the host's `with_fold`, a document built at a posture has
