@@ -96,9 +96,9 @@ public:
             entry += op.kind == LayerFilterOp::Kind::Blur
                          ? ";blur:" + number(op.sigma)
                          : ";shadow:" + number(op.offset_x) + "," + number(op.offset_y) + "," +
-                               number(op.sigma) + "," + number(op.color.r) + "," +
-                               number(op.color.g) + "," + number(op.color.b) + "," +
-                               number(op.color.a);
+                               number(op.sigma) + "," + number(op.tint().r) + "," +
+                               number(op.tint().g) + "," + number(op.tint().b) + "," +
+                               number(op.tint().a);
         }
         log.push_back(entry + ")");
     }
@@ -266,6 +266,16 @@ bool subtree_list_replays_the_chain() {
                   "a replayed layer carries the recorded chain");
 }
 
+bool op_stays_small_and_tint_round_trips() {
+    LayerFilterOp op;
+    op.set_tint(Color{1.0f, 0.5f, 0.0f, 0.25f});
+    const Color back = op.tint();
+    return expect(sizeof(LayerFilterOp) <= 20, "a filter op is 20 bytes or less") &&
+           expect(std::fabs(back.r - 1.0f) < 0.003f && std::fabs(back.g - 0.5f) < 0.003f &&
+                      back.b == 0.0f && std::fabs(back.a - 0.25f) < 0.003f,
+                  "an 8-bit tint round-trips within a step");
+}
+
 bool sync_widens_the_reach() {
     Scene blur("blur(4px)");
     tessera::ui::paint::sync_scene_style(blur.root, blur.styles, {});
@@ -301,7 +311,8 @@ int main() {
                     chain_keeps_order_and_folds_blurs() && opacity_moves_to_the_layer() &&
                     sigma_is_clamped() && nothing_to_filter_paints_no_layer() &&
                     sink_without_layers_is_unfiltered() && cache_keeps_filtering() &&
-                    subtree_list_replays_the_chain() && sync_widens_the_reach();
+                    subtree_list_replays_the_chain() && op_stays_small_and_tint_round_trips() &&
+                    sync_widens_the_reach();
     if (!ok) {
         return 1;
     }

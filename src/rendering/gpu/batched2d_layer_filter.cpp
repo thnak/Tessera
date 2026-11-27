@@ -97,7 +97,7 @@ void Batched2DRenderer::run_layer_filters(LayerFrame& layer) {
         GlassCompositor::FilterPass pass;
         pass.sigma = op.sigma * scale;
         pass.shadow = shadow;
-        pass.tint = op.color;
+        pass.tint = op.tint();
         if (shadow) {
             // The offset follows the active transform's linear part, in device pixels.
             float moved_x = 0.0f;

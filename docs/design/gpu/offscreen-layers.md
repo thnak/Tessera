@@ -283,7 +283,8 @@ slice behavior + tests + docs, nothing user-visible until the last:
    placement, repeat/space/round, clip, layer cycling, cap, luminance; mutation-checked).
 5d. **`filter: blur()` / `drop-shadow()` (landed, issue #617 slice 4).** The chain rides in the layer's
    own push: `LayerDraw::filter` (`rendering::gpu::LayerFilterChain`, at most three
-   `LayerFilterOp`s, copied by the paint cache like any other op), so the sink seam, the wrapper
+   `LayerFilterOp`s of 20 bytes each - the shadow colour is packed 8 bits per channel so `PaintOp` stays
+   inside its `paint_op_size` budget - copied by the paint cache like any other op), so the sink seam, the wrapper
    sinks, the recorder and replay needed no new call. The paint pass (`paint_filter.cpp`) parses the
    computed `filter` (`style::parse_filter`: `none` or `blur(<length>)` / `drop-shadow(<color>?
    <length>{2,3})`; adjacent blurs fold by adding variances; a zero blur and an invisible unblurred
