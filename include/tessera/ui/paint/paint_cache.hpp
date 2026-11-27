@@ -209,6 +209,11 @@ struct PaintOp {
         PopClip,
         PopTransform,
         PopLayer,
+        // Recorded only with `record_pops`: a masked node paints its mask after its children, which
+        // a per-node record cannot hold, so such a node is never per-node recorded and its mask
+        // lives in the subtree draw list as Begin, the mask's gradient fills, End (issue #617).
+        BeginLayerMask,
+        EndLayerMask,
     };
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
@@ -393,6 +398,8 @@ public:
         [[nodiscard]] bool supports_layers() const override;
         void push_layer(const LayerDraw& layer) override;
         void pop_layer() override;
+        [[nodiscard]] bool begin_layer_mask() override;
+        void end_layer_mask() override;
         void draw_text(const TextDraw& run) override;
         void draw_vector(const VectorDraw& draw) override;
         void draw_image(const ImageDraw& draw) override;
@@ -414,6 +421,10 @@ public:
         bool pushed_clip_ = false;
         bool pushed_transform_ = false;
         bool pushed_layer_ = false;
+        // Between begin_layer_mask() and end_layer_mask() of a subtree recording: the mask's
+        // gradient fills are always recorded, and forwarded only while the target agreed to mask.
+        bool in_mask_ = false;
+        bool mask_live_ = false;
     };
 
 private:

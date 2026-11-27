@@ -24,4 +24,16 @@ void paint_gradient(const Node& node, const style::ComputedStyle& style, const r
                     float opacity, PaintSink& sink, PaintStats& stats,
                     BackgroundLayerCache* cache = nullptr);
 
+// `mask-image` (issue #617): true when the style paints a mask at all (a layer list with at least
+// one gradient; `none` and anything outside the `background-image` grammar do not).
+[[nodiscard]] bool has_mask_image(const style::ComputedStyle& style);
+
+// Emits the mask image of `rect` into `sink` as gradient fills whose alpha is the mask, between
+// the sink's begin_layer_mask() and end_layer_mask(). Same grammar and draws as `background-image`
+// (layers bottom to top), at the border box and unrounded, with no node opacity (the layer carries
+// it). The authored value is parsed per call: a masked node is painted uncached, so a parse cache
+// would only matter for a style shared by many masked nodes.
+void paint_mask_image(const style::ComputedStyle& style, const rhi::Rect& rect, PaintSink& sink,
+                      PaintStats& stats);
+
 } // namespace tessera::ui::paint::detail

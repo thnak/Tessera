@@ -2657,6 +2657,11 @@
       "note": "none or one linear-gradient()"
     },
     {
+      "kind": "keyword",
+      "name": "mask-image",
+      "note": "none or a list of gradients, used as an alpha mask"
+    },
+    {
       "kind": "number",
       "name": "opacity"
     },

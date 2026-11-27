@@ -410,6 +410,17 @@ public:
     }
     virtual void push_layer(const LayerDraw& /*layer*/) {}
     virtual void pop_layer() {}
+
+    // Layer mask (issue #617, offscreen-layers.md section 5.2). After a layer's content and before
+    // its pop_layer(), the paint pass calls begin_layer_mask(); a true return means every draw
+    // until end_layer_mask() is the mask image (alpha is the mask), so the group composites through
+    // it. False (the default) means the sink cannot mask this layer: the pass then skips the mask
+    // draws and the group paints unmasked, so a false return must leave the sink exactly as it was
+    // and end_layer_mask() must not follow. Only gradient fills are emitted between the two calls.
+    [[nodiscard]] virtual bool begin_layer_mask() {
+        return false;
+    }
+    virtual void end_layer_mask() {}
 };
 
 } // namespace tessera::ui::paint

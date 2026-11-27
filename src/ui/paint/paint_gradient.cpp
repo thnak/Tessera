@@ -211,19 +211,12 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
     return parsed.value_or(list);
 }
 
-} // namespace
-
-void paint_gradient(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                    float opacity, PaintSink& sink, PaintStats& stats,
-                    BackgroundLayerCache* const cache) {
-    if (opacity <= 0.0f || rect.width <= 0.0f || rect.height <= 0.0f) {
-        return;
-    }
-    const style::BackgroundLayerList list = resolve_layers(node, style, rect, cache);
-    if (list.empty()) {
-        return;
-    }
-    const RoundedClip clip = corner_clip(style, rect);
+// Walks a resolved layer list bottom to top and emits each gradient. Shared by the
+// `background-image` paint and the `mask-image` paint (issue #617): the same grammar and the same
+// draws, only the property read and the destination (the node's background, or a layer's mask
+// target) differ.
+void emit_layers(const style::BackgroundLayerList& list, const rhi::Rect& rect,
+                 const RoundedClip& clip, float opacity, PaintSink& sink, PaintStats& stats) {
     // CSS paints the LAST layer first and the FIRST layer on top (Backgrounds 3 section 2.1), so
     // the list is walked backwards. Each layer is a full-box fill, so a later (lower) layer is only
     // visible where the layers above it are translucent.
@@ -278,6 +271,49 @@ void paint_gradient(const Node& node, const style::ComputedStyle& style, const r
         sink.fill_radial_gradient(draw);
         ++stats.gradients;
     }
+}
+
+} // namespace
+
+void paint_gradient(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
+                    float opacity, PaintSink& sink, PaintStats& stats,
+                    BackgroundLayerCache* const cache) {
+    if (opacity <= 0.0f || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+    const style::BackgroundLayerList list = resolve_layers(node, style, rect, cache);
+    if (list.empty()) {
+        return;
+    }
+    emit_layers(list, rect, corner_clip(style, rect), opacity, sink, stats);
+}
+
+bool has_mask_image(const style::ComputedStyle& style) {
+    const std::string* image = style.find("mask-image");
+    if (image == nullptr) {
+        return false;
+    }
+    const std::optional<style::BackgroundLayerList> parsed = style::parse_background_layers(*image);
+    return parsed.has_value() && !parsed->empty() &&
+           std::any_of(parsed->layers.begin(), parsed->layers.begin() + parsed->count,
+                       [](const style::BackgroundLayer& layer) {
+                           return layer.kind != style::BackgroundLayerKind::None;
+                       });
+}
+
+void paint_mask_image(const style::ComputedStyle& style, const rhi::Rect& rect, PaintSink& sink,
+                      PaintStats& stats) {
+    const std::string* image = style.find("mask-image");
+    if (image == nullptr || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+    const std::optional<style::BackgroundLayerList> parsed = style::parse_background_layers(*image);
+    if (!parsed.has_value() || parsed->empty()) {
+        return;
+    }
+    // mask-clip / mask-origin default to border-box, which is not rounded by border-radius, and the
+    // mask's own alpha is the whole value, so there is no node opacity to fold in.
+    emit_layers(*parsed, rect, RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f}, 1.0f, sink, stats);
 }
 
 } // namespace tessera::ui::paint::detail

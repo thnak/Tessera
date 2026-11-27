@@ -224,8 +224,24 @@ slice behavior + tests + docs, nothing user-visible until the last:
    `layer_masks_unsupported()`. Cost: one more pooled target and one fullscreen draw per masked layer
    (the pool of 4 holds two masked layers a frame). Tests: `layer_mask_null` (skeleton and every
    fallback) and `layer_mask_gpu` (opaque, half and undrawn mask, composition with opacity, the
-   unmasked fallback, repeated frames, validation clean). Still open: the sink seam and paint-cache ops
-   for a mask, then the `mask-image` property.
+   unmasked fallback, repeated frames, validation clean). 
+5b. **`mask-image` in the paint pass (landed, issue #617 slice 3).** `PaintSink::begin_layer_mask()` /
+   `end_layer_mask()` (default: refuse), forwarded by the wrapper sinks and implemented by
+   `Batched2DSink`. `paint_node` opens a layer for a node whose `mask-image` parses to at least one
+   gradient (`has_mask_image`), whatever `isolate_group_opacity` says; the node's own opacity moves to
+   the layer. After the children and the clip pop, and before `pop_layer`, it asks the sink to mask
+   and, if the sink agrees, emits the mask image (`paint_mask_image`: the same layer list and
+   gradient draws as `background-image`, border box, unrounded, no opacity fold). A sink that cannot
+   layer paints the node unmasked; one that refuses the mask paints the layer without the mask draws.
+   **Cache:** the mask paints after the children, which a per-node `PaintRecord` (prefix plus pop
+   flags) cannot hold, so a masked node is never per-node recorded and its stale entry is erased when
+   the mask appears (`paint_mask` pins that). Inside a retained subtree draw list the mask is recorded
+   as `BeginLayerMask`, the gradient fills and `EndLayerMask`; the recorder always records the fills
+   and forwards them only while its target agreed to mask, and replay skips a mask the replaying sink
+   refuses. Tests: `paint_mask` (stream order, opacity, every degraded case, stale-record guard,
+   subtree record and replay) and the paint-path case of `layer_mask_gpu`. Still open: `mask-size`,
+   `mask-position`, `mask-repeat`, `mask-mode`, the `mask` shorthand, a `CpuCanvas` twin, the Chromium
+   comparison and the lavapipe golden.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe

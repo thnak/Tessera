@@ -99,6 +99,12 @@ public:
     void pop_layer() override {
         target_->pop_layer();
     }
+    [[nodiscard]] bool begin_layer_mask() override {
+        return target_->begin_layer_mask();
+    }
+    void end_layer_mask() override {
+        target_->end_layer_mask();
+    }
 
 private:
     PaintSink* target_;

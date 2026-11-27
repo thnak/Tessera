@@ -152,6 +152,9 @@ public:
     [[nodiscard]] bool supports_layers() const override;
     void push_layer(const LayerDraw& layer) override;
     void pop_layer() override;
+    // Masks the innermost layer (issue #617): true when the renderer opened the mask target.
+    [[nodiscard]] bool begin_layer_mask() override;
+    void end_layer_mask() override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.

@@ -2734,6 +2734,16 @@ target_link_libraries(paint_layer_pass_tests PRIVATE tessera_paint tessera_style
 
 add_test(NAME paint_layer_pass COMMAND paint_layer_pass_tests)
 
+# `mask-image` in the paint pass (issue #617 slice 3): a masked node paints as one layer with its
+# mask after the children, every degraded case stays balanced, the per-node cache never replays a
+# stale record for it, and a subtree draw list replays the mask only on a sink that can mask.
+add_executable(paint_mask_tests
+    paint_mask_tests.cpp)
+
+target_link_libraries(paint_mask_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME paint_mask COMMAND paint_mask_tests)
+
 # `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
 # the coverage rule the CPU reference and the shader share.
 add_executable(clip_path_tests
