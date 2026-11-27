@@ -92,6 +92,17 @@ bool check_null_records_the_mode() {
     ok = expect(mask_recorded != nullptr && mask_recorded->blend_mode() == BlendMode::DestinationIn,
                 "null records BlendMode::DestinationIn on the pipeline") &&
          ok;
+    // RHI 1.21: the mask combine steps too.
+    for (const BlendMode combine : {BlendMode::SourceOut, BlendMode::Xor}) {
+        tessera::rendering::rhi::PipelineDesc combine_desc;
+        combine_desc.blend = combine;
+        auto pipeline = device->create_pipeline(combine_desc);
+        const auto* recorded =
+            dynamic_cast<const tessera::rendering::null::NullPipeline*>(pipeline.get());
+        ok = expect(recorded != nullptr && recorded->blend_mode() == combine,
+                    "null records the mask combine blend on the pipeline") &&
+             ok;
+    }
     return ok;
 }
 
