@@ -2762,6 +2762,18 @@ target_link_libraries(paint_mask_geometry_tests PRIVATE tessera_paint tessera_st
 
 add_test(NAME paint_mask_geometry COMMAND paint_mask_geometry_tests)
 
+# `filter` (issue #617): the grammar, the registry diagnostic and `@supports`.
+add_executable(filter_value_tests
+    filter_value_tests.cpp)
+target_link_libraries(filter_value_tests PRIVATE tessera_style)
+add_test(NAME filter_value COMMAND filter_value_tests)
+
+# `filter` in the paint pass: the layer chain, the cache and replay, the sync's reach.
+add_executable(paint_filter_tests
+    paint_filter_tests.cpp)
+target_link_libraries(paint_filter_tests PRIVATE tessera_paint tessera_style)
+add_test(NAME paint_filter COMMAND paint_filter_tests)
+
 # `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
 # the coverage rule the CPU reference and the shader share.
 add_executable(clip_path_tests

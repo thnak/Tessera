@@ -69,6 +69,8 @@ constexpr PropertyDef kProperties[] = {
     {"mask-position", "0% 0%", false},
     {"mask-repeat", "repeat", false},
     {"mask-mode", "match-source", false},
+    // `none` or a list of blur() and drop-shadow() applied to an isolated layer (issue #617).
+    {"filter", "none", false},
     {"opacity", "1", false},
     {"font-family", "sans-serif", true},
     {"font-size", "16px", true},

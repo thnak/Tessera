@@ -10,6 +10,7 @@ target_compile_features(tessera_css_tokenizer PUBLIC cxx_std_23)
 
 add_library(tessera_style STATIC
     backdrop_filter.cpp
+    filter_value.cpp
     cascade.cpp
     # The effective-style view of a computed style: the delta merged with the shared defaults, as a
     # two-range merge that allocates nothing (issue #735, slice F).

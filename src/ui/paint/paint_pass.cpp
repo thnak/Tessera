@@ -4,6 +4,7 @@
 #include "paint_box.hpp"
 #include "paint_cache_internal.hpp"
 #include "paint_cull.hpp"
+#include "paint_filter.hpp"
 #include "paint_frame.hpp"
 #include "paint_gradient.hpp"
 #include "paint_image.hpp"
@@ -263,14 +264,20 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const float own_opacity = detail::opacity_value(style);
     const bool masked = own_opacity > 0.0f && rect.width > 0.0f && rect.height > 0.0f &&
                         sink.supports_layers() && detail::has_mask_image(style);
-    if (masked && pass.cache != nullptr) {
+    // `filter` (issue #617) isolates the node like a mask: the chain rides in the layer's push.
+    rendering::gpu::LayerFilterChain filter;
+    if (own_opacity > 0.0f && rect.width > 0.0f && rect.height > 0.0f && sink.supports_layers()) {
+        filter = detail::layer_filter_chain(style, detail::current_color(style), context.glass);
+    }
+    const bool layered = masked || !filter.empty();
+    if (layered && pass.cache != nullptr) {
         pass.cache->erase(node.id());
     }
 
     // On a miss the node's own emission is captured while it is forwarded to the real sink.
     std::optional<PaintCache::Recorder> recording;
     PaintSink* own = &sink;
-    if (signature.has_value() && !masked) {
+    if (signature.has_value() && !layered) {
         recording.emplace(sink);
         own = &*recording;
     }
@@ -291,15 +298,16 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // renderer clamps it to the frame, the clip and the damage); a tighter subtree box is a later
     // refinement. `opacity: 0` paints nothing either way and stays on the flat path.
     const bool isolate_group =
-        masked || (pass.isolate_group_opacity && own_opacity < 1.0f && own_opacity > 0.0f &&
-                   !node.children().empty() && rect.width > 0.0f && rect.height > 0.0f &&
-                   own->supports_layers());
+        layered || (pass.isolate_group_opacity && own_opacity < 1.0f && own_opacity > 0.0f &&
+                    !node.children().empty() && rect.width > 0.0f && rect.height > 0.0f &&
+                    own->supports_layers());
     const float effective_opacity = scope.opacity * (isolate_group ? 1.0f : own_opacity);
     child_scope.opacity = effective_opacity;
     child_scope.in_layer = scope.in_layer || isolate_group;
     if (isolate_group) {
         constexpr float kReach = 1.0e6f;
-        own->push_layer(LayerDraw{{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach}, own_opacity});
+        own->push_layer(
+            LayerDraw{{-kReach, -kReach, 2.0f * kReach, 2.0f * kReach}, own_opacity, filter});
     }
 
     if (rect.width > 0.0f && rect.height > 0.0f) {
