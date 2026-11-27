@@ -38,14 +38,91 @@ namespace golden = tessera::rendering::golden;
 namespace path = tessera::rendering::path;
 namespace corpus = tessera::path_corpus;
 
-// One row per scene. max_delta: the largest per-channel premultiplied difference; over4/over16:
-// the fraction of pixels with any channel off by more than 4 / 16 of 255.
+// One row per scene. max_delta: the largest per-channel premultiplied difference (of 255);
+// over4 / over16: the number of pixels (of 96 x 96 = 9216) with any channel off by more than 4 /
+// 16. Limits are the lavapipe measurement plus headroom (max + 25% or 2, pixel counts x 1.5 + 1; a
+// measured 0 stays 0), so a driver's rounding does not flap the test and a real regression does.
 struct Tolerance {
     std::string_view scene;
     std::uint32_t max_delta;
-    double over4;
-    double over16;
+    std::size_t over4;
+    std::size_t over16;
     std::string_view why;
+};
+
+constexpr Tolerance kTolerances[] = {
+    {"fill_star_non_zero", 4, 0, 0,
+     "Polygon fill, non-axis-aligned: only edge coverage rounding differs (ThorVG scanline "
+     "coverage vs GPU area coverage); measured 2 of 255 and no pixel over 4."},
+    {"fill_star_even_odd", 4, 0, 0,
+     "As fill_star_non_zero; the even-odd hole must match too, so a rule mix-up would show "
+     "as 255 here."},
+    {"fill_nested_same_non_zero", 4, 0, 0,
+     "Nested contours, same winding: filled middle under non_zero; coverage rounding only."},
+    {"fill_nested_same_even_odd", 4, 0, 0,
+     "Nested contours, same winding: hole under even_odd; coverage rounding only."},
+    {"fill_nested_opposite_non_zero", 4, 0, 0,
+     "Nested contours, opposite winding: hole under non_zero; coverage rounding only."},
+    {"fill_circle_alpha_overlap", 4, 0, 0,
+     "Two translucent 64-gons composited in order: blending agrees to the coverage rounding."},
+    {"fill_rect_fractional", 199, 385, 385,
+     "By design (ADR-071): ThorVG snaps an axis-aligned rectangle to whole pixels, the GPU "
+     "keeps fractional coverage, so the edge rows and columns (about 256 pixels, one "
+     "0.5-0.75 px strip per side) differ by up to 159. Not a GPU defect."},
+    {"stroke_cap_butt", 25, 57, 12,
+     "Round joins inside the zigzag and the stroke ends; ThorVG and the GPU tessellate the "
+     "join arc and cover the edges differently (spike ADR-071: joins+caps max 58)."},
+    {"stroke_cap_round", 30, 150, 42,
+     "Round caps: arc tessellation and edge coverage differ at the cap rims (largest scene "
+     "of the group, about 1% of pixels over 4)."},
+    {"stroke_cap_square", 25, 49, 12,
+     "Square caps: the cap square's corners differ by edge coverage; same zigzag as the butt "
+     "scene."},
+    {"stroke_join_miter", 8, 25, 0,
+     "Miter joins hold (ratio 3.3 under limit 4); tips differ by sub-pixel coverage only "
+     "(spike: miter max 8)."},
+    {"stroke_join_bevel", 8, 33, 0,
+     "Bevel joins; sub-pixel coverage of the bevel chord (spike: bevel max 8)."},
+    {"stroke_join_round", 20, 87, 0,
+     "Round joins: join arc tessellation differs between the stroker of ThorVG and the GPU."},
+    {"stroke_miter_exceeds_limit", 7, 10, 0,
+     "Miter limit 2 and a 12 degree spike: both fall back to a bevel; only coverage differs."},
+    {"stroke_closed_triangle_miter", 7, 19, 0,
+     "Closed contour: all three joins are miters, no caps; coverage only."},
+    {"stroke_open_triangle_butt", 7, 4, 0,
+     "The same triangle open: butt caps at the start and end, no join there."},
+    {"dash_even_butt", 7, 4, 0,
+     "Even dash array, butt caps, offset 0; the reference cuts the same dashes on the CPU."},
+    {"dash_odd_offset_round", 27, 288, 6,
+     "Odd array {8,3,4} repeated to six entries, offset 5, round caps: many round dash caps "
+     "(about 2% of pixels over 4)."},
+    {"dash_closed_polygon_butt", 65, 28, 4,
+     "Dashes on a closed pentagon with miter joins inside the dashes: a few corner pixels "
+     "differ by up to 52 where a dash bends."},
+    {"dash_curve_square", 78, 67, 6,
+     "Dashes with square caps on a 48-gon: dash ends at flattened vertices differ by up to "
+     "62 on a few pixels (spike measured 22-27 on dashes)."},
+    {"degenerate_zero_length_mid", 255, 55, 49,
+     "GPU DEFECT RECORDED, not hidden: a zero-length segment inside a polyline (A,B,B,C) "
+     "loses the miter tip at B on the GPU (ThorVG draws it), 32 pixels differ by up to 255. "
+     "gpu_scene_from_shapes drops repeated points, so the production path never produces "
+     "this input."},
+    {"degenerate_zero_length_dot", 255, 553, 553,
+     "GPU GAP RECORDED, not hidden: a single zero-length segment with round or square caps "
+     "draws a dot in SVG and in ThorVG, and nothing on the GPU (368 pixels = the two dots). "
+     "Production flattening drops repeated points, so it never reaches the GPU either."},
+    {"degenerate_collinear", 6, 0, 0,
+     "Collinear vertices on a fill and on a stroke: the extra points change nothing; "
+     "coverage rounding only."},
+    {"degenerate_thin", 6, 0, 0,
+     "A 0.3 px sliver and a 0.25 px hairline: both draw faint pixels that agree within 4."},
+    {"degenerate_empty", 0, 0, 0,
+     "No shapes: both blank, exactly."},
+    {"degenerate_outside_target", 0, 0, 0,
+     "Shapes entirely outside the target: both blank, exactly."},
+    {"degenerate_clipped_by_edge", 20, 22, 0,
+     "Shapes cut by the target's edges and a round-capped stroke leaving it: coverage "
+     "rounding only."},
 };
 
 // UNMEASURED rows are filled in from a --report run.
@@ -140,10 +217,12 @@ bool run(rhi::Device& device, bool report) {
         expect(exact.max_channel_delta <= row->max_delta,
                scene.name + ": max channel delta " + std::to_string(exact.max_channel_delta) +
                    " exceeds " + std::to_string(row->max_delta));
-        expect(over4 <= row->over4, scene.name + ": fraction over 4 " + std::to_string(over4) +
-                                        " exceeds " + std::to_string(row->over4));
-        expect(over16 <= row->over16, scene.name + ": fraction over 16 " + std::to_string(over16) +
-                                          " exceeds " + std::to_string(row->over16));
+        expect(d4.mismatched <= row->over4,
+               scene.name + ": " + std::to_string(d4.mismatched) + " pixels over 4 exceed " +
+                   std::to_string(row->over4));
+        expect(d16.mismatched <= row->over16,
+               scene.name + ": " + std::to_string(d16.mismatched) + " pixels over 16 exceed " +
+                   std::to_string(row->over16));
     }
     return failures == 0;
 }
