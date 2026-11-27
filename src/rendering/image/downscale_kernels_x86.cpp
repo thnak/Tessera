@@ -72,6 +72,29 @@ bool x86_avx512_available() noexcept {
     return features().avx512;
 }
 
+// Accumulate helpers are named functions carrying the same target as their kernels: a lambda inside
+// a target-attributed function does not inherit the target on GCC, so the intrinsics it calls
+// cannot be inlined into it and the build fails ("target specific option mismatch").
+namespace {
+
+void add_u32x4(std::uint32_t* plane, __m128i value) {
+    auto* p = reinterpret_cast<__m128i*>(plane);
+    _mm_storeu_si128(p, _mm_add_epi32(_mm_loadu_si128(p), value));
+}
+
+TESSERA_TARGET("avx2")
+void add_u32x8(std::uint32_t* plane, __m256i value) {
+    auto* p = reinterpret_cast<__m256i*>(plane);
+    _mm256_storeu_si256(p, _mm256_add_epi32(_mm256_loadu_si256(p), value));
+}
+
+TESSERA_TARGET("avx512f,avx512bw")
+void add_u32x16(std::uint32_t* plane, __m512i value) {
+    _mm512_storeu_si512(plane, _mm512_add_epi32(_mm512_loadu_si512(plane), value));
+}
+
+} // namespace
+
 // Each pixel is a 32-bit lane. A channel is at most 255, so the product of two of them is at most
 // 65025 and a 16-bit multiply of lanes whose upper half is zero is exact, with a zero upper half
 // again: mullo_epi16 is the cheapest exact multiply here.
@@ -90,14 +113,10 @@ void accumulate_row_sse2(const std::uint8_t* rgba_row, std::uint32_t* planes, st
         const __m128i r = _mm_and_si128(v, mask);
         const __m128i g = _mm_and_si128(_mm_srli_epi32(v, 8), mask);
         const __m128i b = _mm_and_si128(_mm_srli_epi32(v, 16), mask);
-        auto add = [i](std::uint32_t* plane, __m128i value) {
-            auto* p = reinterpret_cast<__m128i*>(plane + i);
-            _mm_storeu_si128(p, _mm_add_epi32(_mm_loadu_si128(p), value));
-        };
-        add(pr, _mm_mullo_epi16(r, a));
-        add(pg, _mm_mullo_epi16(g, a));
-        add(pb, _mm_mullo_epi16(b, a));
-        add(pa, a);
+        add_u32x4(pr + i, _mm_mullo_epi16(r, a));
+        add_u32x4(pg + i, _mm_mullo_epi16(g, a));
+        add_u32x4(pb + i, _mm_mullo_epi16(b, a));
+        add_u32x4(pa + i, a);
     }
     accumulate_row_scalar(rgba_row, planes, stride, i, pixels);
 }
@@ -117,14 +136,10 @@ void accumulate_row_avx2(const std::uint8_t* rgba_row, std::uint32_t* planes, st
         const __m256i r = _mm256_and_si256(v, mask);
         const __m256i g = _mm256_and_si256(_mm256_srli_epi32(v, 8), mask);
         const __m256i b = _mm256_and_si256(_mm256_srli_epi32(v, 16), mask);
-        auto add = [i](std::uint32_t* plane, __m256i value) {
-            auto* p = reinterpret_cast<__m256i*>(plane + i);
-            _mm256_storeu_si256(p, _mm256_add_epi32(_mm256_loadu_si256(p), value));
-        };
-        add(pr, _mm256_mullo_epi16(r, a));
-        add(pg, _mm256_mullo_epi16(g, a));
-        add(pb, _mm256_mullo_epi16(b, a));
-        add(pa, a);
+        add_u32x8(pr + i, _mm256_mullo_epi16(r, a));
+        add_u32x8(pg + i, _mm256_mullo_epi16(g, a));
+        add_u32x8(pb + i, _mm256_mullo_epi16(b, a));
+        add_u32x8(pa + i, a);
     }
     accumulate_row_scalar(rgba_row, planes, stride, i, pixels);
 }
@@ -144,13 +159,10 @@ void accumulate_row_avx512(const std::uint8_t* rgba_row, std::uint32_t* planes, 
         const __m512i r = _mm512_and_si512(v, mask);
         const __m512i g = _mm512_and_si512(_mm512_srli_epi32(v, 8), mask);
         const __m512i b = _mm512_and_si512(_mm512_srli_epi32(v, 16), mask);
-        auto add = [i](std::uint32_t* plane, __m512i value) {
-            _mm512_storeu_si512(plane + i, _mm512_add_epi32(_mm512_loadu_si512(plane + i), value));
-        };
-        add(pr, _mm512_mullo_epi16(r, a));
-        add(pg, _mm512_mullo_epi16(g, a));
-        add(pb, _mm512_mullo_epi16(b, a));
-        add(pa, a);
+        add_u32x16(pr + i, _mm512_mullo_epi16(r, a));
+        add_u32x16(pg + i, _mm512_mullo_epi16(g, a));
+        add_u32x16(pb + i, _mm512_mullo_epi16(b, a));
+        add_u32x16(pa + i, a);
     }
     accumulate_row_scalar(rgba_row, planes, stride, i, pixels);
 }

@@ -174,7 +174,7 @@ void bench() {
             if (!image::isa_supported(isa)) {
                 continue;
             }
-            for (const auto [w, h] : {std::pair{1920U, 1080U}, std::pair{960U, 540U}}) {
+            for (const auto& [w, h] : {std::pair{1920U, 1080U}, std::pair{960U, 540U}}) {
                 double best = 1e30;
                 for (int i = 0; i < 15; ++i) {
                     const auto t0 = std::chrono::steady_clock::now();
