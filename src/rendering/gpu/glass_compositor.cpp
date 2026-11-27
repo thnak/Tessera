@@ -126,6 +126,19 @@ bool GlassCompositor::mask_layer(const FrameContext& frame, rhi::RenderTarget& m
     return true;
 }
 
+bool GlassCompositor::combine_mask_part(const FrameContext& frame, rhi::RenderTarget& part,
+                                        MaskCompositeOp op,
+                                        const std::vector<rhi::Scissor>& scissors) {
+    if (frame.commands == nullptr || frame.target == nullptr || op == MaskCompositeOp::Add ||
+        !mask_part_supported(op) || frame.target->sample_count() != 1) {
+        return false;
+    }
+    // The part is the source and the mask so far is the destination; only alpha matters to a mask,
+    // so the colour channels the blend leaves behind are never read.
+    composite_with(*mask_part_pipeline(op), frame, part, scissors, 1.0f);
+    return true;
+}
+
 void GlassCompositor::composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,
                                      rhi::RenderTarget& source,
                                      const std::vector<rhi::Scissor>& scissors, float opacity) {

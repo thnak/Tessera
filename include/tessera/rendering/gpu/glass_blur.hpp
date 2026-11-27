@@ -116,6 +116,11 @@ struct GlassPipelines {
     rhi::Pipeline* blur = nullptr;
     rhi::Pipeline* composite = nullptr;
     rhi::Pipeline* mask = nullptr;
+    // The combine steps of a `mask-composite` layer (RHI 1.21): the composite program with
+    // `BlendMode::SourceOut` (subtract) and `BlendMode::Xor` (exclude); intersect is `mask`.
+    // Optional: without one, a mask layer using that operator is dropped.
+    rhi::Pipeline* mask_out = nullptr;
+    rhi::Pipeline* mask_xor = nullptr;
 };
 
 // The push-constant block `glass_blur.frag` reads, one block per pass. It mirrors the shader's

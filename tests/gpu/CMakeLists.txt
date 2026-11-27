@@ -702,6 +702,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_mask_gpu COMMAND layer_mask_gpu_tests)
     set_tests_properties(layer_mask_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # `mask-composite` (issue #617, RHI 1.21) on a real device: subtract, intersect and exclude of a
+    # mask layer against the one below it, opaque and half-alpha, the refusal without the pipelines
+    # and recycled targets. Skips without a Vulkan device.
+    add_executable(layer_mask_composite_gpu_tests
+        batched2d/layer_mask_composite_gpu_tests.cpp)
+    target_link_libraries(layer_mask_composite_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME layer_mask_composite_gpu COMMAND layer_mask_composite_gpu_tests)
+    set_tests_properties(layer_mask_composite_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # Per-fragment gradients (ADR-076) on a real device: every kind against the CPU twin, the ramp
     # rules, transforms, clips, one-draw batching, the table limit and frames in flight. Skips
     # without a Vulkan device.

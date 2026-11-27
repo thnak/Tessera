@@ -432,7 +432,8 @@ public:
         // gradient fills are always recorded, and forwarded only while the target agreed to mask.
         bool in_mask_ = false;
         bool mask_live_ = false;
-        // False while a non-add mask layer the target declined is open: its draws are not forwarded.
+        // False while a non-add mask layer the target declined is open: its draws are not
+        // forwarded.
         bool part_live_ = true;
     };
 

@@ -95,6 +95,8 @@ RHI versioning and capabilities (ADR-049):
   throwing calls) until their slices land.
   1.19 adds `BlendMode::DestinationIn` (`dst * src.a` on all four channels), the mask step of an isolated
   layer (issue #617, section 4.1); every backend expresses it with fixed blend factors.
+  1.21 adds `BlendMode::SourceOut` and `BlendMode::Xor`, the combine steps of a `mask-composite` layer
+  (issue #617, offscreen-layers.md 5.2f); fixed blend factors on every backend.
   1.20 adds `Device::supports_analytic_gradients()` (non-pure, default false; true on Vulkan with storage
   buffers, null and WebGPU): the renderer draws a gradient as one quad evaluated per fragment, else bands
   ([gradients.md](gradients.md), ADR-076).
@@ -195,6 +197,8 @@ Rules:
 | `None` | no blending: the fragment output replaces the destination |
 | `Alpha` | `src.rgb * src.a + dst.rgb * (1 - src.a)`, alpha `src.a + dst.a * (1 - src.a)` |
 | `DualSource` | per channel: `src0 * src1 + dst * (1 - src1)` |
+| `SourceOut` | `src * (1 - dst.a)` on all four channels (RHI 1.21): the destination is dropped; subtract of a mask layer. Vulkan `ONE_MINUS_DST_ALPHA`/`ZERO`, the same factors on WebGPU and Metal |
+| `Xor` | `src * (1 - dst.a) + dst * (1 - src.a)` on all four channels (RHI 1.21): exclude of a mask layer. `ONE_MINUS_DST_ALPHA`/`ONE_MINUS_SRC_ALPHA` |
 | `DestinationIn` | `dst * src.a` on all four channels (RHI 1.19): the fragment colour is ignored; the mask step of an isolated layer, whose target holds premultiplied colour, so this is `mask-mode: alpha` compositing. Vulkan `ZERO`/`SRC_ALPHA`, the same factors on WebGPU and Metal, so no capability gates it |
 
 `DualSource` (issue #471, [`display-aware-rendering.md`](../display-aware-rendering.md) section 3.4)

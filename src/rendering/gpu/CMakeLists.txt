@@ -19,6 +19,7 @@ add_library(tessera_gpu STATIC
     gradient_table.cpp
     batched2d_layer.cpp
     batched2d_layer_mask.cpp
+    batched2d_mask_part.cpp
     batched2d_layer_filter.cpp
     batched2d_seam.cpp
     clip_state_table.cpp

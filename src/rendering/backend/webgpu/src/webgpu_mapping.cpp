@@ -160,8 +160,8 @@ WgpuBlendState blend_state(rhi::BlendMode mode) {
     }
     if (mode == rhi::BlendMode::SourceOut || mode == rhi::BlendMode::Xor) {
         // Mask combine (RHI 1.21), the same factors as the Vulkan backend.
-        const WgpuBlendFactor keep = mode == rhi::BlendMode::Xor ? WgpuBlendFactor::OneMinusSrcAlpha
-                                                                 : WgpuBlendFactor::Zero;
+        const WgpuBlendFactor keep =
+            mode == rhi::BlendMode::Xor ? WgpuBlendFactor::OneMinusSrcAlpha : WgpuBlendFactor::Zero;
         state.enabled = true;
         state.color = {WgpuBlendFactor::OneMinusDstAlpha, keep, WgpuBlendOp::Add};
         state.alpha = {WgpuBlendFactor::OneMinusDstAlpha, keep, WgpuBlendOp::Add};

@@ -7,11 +7,11 @@
 #include "paint_gradient.hpp"
 #include "paint_mask_tiles.hpp"
 #include "paint_properties.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/gradient.hpp"
-#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/ui/style/mask_layers.hpp"
 
 #include <algorithm>
@@ -357,8 +357,8 @@ rendering::gpu::MaskCompositeOp composite_op(style::MaskComposite value) {
 }
 
 // One mask layer's tiles, inside the `mask-origin` box and cut to the `mask-clip` box.
-void emit_mask_layer(const style::BackgroundLayer& layer, std::size_t index, const RoundedClip& clip,
-                     float opacity, PaintSink& sink, PaintStats& stats,
+void emit_mask_layer(const style::BackgroundLayer& layer, std::size_t index,
+                     const RoundedClip& clip, float opacity, PaintSink& sink, PaintStats& stats,
                      const MaskGeometry& geometry) {
     const bool luminance = geometry.modes.at_layer(index) == style::MaskMode::Luminance;
     const style::MaskBox origin = geometry.origins.at_layer(index);

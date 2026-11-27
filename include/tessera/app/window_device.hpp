@@ -327,6 +327,8 @@ private:
     std::unique_ptr<rhi::Pipeline> lcd_pipeline_;
     std::unique_ptr<rhi::Pipeline> glass_blur_pipeline_;
     std::unique_ptr<rhi::Pipeline> glass_mask_pipeline_;
+    std::unique_ptr<rhi::Pipeline> glass_mask_out_pipeline_;
+    std::unique_ptr<rhi::Pipeline> glass_mask_xor_pipeline_;
     std::unique_ptr<rhi::Pipeline> glass_composite_pipeline_;
     std::unique_ptr<rhi::Texture> white_;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer_;

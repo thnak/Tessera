@@ -8,13 +8,16 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 
 namespace {
 
+using tessera::rendering::gpu::MaskCompositeOp;
 using tessera::rendering::rhi::Color;
 using tessera::rendering::rhi::Rect;
 using tessera::rendering::software::apply_layer_mask;
+using tessera::rendering::software::combine_mask_part;
 using tessera::rendering::software::composite_layer;
 using tessera::rendering::software::CpuCanvas;
 
@@ -152,6 +155,43 @@ bool test_mask_composes_with_opacity() {
                   "a 0.5 mask under a 0.5 layer is a quarter");
 }
 
+// x0: the mask so far only, x1: both (the part half alpha), x2: the part only, x3: neither.
+// A red layer is masked by the combined result over the blue page, so red is the combined alpha.
+std::array<int, 4> combined_red(MaskCompositeOp op) {
+    Pair below;
+    below.fill({0.0f, 0.0f, 2.0f, 1.0f}, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    Pair part;
+    part.fill({1.0f, 0.0f, 1.0f, 1.0f}, Color{0.0f, 0.0f, 0.0f, 0.5f});
+    part.fill({2.0f, 0.0f, 1.0f, 1.0f}, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    combine_mask_part(below.black, below.white, part.black, part.white, op);
+    Pair layer;
+    layer.fill(kAll, Color{1.0f, 0.0f, 0.0f, 1.0f});
+    apply_layer_mask(layer.black, layer.white, below.black, below.white);
+    CpuCanvas canvas = page();
+    composite_layer(canvas, layer.black, layer.white, kAll, 1.0f);
+    return {pixel(canvas, 0)[0], pixel(canvas, 1)[0], pixel(canvas, 2)[0], pixel(canvas, 3)[0]};
+}
+
+bool test_combine_mask_part() {
+    const auto near4 = [](const std::array<int, 4>& got, const std::array<int, 4>& want) {
+        for (std::size_t i = 0; i < 4; ++i) {
+            if (std::abs(got[i] - want[i]) > 2) {
+                return false;
+            }
+        }
+        return true;
+    };
+    // The part's alpha at x1 is 0.5 (red 128) and at x2 is 1; the mask so far is 1 at x0 and x1.
+    return expect(near4(combined_red(MaskCompositeOp::Subtract), {0, 0, 255, 0}),
+                  "subtract: the part where nothing is below (src * (1 - dst))") &&
+           expect(near4(combined_red(MaskCompositeOp::Intersect), {0, 128, 0, 0}),
+                  "intersect: the part where the mask is (src * dst)") &&
+           expect(near4(combined_red(MaskCompositeOp::Exclude), {255, 128, 255, 0}),
+                  "exclude: src * (1 - dst) + dst * (1 - src)") &&
+           expect(near4(combined_red(MaskCompositeOp::Add), {255, 255, 255, 0}),
+                  "add is source-over");
+}
+
 bool test_size_mismatch_is_a_no_op() {
     Pair layer;
     layer.fill(kAll, Color{1.0f, 0.0f, 0.0f, 1.0f});
@@ -172,6 +212,7 @@ int main() {
     ok = test_nested_layer_keeps_the_pair_consistent() && ok;
     ok = test_mask() && ok;
     ok = test_mask_composes_with_opacity() && ok;
+    ok = test_combine_mask_part() && ok;
     ok = test_size_mismatch_is_a_no_op() && ok;
     if (!ok) {
         return 1;

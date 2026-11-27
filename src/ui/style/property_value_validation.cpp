@@ -239,7 +239,8 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                 "repeat, space, round, no-repeat; mask-mode takes alpha, luminance or "
                 "match-source; mask-origin takes border-box, padding-box or content-box and "
                 "mask-clip those "
-                "or no-clip; mask-composite takes add, subtract, intersect or exclude (per layer, comma-separated, at most 8)"});
+                "or no-clip; mask-composite takes add, subtract, intersect or exclude (per layer, "
+                "comma-separated, at most 8)"});
         }
         return ok;
     }

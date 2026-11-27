@@ -10,9 +10,10 @@
 #include <string_view>
 
 // The per-layer geometry of a `mask-image` layer list (issue #617): `mask-size`, `mask-position`,
-// `mask-repeat`, `mask-mode`, `mask-origin`, `mask-clip` and `mask-composite`. Each is a comma-separated list that
-// lines up with the layers of `mask-image`; a list shorter than the layer list repeats cyclically
-// (CSS Masking 1 section 6.1), and an absent list means the initial value on every layer.
+// `mask-repeat`, `mask-mode`, `mask-origin`, `mask-clip` and `mask-composite`. Each is a
+// comma-separated list that lines up with the layers of `mask-image`; a list shorter than the layer
+// list repeats cyclically (CSS Masking 1 section 6.1), and an absent list means the initial value
+// on every layer.
 //
 // V1 takes lengths in px and percentages only (no em/rem/calc), because the paint pass has no
 // font-size at the mask. Gradients have no intrinsic size, so `auto`, `cover` and `contain` all
@@ -35,8 +36,8 @@ enum class MaskBox : unsigned char { Border, Padding, Content, NoClip };
 
 // How a layer combines with the layers below it (CSS Masking 1 section 6.9). `Add` is source-over,
 // `Subtract` keeps the layer where the layers below are empty (source-out), `Intersect` keeps it
-// where they are not (source-in) and `Exclude` is xor. The bottom layer has nothing below it, and its
-// value is ignored.
+// where they are not (source-in) and `Exclude` is xor. The bottom layer has nothing below it, and
+// its value is ignored.
 enum class MaskComposite : unsigned char { Add, Subtract, Intersect, Exclude };
 
 enum class MaskRepeatKind : unsigned char { Repeat, Space, Round, NoRepeat };

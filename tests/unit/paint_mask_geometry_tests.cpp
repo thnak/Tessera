@@ -76,6 +76,19 @@ public:
         return true;
     }
     void end_layer_mask() override {}
+    [[nodiscard]] bool begin_mask_layer(tessera::rendering::gpu::MaskCompositeOp op) override {
+        using Op = tessera::rendering::gpu::MaskCompositeOp;
+        log.push_back(std::string("part(") +
+                      (op == Op::Subtract    ? "subtract"
+                       : op == Op::Intersect ? "intersect"
+                                             : "exclude") +
+                      ")");
+        return !decline_parts;
+    }
+    void end_mask_layer() override {
+        log.push_back("endpart");
+    }
+    bool decline_parts = false;
     std::vector<std::string> log;
 };
 
@@ -308,6 +321,64 @@ bool an_empty_box_paints_nothing() {
                         {});
 }
 
+const char* const kTwo = "linear-gradient(#000, #fff), linear-gradient(#fff, #000)";
+
+bool composite_brackets_the_layer() {
+    // Layer 0 is on top and combines with layer 1 below it, which is painted first.
+    return check("add is plain painting: no bracket",
+                 paint({{"mask-image", kTwo}, {"mask-composite", "add"}}),
+                 {"grad(10,10,60,60)a100-100", "grad(10,10,60,60)a100-100"}) &&
+           check("subtract brackets the top layer",
+                 paint({{"mask-image", kTwo}, {"mask-composite", "subtract"}}),
+                 {"grad(10,10,60,60)a100-100", "part(subtract)", "grad(10,10,60,60)a100-100",
+                  "endpart"}) &&
+           check("the bottom layer's operator is ignored",
+                 paint({{"mask-image", kTwo}, {"mask-composite", "add, intersect"}}),
+                 {"grad(10,10,60,60)a100-100", "grad(10,10,60,60)a100-100"}) &&
+           check("intersect and exclude",
+                 paint({{"mask-image", kTwo}, {"mask-composite", "exclude"}}),
+                 {"grad(10,10,60,60)a100-100", "part(exclude)", "grad(10,10,60,60)a100-100",
+                  "endpart"}) &&
+           check("a tiled layer's tiles stay inside its bracket",
+                 paint({{"mask-image", kTwo},
+                        {"mask-composite", "intersect"},
+                        {"mask-size", "30px 60px"},
+                        {"mask-repeat", "repeat-x"}}),
+                 {"grad(10,10,30,60)a100-100", "grad(40,10,30,60)a100-100", "part(intersect)",
+                  "grad(10,10,30,60)a100-100", "grad(40,10,30,60)a100-100", "endpart"});
+}
+
+bool transparent_layers_still_combine() {
+    const char* none_over = "none, linear-gradient(#000, #fff)";
+    return check("a none layer that intersects empties what is below",
+                 paint({{"mask-image", none_over}, {"mask-composite", "intersect"}}),
+                 {"grad(10,10,60,60)a100-100", "part(intersect)", "endpart"}) &&
+           check("so does one that subtracts",
+                 paint({{"mask-image", none_over}, {"mask-composite", "subtract"}}),
+                 {"grad(10,10,60,60)a100-100", "part(subtract)", "endpart"}) &&
+           check("adding or excluding nothing changes nothing",
+                 paint({{"mask-image", none_over}, {"mask-composite", "exclude"}}),
+                 {"grad(10,10,60,60)a100-100"});
+}
+
+bool a_declined_layer_is_dropped() {
+    Node root{1};
+    root.set_bounds({0.0f, 0.0f, 100.0f, 100.0f});
+    auto node = std::make_unique<Node>(2);
+    node->set_bounds({10.0f, 10.0f, 60.0f, 60.0f});
+    root.add_child(std::move(node));
+    StubStyles styles;
+    ComputedStyle style;
+    style.set("mask-image", kTwo);
+    style.set("mask-composite", "subtract");
+    styles.set(2, style);
+    LogSink sink;
+    sink.decline_parts = true;
+    paint_scene(root, styles, sink);
+    return check("a sink that declines the part loses that layer and its draws", sink.log,
+                 {"grad(10,10,60,60)a100-100", "part(subtract)"});
+}
+
 bool luminance_turns_colour_into_alpha() {
     return check("black to white becomes alpha 0 to 1",
                  paint({{"mask-image", kRamp}, {"mask-mode", "luminance"}}),
@@ -333,6 +404,9 @@ int main() {
     ok = layers_cycle_their_geometry() && ok;
     ok = too_many_tiles_draw_the_first_ones() && ok;
     ok = origin_and_clip_boxes() && ok;
+    ok = composite_brackets_the_layer() && ok;
+    ok = transparent_layers_still_combine() && ok;
+    ok = a_declined_layer_is_dropped() && ok;
     ok = no_clip_keeps_the_overflow() && ok;
     ok = an_empty_box_paints_nothing() && ok;
     ok = luminance_turns_colour_into_alpha() && ok;

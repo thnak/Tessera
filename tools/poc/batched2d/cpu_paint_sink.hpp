@@ -329,6 +329,30 @@ public:
         layer.mask_white.reset();
     }
 
+    // One non-add mask layer: drawn into its own pair, then combined into the mask so far.
+    [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override {
+        if (op == rendering::gpu::MaskCompositeOp::Add) {
+            return true;
+        }
+        if (layers_.empty() || !layers_.back().mask_black.has_value() ||
+            layers_.back().part_black.has_value()) {
+            return false;
+        }
+        layers_.back().begin_part(op);
+        return true;
+    }
+
+    void end_mask_layer() override {
+        if (layers_.empty() || !layers_.back().part_black.has_value()) {
+            return;
+        }
+        Layer& layer = layers_.back();
+        rendering::software::combine_mask_part(*layer.mask_black, *layer.mask_white,
+                                               *layer.part_black, *layer.part_white, layer.part_op);
+        layer.part_black.reset();
+        layer.part_white.reset();
+    }
+
 private:
     // One gradient quad: pack once, then shade every covered pixel with the shared evaluator. The
     // quad-local point is the pixel centre minus the quad's centre, which is what the shader's
@@ -385,12 +409,23 @@ private:
             mask_white->clear(rendering::rhi::Color{1.0f, 1.0f, 1.0f, 1.0f});
         }
 
+        void begin_part(rendering::gpu::MaskCompositeOp op) {
+            part_op = op;
+            part_black.emplace(black.width(), black.height());
+            part_white.emplace(black.width(), black.height());
+            part_black->clear(rendering::rhi::Color{0.0f, 0.0f, 0.0f, 1.0f});
+            part_white->clear(rendering::rhi::Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
         rendering::rhi::Rect box;
         float opacity = 1.0f;
         rendering::software::CpuCanvas black;
         rendering::software::CpuCanvas white;
         std::optional<rendering::software::CpuCanvas> mask_black;
         std::optional<rendering::software::CpuCanvas> mask_white;
+        std::optional<rendering::software::CpuCanvas> part_black; // an open non-add mask layer
+        std::optional<rendering::software::CpuCanvas> part_white;
+        rendering::gpu::MaskCompositeOp part_op = rendering::gpu::MaskCompositeOp::Add;
         bool masked = false;
     };
 
@@ -399,7 +434,10 @@ private:
     template<typename Draw> void paint_each(Draw&& draw) {
         if (layers_.empty()) {
             draw(*canvas_);
-        } else if (Layer& layer = layers_.back(); layer.mask_black.has_value()) {
+        } else if (Layer& layer = layers_.back(); layer.part_black.has_value()) {
+            draw(*layer.part_black);
+            draw(*layer.part_white);
+        } else if (layer.mask_black.has_value()) {
             draw(*layer.mask_black);
             draw(*layer.mask_white);
         } else {

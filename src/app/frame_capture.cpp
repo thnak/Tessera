@@ -53,7 +53,8 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     auto white = detail::create_white(*device);
     rendering::gpu::Batched2DRenderer renderer(
         *device, *pipeline, *white, rendering::gpu::Batched2DConfig{4096, true, false},
-        rendering::gpu::GlassPipelines{glass.blur.get(), glass.composite.get(), glass.mask.get()});
+        rendering::gpu::GlassPipelines{glass.blur.get(), glass.composite.get(), glass.mask.get(),
+                                       glass.mask_out.get(), glass.mask_xor.get()});
     detail::TextStack text(*device, options.font_path);
     detail::VectorStack vectors(*device, format, options.vector_assets, options.vector_bundles,
                                 false);

@@ -190,6 +190,9 @@ struct GlassPipelines {
     // The layer mask step (RHI 1.19, issue #617): optional, so a device that cannot create it only
     // loses `mask-image`, never the window.
     std::unique_ptr<rhi::Pipeline> mask;
+    // The combine steps of a `mask-composite` layer (RHI 1.21); optional like `mask`.
+    std::unique_ptr<rhi::Pipeline> mask_out;
+    std::unique_ptr<rhi::Pipeline> mask_xor;
 };
 
 inline GlassPipelines create_glass_pipelines(rhi::Device& device, rhi::TextureFormat format) {
@@ -205,6 +208,16 @@ inline GlassPipelines create_glass_pipelines(rhi::Device& device, rhi::TextureFo
     } catch (const std::exception&) {
         pipelines.mask.reset();
     }
+    const auto optional_blend = [&](rhi::BlendMode blend) -> std::unique_ptr<rhi::Pipeline> {
+        try {
+            return device.create_pipeline(
+                tessera::rendering::vulkan::glass_blur_pipeline_desc(format, blend));
+        } catch (const std::exception&) {
+            return nullptr;
+        }
+    };
+    pipelines.mask_out = optional_blend(rhi::BlendMode::SourceOut);
+    pipelines.mask_xor = optional_blend(rhi::BlendMode::Xor);
     return pipelines;
 }
 

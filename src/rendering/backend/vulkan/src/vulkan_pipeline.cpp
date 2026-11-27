@@ -171,7 +171,8 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         // Mask combine (RHI 1.21): `src * (1 - dst.a)`, plus `dst * (1 - src.a)` for xor, on every
         // channel.
         const bool exclusive = desc.blend == rhi::BlendMode::Xor;
-        const VkBlendFactor keep = exclusive ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ZERO;
+        const VkBlendFactor keep =
+            exclusive ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ZERO;
         blend_attachment.blendEnable = VK_TRUE;
         blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
         blend_attachment.dstColorBlendFactor = keep;
