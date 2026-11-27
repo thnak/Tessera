@@ -17,6 +17,7 @@
 //
 // Skips cleanly when the machine has no Vulkan device.
 
+#include "layer_mask_chromium_reference.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -37,6 +38,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -197,8 +199,10 @@ void clear_tree(tessera::ui::Node& node) {
     }
 }
 
-// A green node at (8,8) 48x48 whose mask ramps from transparent (left) to opaque (right).
-bool paint_path(Harness& harness) {
+// One green node at (8,8) 48x48 under `mask-image: <css>` at `opacity`, painted through the real
+// paint path and Batched2DSink, over a black frame. Returns the frame's pixels.
+std::vector<std::uint8_t> render_masked(Harness& harness, const char* css, const char* opacity,
+                                        std::uint32_t& isolated, std::uint32_t& applied) {
     using tessera::ui::Node;
     using tessera::ui::style::ComputedStyle;
     Node root(1);
@@ -209,7 +213,8 @@ bool paint_path(Harness& harness) {
     StubStyles styles;
     ComputedStyle style;
     style.set("background-color", "#00ff00");
-    style.set("mask-image", "linear-gradient(90deg, rgba(0, 0, 0, 0), #000000)");
+    style.set("opacity", opacity);
+    style.set("mask-image", css);
     styles.set(2, style);
     clear_tree(root);
 
@@ -218,8 +223,6 @@ bool paint_path(Harness& harness) {
     Batched2DConfig config;
     config.enable_aa = false;
     config.golden_mode = true;
-    std::uint32_t applied = 0;
-    std::uint32_t isolated = 0;
     {
         Batched2DRenderer renderer(
             *harness.device, *harness.pipeline, *harness.white, config,
@@ -232,7 +235,14 @@ bool paint_path(Harness& harness) {
         applied = renderer.layer_masks_applied();
         isolated = renderer.layers_isolated();
     }
-    const std::vector<std::uint8_t> pixels = read_target(*harness.device, *target);
+    return read_target(*harness.device, *target);
+}
+
+bool paint_path(Harness& harness) {
+    std::uint32_t isolated = 0;
+    std::uint32_t applied = 0;
+    const std::vector<std::uint8_t> pixels = render_masked(
+        harness, "linear-gradient(90deg, rgba(0, 0, 0, 0), #000000)", "1", isolated, applied);
     bool ok = expect(isolated == 1 && applied == 1, "the paint pass opened one masked layer");
     const auto left = pixel_at(pixels, 10, 32);
     const auto middle = pixel_at(pixels, 32, 32);
@@ -246,6 +256,112 @@ bool paint_path(Harness& harness) {
     return ok;
 }
 
+// The same scenes Chromium measured (layer_mask_chromium_reference.hpp), through the real paint
+// path.
+//
+// What the comparison found: the geometry matches (a linear ramp is exact across its axis, radial
+// and conic are symmetric with the right sweep) but the alpha along a translucent gradient comes
+// out too high, because the V1 sink draws 64 solid bands each `band + 0.5` px wide
+// (paint_sinks.cpp), so neighbouring bands overlap and composite twice. For an opaque gradient the
+// overlap is invisible, for `mask-image` and any translucent stop it is not. The error is
+// one-sided, so the test asserts that: never meaningfully below Chromium, exact where no band
+// overlaps (across the linear ramp), and bounded above by the measured worst case (so it flags a
+// regression and passes a fix). The per-pixel gradient that removes the overlap is the follow-up
+// named in paint_sinks.cpp.
+bool chromium_comparison(Harness& harness) {
+    struct Scene {
+        const char* name;
+        const char* css;
+        const char* opacity;
+        int max_excess_row; // measured worst case over the 12 samples, plus a little slack
+        int max_excess_col;
+    };
+    const Scene scenes[] = {
+        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1", 70, 2},
+        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 36, 2},
+        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 70, 70},
+        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 36, 36},
+        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 75, 80},
+        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 40, 40},
+    };
+    bool ok = true;
+    for (const Scene& scene : scenes) {
+        const layer_mask_reference::Series* reference = nullptr;
+        for (const auto& candidate : layer_mask_reference::kChromium) {
+            if (std::string(candidate.name) == scene.name) {
+                reference = &candidate;
+            }
+        }
+        if (!expect(reference != nullptr, "the scene has a Chromium reference")) {
+            return false;
+        }
+        std::uint32_t isolated = 0;
+        std::uint32_t applied = 0;
+        const auto pixels = render_masked(harness, scene.css, scene.opacity, isolated, applied);
+        ok = expect(isolated == 1 && applied == 1, scene.name) && ok;
+        for (std::size_t i = 0; i < layer_mask_reference::kSampleAt.size(); ++i) {
+            const std::uint32_t at = layer_mask_reference::kSampleAt[i];
+            const int row = pixel_at(pixels, at, 32)[1] - reference->row32[i];
+            const int col = pixel_at(pixels, 32, at)[1] - reference->col32[i];
+            const bool inside = row >= -6 && row <= scene.max_excess_row && col >= -6 &&
+                                col <= scene.max_excess_col;
+            if (!inside) {
+                std::cerr << "layer_mask_gpu: " << scene.name << " at " << at << ": row "
+                          << (row >= 0 ? "+" : "") << row << ", column " << (col >= 0 ? "+" : "")
+                          << col << " against Chromium\n";
+                ok = false;
+            }
+        }
+        // Nothing outside the box, red or blue anywhere in it.
+        ok = near(pixel_at(pixels, 4, 4), 0, 0, 0, "outside the box is black", 4, 4) && ok;
+        ok = expect(pixel_at(pixels, 32, 32)[0] == 0 && pixel_at(pixels, 32, 32)[2] == 0,
+                    "only green shows through") &&
+             ok;
+    }
+    return ok;
+}
+
+// `--dump` prints the green channel along row 32, column 32 and the diagonal for each
+// shape, as JSON, so a Chromium measurement of the same scene can be compared offline.
+void dump_masks(Harness& harness) {
+    struct Case {
+        const char* name;
+        const char* css;
+        const char* opacity;
+    };
+    const Case cases[] = {
+        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1"},
+        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5"},
+        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1"},
+        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5"},
+        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1"},
+        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5"},
+    };
+    std::cout << "{";
+    bool first = true;
+    for (const Case& c : cases) {
+        std::uint32_t isolated = 0;
+        std::uint32_t applied = 0;
+        const auto pixels = render_masked(harness, c.css, c.opacity, isolated, applied);
+        const auto series = [&](auto&& at) {
+            std::cout << "[";
+            for (std::uint32_t i = 0; i < kSize; ++i) {
+                std::cout << (i == 0 ? "" : ",") << at(i);
+            }
+            std::cout << "]";
+        };
+        std::cout << (first ? "" : ",") << "\"" << c.name << "\":{\"row32\":";
+        first = false;
+        series([&](std::uint32_t i) { return pixel_at(pixels, i, 32)[1]; });
+        std::cout << ",\"col32\":";
+        series([&](std::uint32_t i) { return pixel_at(pixels, 32, i)[1]; });
+        std::cout << ",\"diag\":";
+        series([&](std::uint32_t i) { return pixel_at(pixels, i, i)[1]; });
+        std::cout << "}";
+    }
+    std::cout << "}\n";
+}
+
 bool frames_repeat(Harness& harness) {
     // The pooled targets are recycled: the second frame must not see the first one's mask.
     bool ok = masked_pixels(harness);
@@ -255,7 +371,7 @@ bool frames_repeat(Harness& harness) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     rhi::DeviceDesc device_desc;
     device_desc.backend = rhi::Backend::Vulkan;
     device_desc.validation = true;
@@ -290,6 +406,10 @@ int main() {
     ok = without_the_mask_pipeline(harness) && ok;
     ok = frames_repeat(harness) && ok;
     ok = paint_path(harness) && ok;
+    ok = chromium_comparison(harness) && ok;
+    if (argc > 1 && std::string(argv[1]) == "--dump") {
+        dump_masks(harness);
+    }
 
     const std::uint64_t validation_messages =
         tessera::rendering::vulkan::validation_message_count();

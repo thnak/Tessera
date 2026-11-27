@@ -239,9 +239,24 @@ slice behavior + tests + docs, nothing user-visible until the last:
    as `BeginLayerMask`, the gradient fills and `EndLayerMask`; the recorder always records the fills
    and forwards them only while its target agreed to mask, and replay skips a mask the replaying sink
    refuses. Tests: `paint_mask` (stream order, opacity, every degraded case, stale-record guard,
-   subtree record and replay) and the paint-path case of `layer_mask_gpu`. Still open: `mask-size`,
-   `mask-position`, `mask-repeat`, `mask-mode`, the `mask` shorthand, a `CpuCanvas` twin, the Chromium
-   comparison and the lavapipe golden.
+   subtree record and replay) and the paint-path case of `layer_mask_gpu`. **Chromium comparison (measured 2026-11-27).** The same
+   scene in Chromium and through the paint path (a 64x64 black frame, a #00ff00 box at (8,8) 48x48,
+   linear, radial and conic masks, opacity 1 and 0.5; reference values in
+   `tests/gpu/batched2d/layer_mask_chromium_reference.hpp`, asserted by `layer_mask_gpu`). Result:
+   the mask path itself matches: nothing outside the box, only green inside, the node opacity
+   composes with the mask exactly (0.5 halves every sample), and a linear ramp is exact across its
+   axis (within 1 of 255). **Deviation found:** alpha along a translucent gradient is too high, up to
+   +64 of 255 for linear, +72 for conic and +119 for the radial diagonal, never meaningfully below
+   Chromium (-5 at worst). Cause: `Batched2DSink` draws a gradient as solid bands each `band + 0.5` px
+   wide (`paint_sinks.cpp`), so neighbouring bands overlap by up to half a pixel and a translucent
+   stop composites twice there. For an opaque gradient the overlap is invisible, which is why it was
+   not caught; it affects any `background-image` with a translucent stop in the same way, and
+   `mask-image` is where it matters most because the alpha is the whole value. The test pins the
+   one-sided bound so a regression is flagged and the fix (the per-pixel gradient that
+   `paint_sinks.cpp` already names as the follow-up, or pixel-snapped non-overlapping bands, either
+   of which moves existing gradient goldens) passes it. Still open: `mask-size`, `mask-position`,
+   `mask-repeat`, `mask-mode`, the `mask` shorthand, a `CpuCanvas` twin, the band-overlap fix and the
+   lavapipe golden.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
