@@ -152,6 +152,9 @@ public:
     [[nodiscard]] bool supports_layers() const override;
     void push_layer(const LayerDraw& layer) override;
     void pop_layer() override;
+    // Retained layers (issue #617): true when the renderer holds this layer's pixels. Image and
+    // glass draws that could not complete tell the renderer, so such a layer is not kept.
+    [[nodiscard]] bool retain_layer(const LayerRetention& retention) override;
     // Masks the innermost layer (issue #617): true when the renderer opened the mask target.
     [[nodiscard]] bool begin_layer_mask() override;
     void end_layer_mask() override;

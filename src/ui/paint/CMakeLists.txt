@@ -6,7 +6,9 @@ add_library(tessera_paint STATIC
     paint_cache.cpp
     paint_cache_recorder.cpp
     paint_node_parts.cpp
+    paint_canvas.cpp
     paint_filter.cpp
+    paint_layer_retention.cpp
     paint_pass.cpp
     paint_image.cpp
     paint_properties.cpp

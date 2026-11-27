@@ -49,6 +49,11 @@ struct FramePipelineConfig {
     // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
     // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
     bool paint_cache = true;
+    // Retained layers (issue #617, docs/design/gpu/offscreen-layers.md section 5.6): a masked,
+    // filtered or isolated-opacity node whose subtree is unchanged is composited from pixels the
+    // sink kept instead of being painted again. Only full repaints use it (a partial one goes
+    // through a sink that cannot layer); needs `paint_cache`. False paints every layer fresh.
+    bool retain_layers = true;
     // Retained draw list per clean subtree (issue #476), sized by the runtime config key
     // `drawListCacheBudgetMb`; 0 turns it off and the output is unchanged (byte-identical).
     std::size_t draw_list_cache_bytes = 32u * 1024u * 1024u;
@@ -326,6 +331,10 @@ private:
     // Paint records for the tree this pipeline paints; mutable because painting is const.
     mutable paint::PaintCache paint_cache_;
     mutable paint::SubtreePaintCache subtree_cache_;
+    // Folded into every retained-layer key; bumped when something the key and the dirty flags
+    // cannot see may have changed: a style generation, or a frame with dirty nodes that was not
+    // painted in full (a partial repaint cannot reach a layer's sink, so it cannot drop it).
+    mutable std::uint64_t retain_epoch_ = 0;
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     // Parsed `background-image` layer lists, keyed by style identity (issue #733 item 2). Mutable
     // and owned here for the same reason as the paint cache: it must outlive one frame for a

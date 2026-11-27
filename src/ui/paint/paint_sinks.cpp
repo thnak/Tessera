@@ -128,6 +128,7 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
         // Documented no-op: a sink without vector resources (or a ThorVG-OFF build) paints the
         // node's box visuals only.
         ++vector_stats_.missing_resources;
+        renderer_->note_layer_degraded();
         return;
     }
 
@@ -137,6 +138,7 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
                                                   : vector_.bundle->find(draw.asset);
     if (!asset.has_value()) {
         ++vector_stats_.missing_assets;
+        renderer_->note_layer_degraded();
         return;
     }
 
@@ -156,12 +158,15 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
         case ui::assets::AssetSvgError::not_found:
         case ui::assets::AssetSvgError::invalid_name:
             ++vector_stats_.missing_assets;
+            renderer_->note_layer_degraded();
             break;
         case ui::assets::AssetSvgError::backend_unavailable:
             ++vector_stats_.unavailable_backend;
+            renderer_->note_layer_degraded();
             break;
         default:
             ++vector_stats_.failed_assets;
+            renderer_->note_layer_degraded();
             break;
         }
         return;
@@ -186,6 +191,7 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
         rendering::path::acquire_svg_texture(*vector_.textures, texture_key, decoded);
     if (!texture.has_value()) {
         ++vector_stats_.failed_assets;
+        renderer_->note_layer_degraded();
         return;
     }
     renderer_->push_texture(draw.rect, *texture->texture, {0.0f, 0.0f, 1.0f, 1.0f}, tint);
@@ -199,6 +205,7 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     if (image_.bundle == nullptr || image_.decoded == nullptr || image_.textures == nullptr) {
         // Documented no-op: a sink without image resources paints the node's box visuals only.
         ++image_stats_.missing_resources;
+        renderer_->note_layer_degraded();
         return;
     }
     // Decode at the raster extent the draw will upload (issue #14): the explicit extents, else the
@@ -211,9 +218,11 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
         case ui::assets::AssetImageError::not_found:
         case ui::assets::AssetImageError::invalid_name:
             ++image_stats_.missing_assets;
+            renderer_->note_layer_degraded();
             break;
         default:
             ++image_stats_.corrupted_assets;
+            renderer_->note_layer_degraded();
             break;
         }
         return;
@@ -270,6 +279,7 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     }
     if (!texture.has_value()) {
         ++image_stats_.texture_failures;
+        renderer_->note_layer_degraded();
         return;
     }
     if (exact) {
@@ -290,6 +300,10 @@ void Batched2DSink::push_layer(const LayerDraw& layer) {
 
 void Batched2DSink::pop_layer() {
     renderer_->pop_layer();
+}
+
+bool Batched2DSink::retain_layer(const LayerRetention& retention) {
+    return renderer_->retain_layer(retention.owner, retention.key, retention.clean);
 }
 
 bool Batched2DSink::begin_layer_mask() {
@@ -330,6 +344,7 @@ void Batched2DSink::draw_backdrop(const BackdropDraw& draw) {
     // read, or the pool having no free target this frame. The node paints without the effect and
     // the draw is counted so a frame that silently paints no glass stays attributable.
     ++glass_stats_.unsupported;
+    renderer_->note_layer_degraded();
 }
 
 } // namespace tessera::ui::paint

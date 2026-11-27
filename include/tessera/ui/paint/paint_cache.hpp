@@ -185,6 +185,10 @@ struct PushLayerOp {
     LayerDraw layer;
 };
 
+struct RetainLayerOp {
+    LayerRetention retention;
+};
+
 // One recorded sink call: the kind tag plus the payload that kind owns. `kind` is kept beside the
 // variant rather than derived from the active alternative because the three gradient kinds share
 // one alternative and the two asset kinds share another.
@@ -200,6 +204,9 @@ struct PaintOp {
         PushClip,
         PushTransform,
         PushLayer,
+        // Recorded only with `record_pops`, right before the layer's PushLayer: a replay asks the
+        // sink whether it holds the layer and, if so, skips everything up to the matching PopLayer.
+        RetainLayer,
         DrawText,
         DrawVector,
         DrawImage,
@@ -223,7 +230,7 @@ struct PaintOp {
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
                                  GradientRefOp, PushClipOp, PushTransformOp, DrawTextOp,
-                                 DrawAssetOp, DrawBackdropOp, PushLayerOp>;
+                                 DrawAssetOp, DrawBackdropOp, PushLayerOp, RetainLayerOp>;
 
     Kind kind = Kind::FillRect;
     Payload payload = FillRectOp{};
@@ -403,6 +410,7 @@ public:
         [[nodiscard]] bool supports_layers() const override;
         void push_layer(const LayerDraw& layer) override;
         void pop_layer() override;
+        [[nodiscard]] bool retain_layer(const LayerRetention& retention) override;
         [[nodiscard]] bool begin_layer_mask() override;
         void end_layer_mask() override;
         [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override;
@@ -435,6 +443,12 @@ public:
         // False while a non-add mask layer the target declined is open: its draws are not
         // forwarded.
         bool part_live_ = true;
+        // A retained layer (issue #617): the target holds the layer's pixels, so what the pass
+        // paints inside it is recorded (a later replay may need it) but not forwarded.
+        // `retain_pending_` is set between the target's "yes" and the layer's push_layer();
+        // `retained_depth_` counts open layers from that push to its matching pop (0 = forwarding).
+        bool retain_pending_ = false;
+        std::uint32_t retained_depth_ = 0;
     };
 
 private:

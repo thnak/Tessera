@@ -37,6 +37,9 @@ struct PassState {
     bool high_contrast = false;
     bool lcd_text = false;
     bool isolate_group_opacity = false;
+    // PaintContext::retain_layers (issue #617) and the epoch folded into every retained-layer key.
+    bool retain_layers = false;
+    std::uint64_t retain_epoch = 0;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
