@@ -43,10 +43,10 @@ public:
     // sync; 0 means no backdrop-filter. Returns true when the stored value changed.
     //
     // Both scalars below are 16-bit fixed point so the pair fills the four bytes the sigma used to
-    // take: the node is budgeted to the byte (`kNodeSizeExpected`) and a second float would grow it.
-    // Each rounds UP to its step, because a stored value that is too small would under-damage; one
-    // that is a fraction of a step too large only repaints a sliver more. A value past the range
-    // saturates, which is far beyond any configured blur limit or renderable texture.
+    // take: the node is budgeted to the byte (`kNodeSizeExpected`) and a second float would grow
+    // it. Each rounds UP to its step, because a stored value that is too small would under-damage;
+    // one that is a fraction of a step too large only repaints a sliver more. A value past the
+    // range saturates, which is far beyond any configured blur limit or renderable texture.
     bool set_glass_blur_sigma(float sigma) noexcept {
         return assign(glass_sigma_q_, quantize(sigma, kSigmaStep));
     }

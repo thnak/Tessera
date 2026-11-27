@@ -102,13 +102,13 @@ bool own_paint_is_bounded(const Node& node) {
 // INVALIDATION. The cache is cleared by `mark_dirty(Dirty::Paint)` on the node and on every
 // ancestor it already walks, and every mutation that can move a painted pixel marks Paint:
 // `set_bounds`, `set_transform`, `set_paint_outsets`, `set_glass_blur_sigma`, `set_filter_reach`,
-// `set_scroll_offset`, `set_scrollport_insets`, `set_scrollable_x/y`, `set_paint_data`, `set_visible`,
-// `set_style_hidden`, `set_z_index`, and `add_child`/`insert_child`/`remove_child`. That is why the
-// mandated points need no separate call: they all reach `mark_dirty`. The two mutations that
-// deliberately mark no dirty domain are handled explicitly, because they still change the box:
-// `set_span_bounds` (derived paint data, no independent size) and `set_text_fits_box` (a layout
-// fact that decides whether a text payload is bounded). Nothing else can change a painted box
-// without marking Paint, so no stale box survives a mutation.
+// `set_scroll_offset`, `set_scrollport_insets`, `set_scrollable_x/y`, `set_paint_data`,
+// `set_visible`, `set_style_hidden`, `set_z_index`, and `add_child`/`insert_child`/`remove_child`.
+// That is why the mandated points need no separate call: they all reach `mark_dirty`. The two
+// mutations that deliberately mark no dirty domain are handled explicitly, because they still
+// change the box: `set_span_bounds` (derived paint data, no independent size) and
+// `set_text_fits_box` (a layout fact that decides whether a text payload is bounded). Nothing else
+// can change a painted box without marking Paint, so no stale box survives a mutation.
 //
 // SOUNDNESS. A node whose own paint can leave its box - a text payload layout has not proved fits -
 // makes the whole subtree unbounded, and an unbounded box is never culled. That is the same

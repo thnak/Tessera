@@ -6,8 +6,9 @@
 //
 // The claim that needs proving is not "it is faster" but "it applies exactly what the full walk
 // would". So every case here runs both walks over the same tree and compares the scene state they
-// produce: z-index, transform, paint outsets, glass sigma, filter reach and both subtree flags on every node. A
-// scoped walk that skipped a node it should have visited shows up as a node whose state differs.
+// produce: z-index, transform, paint outsets, glass sigma, filter reach and both subtree flags on
+// every node. A scoped walk that skipped a node it should have visited shows up as a node whose
+// state differs.
 
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/node.hpp"

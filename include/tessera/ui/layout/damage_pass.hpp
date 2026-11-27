@@ -36,8 +36,8 @@ DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccum
 
 // The region a filtered node owns, in device pixels: its subtree paint box (the node, its children
 // and the filter's halo around both) mapped to the world. It is both the node's dependency region
-// and the box that must be repainted whole when damage touches it, because a filtered pixel anywhere
-// in it may depend on the changed one. Empty for a node with no layer `filter`.
+// and the box that must be repainted whole when damage touches it, because a filtered pixel
+// anywhere in it may depend on the changed one. Empty for a node with no layer `filter`.
 [[nodiscard]] rendering::rhi::Rect node_filter_region(const Node& node, float dpi_scale = 1.0f);
 
 class DamageTracker {

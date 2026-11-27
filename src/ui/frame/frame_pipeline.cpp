@@ -353,9 +353,9 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     }
     // Dependencies last: every damage source of the frame (dirty nodes, interpolated boxes) is in
     // the accumulator by now, so a glass node whose 3 sigma dependency region intersects any of it
-    // gets its full box repainted (glass-v1 section 7), and so does a filtered node whose halo does.
-    // Filters go first because their repaint is a damage source for a backdrop blur above them. A
-    // tree with neither returns immediately.
+    // gets its full box repainted (glass-v1 section 7), and so does a filtered node whose halo
+    // does. Filters go first because their repaint is a damage source for a backdrop blur above
+    // them. A tree with neither returns immediately.
     result.filter_dependencies = damage_tracker_->add_filter_dependencies(
         root, *damage_, config_.dpi_scale, config_.damage_margin);
     result.glass_dependencies = damage_tracker_->add_glass_dependencies(

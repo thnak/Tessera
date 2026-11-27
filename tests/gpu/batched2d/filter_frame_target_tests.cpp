@@ -12,7 +12,8 @@
 //    glass frame copies a region of it, and
 //  - the extra frame-sized target and resample a filter would have paid when it was routed like
 //    glass are measurable: the recording is the same plus one full-frame blit and one more target.
-// It prints the counters so the saving is on record (--verbose-free: always printed, one line each).
+// It prints the counters so the saving is on record (--verbose-free: always printed, one line
+// each).
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
@@ -212,7 +213,8 @@ bool routing_a_filter_like_glass_cost_a_target_and_a_resample() {
 } // namespace
 
 int main() {
-    const bool ok = the_window_sees_glass_only() && a_filter_frame_never_touches_the_frame_target() &&
+    const bool ok = the_window_sees_glass_only() &&
+                    a_filter_frame_never_touches_the_frame_target() &&
                     routing_a_filter_like_glass_cost_a_target_and_a_resample();
     return ok ? 0 : 1;
 }

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 //
-// Layer `filter` as its own dependency (issue #617, docs/design/gpu/offscreen-layers.md section 5d).
-// A filtered node used to borrow the glass machinery (its reach / 3 was stored as the backdrop
+// Layer `filter` as its own dependency (issue #617, docs/design/gpu/offscreen-layers.md section
+// 5d). A filtered node used to borrow the glass machinery (its reach / 3 was stored as the backdrop
 // sigma), so a tree with a `filter` looked like a tree with glass and the window rendered it
 // through the offscreen frame target. These tests pin the split:
 //  - the style sync stores the filter's reach in its own node field and its own subtree flag, and
 //    never touches the backdrop sigma or `glass_subtree` (so the window has nothing to react to);
 //  - a node can carry both and neither value leaks into the other;
 //  - the halo adds to the node's own shadow reach and also surrounds an overflowing child;
-//  - damage touching the halo repaints the whole filtered region, damage outside it does not, and the
+//  - damage touching the halo repaints the whole filtered region, damage outside it does not, and
+//  the
 //    glass walk ignores filters (and the filter walk ignores glass);
 //  - the paint cull keeps a node whose halo is on screen and drops one whose halo is not;
 //  - the frame pipeline accounts the filter dependency separately from the glass one.
@@ -248,7 +249,8 @@ bool damage_in_the_halo_repaints_the_region() {
     Scene overflow("blur(4px)");
     sync_scene_style(overflow.root, overflow.styles, {});
     DamageAccumulator child_damage(DamageConfig{Extent2D{400, 200}, 16});
-    child_damage.add({212.0f, 52.0f, 4.0f, 4.0f}); // past the child (right edge 210), inside its halo
+    child_damage.add(
+        {212.0f, 52.0f, 4.0f, 4.0f}); // past the child (right edge 210), inside its halo
     DamageTracker child_tracker;
     ok = expect(child_tracker.add_filter_dependencies(overflow.root, child_damage, 1.0f, 0.0f) == 1,
                 "damage in an overflowing child's halo repaints the filtered node") &&

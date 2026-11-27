@@ -51,9 +51,9 @@ sync_scene_style(Node& root, StyleProvider& styles,
 // glass limits must stay the same between calls that share one memo).
 
 // Scoped variant (issue #735, slice B): visits only `roots` and their subtrees, plus the ancestors
-// of each root (which refold `glass_subtree` and `filter_subtree`). A node outside every root kept its computed style,
-// so re-deriving what it already applied is pure waste - that walk is ~25% of a class-change frame
-// at 6k nodes.
+// of each root (which refold `glass_subtree` and `filter_subtree`). A node outside every root kept
+// its computed style, so re-deriving what it already applied is pure waste - that walk is ~25% of a
+// class-change frame at 6k nodes.
 //
 // Sound only when the caller can prove every node outside `roots` kept its style AND its box. The
 // layout-unchanged gate is exactly that proof: it declines unless the restyle changed no layout

@@ -124,12 +124,11 @@ SubtreeLayers sync_node(Node& node, StyleProvider& styles, const rendering::gpu:
     // layer holds the node's own shadows, so the chain blurs them as well: the halo is added to the
     // content's reach on each side, not maxed with it.
     const detail::ShadowOutsets filter_halo = detail::filter_outsets(style, glass);
-    const Node::PaintOutsets outsets{
-        std::max(reach.left, text_reach.left) + filter_halo.left,
-        std::max(reach.top, text_reach.top) + filter_halo.top,
-        std::max(reach.right, text_reach.right) + filter_halo.right,
-        std::max(reach.bottom, text_reach.bottom) + filter_halo.bottom,
-        reach.blurred || text_reach.blurred || filter_halo.blurred};
+    const Node::PaintOutsets outsets{std::max(reach.left, text_reach.left) + filter_halo.left,
+                                     std::max(reach.top, text_reach.top) + filter_halo.top,
+                                     std::max(reach.right, text_reach.right) + filter_halo.right,
+                                     std::max(reach.bottom, text_reach.bottom) + filter_halo.bottom,
+                                     reach.blurred || text_reach.blurred || filter_halo.blurred};
     const Node::PaintOutsets& current = node.paint_outsets();
     if (outsets.left != current.left || outsets.top != current.top ||
         outsets.right != current.right || outsets.bottom != current.bottom ||
@@ -203,8 +202,8 @@ SceneStyleSyncResult sync_scene_style_scoped(StyleProvider& styles,
         memo->begin();
     }
     // The ancestors of every root, nearest-last, so `glass_subtree` and `filter_subtree` refold
-    // bottom-up. A root's ancestors did not restyle, but those facts depend on their descendants, so
-    // they must be revisited after the roots below them.
+    // bottom-up. A root's ancestors did not restyle, but those facts depend on their descendants,
+    // so they must be revisited after the roots below them.
     std::vector<Node*> ancestors;
     for (const Node* root_node : roots) {
         for (Node* parent = root_node->parent(); parent != nullptr; parent = parent->parent()) {
@@ -223,7 +222,8 @@ SceneStyleSyncResult sync_scene_style_scoped(StyleProvider& styles,
         // Only the subtree refold is owed here: the ancestor's own style and box are unchanged, so
         // its z-index/transform/outsets are already applied. Re-running the full sync would be
         // correct but would re-derive what the memo already proves.
-        fold_subtree(*ancestor, {ancestor->glass_blur_sigma() > 0.0f, ancestor->filter_reach() > 0.0f});
+        fold_subtree(*ancestor,
+                     {ancestor->glass_blur_sigma() > 0.0f, ancestor->filter_reach() > 0.0f});
     }
     if (memo != nullptr) {
         memo->sweep();

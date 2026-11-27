@@ -79,8 +79,9 @@ template<class Fn> Cost measure(Fn&& fn) {
 
 void handler(void*, const ui::Event&) {}
 
-// The booleans (the input flags word plus the hint bits) share one flags word (issue #285): each must read back what was written and
-// leave its neighbours alone, from the defaults and from the all-set state.
+// The booleans (the input flags word plus the hint bits) share one flags word (issue #285): each
+// must read back what was written and leave its neighbours alone, from the defaults and from the
+// all-set state.
 bool flags_are_independent() {
     struct Bit {
         const char* name;
