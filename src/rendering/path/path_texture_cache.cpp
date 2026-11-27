@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/path_model.hpp"
+#include "tessera/rendering/path/path_renderer.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 
@@ -220,8 +221,8 @@ struct PathTextureCache::Impl {
         if (gpu == nullptr) {
             return std::nullopt;
         }
-        const RasterRouteDecision decision = choose_raster_route(
-            {extent.width, extent.height, 0, GpuPathRasterizer::supported(device)}, route);
+        const RasterRouteDecision decision =
+            choose_raster_route({extent.width, extent.height, 0, gpu->available()}, route);
         if (decision.route != RasterRoute::gpu) {
             return std::nullopt;
         }
@@ -324,7 +325,7 @@ struct PathTextureCache::Impl {
         bool gpu_inflight =
             false; // a GPU raster copy into it was just submitted: live one more frame
     };
-    GpuPathRasterizer* gpu = nullptr;
+    PathRenderer* gpu = nullptr;
     RasterRouteConfig route;
     GpuPathDocumentCache documents;          // encoded geometry shared by every size of a path
     std::vector<PathTextureKey> gpu_pending; // keys whose rasters are queued, not yet submitted
@@ -384,6 +385,10 @@ PathTextureCache::acquire(const PathTextureKey& key, std::span<const PathShape> 
 }
 
 void PathTextureCache::set_gpu_rasterizer(GpuPathRasterizer* gpu, RasterRouteConfig route) {
+    set_path_renderer(gpu, route);
+}
+
+void PathTextureCache::set_path_renderer(PathRenderer* gpu, RasterRouteConfig route) {
     if (impl_->gpu != nullptr && impl_->gpu != gpu) {
         impl_->gpu->discard_pending();
         impl_->gpu_pending.clear();

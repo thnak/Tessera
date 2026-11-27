@@ -407,9 +407,13 @@ default 16 MiB bound destroys a 4K output buffer (33 MB, 64 MiB pooled) after ev
 `PathTextureCache`, `PaintSink` vector draws and `Icon` acquire textures, and the GPU copy fills
 them before the frame that samples them. The result is an ordinary textured quad, so clip state
 (ADR-068), the sRGB/UNORM rule and the batched 2D renderer apply unchanged, and null and
-`CpuCanvas` keep the ThorVG route. A separate `PathRenderer` seam that blends paths straight into
-the frame target would drop the intermediate texture but would need its own clip and blend handling;
-nothing measured needs it, so it is not built and the issue's item 3 is met by the texture route.
+`CpuCanvas` keep the ThorVG route. The seam of the issue's item 3 is `PathRenderer`
+(`include/tessera/rendering/path/path_renderer.hpp`): asynchronous and batched (`enqueue` into a
+texture the caller made, `flush` without waiting, `collect`), which the old `PathRasterizer`
+contract (an RGBA8 buffer on the CPU) cannot express. `GpuPathRasterizer` implements it and
+`PathTextureCache::set_path_renderer` takes any implementation. A renderer that blends straight
+into the frame target (dropping the intermediate texture, with its own clip and blend handling) is
+a possible second implementation; nothing measured needs it, so it is not built.
 `VectorStack` raises the rasterizer's pool bound to 96 MiB so a 4K output buffer is kept.
 
 ## Alternatives, to be measured on the same 4K scenes

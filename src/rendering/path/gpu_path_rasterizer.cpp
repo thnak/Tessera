@@ -14,6 +14,10 @@ bool GpuPathRasterizer::supported(const rhi::Device& device) {
     return device.supports_compute() && device.supports_buffer_texture_copy();
 }
 
+bool GpuPathRasterizer::available() const {
+    return supported(impl_->device);
+}
+
 std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const PathShape> shapes,
                                                                rhi::Texture& target,
                                                                rhi::Extent2D extent,
