@@ -143,6 +143,8 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     layers_flat_ = 0;
     layer_masks_applied_ = 0;
     layer_masks_unsupported_ = 0;
+    layer_filters_applied_ = 0;
+    layer_filters_unsupported_ = 0;
 
     commands_->begin_render_pass(target, desc);
     commands_->bind_pipeline(*pipeline_);

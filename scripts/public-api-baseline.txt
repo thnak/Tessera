@@ -1331,6 +1331,11 @@ function include/tessera/rendering/gpu/glass_blur.hpp tessera::rendering::gpu::p
 header include/tessera/rendering/gpu/glass_compositor.hpp
 class include/tessera/rendering/gpu/glass_compositor.hpp tessera::rendering::gpu::GlassCompositor
 
+header include/tessera/rendering/gpu/layer_filter.hpp
+struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterChain
+struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterOp
+constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kMaxLayerFilterOps
+
 header include/tessera/rendering/gpu/offscreen_target_pool.hpp
 class include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenTargetPool
 struct include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenTargetPoolConfig
@@ -3109,6 +3114,13 @@ function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::is_cursor
 function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::is_supported_cursor_value
 function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::parse_cursor_kind
 function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::report_unsupported_cursor_value
+
+header include/tessera/ui/style/filter_value.hpp
+struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::Filter
+struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::FilterFunction
+struct include/tessera/ui/style/filter_value.hpp tessera::ui::style::FilterParseResult
+function include/tessera/ui/style/filter_value.hpp tessera::ui::style::parse_filter
+constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kMaxFilterFunctions
 
 header include/tessera/ui/style/gradient.hpp
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::ConicGradientValue

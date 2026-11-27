@@ -108,6 +108,33 @@ public:
     [[nodiscard]] bool mask_layer(const FrameContext& frame, rhi::RenderTarget& mask,
                                   const std::vector<rhi::Scissor>& scissors);
 
+    // Layer filters (issue #617): a separable Gaussian over a layer target, reusing the glass blur
+    // program. One blur is two passes, horizontal `source` -> `scratch`, then vertical
+    // `scratch` -> `dest` (which may be `source` itself: the horizontal pass has finished reading
+    // it). A drop-shadow's vertical pass runs through the `DestinationIn` mask pipeline over a
+    // destination cleared to the tint, so `dest` becomes the blurred, offset alpha in the shadow
+    // colour; the caller then composites the original layer over it.
+    struct FilterPass {
+        float sigma = 0.0f;    // device px
+        float offset_x = 0.0f; // device px, drop-shadow only
+        float offset_y = 0.0f;
+        bool shadow = false;
+        rhi::Color tint{0.0f, 0.0f, 0.0f, 1.0f}; // straight alpha, drop-shadow only
+        rhi::Scissor first_region;               // what the horizontal pass writes
+    };
+    // True when a blur (or, with `shadow`, a drop-shadow) can run on a single-sample layer target.
+    [[nodiscard]] bool filters_supported(bool shadow) const {
+        return layers_configured() && glass_.blur != nullptr && glass_.blur->sample_count() == 1 &&
+               (!shadow || masks_supported());
+    }
+    // Records both passes, each in its own render pass, outside any open pass (the caller broke
+    // it). The vertical pass writes once per scissor. Returns false, recording nothing, when
+    // filters_supported() is false.
+    [[nodiscard]] bool blur_layer(const FrameContext& frame, rhi::RenderTarget& source,
+                                  rhi::RenderTarget& scratch, rhi::RenderTarget& dest,
+                                  const FilterPass& pass,
+                                  const std::vector<rhi::Scissor>& scissors);
+
     [[nodiscard]] rhi::RenderTarget* acquire(rhi::Extent2D extent);
     [[nodiscard]] std::uint32_t target_count() const {
         return pool_ != nullptr ? pool_->target_count() : 0;

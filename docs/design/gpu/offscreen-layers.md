@@ -281,9 +281,69 @@ slice behavior + tests + docs, nothing user-visible until the last:
    lengths. The `mask` shorthand (`property_mask.cpp`) expands each layer into the five longhands.
    Tests: `mask_layers` (parsers, lists, registry grammar, shorthand) and `paint_mask_geometry` (tile
    placement, repeat/space/round, clip, layer cycling, cap, luminance; mutation-checked).
+5d. **`filter: blur()` / `drop-shadow()` (landed, issue #617 slice 4).** The chain rides in the layer's
+   own push: `LayerDraw::filter` (`rendering::gpu::LayerFilterChain`, at most three
+   `LayerFilterOp`s of 20 bytes each - the shadow colour is packed 8 bits per channel so `PaintOp` stays
+   inside its `paint_op_size` budget - copied by the paint cache like any other op), so the sink seam, the wrapper
+   sinks, the recorder and replay needed no new call. The paint pass (`paint_filter.cpp`) parses the
+   computed `filter` (`style::parse_filter`: `none` or `blur(<length>)` / `drop-shadow(<color>?
+   <length>{2,3})`; adjacent blurs fold by adding variances; a zero blur and an invisible unblurred
+   shadow are dropped; any other function drops the whole declaration with one `UnsupportedValue`),
+   clamps each sigma to `glassMaxBlurRadius`, resolves `currentcolor`, and opens a layer for the
+   node like a mask does, whatever `isolate_group_opacity` says. Like a masked node it is never
+   per-node recorded (its layer state would otherwise have to survive a sink change); the
+   subtree draw list records the push with the chain. The drop-shadow blur is a standard deviation
+   (CSS Filter Effects), not the `box-shadow` blur radius, which is twice a sigma.
+   **Renderer** (`batched2d_layer_filter.cpp`, `glass_filter.cpp`): the chain runs once, when the layer
+   is finished - at `begin_layer_mask()` or `pop_layer()`, whichever comes first - so it sees the
+   complete content and precedes the mask and the opacity, as CSS orders filter, mask, opacity. It
+   reuses the glass blur program (`glass_blur.frag`), so no shader, descriptor or capability is
+   added:
+   - *blur*: horizontal pass layer -> scratch (mode 0, no blending), vertical pass scratch -> layer
+     (mode 0, into a transparent clear). The layer holds premultiplied colour with a correct alpha,
+     so the linear-filtered Gaussian over all four channels is the premultiplied blur CSS specifies.
+   - *drop-shadow*: the same horizontal pass, then the vertical pass runs through the mask
+     (`DestinationIn`) pipeline in mode 1 over a third target that was cleared to the premultiplied
+     shadow colour. Mode 1 samples at `fragment - region_origin`, which is the offset, and a box large
+     enough that its rounded-box coverage is 1 everywhere; the blend multiplies the colour by the
+     blurred, offset alpha. The layer is then composited over that target (the ordinary straight-alpha
+     source-over onto a premultiplied destination) and the target becomes the layer.
+   Offsets follow the active transform's linear part, sigmas scale by the mean content scale. The
+   passes are limited to the layer's scissors (frame clip, damage regions) and the horizontal pass to
+   their union grown by the reach. Pooled targets: a blur takes one scratch target, a shadow one more
+   (a spare is reused by the next shadow of the chain), so a filtered layer holds two or three of the
+   default four and a filtered, masked layer three or four. A function that cannot run (no blur
+   pipeline, no mask pipeline for a shadow, no free target) is skipped and counted in
+   `layer_filters_unsupported()`; a flat layer drops its whole chain. A filtered layer whose passes
+   all fall back records exactly the plain layer stream, and one that ran leaves the layer pass
+   closed instead of reopening an empty one.
+   **Damage.** A filter reads pixels up to its reach away, exactly like a backdrop blur reads 3
+   sigma, so `sync_scene_style` stores the filter's largest one-sided reach over 3 as the node's
+   dependency sigma (`glass_blur_sigma`, now "the larger of the backdrop sigma and the filter's
+   reach / 3") and folds the reach into the node's paint outsets. `DamageTracker` therefore expands
+   any damage that touches the halo to the whole node box (the glass dependency rule), the paint cull
+   keeps nodes whose halo is on screen, and the layer is drawn complete inside the damage regions
+   before it is blurred. Side effect: `glass_subtree` is true for a tree with a `filter`, so a
+   window renders such a frame through the per-slot offscreen target (as it does for glass);
+   `glass_nodes` counts both kinds.
+   Tests: `filter_value` (grammar, registry diagnostic, `@supports`), `paint_filter` (stream, clamp,
+   colours, opacity, cache, replay, reach), `layer_filter_null` (pass and draw skeleton of a blur, a
+   shadow and a masked blur, every fallback, the bounded pool over many frames) and
+   `layer_filter_gpu` (blur against the analytic Gaussian along rows, columns and the corner; a hard
+   and a soft shadow under the opaque box; opacity after the filter; the half-plane mask cutting a
+   blurred layer exactly at its edge; the paint path for blur, shadow and a two-function chain; the
+   fallbacks; recycled targets; validation clean). **Chromium comparison (measured 2026-11-27).** A
+   64x64 black canvas with a #ff0000 box at (24,24) 16x16 drawn through `ctx.filter` (the CSS filter
+   pipeline): `blur(2px)` along row 32 reads 0, 10, 57, 153, 229, 255, 198, 57, 3, 0 at x = 16, 20,
+   22, 24, 26, 31, 38, 41, 44, 48 and 13 at the (22,22) corner; `drop-shadow(8px 6px 2px
+   rgba(0,0,255,.5))` reads 98, 99, 95, 77, 10 (blue) at x = 36, 42, 44, 46, 50 on row 44, and a
+   zero-blur shadow reads 128. The renderer matched at once (within 4 of 255, and equal to the
+   analytic Gaussian with sigma = the written length, so the third `drop-shadow()` length is a
+   standard deviation); the values are asserted by `layer_filter_gpu`. Still open: the other `filter` functions (`brightness`, `contrast`, `opacity`, ...), a
+   `CpuCanvas` twin and the lavapipe golden.
 5. **`mask-image`** (gradient images first: the engine already parses all three gradient shapes) as the
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
-   (`drop-shadow()`, `blur()`) as a layer post-process. Each with a Chromium comparison and a lavapipe
+   (`drop-shadow()`, `blur()`, landed in 5d) as a layer post-process. Each with a Chromium comparison and a lavapipe
    golden, and the property-status table updated.
 
 **Integration points found in `paint_node` (`src/ui/paint/paint_pass.cpp`), to settle in slice 1:**

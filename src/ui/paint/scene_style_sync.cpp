@@ -4,6 +4,7 @@
 // z-index, transform, box-shadow reach and the glass backdrop sigma. A steady scene stays clean:
 // every setter is a no-op when the value it stores is unchanged.
 
+#include "paint_filter.hpp"
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text_shadow.hpp"
@@ -100,10 +101,14 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     // culling reach and the damage region correct without ever growing the glyph ink box the fit
     // and culling code reads.
     const detail::TextShadowOutsets text_reach = detail::text_shadow_outsets(style);
+    // `filter` (issue #617) reaches past the box too: its blur halo and drop-shadow offset.
+    const detail::ShadowOutsets filter_reach = detail::filter_outsets(style, glass);
     const Node::PaintOutsets outsets{
-        std::max(reach.left, text_reach.left), std::max(reach.top, text_reach.top),
-        std::max(reach.right, text_reach.right), std::max(reach.bottom, text_reach.bottom),
-        reach.blurred || text_reach.blurred};
+        std::max({reach.left, text_reach.left, filter_reach.left}),
+        std::max({reach.top, text_reach.top, filter_reach.top}),
+        std::max({reach.right, text_reach.right, filter_reach.right}),
+        std::max({reach.bottom, text_reach.bottom, filter_reach.bottom}),
+        reach.blurred || text_reach.blurred || filter_reach.blurred};
     const Node::PaintOutsets& current = node.paint_outsets();
     if (outsets.left != current.left || outsets.top != current.top ||
         outsets.right != current.right || outsets.bottom != current.bottom ||
@@ -115,8 +120,16 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     // Glass: the resolved sigma the damage dependency region is derived from. The clamp uses the
     // configured limit, so the stored value is exactly what paint will emit.
     const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
-    const float sigma =
+    const float backdrop_sigma =
         filter.has_value() ? rendering::gpu::clamp_glass_sigma(filter->blur_sigma, glass) : 0.0f;
+    // The stored value is the node's *dependency* sigma: a layer `filter` reads pixels up to its
+    // reach away, exactly like a backdrop blur reads 3 sigma, so the same damage dependency (and
+    // the same subtree flag) covers both. A drop-shadow's offset makes the reach one-sided; the
+    // largest side over 3 is the conservative symmetric stand-in.
+    const float filter_dependency =
+        std::max({filter_reach.left, filter_reach.top, filter_reach.right, filter_reach.bottom}) /
+        3.0f;
+    const float sigma = std::max(backdrop_sigma, filter_dependency);
     if (sigma != node.glass_blur_sigma()) {
         node.set_glass_blur_sigma(sigma);
         ++result.changed_glass;

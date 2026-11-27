@@ -6,6 +6,7 @@
 #include "property_table.hpp"
 #include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/filter_value.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
@@ -191,6 +192,26 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
         const BackdropFilterParseResult parsed = parse_backdrop_filter(declaration.value);
         if (!parsed.ok()) {
             std::string message = "unsupported backdrop-filter value";
+            if (!parsed.token.empty()) {
+                message += " `";
+                message += parsed.token;
+                message += "`";
+            }
+            message += ": ";
+            message += parsed.error;
+            message += "; the whole declaration is ignored";
+            result.diagnostics.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue,
+                                                         declaration.offset, property,
+                                                         std::move(message)});
+            return result;
+        }
+    }
+    // `filter` (issue #617) follows the same rule as `backdrop-filter`: one unsupported function
+    // drops the whole declaration, so the computed value stays `none`.
+    if (property == "filter") {
+        const FilterParseResult parsed = parse_filter(declaration.value);
+        if (!parsed.ok()) {
+            std::string message = "unsupported filter value";
             if (!parsed.token.empty()) {
                 message += " `";
                 message += parsed.token;

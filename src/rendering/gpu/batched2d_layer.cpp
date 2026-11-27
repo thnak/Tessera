@@ -56,7 +56,30 @@ rhi::Scissor Batched2DRenderer::device_region(const rhi::Rect& box) const {
                         static_cast<std::uint32_t>(bottom - top)};
 }
 
-void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
+namespace {
+
+// How far (device px) a filter chain's output can land from the layer's own pixels: each blur
+// reads 3 sigma around a pixel and each drop-shadow also moves it by its offset.
+float filter_reach(const LayerFilterChain& filter, float scale) {
+    float reach = 0.0f;
+    for (std::size_t index = 0; index < filter.count; ++index) {
+        const LayerFilterOp& op = filter.ops[index];
+        reach += (3.0f * op.sigma + std::hypot(op.offset_x, op.offset_y)) * scale;
+    }
+    return reach;
+}
+
+rhi::Scissor grow(const rhi::Scissor& region, float by) {
+    const auto pad = static_cast<std::int32_t>(std::ceil(by));
+    return rhi::Scissor{region.x - pad, region.y - pad,
+                        region.width + 2 * static_cast<std::uint32_t>(pad),
+                        region.height + 2 * static_cast<std::uint32_t>(pad)};
+}
+
+} // namespace
+
+void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity,
+                                   const LayerFilterChain& filter) {
     LayerFrame layer;
     layer.opacity = std::isfinite(opacity) ? std::clamp(opacity, 0.0f, 1.0f) : 1.0f;
     layer.previous_alpha_scale = alpha_scale_;
@@ -67,7 +90,10 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
         glass_.layers_supported(*frame_target_)) {
         // The layer only ever needs the part of its box the frame can show: inside the frame
         // scissor and the damage bounds. An empty intersection has nothing to composite.
-        region = rhi::intersect(rhi::intersect(device_region(box), scissor_), damage_bounds_);
+        const float scale = (content_scale_x_ + content_scale_y_) * 0.5f;
+        region = rhi::intersect(
+            rhi::intersect(grow(device_region(box), filter_reach(filter, scale)), scissor_),
+            damage_bounds_);
         if (region.width > 0 && region.height > 0) {
             target = glass_.acquire(extent_);
         }
@@ -76,6 +102,7 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
     if (target == nullptr) {
         // Flat fallback: the group still fades, per primitive.
         alpha_scale_ *= layer.opacity;
+        layer_filters_unsupported_ += filter.count;
         ++layers_flat_;
         layers_.push_back(layer);
         return;
@@ -91,6 +118,7 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity) {
     layer.parent_desc = frame_desc_;
     layer.layer_target = target;
     layer.region = region;
+    layer.filter = filter;
 
     rhi::RenderTargetDesc desc = frame_desc_;
     desc.extent = extent_;
@@ -127,6 +155,9 @@ void Batched2DRenderer::pop_layer() {
     if (layers_.empty()) {
         return;
     }
+    if (layers_.back().isolated && in_frame_ && commands_ != nullptr) {
+        run_layer_filters(layers_.back());
+    }
     const LayerFrame layer = layers_.back();
     layers_.pop_back();
     if (!layer.isolated) {
@@ -140,7 +171,9 @@ void Batched2DRenderer::pop_layer() {
     // Close the layer pass, return to the frame target (its pass stays broken until the composite
     // reopens it through the seam) and composite once per scissor.
     flush();
-    commands_->end_render_pass();
+    if (!pass_broken_) {
+        commands_->end_render_pass();
+    }
     frame_target_ = layer.parent_target;
     frame_desc_ = layer.parent_desc;
     pass_broken_ = true;

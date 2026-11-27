@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/layer_filter.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
@@ -335,6 +336,9 @@ struct BoxShadowDraw {
 struct LayerDraw {
     rhi::Rect box;
     float opacity = 1.0f;
+    // `filter` functions (issue #617), run on the layer's pixels before the mask and the opacity.
+    // Empty for a plain group.
+    rendering::gpu::LayerFilterChain filter = {};
 };
 
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no

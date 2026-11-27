@@ -104,6 +104,10 @@ add_executable(layer_mask_null_tests
     batched2d/layer_mask_null_tests.cpp)
 target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_mask_null COMMAND layer_mask_null_tests)
+add_executable(layer_filter_null_tests
+    batched2d/layer_filter_null_tests.cpp)
+target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_filter_null COMMAND layer_filter_null_tests)
 
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
@@ -636,6 +640,13 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_mask_gpu COMMAND layer_mask_gpu_tests)
     set_tests_properties(layer_mask_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Layer filters (issue #617): blur() and drop-shadow() pixels against the analytic Gaussian,
+    # the filter-before-mask order, the paint path, the fallbacks. Skips without a Vulkan device.
+    add_executable(layer_filter_gpu_tests
+        batched2d/layer_filter_gpu_tests.cpp)
+    target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
+    set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests

@@ -370,7 +370,7 @@ bool Batched2DSink::supports_layers() const {
 }
 
 void Batched2DSink::push_layer(const LayerDraw& layer) {
-    renderer_->push_layer(layer.box, layer.opacity);
+    renderer_->push_layer(layer.box, layer.opacity, layer.filter);
 }
 
 void Batched2DSink::pop_layer() {

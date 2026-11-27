@@ -2682,6 +2682,11 @@
       "note": "per-layer alpha | luminance | match-source"
     },
     {
+      "kind": "keyword",
+      "name": "filter",
+      "note": "none | blur() | drop-shadow(), applied to an isolated layer"
+    },
+    {
       "kind": "number",
       "name": "opacity"
     },
