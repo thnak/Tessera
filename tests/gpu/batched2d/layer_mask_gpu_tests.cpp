@@ -264,7 +264,7 @@ bool paint_path(Harness& harness) {
 // +64 of 255 too high (+119 on a radial diagonal) because the sink grew each solid band by half a
 // pixel, so neighbouring bands overlapped and composited a translucent stop twice. The bands now
 // abut exactly (band_edge in paint_sink.hpp), and what is left is the documented banding: a linear
-// ramp is within 2, the 32x32 radial and conic cells within a few steps of their ramp.
+// ramp is within 2, the 32x32 radial cells and 64x64 conic cells within a few steps of their ramp.
 bool chromium_comparison(Harness& harness) {
     struct Scene {
         const char* name;
@@ -277,8 +277,8 @@ bool chromium_comparison(Harness& harness) {
         {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 3},
         {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 10},
         {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 6},
-        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 24},
-        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 14},
+        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 5},
+        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 3},
     };
     bool ok = true;
     for (const Scene& scene : scenes) {

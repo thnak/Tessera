@@ -253,10 +253,11 @@ slice behavior + tests + docs, nothing user-visible until the last:
    abut exactly (`band_edge` in `paint_sink.hpp`: shared edge values, the far end exact). A plain
    quad is hard-edged (the pixel-centre rule on the GPU and in `CpuCanvas`), so each pixel belongs to
    exactly one band and no seam protection is needed. After the fix the linear ramp is within 2 of
-   Chromium and the radial and conic cells within a few steps (the 32x32 cell quantisation of the
-   documented approximation, paint-pass.md section 13, now the only error). Only
-   `tests/golden/baseline/cpu_wide/radials.png` changed (294 of 64000 pixels); the opaque linear,
-   conic, clip, layer and shadow baselines are byte-identical. Regression tests:
+   Chromium, the radial cells within about 8 (the 32x32 cell quantisation, paint-pass.md section 13)
+   and the conic cells within 5. The conic grid was raised from 32x32 to 64x64 (`kConicBands`) after
+   the comparison showed +/-19 at 32x32. `tests/golden/baseline/cpu_wide/radials.png` (294 of 64000
+   pixels) and `conics.png` changed; the opaque linear, clip, layer and shadow baselines are
+   byte-identical. Regression tests:
    `paint_gradient` (cells tile a fractional box with no gap and no overlap), `layer_mask_gpu` (the
    Chromium comparison, and a translucent `background-image` ramp at a fractional position with
    anti-aliasing on and off, within 6 of the ideal ramp), `cpu_wide_golden`; reintroducing the

@@ -2672,6 +2672,7 @@ function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_grad
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_linear_gradient
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::tessellate_conic_gradient
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::tessellate_radial_gradient
+constant include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::kConicBands
 constant include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::kMaxDrawStops
 constant include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::kRadialBands
 

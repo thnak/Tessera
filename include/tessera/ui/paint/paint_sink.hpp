@@ -207,6 +207,9 @@ struct ConicGradientDraw {
 // bounded by the colour change across one cell, and a golden pins the exact result. 32 keeps a
 // 200 px box at ~6 px cells, which is smooth for the ramps V1 paints without a per-pixel shader.
 inline constexpr int kRadialBands = 32;
+// The conic grid is finer: 64 x 64 = 4096 solid quads at most, which halves the angular error of the
+// 32 grid (up to +/-19/255 against Chromium on a 360 degree ramp) for a bounded, still shader-free cost.
+inline constexpr int kConicBands = 64;
 
 // The `index`-th of `count` equal divisions of [origin, origin + extent]. The last edge is the far
 // end exactly, and every band uses the same value for the edge it shares with its neighbour, so
@@ -266,9 +269,10 @@ struct ConicBand {
     rhi::Color color;
 };
 
-// Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
-// `emit` for each. A conic gradient has no dominant axis either, so it uses the same bounded grid
-// the radial one does: each cell is filled with the ramp colour at its centre, which is the
+// Tessellates `draw` into at most kConicBands * kConicBands bands, in row-major order, and calls
+// `emit` for each. A conic gradient has no dominant axis either, so it uses a bounded grid like the
+// radial one, twice as fine (kConicBands): the colour changes with the angle, so a coarse cell is
+// visibly wrong near the centre where one cell spans a large angle: each cell is filled with the ramp colour at its centre, which is the
 // documented approximation (docs/design/paint-pass.md section 13). Cells whose centre falls outside
 // the box are skipped, so the fill is the box itself rather than its bounding rect.
 //
@@ -279,12 +283,12 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
     if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
         return;
     }
-    const float cell_width = draw.rect.width / static_cast<float>(kRadialBands);
-    const float cell_height = draw.rect.height / static_cast<float>(kRadialBands);
+    const float cell_width = draw.rect.width / static_cast<float>(kConicBands);
+    const float cell_height = draw.rect.height / static_cast<float>(kConicBands);
     constexpr float kTau = 6.283185307179586f;
-    for (int row = 0; row < kRadialBands; ++row) {
+    for (int row = 0; row < kConicBands; ++row) {
         const float center_y = draw.rect.y + (static_cast<float>(row) + 0.5f) * cell_height;
-        for (int column = 0; column < kRadialBands; ++column) {
+        for (int column = 0; column < kConicBands; ++column) {
             const float center_x = draw.rect.x + (static_cast<float>(column) + 0.5f) * cell_width;
             const float dx = center_x - draw.center_x;
             const float dy = center_y - draw.center_y;
@@ -292,10 +296,10 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
             const float degrees = std::atan2(dx, -dy) * (360.0f / kTau);
             float turn = (degrees - draw.from_angle_degrees) / 360.0f;
             turn -= std::floor(turn); // into [0, 1)
-            const float left = band_edge(draw.rect.x, draw.rect.width, column, kRadialBands);
-            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kRadialBands);
-            const float top = band_edge(draw.rect.y, draw.rect.height, row, kRadialBands);
-            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kRadialBands);
+            const float left = band_edge(draw.rect.x, draw.rect.width, column, kConicBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kConicBands);
+            const float top = band_edge(draw.rect.y, draw.rect.height, row, kConicBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kConicBands);
             emit(ConicBand{{left, top, right - left, bottom - top},
                            sample_gradient_stops(draw.stops.data(), draw.stop_count, turn)});
         }
