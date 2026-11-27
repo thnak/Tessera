@@ -89,17 +89,32 @@ bool lists_and_noops() {
 bool rejects() {
     bool ok = true;
     for (const char* value :
-         {"", "blur()", "blur(-1px)", "blur(2em)", "blur(50%)", "brightness(1.5)", "sepia(1)",
-          "url(#f)", "blur", "blur(2px", "drop-shadow()", "drop-shadow(1px)",
-          "drop-shadow(1px 1px 1px 1px)", "drop-shadow(1px 1px -1px red)",
-          "drop-shadow(1px 1px red blue)", "drop-shadow(1px 1px notacolour)",
+         {"",
+          "blur()",
+          "blur(-1px)",
+          "blur(2em)",
+          "blur(50%)",
+          "brightness(-1)",
+          "sepia(1px)",
+          "url(#f)",
+          "hue-rotate(10)",
+          "grayscale(1 2)",
+          "opacity(none)",
+          "blur",
+          "blur(2px",
+          "drop-shadow()",
+          "drop-shadow(1px)",
+          "drop-shadow(1px 1px 1px 1px)",
+          "drop-shadow(1px 1px -1px red)",
+          "drop-shadow(1px 1px red blue)",
+          "drop-shadow(1px 1px notacolour)",
           "blur(1px) , blur(2px)",
           "blur(1px) drop-shadow(1px 1px 1px red) blur(1px) drop-shadow(1px 1px 1px red)"}) {
         const FilterParseResult parsed = parse_filter(value);
         ok = expect(!parsed.ok() && !parsed.error.empty(), std::string("rejected: ") + value) && ok;
     }
-    const FilterParseResult unknown = parse_filter("blur(1px) sepia(1)");
-    return expect(unknown.token == "sepia", "the diagnostic names the function") && ok;
+    const FilterParseResult unknown = parse_filter("blur(1px) drop-shadow(1px 1px) url(#f)");
+    return expect(unknown.token == "url", "the diagnostic names the function") && ok;
 }
 
 bool registry_and_supports() {
@@ -109,11 +124,11 @@ bool registry_and_supports() {
     valid.value = "blur(4px)";
     bool ok = expect(registry.expand(valid).diagnostics.empty(), "a valid filter is accepted");
     Declaration invalid = valid;
-    invalid.value = "blur(4px) sepia(1)";
+    invalid.value = "blur(4px) url(#f)";
     const PropertyExpansionResult result = registry.expand(invalid);
     ok = expect(result.declarations.empty() && result.diagnostics.size() == 1 &&
                     result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue &&
-                    result.diagnostics[0].message.find("sepia") != std::string::npos,
+                    result.diagnostics[0].message.find("url") != std::string::npos,
                 "an unsupported function drops the whole declaration with one diagnostic") &&
          ok;
     const auto supported = [&registry](const char* condition) {
@@ -121,7 +136,7 @@ bool registry_and_supports() {
         return parsed.ok && evaluate_supports(parsed.condition, registry);
     };
     ok = expect(supported("(filter: drop-shadow(1px 1px 2px black))") &&
-                    !supported("(filter: sepia(1))"),
+                    supported("(filter: sepia(1))") && !supported("(filter: sepia(-1))"),
                 "@supports is as strict as the validator") &&
          ok;
     return ok;
