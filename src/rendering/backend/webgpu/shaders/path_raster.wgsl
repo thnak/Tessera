@@ -446,6 +446,14 @@ fn segment_area(a_in: vec2<f32>, b_in: vec2<f32>, px: f32, py: f32) -> f32 {
     if (y1 <= y0) {
         return 0.0;
     }
+    // Entirely left or right of the pixel by the endpoints' x range, which bounds the clipped piece:
+    // the same answers as the checks below, without the division.
+    if (max(a.x, b.x) <= px) {
+        return sign_v * (y1 - y0);
+    }
+    if (min(a.x, b.x) >= px + 1.0) {
+        return 0.0;
+    }
     let inv_slope = (b.x - a.x) / (b.y - a.y);
     let xa = a.x + (y0 - a.y) * inv_slope;
     let xb = a.x + (y1 - a.y) * inv_slope;
@@ -485,49 +493,95 @@ fn segment_area(a_in: vec2<f32>, b_in: vec2<f32>, px: f32, py: f32) -> f32 {
     return sign_v * area;
 }
 
+// The paths whose device box overlaps this 16 x 16 tile, as a bitmask over one chunk of 256 paths (one
+// bit per invocation of the workgroup), as in the GLSL: a pixel visits only those paths, and walking
+// the bits in ascending order keeps the compositing order the path order. workgroupBarrier must be in
+// uniform control flow, and the path count is loaded from a storage buffer (which WGSL treats as
+// non-uniform), so invocation 0 publishes it and every invocation reads it back with
+// workgroupUniformLoad; there is no early return before the barriers (`inside` guards the pixel).
+var<workgroup> tile_mask: array<atomic<u32>, 8>;
+var<workgroup> tile_path_count: u32;
+
 @compute @workgroup_size(16, 16)
-fn fine_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id) gid: vec3<u32>) {
+fn fine_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id) gid: vec3<u32>,
+             @builtin(local_invocation_index) lane: u32) {
     load_job(wid.z);
     let x = gid.x;
     let y = gid.y;
-    if (x >= pc.width || y >= pc.height) {
-        return;
-    }
+    let inside = x < pc.width && y < pc.height;
+    let tx0 = i32(wid.x * 16u);
+    let ty0 = i32(wid.y * 16u);
     let px = f32(x);
     let py = f32(y);
     var dst = vec4<f32>(0.0);
-    for (var p = 0u; p < pc.path_count; p++) {
-        let base = pb + p * 16u;
-        if (i32(x) < i32(paths[base + 8u]) || i32(x) >= i32(paths[base + 10u]) ||
-            i32(y) < i32(paths[base + 9u]) || i32(y) >= i32(paths[base + 11u])) {
-            continue;
+    if (lane == 0u) {
+        tile_path_count = pc.path_count;
+    }
+    workgroupBarrier();
+    let path_count = workgroupUniformLoad(&tile_path_count);
+    for (var chunk = 0u; chunk < path_count; chunk += 256u) {
+        if (lane < 8u) {
+            atomicStore(&tile_mask[lane], 0u);
         }
-        let m = path_xf(p);
-        var w = 0.0;
-        var node = wload(1u + p * pc.height + y);
-        while (node != kNil) {
-            let s = wload(pc.nodes_base + node * 2u);
-            let a = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 0u)), bitcast<f32>(seg_word(s, 1u))));
-            let b = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 2u)), bitcast<f32>(seg_word(s, 3u))));
-            w += segment_area(a, b, px, py);
-            node = wload(pc.nodes_base + node * 2u + 1u);
+        workgroupBarrier();
+        let tp = chunk + lane;
+        if (tp < path_count) {
+            let tb = pb + tp * 16u;
+            if (i32(paths[tb + 8u]) < tx0 + 16 && i32(paths[tb + 10u]) > tx0 &&
+                i32(paths[tb + 9u]) < ty0 + 16 && i32(paths[tb + 11u]) > ty0) {
+                atomicOr(&tile_mask[lane >> 5u], 1u << (lane & 31u));
+            }
         }
-        let t = abs(w);
-        var cov: f32;
-        if (paths[base + 6u] == 0u) {
-            cov = min(t, 1.0);
-        } else {
-            let f = glsl_mod(t, 2.0);
-            cov = select(f, 2.0 - f, f > 1.0);
+        workgroupBarrier();
+        for (var word = 0u; word < 8u; word++) {
+            var bits = atomicLoad(&tile_mask[word]);
+            while (bits != 0u) {
+                let p = chunk + word * 32u + firstTrailingBit(bits);
+                bits &= bits - 1u;
+                if (!inside) {
+                    continue;
+                }
+                let base = pb + p * 16u;
+                if (i32(x) < i32(paths[base + 8u]) || i32(x) >= i32(paths[base + 10u]) ||
+                    i32(y) < i32(paths[base + 9u]) || i32(y) >= i32(paths[base + 11u])) {
+                    continue;
+                }
+                // No segment on this row: the path does not touch it, whatever its box says.
+                var node = wload(1u + p * pc.height + y);
+                if (node == kNil) {
+                    continue;
+                }
+                let m = path_xf(p);
+                var w = 0.0;
+                while (node != kNil) {
+                    let s = wload(pc.nodes_base + node * 2u);
+                    let a = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 0u)), bitcast<f32>(seg_word(s, 1u))));
+                    let b = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 2u)), bitcast<f32>(seg_word(s, 3u))));
+                    w += segment_area(a, b, px, py);
+                    node = wload(pc.nodes_base + node * 2u + 1u);
+                }
+                let t = abs(w);
+                var cov: f32;
+                if (paths[base + 6u] == 0u) {
+                    cov = min(t, 1.0);
+                } else {
+                    let f = glsl_mod(t, 2.0);
+                    cov = select(f, 2.0 - f, f > 1.0);
+                }
+                if (cov <= 0.0) {
+                    continue;
+                }
+                let rgba = paths[base + 7u];
+                let c = vec4<f32>(f32(rgba & 255u), f32((rgba >> 8u) & 255u), f32((rgba >> 16u) & 255u),
+                                  f32(rgba >> 24u)) / 255.0;
+                let src = vec4<f32>(c.rgb * c.a, c.a) * cov;
+                dst = src + dst * (1.0 - src.a);
+            }
         }
-        if (cov <= 0.0) {
-            continue;
-        }
-        let rgba = paths[base + 7u];
-        let c = vec4<f32>(f32(rgba & 255u), f32((rgba >> 8u) & 255u), f32((rgba >> 16u) & 255u),
-                          f32(rgba >> 24u)) / 255.0;
-        let src = vec4<f32>(c.rgb * c.a, c.a) * cov;
-        dst = src + dst * (1.0 - src.a);
+        workgroupBarrier();
+    }
+    if (!inside) {
+        return;
     }
     var rgb = vec3<f32>(0.0);
     if (dst.a > 0.0) {
