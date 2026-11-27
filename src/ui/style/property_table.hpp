@@ -71,6 +71,7 @@ constexpr PropertyDef kProperties[] = {
     {"mask-mode", "match-source", false},
     {"mask-origin", "border-box", false},
     {"mask-clip", "border-box", false},
+    {"mask-composite", "add", false},
     // `none` or a list of blur() and drop-shadow() applied to an isolated layer (issue #617).
     {"filter", "none", false},
     {"opacity", "1", false},

@@ -77,6 +77,7 @@ constexpr StyleProperty kStyleProperties[] = {
     {"mask-mode", StyleKind::Keyword, "per-layer alpha | luminance | match-source"},
     {"mask-origin", StyleKind::Keyword, "per-layer border-box | padding-box | content-box"},
     {"mask-clip", StyleKind::Keyword, "per-layer border-box | padding-box | content-box | no-clip"},
+    {"mask-composite", StyleKind::Keyword, "per-layer add | subtract | intersect | exclude"},
     {"filter", StyleKind::Keyword, "none | blur() | drop-shadow(), applied to an isolated layer"},
     {"opacity", StyleKind::Number, ""},
     {"box-shadow", StyleKind::List, "comma-separated shadow list, one per layer"},
@@ -207,9 +208,9 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
 }
 
 // The registry of src/ui/style/property_registry.cpp (the physical table, `logical_properties.cpp`
-// and `property_registry_extra.cpp`) lists 132 longhands; the `schema_style_registry` test in that
+// and `property_registry_extra.cpp`) lists 133 longhands; the `schema_style_registry` test in that
 // module checks that this table and the registry agree name for name and kind for grammar.
-static_assert(std::size(kStyleProperties) == 138, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 139, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace

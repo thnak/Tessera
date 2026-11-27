@@ -253,7 +253,12 @@ enum class AddressMode : std::uint8_t { ClampToEdge, Repeat };
 // an isolated layer: the layer target holds premultiplied colour, so scaling every channel by a
 // mask's alpha is exactly `mask-mode: alpha` compositing. Every backend can express it with fixed
 // blend factors, so it needs no capability query.
-enum class BlendMode : std::uint8_t { None, Alpha, DualSource, DestinationIn };
+//
+// `SourceOut` and `Xor` are the other two Porter-Duff operators a mask needs (RHI 1.21, issue #617,
+// `mask-composite`), with the fragment as the source and the target as the destination:
+// `SourceOut` is `src * (1 - dst.a)` (the destination is dropped) and `Xor` is
+// `src * (1 - dst.a) + dst * (1 - src.a)`, each on all four channels. Fixed blend factors again.
+enum class BlendMode : std::uint8_t { None, Alpha, DualSource, DestinationIn, SourceOut, Xor };
 
 enum class LoadOp : std::uint8_t { Clear, Load, DontCare };
 

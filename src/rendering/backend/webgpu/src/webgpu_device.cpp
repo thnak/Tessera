@@ -74,6 +74,8 @@ WGPUBlendFactor to_wgpu(WgpuBlendFactor factor) {
         return WGPUBlendFactor_SrcAlpha;
     case WgpuBlendFactor::OneMinusSrcAlpha:
         return WGPUBlendFactor_OneMinusSrcAlpha;
+    case WgpuBlendFactor::OneMinusDstAlpha:
+        return WGPUBlendFactor_OneMinusDstAlpha;
     }
     return WGPUBlendFactor_One;
 }

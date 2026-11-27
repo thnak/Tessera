@@ -52,7 +52,7 @@ void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillLinearGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || mask_live_) {
+    if (!in_mask_ || (mask_live_ && part_live_)) {
         target_.fill_linear_gradient(draw);
     }
 }
@@ -61,7 +61,7 @@ void PaintCache::Recorder::fill_conic_gradient(const ConicGradientDraw& draw) {
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillConicGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || mask_live_) {
+    if (!in_mask_ || (mask_live_ && part_live_)) {
         target_.fill_conic_gradient(draw);
     }
 }
@@ -70,7 +70,7 @@ void PaintCache::Recorder::fill_radial_gradient(const RadialGradientDraw& draw) 
     gradients_.emplace_back(draw);
     record(PaintOp{PaintOp::Kind::FillRadialGradient,
                    GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
-    if (!in_mask_ || mask_live_) {
+    if (!in_mask_ || (mask_live_ && part_live_)) {
         target_.fill_radial_gradient(draw);
     }
 }
@@ -133,6 +133,31 @@ void PaintCache::Recorder::end_layer_mask() {
     }
     in_mask_ = false;
     mask_live_ = false;
+}
+
+bool PaintCache::Recorder::begin_mask_layer(rendering::gpu::MaskCompositeOp op) {
+    if (!record_pops_) {
+        return target_.begin_mask_layer(op);
+    }
+    using Kind = PaintOp::Kind;
+    record(PaintOp{op == rendering::gpu::MaskCompositeOp::Subtract    ? Kind::BeginMaskSubtract
+                   : op == rendering::gpu::MaskCompositeOp::Intersect ? Kind::BeginMaskIntersect
+                                                                      : Kind::BeginMaskExclude,
+                   FillRectOp{}});
+    part_live_ = mask_live_ && target_.begin_mask_layer(op);
+    return true;
+}
+
+void PaintCache::Recorder::end_mask_layer() {
+    if (!record_pops_) {
+        target_.end_mask_layer();
+        return;
+    }
+    record(PaintOp{PaintOp::Kind::EndMaskLayer, FillRectOp{}});
+    if (mask_live_ && part_live_) {
+        target_.end_mask_layer();
+    }
+    part_live_ = true;
 }
 
 bool PaintCache::Recorder::supports_transform() const {

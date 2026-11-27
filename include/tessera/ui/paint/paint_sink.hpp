@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/layer_filter.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
@@ -485,6 +486,14 @@ public:
         return false;
     }
     virtual void end_layer_mask() {}
+    // Between begin_layer_mask() and end_layer_mask(), a mask layer whose `mask-composite` is not
+    // `add` (the bottom layer's is ignored) is bracketed by these: the draws in between are one
+    // layer, combined once with everything drawn before it. False (the default) drops that layer
+    // and its draws; end_mask_layer() must not follow a false.
+    [[nodiscard]] virtual bool begin_mask_layer(rendering::gpu::MaskCompositeOp /*op*/) {
+        return false;
+    }
+    virtual void end_mask_layer() {}
 };
 
 } // namespace tessera::ui::paint

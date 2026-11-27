@@ -97,7 +97,11 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // batched2d program evaluates a gradient per pixel from the frame record buffer, so one gradient
 // layer is one quad. Not pure virtual and false by default, so no existing backend or caller
 // changes; a backend answering false keeps the banded gradient fallback.
-inline constexpr std::uint32_t kRhiVersionMinor = 20;
+// 1.21 (2026-11-27): additive `BlendMode::SourceOut` and `BlendMode::Xor` (`src * (1 - dst.a)` and
+// `src * (1 - dst.a) + dst * (1 - src.a)`), the combine step of a `mask-composite` layer that is
+// not `add` (issue #617). Appended enumerators and fixed blend factors on every backend, so there
+// is no capability to query.
+inline constexpr std::uint32_t kRhiVersionMinor = 21;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

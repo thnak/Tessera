@@ -300,6 +300,14 @@ void Batched2DSink::end_layer_mask() {
     renderer_->end_layer_mask();
 }
 
+bool Batched2DSink::begin_mask_layer(rendering::gpu::MaskCompositeOp op) {
+    return renderer_->begin_mask_layer(op);
+}
+
+void Batched2DSink::end_mask_layer() {
+    renderer_->end_mask_layer();
+}
+
 void Batched2DSink::draw_backdrop(const BackdropDraw& draw) {
     // The paint pass segments the frame at this call (glass-v1 section 4): everything before the
     // glass node is already recorded, so the renderer can break the pass here and read what the
