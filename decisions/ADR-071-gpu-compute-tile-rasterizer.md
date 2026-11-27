@@ -285,6 +285,35 @@ SPIR-V is not what a browser's compiler produces.
 Still open: a WebGPU compute backend that embeds the module and runs it (RHI 1.16 is Vulkan only), and
 the frame code that owns a `GpuPathRasterizer` once windowed apps get a vector stack.
 
+## Document residency and the 4K steady state (#685, 2026-11-27)
+
+Three pieces take the CPU out of the frame. `GpuPathDocument` encodes geometry once in document
+space (the scale is the per-path affine the shader already reads, so a resize re-encodes nothing; the
+flatten tolerance and round-join arcs are sized for a power-of-two scale bucket, 1 to 32).
+`GpuPathArena` keeps the fill edges, strokes and dashes in device buffers, uploaded once; a batch
+whose rasters are all resident binds them and writes only its job record and 64 bytes per path (mixed
+batches fall back to the per-flush copy). `PathTextureCache` acquires a document per geometry
+identity and enqueues it with the raster scale.
+
+`gpu_path_animated_measure` (RTX 4060, Windows, Release): 60 filled blobs and 60 round-cap strokes
+(120 paths) into a 3840x2160 texture, the scale animating 1.90 to 2.00, 120 frames after 4 warm-up
+frames.
+
+| per frame | median | min | max |
+|---|---|---|---|
+| CPU, enqueue + flush (nothing waits) | **0.042 ms** | 0.015 | 0.083 |
+| GPU until complete | 3.84 ms | 3.78 | 4.75 |
+| bytes written by the CPU | 7,760 | 7,760 | 7,760 |
+
+Against the ThorVG baseline above on the same machine (raster 5.2 ms, upload 1.2 ms CPU side, 33 MB
+copied), the CPU cost drops by about 150x and the bytes by about 4,000x. The issue's "zero bytes
+after the first frame" is not met literally: 7,760 bytes is the job record (80) plus 64 per path,
+and it scales with the path count, not the pixel count. A frame whose transform did not change is a
+texture cache hit and writes nothing. The arena took one upload and 123 hits; the pool reused 492
+of 496 buffer requests only because the measurement raises `max_pooled_bytes` to 256 MiB: the
+default 16 MiB bound destroys a 4K output buffer (33 MB, 64 MiB pooled) after every flush, so a
+4K consumer must set the bound (or the default should follow the largest live target).
+
 ## Alternatives, to be measured on the same 4K scenes
 
 | option | expected problem | status |

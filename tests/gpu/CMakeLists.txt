@@ -277,6 +277,12 @@ if (TARGET tessera_rhi_vulkan)
         tessera_gpu tessera_path tessera_image tessera_rhi_vulkan)
 endif()
 
+# Manual measurement tool (not a CTest): steady-state cost of an animated 4K vector scene on the GPU
+# path rasterizer (issue #685), next to the ThorVG numbers above.
+add_executable(gpu_path_animated_measure
+    batched2d/gpu_path_animated_measure.cpp)
+target_link_libraries(gpu_path_animated_measure PRIVATE tessera_path tessera_rhi_vulkan)
+
 # Manual measurement tool (not a CTest): the number issue #480 part 2 is gated on. It paints an
 # interleaved image+text scene through the production paint path and reports the batch-split
 # attribution, so the texture share descriptor indexing would remove is measured instead of guessed.
