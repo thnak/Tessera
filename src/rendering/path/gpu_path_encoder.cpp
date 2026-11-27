@@ -128,10 +128,28 @@ EncodedGpuScene encode_gpu_scene(const GpuPathScene& scene, std::uint32_t width,
                 if (range.count == 0) {
                     continue;
                 }
-                std::vector<Chunk> chunks;
-                float length_so_far = 0.0f;
+                // Zero-length segments carry no direction, so the stroke expansion would lose the
+                // join they sit in (A,B,B,C drops the miter at B). Drop them; a contour that is
+                // nothing else is a dot, which only a round or square cap draws (SVG): it becomes
+                // a 1/64 px segment along +x, exact in float at any practical coordinate.
+                std::vector<std::array<float, 4>> kept;
                 for (std::size_t i = range.first; i < range.first + range.count; ++i) {
                     const float* s = &shape.contours[i * 4];
+                    if (s[0] != s[2] || s[1] != s[3]) {
+                        kept.push_back({s[0], s[1], s[2], s[3]});
+                    }
+                }
+                if (kept.empty()) {
+                    if (shape.cap == GpuCap::butt) {
+                        continue;
+                    }
+                    const float* s = &shape.contours[range.first * 4];
+                    kept.push_back({s[0], s[1], s[0] + 1.0f / 64.0f, s[1]});
+                }
+                std::vector<Chunk> chunks;
+                float length_so_far = 0.0f;
+                for (const std::array<float, 4>& segment : kept) {
+                    const float* s = segment.data();
                     const float length = std::hypot(s[2] - s[0], s[3] - s[1]);
                     const std::size_t parts =
                         period > 0.0f ? std::max<std::size_t>(
