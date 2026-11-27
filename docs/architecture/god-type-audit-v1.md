@@ -164,7 +164,7 @@ pointer events, focus, user-select, cursor, focus group),
 [`NodeScrollStyle`](../../include/tessera/ui/scene/node_scroll_style.hpp) (1 byte),
 [`NodePlacement`](../../include/tessera/ui/scene/node_placement.hpp) (40 bytes: transform, z-index)
 and [`NodePaintExtent`](../../include/tessera/ui/scene/node_paint_extent.hpp) (40 bytes: outsets,
-glass sigma, the cached subtree box). A part owns values and sanitizing and returns "changed" from
+the glass sigma and the layer-filter reach as two 16-bit fixed-point scalars, the cached subtree box). A part owns values and sanitizing and returns "changed" from
 its setters; `Node` keeps the dirty policy. `sizeof(Node)` is still exactly 320 and line 0 still holds
 every hot field, pinned by `NodeLayoutCheck`; `tests/unit/node_parts_tests.cpp` covers the parts.
 

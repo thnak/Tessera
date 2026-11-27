@@ -47,6 +47,28 @@ void collect_glass_boxes(const Node& node, const std::vector<rendering::rhi::Rec
     }
 }
 
+// Appends the whole region of every filtered node whose region intersects damage.
+void collect_filter_boxes(const Node& node, const std::vector<rendering::rhi::Rect>& damage_rects,
+                          float dpi_scale, std::vector<rendering::rhi::Rect>& out) {
+    if (!node.rendered() || !node.filter_subtree()) {
+        return;
+    }
+    if (node.filter_reach() > 0.0f) {
+        const rendering::rhi::Rect region = node_filter_region(node, dpi_scale);
+        if (has_area(region)) {
+            for (const rendering::rhi::Rect& rect : damage_rects) {
+                if (intersects(region, rect)) {
+                    out.push_back(region);
+                    break;
+                }
+            }
+        }
+    }
+    for (const auto& child : node.children()) {
+        collect_filter_boxes(*child, damage_rects, dpi_scale, out);
+    }
+}
+
 void collect_ids(const Node& node, std::unordered_set<NodeId>& ids) {
     ids.insert(node.id());
     for (const auto& child : node.children()) {
@@ -124,6 +146,21 @@ std::size_t DamageTracker::add_glass_dependencies(const Node& root,
     damage_scratch_.assign(damage.rects().begin(), damage.rects().end());
     glass_scratch_.clear();
     collect_glass_boxes(root, damage_scratch_, dpi_scale, glass_scratch_);
+    for (const rendering::rhi::Rect& box : glass_scratch_) {
+        damage.add(box, margin);
+    }
+    return glass_scratch_.size();
+}
+
+std::size_t DamageTracker::add_filter_dependencies(const Node& root,
+                                                   rendering::DamageAccumulator& damage,
+                                                   float dpi_scale, float margin) {
+    if (!root.rendered() || !root.filter_subtree() || damage.rects().empty()) {
+        return 0;
+    }
+    damage_scratch_.assign(damage.rects().begin(), damage.rects().end());
+    glass_scratch_.clear();
+    collect_filter_boxes(root, damage_scratch_, dpi_scale, glass_scratch_);
     for (const rendering::rhi::Rect& box : glass_scratch_) {
         damage.add(box, margin);
     }

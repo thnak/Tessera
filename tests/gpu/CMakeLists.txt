@@ -116,6 +116,14 @@ add_executable(layer_filter_null_tests
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_filter_null COMMAND layer_filter_null_tests)
 
+# What a layer `filter` needs from the window's frame target: nothing (no offscreen frame target, no
+# region copy or resample of it), unlike glass. Counters before/after on a filter-only scene.
+add_executable(filter_frame_target_tests
+    batched2d/filter_frame_target_tests.cpp)
+target_link_libraries(filter_frame_target_tests PRIVATE
+    tessera_gpu tessera_paint tessera_rhi_null)
+add_test(NAME filter_frame_target COMMAND filter_frame_target_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)

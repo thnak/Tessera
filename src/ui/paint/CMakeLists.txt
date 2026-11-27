@@ -169,6 +169,17 @@ if (TESSERA_BUILD_TESTS)
         tessera_runtime)
     add_test(NAME glass_damage COMMAND glass_damage_tests)
 
+    # Layer `filter` as its own dependency (offscreen-layers.md section 5d): the node field and
+    # subtree flag apart from glass, the halo, the filter damage walk and the cull.
+    add_executable(filter_damage_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/filter_damage_tests.cpp)
+    target_link_libraries(filter_damage_tests PRIVATE
+        tessera_frame
+        tessera_layout
+        tessera_paint
+        tessera_runtime)
+    add_test(NAME filter_damage COMMAND filter_damage_tests)
+
     add_executable(paint_image_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_image_tests.cpp)
     target_include_directories(paint_image_tests PRIVATE

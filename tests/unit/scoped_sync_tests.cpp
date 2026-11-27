@@ -6,7 +6,7 @@
 //
 // The claim that needs proving is not "it is faster" but "it applies exactly what the full walk
 // would". So every case here runs both walks over the same tree and compares the scene state they
-// produce: z-index, transform, paint outsets, glass sigma and `glass_subtree` on every node. A
+// produce: z-index, transform, paint outsets, glass sigma, filter reach and both subtree flags on every node. A
 // scoped walk that skipped a node it should have visited shows up as a node whose state differs.
 
 #include "tessera/ui/paint/scene_style_sync.hpp"
@@ -45,6 +45,7 @@ constexpr const char* kSheet = R"(
 .card.raised { z-index: 5; transform: translate(4px, 6px); }
 .card.shadowed { box-shadow: 0 2px 8px #000000; }
 .card.glass { backdrop-filter: blur(6px); }
+.card.filtered { filter: blur(3px); }
 )";
 
 struct Scene {
@@ -74,6 +75,8 @@ struct NodeState {
     float outsets[5] = {};
     float glass_sigma = 0.0f;
     bool glass_subtree = false;
+    float filter_reach = 0.0f;
+    bool filter_subtree = false;
 };
 
 void collect_state(const Node& node, std::vector<NodeState>& out) {
@@ -91,6 +94,8 @@ void collect_state(const Node& node, std::vector<NodeState>& out) {
     state.outsets[4] = outsets.blurred ? 1.0f : 0.0f;
     state.glass_sigma = node.glass_blur_sigma();
     state.glass_subtree = node.glass_subtree();
+    state.filter_reach = node.filter_reach();
+    state.filter_subtree = node.filter_subtree();
     out.push_back(state);
     for (const auto& child : node.children()) {
         collect_state(*child, out);
@@ -98,7 +103,8 @@ void collect_state(const Node& node, std::vector<NodeState>& out) {
 }
 
 bool same_state(const NodeState& a, const NodeState& b) {
-    if (a.id != b.id || a.z_index != b.z_index || a.glass_subtree != b.glass_subtree) {
+    if (a.id != b.id || a.z_index != b.z_index || a.glass_subtree != b.glass_subtree ||
+        a.filter_subtree != b.filter_subtree || a.filter_reach != b.filter_reach) {
         return false;
     }
     if (std::fabs(a.glass_sigma - b.glass_sigma) > 0.001f) {
@@ -243,6 +249,24 @@ int main() {
         if (!compare_walks("glass removal clears ancestors", full, scoped, {full.cards[3]},
                            {scoped.cards[3]})) {
             return 4;
+        }
+    }
+
+    // 3b. A layer filter has its own field and subtree flag; the scoped refold must keep both
+    //     equal to the full walk, and it must not leak into the glass state.
+    {
+        Scene full(6);
+        Scene scoped(6);
+        full.cards[2]->set_class_name("card filtered");
+        scoped.cards[2]->set_class_name("card filtered");
+        if (!compare_walks("filter gain refolds ancestors", full, scoped, {full.cards[2]},
+                           {scoped.cards[2]})) {
+            return 31;
+        }
+        if (!scoped.cards[2]->filter_subtree() || scoped.cards[2]->glass_subtree() ||
+            !scoped.root->filter_subtree() || scoped.root->glass_subtree()) {
+            std::cerr << "filter gain sets only the filter flags\n";
+            return 32;
         }
     }
 

@@ -2561,6 +2561,7 @@ class include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::DamageTrack
 struct include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::DamagePassResult
 function include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::add_scene_damage
 function include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::node_damage_rect
+function include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::node_filter_region
 function include/tessera/ui/layout/damage_pass.hpp tessera::ui::layout::node_glass_dependency_rect
 
 header include/tessera/ui/layout/layout_engine.hpp

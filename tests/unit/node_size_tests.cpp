@@ -79,7 +79,7 @@ template<class Fn> Cost measure(Fn&& fn) {
 
 void handler(void*, const ui::Event&) {}
 
-// The ten booleans share one flags word (issue #285): each must read back what was written and
+// The booleans (the input flags word plus the hint bits) share one flags word (issue #285): each must read back what was written and
 // leave its neighbours alone, from the defaults and from the all-set state.
 bool flags_are_independent() {
     struct Bit {
@@ -101,6 +101,8 @@ bool flags_are_independent() {
          [](const ui::Node& n) { return n.typeahead(); }, false},
         {"glass_subtree", [](ui::Node& n, bool on) { n.set_glass_subtree(on); },
          [](const ui::Node& n) { return n.glass_subtree(); }, false},
+        {"filter_subtree", [](ui::Node& n, bool on) { n.set_filter_subtree(on); },
+         [](const ui::Node& n) { return n.filter_subtree(); }, false},
         {"item_key",
          [](ui::Node& n, bool on) {
              if (on) {

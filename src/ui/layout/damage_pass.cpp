@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace tessera::ui::layout {
 namespace {
@@ -50,6 +51,39 @@ rendering::rhi::Rect node_glass_dependency_rect(const Node& node, float dpi_scal
     const rendering::rhi::Rect region =
         rendering::gpu::glass_dependency_rect(node.world_bounds(), sigma, 1.0f);
     return snap_rect(region, dpi_scale);
+}
+
+rendering::rhi::Rect node_filter_region(const Node& node, float dpi_scale) {
+    if (node.filter_reach() <= 0.0f) {
+        return {};
+    }
+    // The layer holds the node's whole subtree and the chain adds its halo around it, so the output
+    // (and, equally, everything that can change it) is the cached subtree paint box, which already
+    // carries the filter's reach around the box and around every child. An unbounded box (text the
+    // layout could not prove inside its box) cannot be placed, so it falls back to the node's own
+    // box with its outsets, like every other damage source.
+    const rendering::rhi::Rect local = node.subtree_paint_bounds();
+    if (!std::isfinite(local.x) || !std::isfinite(local.y) || !std::isfinite(local.width) ||
+        !std::isfinite(local.height)) {
+        return snap_rect(node_damage_rect(node), dpi_scale);
+    }
+    const rendering::rhi::Mat3 world = node.world_transform();
+    const float xs[4] = {local.x, local.right(), local.right(), local.x};
+    const float ys[4] = {local.y, local.y, local.bottom(), local.bottom()};
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = min_x;
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = max_x;
+    for (int corner = 0; corner < 4; ++corner) {
+        float x = 0.0f;
+        float y = 0.0f;
+        world.transform_point(xs[corner], ys[corner], x, y);
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+    }
+    return snap_rect(rendering::rhi::Rect{min_x, min_y, max_x - min_x, max_y - min_y}, dpi_scale);
 }
 
 DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,

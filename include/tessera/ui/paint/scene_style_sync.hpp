@@ -18,6 +18,8 @@ struct SceneStyleSyncResult {
     std::size_t changed_outsets = 0; // nodes whose box-shadow reach changed
     std::size_t glass_nodes = 0;     // visible nodes with a non-`none` backdrop-filter
     std::size_t changed_glass = 0;   // nodes whose resolved glass sigma changed
+    std::size_t filter_nodes = 0;    // visible nodes with a layer `filter`
+    std::size_t changed_filter = 0;  // nodes whose filter reach changed
 };
 
 // Copies the computed style properties that the scene graph itself consumes onto the nodes:
@@ -27,6 +29,9 @@ struct SceneStyleSyncResult {
 //   box-shadow       -> Node::set_paint_outsets (the reach damage must cover)
 //   backdrop-filter  -> Node::set_glass_blur_sigma (sigma clamped by `glass`, the 3 sigma damage
 //                       dependency of glass-v1 section 7) and Node::set_glass_subtree
+//   filter           -> Node::set_filter_reach (the chain's halo, its own damage dependency, apart
+//                       from the backdrop sigma) and Node::set_filter_subtree; the halo also folds
+//                       into the paint outsets
 // Invisible subtrees are skipped, like painting. Each setter only dirties paint/render when the
 // value actually changed, so a steady scene stays clean. Call it between layout and painting
 // whenever style or layout changed.
@@ -46,7 +51,7 @@ sync_scene_style(Node& root, StyleProvider& styles,
 // glass limits must stay the same between calls that share one memo).
 
 // Scoped variant (issue #735, slice B): visits only `roots` and their subtrees, plus the ancestors
-// of each root (which refold `glass_subtree`). A node outside every root kept its computed style,
+// of each root (which refold `glass_subtree` and `filter_subtree`). A node outside every root kept its computed style,
 // so re-deriving what it already applied is pure waste - that walk is ~25% of a class-change frame
 // at 6k nodes.
 //
