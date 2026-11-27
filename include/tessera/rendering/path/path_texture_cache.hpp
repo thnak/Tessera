@@ -76,6 +76,8 @@ public:
         std::uint64_t gpu_rasterizations =
             0; // misses queued on the GPU rasterizer (not in `rasterizations`)
         std::uint64_t gpu_fallbacks = 0; // GPU route chosen but refused (too dense, device error)
+        std::uint64_t gpu_documents_encoded = 0; // geometry encodings for the GPU route
+        std::uint64_t gpu_document_hits = 0;     // GPU rasters that reused an encoded document
         std::uint32_t entries = 0;
         std::uint32_t retired = 0; // evicted textures parked until end_frame()
         std::uint64_t bytes = 0;   // sum of entry pixel bytes

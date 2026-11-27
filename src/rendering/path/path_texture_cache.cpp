@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/path_model.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
@@ -207,9 +208,14 @@ struct PathTextureCache::Impl {
     // The GPU route for one miss: nothing when the policy keeps it on the CPU or the rasterizer
     // refuses (counted as a fallback), so the caller rasterizes on the CPU. The texture is created
     // without pixels, because the copy that fills it replaces every texel.
+    //
+    // `shapes` are in document units and `scale` is the raster scale: the GPU route encodes the
+    // document once (shared by every size of the same geometry) and applies the scale on the
+    // device, so a resize re-encodes and re-uploads no geometry. Only a scale outside the document
+    // buckets falls back to pre-scaled shapes.
     [[nodiscard]] std::optional<CachedPathTexture> try_gpu(const PathTextureKey& key,
                                                            std::span<const PathShape> shapes,
-                                                           rhi::Extent2D extent,
+                                                           float scale, rhi::Extent2D extent,
                                                            std::uint64_t entry_bytes) {
         if (gpu == nullptr) {
             return std::nullopt;
@@ -231,11 +237,24 @@ struct PathTextureCache::Impl {
         const std::uint64_t max_nodes = route.mode == RasterRouteMode::gpu_when_possible
                                             ? 0
                                             : row_node_bound(extent.width, extent.height, route);
-        auto queued = gpu->enqueue(shapes, *texture, extent, max_nodes);
+        const auto document = documents.acquire(key, shapes, scale);
+        std::vector<PathShape> scaled_storage;
+        std::span<const PathShape> scaled = shapes;
+        if (!document) {
+            scaled_storage = scale_path_shapes(shapes, scale);
+            if (!scaled_storage.empty()) {
+                scaled = scaled_storage;
+            }
+        }
+        const auto enqueue = [&] {
+            return document ? gpu->enqueue(document, scale, *texture, extent, max_nodes)
+                            : gpu->enqueue(scaled, *texture, extent, max_nodes);
+        };
+        auto queued = enqueue();
         if (!queued.has_value() && queued.error() == GpuRasterError::batch_full) {
             // The batch is full: submit it and queue this one in the next.
             if (submit_pending()) {
-                queued = gpu->enqueue(shapes, *texture, extent, max_nodes);
+                queued = enqueue();
             }
         }
         if (!queued.has_value()) {
@@ -258,13 +277,12 @@ struct PathTextureCache::Impl {
         // box restores the authored stroke width. A whole document is scaled as a unit; the rule is
         // shared with CPU-side sinks through path_scale.hpp.
         const float scale = static_cast<float>(key.scale_milli) / 1000.0f;
+        if (auto gpu_texture = try_gpu(key, shapes, scale, extent, entry_bytes)) {
+            return *gpu_texture;
+        }
         const std::vector<PathShape> scaled_storage = scale_path_shapes(shapes, scale);
         const std::span<const PathShape> to_rasterize =
             scaled_storage.empty() ? shapes : std::span<const PathShape>(scaled_storage);
-
-        if (auto gpu_texture = try_gpu(key, to_rasterize, extent, entry_bytes)) {
-            return *gpu_texture;
-        }
 
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(entry_bytes), 0);
         RasterTarget target{std::span<std::uint8_t>(pixels.data(), pixels.size()), extent.width,
@@ -308,6 +326,7 @@ struct PathTextureCache::Impl {
     };
     GpuPathRasterizer* gpu = nullptr;
     RasterRouteConfig route;
+    GpuPathDocumentCache documents;          // encoded geometry shared by every size of a path
     std::vector<PathTextureKey> gpu_pending; // keys whose rasters are queued, not yet submitted
     std::vector<Retired> retired;
     std::uint64_t retired_bytes = 0;
@@ -424,6 +443,9 @@ PathTextureCache::Stats PathTextureCache::stats() const {
     stats.entries = static_cast<std::uint32_t>(impl_->entries.size());
     stats.bytes = impl_->bytes;
     stats.retired = static_cast<std::uint32_t>(impl_->retired.size());
+    const auto documents = impl_->documents.stats();
+    stats.gpu_documents_encoded = documents.misses;
+    stats.gpu_document_hits = documents.hits;
     return stats;
 }
 
