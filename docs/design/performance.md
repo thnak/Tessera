@@ -548,6 +548,22 @@ texture splits through the existing texture-array path. The stylesheet benchmark
 `stylesheet compile` line (0.23 ms for the scene's sheet) is the only startup-style timing, and
 the cascade cost per node is the style column above.
 
+### 9.x Decode-target downscale (#689)
+
+`downscale_box` (the box filter the image path runs when a decode target is smaller than the source) was
+measured at 12.3 ms (4K to 1080p) and 7.9 ms (4K to 540p), single thread, Release, Ryzen 5 9600X, and the
+full 4K upload a GPU port would add is 5.4 to 5.8 ms (`cpu_to_gpu_4k_measure`). A GPU port gains about 2x at
+1080p, nothing at 540p, holds 31.6 MiB per decode and changes the cache key, so it is **not** done. The loop
+is multiply-bound, not divide-bound (a separable integer rewrite measured 11.9 ms). Instead the inner row
+pass runs on SSE2, AVX2 or AVX512BW, picked once by CPUID/XGETBV (`src/rendering/image/downscale_kernels*.cpp`),
+with a portable fallback and a 64-bit loop for boxes over 65536 texels. Every set gives the same bytes, held by
+`image_downscale_isa` against the plain nested loop (and by the pinned digest in `image_resize`).
+`image_downscale_isa_tests --bench` prints the numbers: 4K to 540p 7.1 ms portable, 4.8 SSE2, 4.0 AVX2,
+3.9 AVX512; 4K to 1080p 14.7, 12.4, 11.5, 11.5. The row kernel alone on L1-resident data is 0.275, 0.105 and
+0.065 ns per pixel, so AVX512 is faster than AVX2 where the kernel dominates; at 1080p the output
+allocation and the per-pixel reduce and divide dominate and the instruction set stops mattering. NEON
+intrinsics are not written (not testable on the Windows lane); aarch64 runs the portable loop.
+
 ## 10. Open questions
 
 - Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "downscale_kernels.hpp"
 #include "tessera/rendering/image/image_loader.hpp"
 #include "tessera/rendering/image/image_resize.hpp"
 
@@ -64,61 +65,7 @@ ImageSize fit_decode_size(std::uint32_t source_width, std::uint32_t source_heigh
 }
 
 DecodedImage downscale_box(const DecodedImage& source, std::uint32_t width, std::uint32_t height) {
-    DecodedImage out;
-    out.format = source.format;
-    out.content_hash = source.content_hash;
-    out.source_width = source.source_width != 0 ? source.source_width : source.width;
-    out.source_height = source.source_height != 0 ? source.source_height : source.height;
-    if (width == 0 || height == 0 || source.width == 0 || source.height == 0) {
-        return out;
-    }
-    out.width = width;
-    out.height = height;
-    out.rgba.resize(static_cast<std::size_t>(width) * height * 4U);
-
-    for (std::uint32_t oy = 0; oy < height; ++oy) {
-        const std::uint32_t y0 =
-            static_cast<std::uint32_t>(static_cast<std::uint64_t>(oy) * source.height / height);
-        const std::uint32_t y1 =
-            std::max(y0 + 1, static_cast<std::uint32_t>(
-                                 (static_cast<std::uint64_t>(oy + 1) * source.height + height - 1) /
-                                 height));
-        for (std::uint32_t ox = 0; ox < width; ++ox) {
-            const std::uint32_t x0 =
-                static_cast<std::uint32_t>(static_cast<std::uint64_t>(ox) * source.width / width);
-            const std::uint32_t x1 = std::max(
-                x0 + 1,
-                static_cast<std::uint32_t>(
-                    (static_cast<std::uint64_t>(ox + 1) * source.width + width - 1) / width));
-            std::uint64_t sum_r = 0;
-            std::uint64_t sum_g = 0;
-            std::uint64_t sum_b = 0;
-            std::uint64_t sum_a = 0;
-            for (std::uint32_t y = y0; y < y1 && y < source.height; ++y) {
-                for (std::uint32_t x = x0; x < x1 && x < source.width; ++x) {
-                    const std::uint8_t* p =
-                        &source.rgba[(static_cast<std::size_t>(y) * source.width + x) * 4U];
-                    sum_r += static_cast<std::uint64_t>(p[0]) * p[3];
-                    sum_g += static_cast<std::uint64_t>(p[1]) * p[3];
-                    sum_b += static_cast<std::uint64_t>(p[2]) * p[3];
-                    sum_a += p[3];
-                }
-            }
-            const std::uint64_t count =
-                static_cast<std::uint64_t>(std::min(y1, source.height) - y0) *
-                (std::min(x1, source.width) - x0);
-            std::uint8_t* q = &out.rgba[(static_cast<std::size_t>(oy) * width + ox) * 4U];
-            if (sum_a == 0) {
-                q[0] = q[1] = q[2] = q[3] = 0;
-                continue;
-            }
-            q[0] = static_cast<std::uint8_t>((sum_r + sum_a / 2) / sum_a);
-            q[1] = static_cast<std::uint8_t>((sum_g + sum_a / 2) / sum_a);
-            q[2] = static_cast<std::uint8_t>((sum_b + sum_a / 2) / sum_a);
-            q[3] = static_cast<std::uint8_t>((sum_a + count / 2) / count);
-        }
-    }
-    return out;
+    return downscale_box_with(best_isa(), source, width, height);
 }
 
 } // namespace tessera::rendering::image
