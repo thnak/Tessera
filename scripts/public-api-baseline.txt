@@ -2667,6 +2667,7 @@ struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RoundedClip
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::TextDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::VectorDraw
 alias include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::rhi
+function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::band_edge
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_gradient_stops
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_linear_gradient
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::tessellate_conic_gradient

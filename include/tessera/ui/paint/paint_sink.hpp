@@ -208,6 +208,19 @@ struct ConicGradientDraw {
 // 200 px box at ~6 px cells, which is smooth for the ramps V1 paints without a per-pixel shader.
 inline constexpr int kRadialBands = 32;
 
+// The `index`-th of `count` equal divisions of [origin, origin + extent]. The last edge is the far
+// end exactly, and every band uses the same value for the edge it shares with its neighbour, so
+// adjacent solid bands abut with no gap and no overlap: a plain quad is hard-edged (the
+// pixel-centre rule on the GPU and in CpuCanvas), so each pixel belongs to exactly one band. The
+// bands used to be grown by half a pixel to hide seams that a hard-edged quad does not have, which
+// composited a translucent stop twice wherever two bands overlapped (found by the Chromium
+// comparison of `mask-image`, offscreen-layers.md section 5.2).
+inline float band_edge(float origin, float extent, int index, int count) {
+    return index >= count
+               ? origin + extent
+               : origin + extent * (static_cast<float>(index) / static_cast<float>(count));
+}
+
 // Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
 // `emit` for each. Cells whose centre falls outside the ellipse are skipped, so the fill is the
 // ellipse itself rather than its bounding box; a cell that straddles the edge is drawn with the
@@ -235,10 +248,13 @@ void tessellate_radial_gradient(const RadialGradientDraw& draw, Emit&& emit) {
             if (distance > 1.0f) {
                 continue;
             }
-            // The band is grown by half a pixel on the right/bottom so neighbouring cells meet
-            // without a seam under a fractional box (the same trick the linear bands use).
-            emit(RadialBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
-                             cell_width + 0.5f, cell_height + 0.5f},
+            // Cells abut exactly (see band_edge): no overlap, so a translucent ramp is not
+            // composited twice.
+            const float left = band_edge(draw.rect.x, draw.rect.width, column, kRadialBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kRadialBands);
+            const float top = band_edge(draw.rect.y, draw.rect.height, row, kRadialBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kRadialBands);
+            emit(RadialBand{{left, top, right - left, bottom - top},
                             sample_gradient_stops(draw.stops.data(), draw.stop_count, distance)});
         }
     }
@@ -276,8 +292,11 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
             const float degrees = std::atan2(dx, -dy) * (360.0f / kTau);
             float turn = (degrees - draw.from_angle_degrees) / 360.0f;
             turn -= std::floor(turn); // into [0, 1)
-            emit(ConicBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
-                            cell_width + 0.5f, cell_height + 0.5f},
+            const float left = band_edge(draw.rect.x, draw.rect.width, column, kRadialBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kRadialBands);
+            const float top = band_edge(draw.rect.y, draw.rect.height, row, kRadialBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kRadialBands);
+            emit(ConicBand{{left, top, right - left, bottom - top},
                            sample_gradient_stops(draw.stops.data(), draw.stop_count, turn)});
         }
     }

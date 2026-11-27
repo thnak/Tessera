@@ -29,6 +29,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -259,30 +260,25 @@ bool paint_path(Harness& harness) {
 // The same scenes Chromium measured (layer_mask_chromium_reference.hpp), through the real paint
 // path.
 //
-// What the comparison found: the geometry matches (a linear ramp is exact across its axis, radial
-// and conic are symmetric with the right sweep) but the alpha along a translucent gradient comes
-// out too high, because the V1 sink draws 64 solid bands each `band + 0.5` px wide
-// (paint_sinks.cpp), so neighbouring bands overlap and composite twice. For an opaque gradient the
-// overlap is invisible, for `mask-image` and any translucent stop it is not. The error is
-// one-sided, so the test asserts that: never meaningfully below Chromium, exact where no band
-// overlaps (across the linear ramp), and bounded above by the measured worst case (so it flags a
-// regression and passes a fix). The per-pixel gradient that removes the overlap is the follow-up
-// named in paint_sinks.cpp.
+// The first version of this comparison found that alpha along a translucent gradient came out up to
+// +64 of 255 too high (+119 on a radial diagonal) because the sink grew each solid band by half a
+// pixel, so neighbouring bands overlapped and composited a translucent stop twice. The bands now
+// abut exactly (band_edge in paint_sink.hpp), and what is left is the documented banding: a linear
+// ramp is within 2, the 32x32 radial and conic cells within a few steps of their ramp.
 bool chromium_comparison(Harness& harness) {
     struct Scene {
         const char* name;
         const char* css;
         const char* opacity;
-        int max_excess_row; // measured worst case over the 12 samples, plus a little slack
-        int max_excess_col;
+        int tolerance; // either direction, out of 255; measured worst case plus a little slack
     };
     const Scene scenes[] = {
-        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1", 70, 2},
-        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 36, 2},
-        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 70, 70},
-        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 36, 36},
-        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 75, 80},
-        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 40, 40},
+        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1", 3},
+        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 3},
+        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 10},
+        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 6},
+        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 24},
+        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 14},
     };
     bool ok = true;
     for (const Scene& scene : scenes) {
@@ -303,12 +299,10 @@ bool chromium_comparison(Harness& harness) {
             const std::uint32_t at = layer_mask_reference::kSampleAt[i];
             const int row = pixel_at(pixels, at, 32)[1] - reference->row32[i];
             const int col = pixel_at(pixels, 32, at)[1] - reference->col32[i];
-            const bool inside = row >= -6 && row <= scene.max_excess_row && col >= -6 &&
-                                col <= scene.max_excess_col;
-            if (!inside) {
+            if (std::abs(row) > scene.tolerance || std::abs(col) > scene.tolerance) {
                 std::cerr << "layer_mask_gpu: " << scene.name << " at " << at << ": row "
                           << (row >= 0 ? "+" : "") << row << ", column " << (col >= 0 ? "+" : "")
-                          << col << " against Chromium\n";
+                          << col << " against Chromium (tolerance " << scene.tolerance << ")\n";
                 ok = false;
             }
         }
@@ -317,6 +311,55 @@ bool chromium_comparison(Harness& harness) {
         ok = expect(pixel_at(pixels, 32, 32)[0] == 0 && pixel_at(pixels, 32, 32)[2] == 0,
                     "only green shows through") &&
              ok;
+    }
+    return ok;
+}
+
+// The overlap bug itself, without a mask: a translucent `background-image` ramp at a fractional
+// position and size, with anti-aliasing on and off. Every interior pixel must be the ideal CSS ramp
+// within the band quantisation; a doubly composited band would show as a 20+ step excess.
+bool translucent_gradient_is_composited_once(Harness& harness) {
+    bool ok = true;
+    for (const bool aa : {false, true}) {
+        using tessera::ui::Node;
+        using tessera::ui::style::ComputedStyle;
+        Node root(1);
+        root.set_bounds({0.0f, 0.0f, 64.0f, 64.0f});
+        auto node = std::make_unique<Node>(2);
+        node->set_bounds({8.3f, 8.0f, 47.7f, 48.0f});
+        root.add_child(std::move(node));
+        StubStyles styles;
+        ComputedStyle style;
+        style.set("background-image", "linear-gradient(90deg, rgba(0, 255, 0, 0), #00ff00)");
+        styles.set(2, style);
+        clear_tree(root);
+
+        auto target = harness.device->create_render_target(target_desc());
+        auto commands = harness.device->create_command_list();
+        Batched2DConfig config;
+        config.enable_aa = aa;
+        config.golden_mode = !aa;
+        {
+            Batched2DRenderer renderer(*harness.device, *harness.pipeline, *harness.white, config,
+                                       GlassPipelines{});
+            tessera::ui::paint::Batched2DSink sink(renderer);
+            renderer.begin(*commands, *target, target_desc());
+            (void)tessera::ui::paint::paint_scene(root, styles, sink);
+            renderer.end();
+            commands->submit();
+        }
+        const auto pixels = read_target(*harness.device, *target);
+        int worst = 0;
+        for (std::uint32_t x = 10; x < 54; ++x) {
+            const float alpha = (static_cast<float>(x) + 0.5f - 8.3f) / 47.7f;
+            const int ideal = static_cast<int>(std::lround(255.0f * alpha));
+            worst = std::max(worst, std::abs(pixel_at(pixels, x, 32)[1] - ideal));
+        }
+        if (worst > 6) {
+            std::cerr << "layer_mask_gpu: translucent ramp (aa " << aa << ") is " << worst
+                      << " off the ideal ramp\n";
+            ok = false;
+        }
     }
     return ok;
 }
@@ -407,6 +450,7 @@ int main(int argc, char** argv) {
     ok = frames_repeat(harness) && ok;
     ok = paint_path(harness) && ok;
     ok = chromium_comparison(harness) && ok;
+    ok = translucent_gradient_is_composited_once(harness) && ok;
     if (argc > 1 && std::string(argv[1]) == "--dump") {
         dump_masks(harness);
     }

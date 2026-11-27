@@ -29,14 +29,18 @@ using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::PaintData;
 using tessera::ui::RadialGradient;
+using tessera::ui::paint::ConicBand;
 using tessera::ui::paint::ConicGradientDraw;
 using tessera::ui::paint::GradientDraw;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintSink;
+using tessera::ui::paint::RadialBand;
 using tessera::ui::paint::RadialGradientDraw;
 using tessera::ui::paint::RoundedClip;
 using tessera::ui::paint::sample_linear_gradient;
 using tessera::ui::paint::StyleProvider;
+using tessera::ui::paint::tessellate_conic_gradient;
+using tessera::ui::paint::tessellate_radial_gradient;
 using tessera::ui::paint::TextDraw;
 using tessera::ui::style::ComputedStyle;
 
@@ -316,9 +320,77 @@ bool test_conic_gradient() {
            expect(draw->clip.rounded(), "border radius clips the conic gradient");
 }
 
+// The radial and conic cells tile the box exactly (issue #617, the Chromium comparison of
+// `mask-image`): a cell grown past its neighbour composited a translucent stop twice. On a
+// fractional box every cell row must run edge to edge with no gap and no overlap, and the cells
+// must add up to the box, for the grid the radial shape fills when its ellipse covers the box and
+// for the conic one, which always fills it.
+template<typename Band>
+bool tiles_without_overlap(const std::vector<Band>& bands, const Rect& box, const char* what) {
+    constexpr float kEps = 1.0e-3f;
+    double area = 0.0;
+    bool ok = expect(!bands.empty(), what);
+    for (std::size_t i = 0; i < bands.size(); ++i) {
+        area += static_cast<double>(bands[i].rect.width) * bands[i].rect.height;
+        if (i + 1 < bands.size() && bands[i + 1].rect.y == bands[i].rect.y) {
+            const float gap = bands[i + 1].rect.x - (bands[i].rect.x + bands[i].rect.width);
+            if (std::abs(gap) > kEps) {
+                std::cerr << "paint_gradient: " << what << " cells " << i << " and " << i + 1
+                          << " are " << gap << " apart\n";
+                ok = false;
+            }
+        }
+    }
+    const double box_area = static_cast<double>(box.width) * box.height;
+    ok = expect(std::abs(area - box_area) < 0.01, "the cells add up to the box area") && ok;
+    const Band& first = bands.front();
+    const Band& last = bands.back();
+    ok = expect(std::abs(first.rect.x - box.x) < kEps && std::abs(first.rect.y - box.y) < kEps,
+                "the first cell starts at the box corner") &&
+         ok;
+    ok = expect(std::abs(last.rect.x + last.rect.width - (box.x + box.width)) < kEps &&
+                    std::abs(last.rect.y + last.rect.height - (box.y + box.height)) < kEps,
+                "the last cell ends at the opposite corner") &&
+         ok;
+    return ok;
+}
+
+bool test_cells_tile_without_overlap() {
+    const Rect box{8.3f, 7.9f, 47.7f, 48.1f};
+    bool ok = true;
+    {
+        RadialGradientDraw draw;
+        draw.rect = box;
+        draw.center_x = box.x + box.width * 0.5f;
+        draw.center_y = box.y + box.height * 0.5f;
+        draw.radius_x = 1000.0f; // the ellipse covers the whole box, so no cell is skipped
+        draw.radius_y = 1000.0f;
+        draw.stop_count = 2;
+        draw.stops[0] = {0.0f, {0.0f, 0.0f, 0.0f, 0.0f}};
+        draw.stops[1] = {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}};
+        std::vector<RadialBand> bands;
+        tessellate_radial_gradient(draw, [&](const RadialBand& band) { bands.push_back(band); });
+        ok = tiles_without_overlap(bands, box, "radial cells") && ok;
+    }
+    {
+        ConicGradientDraw draw;
+        draw.rect = box;
+        draw.center_x = box.x + box.width * 0.5f;
+        draw.center_y = box.y + box.height * 0.5f;
+        draw.stop_count = 2;
+        draw.stops[0] = {0.0f, {0.0f, 0.0f, 0.0f, 0.0f}};
+        draw.stops[1] = {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}};
+        std::vector<ConicBand> bands;
+        tessellate_conic_gradient(draw, [&](const ConicBand& band) { bands.push_back(band); });
+        ok = tiles_without_overlap(bands, box, "conic cells") && ok;
+    }
+    return ok;
+}
+
 } // namespace
 int main() {
     bool ok = true;
+    ok = test_cells_tile_without_overlap() && ok;
     ok = test_normalization_order_and_opacity() && ok;
     ok = test_cap_and_opacity() && ok;
     ok = test_no_gradient_path() && ok;

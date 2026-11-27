@@ -85,12 +85,15 @@ void Batched2DSink::fill_linear_gradient(const GradientDraw& draw) {
     const float span =
         std::max(draw.rect.width * std::abs(dx) + draw.rect.height * std::abs(dy), 1.0f);
     constexpr int kBands = 64;
+    // The bands abut exactly (band_edge): no overlap, so a translucent stop is composited once.
     if (std::abs(dx) >= std::abs(dy)) {
         const float band = draw.rect.width / static_cast<float>(kBands);
         for (int index = 0; index < kBands; ++index) {
             const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
             const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
-            renderer_->push_rect({x - band * 0.5f, draw.rect.y, band + 0.5f, draw.rect.height},
+            const float left = band_edge(draw.rect.x, draw.rect.width, index, kBands);
+            const float right = band_edge(draw.rect.x, draw.rect.width, index + 1, kBands);
+            renderer_->push_rect({left, draw.rect.y, right - left, draw.rect.height},
                                  sample_linear_gradient(draw, t));
         }
     } else {
@@ -98,7 +101,9 @@ void Batched2DSink::fill_linear_gradient(const GradientDraw& draw) {
         for (int index = 0; index < kBands; ++index) {
             const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
             const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
-            renderer_->push_rect({draw.rect.x, y - band * 0.5f, draw.rect.width, band + 0.5f},
+            const float top = band_edge(draw.rect.y, draw.rect.height, index, kBands);
+            const float bottom = band_edge(draw.rect.y, draw.rect.height, index + 1, kBands);
+            renderer_->push_rect({draw.rect.x, top, draw.rect.width, bottom - top},
                                  sample_linear_gradient(draw, t));
         }
     }
