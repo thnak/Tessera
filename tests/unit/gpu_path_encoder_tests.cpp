@@ -5,6 +5,7 @@
 // buffer / push block plan. No GPU is involved; tests/gpu/batched2d/path_raster_gpu_tests.cpp runs
 // the same encoding through the compute passes.
 
+#include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_encoder.hpp"
 
 #include <array>
@@ -223,6 +224,69 @@ void test_plan() {
            "a larger scale bound reserves more bin nodes");
 }
 
+void test_document() {
+    path::PathShape shape;
+    shape.path.segments.push_back({path::SegmentKind::move_to, {0, 0}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::line_to, {20, 0}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::line_to, {20, 10}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::close, {}, {}, {}});
+    shape.paint.fill = path::Rgba8{9, 8, 7, 255};
+    const std::array<path::PathShape, 1> shapes{shape};
+
+    expect(path::document_scale_bucket(0.3f) == 1.0f && path::document_scale_bucket(1.0f) == 1.0f &&
+               path::document_scale_bucket(1.01f) == 2.0f &&
+               path::document_scale_bucket(5.0f) == 8.0f &&
+               path::document_scale_bucket(path::kMaxDocumentScale) == path::kMaxDocumentScale,
+           "scale buckets are powers of two");
+    expect(path::document_scale_bucket(0.0f) == 0.0f &&
+               path::document_scale_bucket(-1.0f) == 0.0f &&
+               path::document_scale_bucket(1000.0f) == 0.0f &&
+               path::document_scale_bucket(std::nanf("")) == 0.0f,
+           "a scale without a bucket keeps the CPU route");
+
+    const auto document = path::make_gpu_document(shapes, 1.0f);
+    expect(document && document->encoded.paths.empty() && document->encoded.path_count == 1 &&
+               document->encoded.fill_count == 3,
+           "a document keeps geometry and no per-raster records");
+
+    // The records of a scaled raster equal the legacy route: encode the pre-scaled shape and
+    // compare the affine and device box the shader reads.
+    const std::array<path::PathAffine, 1> view{path::document_view(2.0f)};
+    const auto records = path::make_path_records(document->encoded, view, 100, 40);
+    expect(records.size() == path::kGpuPathWords && as_float(records[0]) == 2.0f &&
+               as_float(records[3]) == 2.0f && records[12] == 0U,
+           "the document view is a uniform scale record");
+    expect(records[10] == 41U && records[11] == 21U, "the device box follows the scaled bounds");
+    expect(document->encoded.paths.empty(), "making records leaves the shared document alone");
+
+    path::GpuPathDocumentCache cache;
+    path::PathTextureKey key;
+    key.path_id = 7;
+    key.path_version = 1;
+    key.width = 20;
+    key.height = 10;
+    const auto first = cache.acquire(key, shapes, 1.0f);
+    key.width = 40;
+    key.height = 20;
+    key.scale_milli = 2000;
+    const auto resized = cache.acquire(key, shapes, 1.0f);
+    expect(first && first == resized && cache.stats().misses == 1 && cache.stats().hits == 1,
+           "a size change reuses the encoded document");
+    const auto bigger = cache.acquire(key, shapes, 3.0f);
+    expect(bigger && bigger != first && bigger->max_scale == 4.0f && cache.stats().misses == 2,
+           "a larger bucket encodes a second document");
+    key.path_version = 2;
+    expect(cache.acquire(key, shapes, 1.0f) != first, "a geometry version bump is a new document");
+    expect(cache.acquire(key, shapes, 100.0f) == nullptr, "an out-of-range scale has no document");
+
+    path::GpuPathDocumentCache tiny(1);
+    key.path_version = 1;
+    (void)tiny.acquire(key, shapes, 1.0f);
+    (void)tiny.acquire(key, shapes, 2.0f);
+    expect(tiny.stats().documents == 1 && tiny.stats().evictions == 1,
+           "the byte bound evicts the least recently used document");
+}
+
 } // namespace
 
 int main() {
@@ -232,6 +296,7 @@ int main() {
     test_encode_strokes();
     test_encode_dashes();
     test_plan();
+    test_document();
     if (!g_ok) {
         return 1;
     }

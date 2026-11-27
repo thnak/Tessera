@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_encoder.hpp"
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
 #include "tessera/rendering/path/gpu_path_scene.hpp"
@@ -67,12 +68,17 @@ struct GpuPathRasterizer::Impl {
 
     // One queued raster: its encoded words and sizes, held until flush() packs the batch.
     struct Job {
-        EncodedGpuScene encoded;
+        std::shared_ptr<const EncodedGpuScene> scene; // shared when it comes from a document
+        std::vector<std::uint32_t> paths;             // this raster's records (kGpuPathWords each)
         PathRasterLayout layout;
         rhi::Texture* target = nullptr;
         rhi::Extent2D extent;
         std::size_t pitch = 0;
     };
+
+    [[nodiscard]] std::expected<void, GpuRasterError>
+    queue(std::shared_ptr<const EncodedGpuScene> scene, std::vector<std::uint32_t> paths,
+          float max_scale, rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes);
 
     struct Flight {
         std::unique_ptr<rhi::CommandList> list;
@@ -157,10 +163,10 @@ struct GpuPathRasterizer::Impl {
     [[nodiscard]] static Totals totals_of(const std::vector<Job>& jobs) {
         Totals total;
         for (const Job& job : jobs) {
-            total.segs += job.encoded.segs.size();
-            total.paths += job.encoded.paths.size();
-            total.strokes += job.encoded.strokes.size();
-            total.dashes += job.encoded.dashes.size();
+            total.segs += job.scene->segs.size();
+            total.paths += job.paths.size();
+            total.strokes += job.scene->strokes.size();
+            total.dashes += job.scene->dashes.size();
             total.work += job.layout.work_words;
             total.output += job.layout.output_words;
         }
@@ -169,10 +175,10 @@ struct GpuPathRasterizer::Impl {
 
     [[nodiscard]] bool fits(const Job& job) const {
         const Totals total = totals_of(pending);
-        return total.segs + job.encoded.segs.size() <= kIndexLimit &&
-               total.paths + job.encoded.paths.size() <= kIndexLimit &&
-               total.strokes + job.encoded.strokes.size() <= kIndexLimit &&
-               total.dashes + job.encoded.dashes.size() <= kIndexLimit &&
+        return total.segs + job.scene->segs.size() <= kIndexLimit &&
+               total.paths + job.paths.size() <= kIndexLimit &&
+               total.strokes + job.scene->strokes.size() <= kIndexLimit &&
+               total.dashes + job.scene->dashes.size() <= kIndexLimit &&
                total.work + job.layout.work_words <= kIndexLimit &&
                total.output + job.layout.output_words <= kIndexLimit;
     }
@@ -224,19 +230,19 @@ struct GpuPathRasterizer::Impl {
             record.out_base = static_cast<std::uint32_t>(base.output);
             record.stroke_base = static_cast<std::uint32_t>(base.strokes);
             record.dash_base = static_cast<std::uint32_t>(base.dashes);
-            put(kSegs, job.encoded.segs, base.segs);
-            put(kPaths, job.encoded.paths, base.paths);
-            put(kStrokes, job.encoded.strokes, base.strokes);
-            put(kDashes, job.encoded.dashes, base.dashes);
-            base.segs += job.encoded.segs.size();
-            base.paths += job.encoded.paths.size();
-            base.strokes += job.encoded.strokes.size();
-            base.dashes += job.encoded.dashes.size();
+            put(kSegs, job.scene->segs, base.segs);
+            put(kPaths, job.paths, base.paths);
+            put(kStrokes, job.scene->strokes, base.strokes);
+            put(kDashes, job.scene->dashes, base.dashes);
+            base.segs += job.scene->segs.size();
+            base.paths += job.paths.size();
+            base.strokes += job.scene->strokes.size();
+            base.dashes += job.scene->dashes.size();
             base.work += job.layout.work_words;
             base.output += job.layout.output_words;
             max_clear = std::max(max_clear, job.layout.push.nodes_base);
-            max_stroke = std::max(max_stroke, job.encoded.stroke_count);
-            max_seg = std::max(max_seg, job.encoded.seg_count);
+            max_stroke = std::max(max_stroke, job.scene->stroke_count);
+            max_seg = std::max(max_seg, job.scene->seg_count);
             max_width = std::max(max_width, job.extent.width);
             max_height = std::max(max_height, job.extent.height);
         }
@@ -324,36 +330,63 @@ std::expected<void, GpuRasterError> GpuPathRasterizer::enqueue(std::span<const P
                                                                rhi::Texture& target,
                                                                rhi::Extent2D extent,
                                                                std::uint64_t max_row_nodes) {
-    if (!supported(impl_->device)) {
-        return std::unexpected(GpuRasterError::unsupported);
-    }
-    if (impl_->pending.size() >= impl_->config.max_jobs_per_batch) {
-        return std::unexpected(GpuRasterError::batch_full);
-    }
     if (extent.width == 0U || extent.height == 0U) {
         return std::unexpected(GpuRasterError::too_large);
     }
+    auto scene = std::make_shared<EncodedGpuScene>(
+        encode_gpu_scene(gpu_scene_from_shapes(shapes), extent.width, extent.height));
+    std::vector<std::uint32_t> paths = std::move(scene->paths);
+    scene->paths.clear();
+    return impl_->queue(std::move(scene), std::move(paths), 1.0f, target, extent, max_row_nodes);
+}
 
-    Impl::Job job;
-    job.encoded = encode_gpu_scene(gpu_scene_from_shapes(shapes), extent.width, extent.height);
+std::expected<void, GpuRasterError>
+GpuPathRasterizer::enqueue(std::shared_ptr<const GpuPathDocument> document, float scale,
+                           rhi::Texture& target, rhi::Extent2D extent,
+                           std::uint64_t max_row_nodes) {
+    if (!document || extent.width == 0U || extent.height == 0U || !(scale > 0.0f) ||
+        scale > document->max_scale) {
+        return std::unexpected(GpuRasterError::too_large);
+    }
+    const PathAffine view = document_view(scale);
+    std::vector<PathAffine> matrices(document->encoded.path_count, view);
+    std::vector<std::uint32_t> paths =
+        make_path_records(document->encoded, matrices, extent.width, extent.height);
+    std::shared_ptr<const EncodedGpuScene> scene(document, &document->encoded);
+    return impl_->queue(std::move(scene), std::move(paths), document->max_scale, target, extent,
+                        max_row_nodes);
+}
+
+std::expected<void, GpuRasterError> GpuPathRasterizer::Impl::queue(
+    std::shared_ptr<const EncodedGpuScene> scene, std::vector<std::uint32_t> paths, float max_scale,
+    rhi::Texture& target, rhi::Extent2D extent, std::uint64_t max_row_nodes) {
+    if (!GpuPathRasterizer::supported(device)) {
+        return std::unexpected(GpuRasterError::unsupported);
+    }
+    if (pending.size() >= config.max_jobs_per_batch) {
+        return std::unexpected(GpuRasterError::batch_full);
+    }
+    Job job;
+    job.scene = std::move(scene);
+    job.paths = std::move(paths);
     job.pitch = rhi::aligned_texture_copy_pitch(extent.width, rhi::TextureFormat::R8G8B8A8Unorm);
-    const auto layout = plan_path_raster(job.encoded, extent.width, extent.height,
-                                         static_cast<std::uint32_t>(job.pitch / 4U));
+    const auto layout = plan_path_raster(*job.scene, extent.width, extent.height,
+                                         static_cast<std::uint32_t>(job.pitch / 4U), max_scale);
     if (!layout || groups(layout->push.nodes_base, kGroupSize) > kMaxGroups ||
-        groups(job.encoded.seg_count, kGroupSize) > kMaxGroups ||
+        groups(job.scene->seg_count, kGroupSize) > kMaxGroups ||
         groups(extent.width, kTile) > kMaxGroups || groups(extent.height, kTile) > kMaxGroups) {
         return std::unexpected(GpuRasterError::too_large);
     }
-    if (max_row_nodes != 0 && job.encoded.row_nodes > max_row_nodes) {
+    if (max_row_nodes != 0 && job.scene->row_nodes > max_row_nodes) {
         return std::unexpected(GpuRasterError::too_dense);
     }
     job.layout = *layout;
     job.target = &target;
     job.extent = extent;
-    if (!impl_->fits(job)) {
+    if (!fits(job)) {
         return std::unexpected(GpuRasterError::batch_full);
     }
-    impl_->pending.push_back(std::move(job));
+    pending.push_back(std::move(job));
     return {};
 }
 

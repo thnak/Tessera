@@ -12,6 +12,8 @@
 
 namespace tessera::rendering::path {
 
+struct GpuPathDocument;
+
 // The four compute passes of the GPU path rasterizer (ADR-071), as the backend describes them. The
 // path library knows no backend: the Vulkan lib builds these with `path_raster_pipeline_desc`.
 struct GpuPathPipelineDescs {
@@ -83,6 +85,13 @@ public:
                                                               rhi::Texture& target,
                                                               rhi::Extent2D extent,
                                                               std::uint64_t max_row_nodes = 0);
+
+    // Queues a raster of a scale-independent `document` at `scale` (<= document->max_scale): the
+    // document's encoded geometry is shared, not re-encoded, and only this raster's per-path
+    // records (64 bytes per path) are built. Same contract as the overload above otherwise.
+    [[nodiscard]] std::expected<void, GpuRasterError>
+    enqueue(std::shared_ptr<const GpuPathDocument> document, float scale, rhi::Texture& target,
+            rhi::Extent2D extent, std::uint64_t max_row_nodes = 0);
 
     // Drops the queued rasters without submitting them (their target textures are about to go away,
     // for example on device loss). Flights already submitted are untouched.

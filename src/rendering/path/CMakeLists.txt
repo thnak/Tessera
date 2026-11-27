@@ -6,6 +6,7 @@ add_library(tessera_path STATIC
     path_texture_cache.cpp
     path_texture_key.cpp
     gpu_path_encoder.cpp
+    gpu_path_document.cpp
     gpu_path_flatten.cpp
     gpu_path_rasterizer.cpp
     raster_route.cpp

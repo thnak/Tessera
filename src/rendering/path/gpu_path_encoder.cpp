@@ -41,7 +41,14 @@ namespace {
 // transformed local box (the fine pass skips a pixel outside it). An empty `matrices` is identity.
 void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> matrices,
                         std::uint32_t width, std::uint32_t height) {
-    encoded.paths.assign(static_cast<std::size_t>(encoded.path_count) * kGpuPathWords, 0);
+    encoded.paths = make_path_records(encoded, matrices, width, height);
+}
+
+std::vector<std::uint32_t> make_path_records(const EncodedGpuScene& encoded,
+                                             std::span<const PathAffine> matrices,
+                                             std::uint32_t width, std::uint32_t height) {
+    std::vector<std::uint32_t> paths(static_cast<std::size_t>(encoded.path_count) * kGpuPathWords,
+                                     0);
     for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
         const PathAffine m = matrices.empty() ? PathAffine{} : matrices[p];
         const auto& box = encoded.local_boxes[p];
@@ -57,7 +64,7 @@ void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> ma
         const auto clamp_to = [](float v, std::uint32_t limit) {
             return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
         };
-        std::uint32_t* record = &encoded.paths[static_cast<std::size_t>(p) * kGpuPathWords];
+        std::uint32_t* record = &paths[static_cast<std::size_t>(p) * kGpuPathWords];
         record[0] = bits(m.a);
         record[1] = bits(m.b);
         record[2] = bits(m.c);
@@ -75,6 +82,7 @@ void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> ma
                 ? 1U
                 : 0U;
     }
+    return paths;
 }
 
 EncodedGpuScene encode_gpu_scene(const GpuPathScene& scene, std::uint32_t width,
