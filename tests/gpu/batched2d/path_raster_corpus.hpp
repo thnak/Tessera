@@ -51,7 +51,8 @@ struct Scene {
     constexpr double kPi = 3.14159265358979323846;
     for (int i = 0; i < sides; ++i) {
         const double a = (start_degrees + 360.0 * i / sides) * kPi / 180.0;
-        points.push_back({quantize(cx + radius * std::cos(a)), quantize(cy + radius * std::sin(a))});
+        points.push_back(
+            {quantize(cx + radius * std::cos(a)), quantize(cy + radius * std::sin(a))});
     }
     return points;
 }
@@ -108,7 +109,8 @@ inline void append_edges(std::vector<float>& out, const Pts& points, bool closed
 }
 
 struct Line {
-    explicit Line(path::Rgba8 c) : color(c) {}
+    explicit Line(path::Rgba8 c)
+        : color(c) {}
     path::Rgba8 color;
     float width = 8.0f;
     path::GpuJoin join = path::GpuJoin::round;
@@ -150,8 +152,7 @@ constexpr path::Rgba8 kOrange{240, 140, 30, 255};
 inline void add_fill_rules(std::vector<Scene>& out) {
     const Pts star = pentagram(48, 50, 42);
     out.push_back(scene("fill_star_non_zero", {fill({star}, kRed)}));
-    out.push_back(scene("fill_star_even_odd",
-                        {fill({star}, kRed, path::GpuFillRule::even_odd)}));
+    out.push_back(scene("fill_star_even_odd", {fill({star}, kRed, path::GpuFillRule::even_odd)}));
     // Two nested squares (turned off the pixel grid): the same winding fills the middle under
     // non_zero and punches a hole under even_odd; opposite windings punch it under both.
     const Pts outer = rotated(polygon(48, 48, 42, 4, 45.0), 48, 48, 12.0);
@@ -165,9 +166,9 @@ inline void add_fill_rules(std::vector<Scene>& out) {
                          fill({polygon(60, 48, 30, 64, 0.0)}, {40, 80, 230, 170})}));
     // An axis-aligned rectangle on fractional edges: ThorVG snaps it to whole pixels, the GPU
     // path keeps the coverage, so the two differ here by design.
-    out.push_back(scene("fill_rect_fractional",
-                        {fill({{{10.5f, 12.25f}, {80.75f, 12.25f}, {80.75f, 70.5f}, {10.5f, 70.5f}}},
-                              kGreen)}));
+    out.push_back(scene(
+        "fill_rect_fractional",
+        {fill({{{10.5f, 12.25f}, {80.75f, 12.25f}, {80.75f, 70.5f}, {10.5f, 70.5f}}}, kGreen)}));
 }
 
 inline void add_caps_and_joins(std::vector<Scene>& out) {
@@ -220,23 +221,23 @@ inline void add_dashes(std::vector<Scene>& out) {
     Line lines{kBlue};
     lines.width = 6.0f;
     lines.dash = {10.0f, 6.0f};
-    out.push_back(scene("dash_even_butt", {stroke({{8, 16}, {88, 16}}, lines),
-                                           stroke({{8, 34}, {88, 70}}, lines),
-                                           stroke({{8, 88.5f}, {88, 88.5f}}, lines)}));
+    out.push_back(scene("dash_even_butt",
+                        {stroke({{8, 16}, {88, 16}}, lines), stroke({{8, 34}, {88, 70}}, lines),
+                         stroke({{8, 88.5f}, {88, 88.5f}}, lines)}));
     Line odd{kRed};
     odd.width = 6.0f;
     odd.cap = path::GpuCap::round;
     odd.dash = {8.0f, 3.0f, 4.0f}; // odd: repeats to {8,3,4,8,3,4}
     odd.dash_offset = 5.0f;
-    out.push_back(scene("dash_odd_offset_round", {stroke({{10, 80}, {30, 16}, {58, 70}, {86, 18}},
-                                                         odd)}));
+    out.push_back(
+        scene("dash_odd_offset_round", {stroke({{10, 80}, {30, 16}, {58, 70}, {86, 18}}, odd)}));
     Line pentagon{kGreen};
     pentagon.width = 5.0f;
     pentagon.join = path::GpuJoin::miter;
     pentagon.dash = {7.0f, 5.0f};
     pentagon.closed = true;
-    out.push_back(scene("dash_closed_polygon_butt",
-                        {stroke(polygon(48, 50, 38, 5, -90.0), pentagon)}));
+    out.push_back(
+        scene("dash_closed_polygon_butt", {stroke(polygon(48, 50, 38, 5, -90.0), pentagon)}));
     Line circle{kOrange};
     circle.width = 7.0f;
     circle.cap = path::GpuCap::square;
@@ -260,38 +261,36 @@ inline void add_degenerate(std::vector<Scene>& out) {
     square_dot.cap = path::GpuCap::square;
     Line butt_dot = dot;
     butt_dot.cap = path::GpuCap::butt;
-    out.push_back(scene("degenerate_zero_length_dot",
-                        {stroke({{24, 24}, {24, 24}}, dot), stroke({{64, 40}, {64, 40}}, square_dot),
-                         stroke({{40, 74}, {40, 74}}, butt_dot),
-                         stroke({{8, 90}, {88, 90}}, Line{kBlue})}));
+    out.push_back(
+        scene("degenerate_zero_length_dot",
+              {stroke({{24, 24}, {24, 24}}, dot), stroke({{64, 40}, {64, 40}}, square_dot),
+               stroke({{40, 74}, {40, 74}}, butt_dot), stroke({{8, 90}, {88, 90}}, Line{kBlue})}));
     Line through{kGreen};
     through.width = 6.0f;
     through.join = path::GpuJoin::miter;
     const Pts triangle = rotated({{14, 80}, {52, 80}, {90, 80}, {52, 22}, {33, 51}}, 48, 50, 9.0);
-    out.push_back(scene("degenerate_collinear",
-                        {fill({triangle}, {240, 140, 30, 255}),
-                         stroke(rotated({{10, 10}, {30, 20}, {50, 30}, {70, 40}}, 48, 50, 0.0),
-                                through)}));
+    out.push_back(
+        scene("degenerate_collinear",
+              {fill({triangle}, {240, 140, 30, 255}),
+               stroke(rotated({{10, 10}, {30, 20}, {50, 30}, {70, 40}}, 48, 50, 0.0), through)}));
     Line hairline{kBlue};
     hairline.width = 0.25f;
-    out.push_back(scene("degenerate_thin",
-                        {fill({{{6, 10}, {90, 40}, {6, 10.3f}}}, kRed),
-                         stroke({{6, 60}, {90, 80}}, hairline)}));
+    out.push_back(scene("degenerate_thin", {fill({{{6, 10}, {90, 40}, {6, 10.3f}}}, kRed),
+                                            stroke({{6, 60}, {90, 80}}, hairline)}));
     out.push_back(scene("degenerate_empty", {}, true));
     Line edge{kBlue};
     edge.width = 6.0f;
-    out.push_back(scene("degenerate_outside_target",
-                        {fill({polygon(140, 40, 20, 12, 0.0)}, kRed),
-                         fill({polygon(-40, 50, 20, 12, 0.0)}, kRed),
-                         stroke({{-60, 20}, {-10, 90}}, edge), stroke({{20, 160}, {80, 220}}, edge)},
-                        true));
+    out.push_back(scene(
+        "degenerate_outside_target",
+        {fill({polygon(140, 40, 20, 12, 0.0)}, kRed), fill({polygon(-40, 50, 20, 12, 0.0)}, kRed),
+         stroke({{-60, 20}, {-10, 90}}, edge), stroke({{20, 160}, {80, 220}}, edge)},
+        true));
     Line cut{kGreen};
     cut.width = 9.0f;
     cut.cap = path::GpuCap::round;
-    out.push_back(scene("degenerate_clipped_by_edge",
-                        {fill({polygon(2, 2, 34, 48, 0.0)}, kRed),
-                         fill({polygon(90, 98, 30, 48, 0.0)}, kBlue),
-                         stroke({{40, 48}, {140, 70}}, cut)}));
+    out.push_back(scene("degenerate_clipped_by_edge", {fill({polygon(2, 2, 34, 48, 0.0)}, kRed),
+                                                       fill({polygon(90, 98, 30, 48, 0.0)}, kBlue),
+                                                       stroke({{40, 48}, {140, 70}}, cut)}));
 }
 
 [[nodiscard]] inline std::vector<Scene> make_corpus() {

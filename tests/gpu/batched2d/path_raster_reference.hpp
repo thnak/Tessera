@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
 // The ThorVG-side twin of a GPU path scene (issue #685): the same geometry as PathShape values for
-// the PathRasterizer seam, with the dashes cut on the CPU. ThorVG's seam has no dash (path_model.hpp),
-// so a dashed GPU shape becomes the same dashes as open sub-paths stroked with the shape's own cap
-// and join, as in tools/poc/compute_raster. The pattern restarts at the start of each contour and
-// does not wrap into a join at a closed contour's end (SVG).
+// the PathRasterizer seam, with the dashes cut on the CPU. ThorVG's seam has no dash
+// (path_model.hpp), so a dashed GPU shape becomes the same dashes as open sub-paths stroked with
+// the shape's own cap and join, as in tools/poc/compute_raster. The pattern restarts at the start
+// of each contour and does not wrap into a join at a closed contour's end (SVG).
 
 #pragma once
 
@@ -170,7 +170,8 @@ dash_runs(const path::GpuPathShape& shape, const Contour& contour) {
             continue;
         }
         std::vector<path::PointF> points;
-        points.push_back({shape.contours[contour.first * 4], shape.contours[contour.first * 4 + 1]});
+        points.push_back(
+            {shape.contours[contour.first * 4], shape.contours[contour.first * 4 + 1]});
         for (std::size_t s = contour.first; s < contour.first + contour.count; ++s) {
             points.push_back({shape.contours[s * 4 + 2], shape.contours[s * 4 + 3]});
         }
@@ -193,7 +194,8 @@ dash_runs(const path::GpuPathShape& shape, const Contour& contour) {
     return result;
 }
 
-[[nodiscard]] inline std::vector<path::PathShape> reference_shapes(const path::GpuPathScene& scene) {
+[[nodiscard]] inline std::vector<path::PathShape>
+reference_shapes(const path::GpuPathScene& scene) {
     std::vector<path::PathShape> shapes;
     for (const path::GpuPathShape& shape : scene.shapes) {
         shapes.push_back(reference_shape(shape));

@@ -123,8 +123,8 @@ int main(int argc, char** argv) {
                 any_ink = any_ink || first[i] != 0;
             }
             expect(any_ink != scene.expect_blank,
-                   scene.name + (scene.expect_blank ? ": stays fully transparent"
-                                                    : ": draws something"));
+                   scene.name +
+                       (scene.expect_blank ? ": stays fully transparent" : ": draws something"));
             RgbaImage frame;
             frame.width = kSize;
             frame.height = kSize;
@@ -146,12 +146,13 @@ int main(int argc, char** argv) {
                 continue;
             }
             const auto baseline = tessera::harness::decode_png(bytes);
-            if (!expect(baseline.has_value() && baseline->width == kSize && baseline->height == kSize,
+            if (!expect(baseline.has_value() && baseline->width == kSize &&
+                            baseline->height == kSize,
                         scene.name + ": the golden decodes and has the corpus extent")) {
                 continue;
             }
-            const auto result = tessera::harness::compare_images(
-                CompareMode::Golden, frame, &*baseline, ComparePolicy{0, 0.0});
+            const auto result = tessera::harness::compare_images(CompareMode::Golden, frame,
+                                                                 &*baseline, ComparePolicy{0, 0.0});
             if (!expect(result.passed(), scene.name + ": bit-identical to the golden")) {
                 std::cerr << "path_raster_golden: " << scene.name
                           << " mismatched=" << result.diff.mismatched

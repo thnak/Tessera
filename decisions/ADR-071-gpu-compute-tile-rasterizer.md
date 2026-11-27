@@ -85,6 +85,73 @@ subgroups), and Metal and lavapipe both provide compute.
   (ADR-068, #673), conic gradients for dials (#617), glyph outlines.
 - Per-frame budget gates (frame time and bytes uploaded) keep the claim measured.
 
+## Corpus, ThorVG comparison and goldens (#685)
+
+The committed corpus lives in code: [`path_raster_corpus.hpp`](../tests/gpu/batched2d/path_raster_corpus.hpp),
+27 scenes of 96 x 96 px built from `GpuPathShape` values. It covers both fill rules (self-intersecting
+star, nested contours with the same and opposite winding, alpha overlap, a fractional axis-aligned
+rectangle), every cap (butt, round, square), every join (miter, bevel, round) and the miter-limit
+bevel fallback, closed against open contours, dashes (even array, odd array with offset, closed
+polygon, curve), and the degenerate cases (zero-length segment inside a line and alone, collinear
+points, a sliver and a hairline, an empty scene, a shape fully outside the target, a shape clipped
+by the target edge). Two tests iterate it:
+
+- `path_raster_thorvg_compare` rasterizes every scene with the GPU passes and with ThorVG and diffs
+  them with `rendering::golden::compare_rgba` on premultiplied channels. ThorVG has no dash in the
+  seam, so a dashed scene's reference is the same dashes cut on the CPU (`path_raster_reference.hpp`)
+  and stroked as open sub-paths, as in the spike; every scene is expressible. The tolerance table is in
+  the test, one row per scene with the reason. Measured on lavapipe (llvmpipe, LLVM 21.1.8) as the
+  largest per-channel delta of 255 and the pixels over 4 / over 16 of 9216, with the enforced limit
+  (max / over 4 / over 16 pixels = measurement plus 25% or 2, counts x 1.5 + 1, a measured 0 stays 0).
+  Run `path_raster_thorvg_compare_tests --report` to print the measurements. It skips without Vulkan,
+  compute or ThorVG.
+- `path_raster_golden` renders every scene twice (byte-identical or it fails), then compares bit for bit
+  with [`tests/golden/gpu/path_raster/<scene>.png`](../tests/golden/gpu/path_raster) (straight-alpha
+  RGBA, the rasterizer's own output). It skips on a hardware device and registers on the lavapipe lane
+  only. Regenerate on a software device with `path_raster_golden_tests --update-goldens`, review the
+  PNGs, commit.
+
+| Scene | max | over 4 | over 16 | limit |
+| --- | --- | --- | --- | --- |
+| fill_star_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_star_even_odd | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_same_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_same_even_odd | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_opposite_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_circle_alpha_overlap | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_rect_fractional | 159 | 256 | 256 | 199 / 385 / 385 |
+| stroke_cap_butt | 20 | 37 | 7 | 25 / 57 / 12 |
+| stroke_cap_round | 24 | 99 | 27 | 30 / 150 / 42 |
+| stroke_cap_square | 20 | 32 | 7 | 25 / 49 / 12 |
+| stroke_join_miter | 6 | 16 | 0 | 8 / 25 / 0 |
+| stroke_join_bevel | 6 | 21 | 0 | 8 / 33 / 0 |
+| stroke_join_round | 16 | 57 | 0 | 20 / 87 / 0 |
+| stroke_miter_exceeds_limit | 5 | 6 | 0 | 7 / 10 / 0 |
+| stroke_closed_triangle_miter | 5 | 12 | 0 | 7 / 19 / 0 |
+| stroke_open_triangle_butt | 5 | 2 | 0 | 7 / 4 / 0 |
+| dash_even_butt | 5 | 2 | 0 | 7 / 4 / 0 |
+| dash_odd_offset_round | 21 | 191 | 3 | 27 / 288 / 6 |
+| dash_closed_polygon_butt | 52 | 18 | 2 | 65 / 28 / 4 |
+| dash_curve_square | 62 | 44 | 3 | 78 / 67 / 6 |
+| degenerate_zero_length_mid | 255 | 36 | 32 | 255 / 55 / 49 |
+| degenerate_zero_length_dot | 255 | 368 | 368 | 255 / 553 / 553 |
+| degenerate_collinear | 4 | 0 | 0 | 6 / 0 / 0 |
+| degenerate_thin | 4 | 0 | 0 | 6 / 0 / 0 |
+| degenerate_empty | 0 | 0 | 0 | 0 / 0 / 0 |
+| degenerate_outside_target | 0 | 0 | 0 | 0 / 0 / 0 |
+| degenerate_clipped_by_edge | 16 | 14 | 0 | 20 / 22 / 0 |
+
+Reading the table: the fills agree to the coverage rounding of two anti-aliasers (2 of 255, no pixel
+over 4). The strokes differ on edge pixels of joins, caps and dash ends (round caps and joins most:
+arc tessellation). `fill_rect_fractional` differs by up to 159 by design: ThorVG snaps an axis-aligned
+rectangle to whole pixels, the GPU keeps the coverage.
+
+Two rows record real GPU behavior, kept visible rather than loosened away. A zero-length segment
+inside a polyline (`A, B, B, C`) loses the miter tip at `B` (32 pixels, up to 255), and a lone
+zero-length segment with a round or square cap draws no dot (ThorVG and SVG draw one; 368 pixels).
+`gpu_scene_from_shapes` drops repeated points, so neither input reaches the GPU from the production
+path; the scenes build `GpuPathShape` directly to pin the behavior of the kernels themselves.
+
 ## Production pieces (2026-11-24)
 
 The consumer-side groundwork is in the tree, behind `supports_compute()`, with no caller in the

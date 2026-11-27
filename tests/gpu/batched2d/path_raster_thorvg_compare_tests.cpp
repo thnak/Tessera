@@ -116,15 +116,13 @@ constexpr Tolerance kTolerances[] = {
      "coverage rounding only."},
     {"degenerate_thin", 6, 0, 0,
      "A 0.3 px sliver and a 0.25 px hairline: both draw faint pixels that agree within 4."},
-    {"degenerate_empty", 0, 0, 0,
-     "No shapes: both blank, exactly."},
+    {"degenerate_empty", 0, 0, 0, "No shapes: both blank, exactly."},
     {"degenerate_outside_target", 0, 0, 0,
      "Shapes entirely outside the target: both blank, exactly."},
     {"degenerate_clipped_by_edge", 20, 22, 0,
      "Shapes cut by the target's edges and a round-capped stroke leaving it: coverage "
      "rounding only."},
 };
-
 
 int failures = 0;
 
@@ -213,12 +211,12 @@ bool run(rhi::Device& device, bool report) {
         expect(exact.max_channel_delta <= row->max_delta,
                scene.name + ": max channel delta " + std::to_string(exact.max_channel_delta) +
                    " exceeds " + std::to_string(row->max_delta));
-        expect(d4.mismatched <= row->over4,
-               scene.name + ": " + std::to_string(d4.mismatched) + " pixels over 4 exceed " +
-                   std::to_string(row->over4));
-        expect(d16.mismatched <= row->over16,
-               scene.name + ": " + std::to_string(d16.mismatched) + " pixels over 16 exceed " +
-                   std::to_string(row->over16));
+        expect(d4.mismatched <= row->over4, scene.name + ": " + std::to_string(d4.mismatched) +
+                                                " pixels over 4 exceed " +
+                                                std::to_string(row->over4));
+        expect(d16.mismatched <= row->over16, scene.name + ": " + std::to_string(d16.mismatched) +
+                                                  " pixels over 16 exceed " +
+                                                  std::to_string(row->over16));
     }
     return failures == 0;
 }

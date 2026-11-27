@@ -25,12 +25,12 @@ class GpuRaster {
 public:
     explicit GpuRaster(rendering::rhi::Device& device)
         : device_(device),
-          clear_(device.create_compute_pipeline(
-              rendering::vulkan::path_raster_pipeline_desc(rendering::vulkan::PathRasterPass::Clear))),
+          clear_(device.create_compute_pipeline(rendering::vulkan::path_raster_pipeline_desc(
+              rendering::vulkan::PathRasterPass::Clear))),
           expand_(device.create_compute_pipeline(rendering::vulkan::path_raster_pipeline_desc(
               rendering::vulkan::PathRasterPass::Stroke))),
-          bin_(device.create_compute_pipeline(
-              rendering::vulkan::path_raster_pipeline_desc(rendering::vulkan::PathRasterPass::Bin))),
+          bin_(device.create_compute_pipeline(rendering::vulkan::path_raster_pipeline_desc(
+              rendering::vulkan::PathRasterPass::Bin))),
           fine_(device.create_compute_pipeline(rendering::vulkan::path_raster_pipeline_desc(
               rendering::vulkan::PathRasterPass::Fine))) {}
 
@@ -49,8 +49,9 @@ public:
             throw std::runtime_error("the raster output is smaller than the target");
         }
         const auto storage = [&](const std::vector<std::uint32_t>& words, std::size_t minimum) {
-            auto buffer = device_.create_buffer(
-                {std::max(words.size(), minimum) * sizeof(std::uint32_t), rhi::BufferUsage::Storage});
+            auto buffer =
+                device_.create_buffer({std::max(words.size(), minimum) * sizeof(std::uint32_t),
+                                       rhi::BufferUsage::Storage});
             if (!words.empty()) {
                 buffer->write(words.data(), words.size() * sizeof(std::uint32_t));
             }
