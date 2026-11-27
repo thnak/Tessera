@@ -322,6 +322,12 @@ struct ComputePipelineDesc {
     std::size_t spirv_size = 0;             // bytes
     std::uint32_t storage_buffer_count = 0; // 1..kMaxComputeStorageBuffers
     std::uint32_t push_constant_size = 0;   // bytes, a multiple of 4
+    // RHI 1.22: the logical shader name for a backend that does not consume SPIR-V. WebGPU resolves
+    // it against its WGSL registry (`WgslProgram::compute_entry`), the way
+    // `PipelineDesc::shader_id` names a render program, and ignores the SPIR-V words. Empty means
+    // "use the SPIR-V words above"; Vulkan and null ignore it and still require them. The view must
+    // outlive creation.
+    std::string_view shader_id;
 };
 
 inline constexpr std::uint32_t kMaxComputeStorageBuffers = 8;

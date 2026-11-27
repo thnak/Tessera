@@ -10,6 +10,7 @@
 #include "tessera/rendering/webgpu/shader_registry.hpp"
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -70,11 +71,17 @@ public:
     [[nodiscard]] WGPUBuffer handle() const {
         return buffer_;
     }
+    // What the buffer was created for; compute validates a Storage buffer the way Vulkan and null
+    // do.
+    [[nodiscard]] rhi::BufferUsage usage() const {
+        return usage_;
+    }
 
 private:
     std::shared_ptr<WebGpuContext> context_;
     WGPUBuffer buffer_ = nullptr;
     std::size_t size_ = 0;
+    rhi::BufferUsage usage_ = rhi::BufferUsage::Vertex;
 };
 
 // Builds levels 1..levels-1 of `texture` from level 0 with one render pass per level and submits
@@ -213,6 +220,77 @@ private:
     WGPURenderPipeline pipeline_ = nullptr;
     std::uint32_t sample_count_ = 1;
     std::uint32_t uniform_size_ = 0;
+};
+
+// RHI 1.22 compute. Storage buffers sit at bindings 0..count-1 of group 0; the push-constant block
+// is a dynamic-offset uniform at this binding (WebGPU has no push constants).
+inline constexpr std::uint32_t kBindingComputePush = rhi::kMaxComputeStorageBuffers;
+
+class WebGpuComputePipeline final : public rhi::ComputePipeline {
+public:
+    WebGpuComputePipeline(std::shared_ptr<WebGpuContext> context,
+                          const rhi::ComputePipelineDesc& desc);
+    ~WebGpuComputePipeline() override;
+
+    [[nodiscard]] std::uint32_t storage_buffer_count() const override {
+        return storage_buffer_count_;
+    }
+    [[nodiscard]] std::uint32_t push_constant_size() const {
+        return push_constant_size_;
+    }
+    [[nodiscard]] WGPUComputePipeline handle() const {
+        return pipeline_;
+    }
+    [[nodiscard]] WGPUBindGroupLayout bind_group_layout() const {
+        return bind_group_layout_;
+    }
+
+private:
+    std::shared_ptr<WebGpuContext> context_;
+    std::uint32_t storage_buffer_count_ = 0;
+    std::uint32_t push_constant_size_ = 0;
+    WGPUBindGroupLayout bind_group_layout_ = nullptr;
+    WGPUPipelineLayout layout_ = nullptr;
+    WGPUComputePipeline pipeline_ = nullptr;
+};
+
+// The compute half of a command list (RHI 1.16/1.18). It owns the compute pass: one opens on the
+// first compute call and ends before any other encoder command, so the derived list calls
+// `end_compute_pass()` ahead of a render pass, a copy and the submit. WebGPU orders the dispatches
+// of one pass and makes each one's storage writes visible to the next, but `compute_barrier` still
+// ends the pass, so the ordering the RHI documents never depends on that.
+class WebGpuComputeCommands : public rhi::CommandList {
+public:
+    explicit WebGpuComputeCommands(std::shared_ptr<WebGpuContext> context);
+    ~WebGpuComputeCommands() override;
+
+    void bind_compute_pipeline(const rhi::ComputePipeline& pipeline) override;
+    void bind_compute_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
+    void compute_push_constants(const void* data, std::size_t size) override;
+    void dispatch(std::uint32_t x, std::uint32_t y, std::uint32_t z) override;
+    void dispatch_indirect(const rhi::Buffer& buffer, std::size_t offset) override;
+    void compute_barrier() override;
+    void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,
+                     std::size_t size) override;
+
+protected:
+    [[nodiscard]] virtual WGPUCommandEncoder compute_encoder() const = 0;
+    [[nodiscard]] virtual bool render_pass_open() const = 0;
+    void end_compute_pass();
+
+private:
+    void require_outside_render_pass(const char* call) const;
+    void begin_dispatch();
+
+    std::shared_ptr<WebGpuContext> compute_context_;
+    const WebGpuComputePipeline* compute_pipeline_ = nullptr;
+    std::array<const WebGpuBuffer*, rhi::kMaxComputeStorageBuffers> compute_buffers_{};
+    WGPUComputePassEncoder compute_pass_ = nullptr;
+    WGPUBindGroup compute_group_ = nullptr;
+    WGPUBuffer compute_arena_ = nullptr;
+    std::uint32_t compute_next_slice_ = 0;
+    std::uint32_t compute_push_offset_ = 0;
+    bool compute_push_written_ = false;
 };
 
 [[nodiscard]] std::unique_ptr<rhi::CommandList>

@@ -5,6 +5,7 @@
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 #include "webgpu_internal.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -174,6 +175,40 @@ public:
     // binding as the clip records.
     [[nodiscard]] bool supports_analytic_gradients() const override {
         return true;
+    }
+
+    // RHI 1.22 compute (issue #684): compute passes, read/write storage buffers, indirect dispatch
+    // and buffer atomics are core WebGPU. Pipelines come from the WGSL registry by `shader_id`.
+    [[nodiscard]] bool supports_compute() const override {
+        return true;
+    }
+
+    // The limits the device was created with, not the adapter's best: a device requested with the
+    // default limits reports WebGPU's guaranteed floor (workgroup size 256, 16 KiB of shared
+    // memory). Subgroup size is 0: it is not part of core WebGPU, so a shader must not assume it.
+    [[nodiscard]] rhi::ComputeCapabilities compute_capabilities() const override {
+        WGPULimits limits = WGPU_LIMITS_INIT;
+        rhi::ComputeCapabilities caps;
+        if (wgpuDeviceGetLimits(context_->device, &limits) != WGPUStatus_Success) {
+            return caps;
+        }
+        caps.max_workgroup_size_x = limits.maxComputeWorkgroupSizeX;
+        caps.max_workgroup_size_y = limits.maxComputeWorkgroupSizeY;
+        caps.max_workgroup_size_z = limits.maxComputeWorkgroupSizeZ;
+        caps.max_workgroup_invocations = limits.maxComputeInvocationsPerWorkgroup;
+        // `dispatch` validates 65535 on every backend, so a count a shader derives from this limit
+        // is never rejected; WebGPU's own floor is also 65535.
+        caps.max_workgroup_count =
+            std::min<std::uint32_t>(limits.maxComputeWorkgroupsPerDimension, 65535U);
+        caps.max_shared_memory_bytes = limits.maxComputeWorkgroupStorageSize;
+        caps.indirect_dispatch = true;
+        caps.buffer_atomics = true;
+        return caps;
+    }
+
+    std::unique_ptr<rhi::ComputePipeline>
+    create_compute_pipeline(const rhi::ComputePipelineDesc& desc) override {
+        return std::make_unique<WebGpuComputePipeline>(context_, desc);
     }
 
     [[nodiscard]] rhi::DeviceStatus status() const override {

@@ -101,7 +101,10 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // `src * (1 - dst.a) + dst * (1 - src.a)`), the combine step of a `mask-composite` layer that is
 // not `add` (issue #617). Appended enumerators and fixed blend factors on every backend, so there
 // is no capability to query.
-inline constexpr std::uint32_t kRhiVersionMinor = 21;
+// 1.22 (2026-11-27): additive `ComputePipelineDesc::shader_id` (issue #684): the WGSL registry name
+// a backend without SPIR-V resolves a compute pipeline from. A new defaulted field, so no existing
+// caller changes; Vulkan and null ignore it. WebGPU answers `supports_compute()` from this version.
+inline constexpr std::uint32_t kRhiVersionMinor = 22;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

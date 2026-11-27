@@ -150,7 +150,8 @@
       "targets": [
         "tessera_webgpu",
         "tessera_webgpu_mapping",
-        "webgpu_wasm_smoke"
+        "webgpu_wasm_smoke",
+        "webgpu_compute_conformance"
       ]
     },
     {

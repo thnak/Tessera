@@ -21,6 +21,11 @@ struct WgslProgram {
     std::string_view source;
     std::string_view vertex_entry = "vs_main";
     std::string_view fragment_entry = "fs_main";
+    // The entry point of a compute program (RHI 1.22, `rhi::ComputePipelineDesc::shader_id`). A
+    // compute program binds its storage buffers at group 0, bindings 0..count-1, every one declared
+    // `var<storage, read_write>`, and its push constants as a uniform at binding 8
+    // (`kBindingComputePush`); see docs/design/gpu/compute.md section 3.
+    std::string_view compute_entry = "main";
 };
 
 class ShaderRegistry {

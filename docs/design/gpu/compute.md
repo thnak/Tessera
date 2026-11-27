@@ -1,6 +1,6 @@
 # RHI compute
 
-- Status: Vulkan and the opt-in null device implemented (RHI 1.16 to 1.18); WebGPU and Metal open.
+- Status: Vulkan, WebGPU (RHI 1.22) and the opt-in null device implemented; Metal open.
 - Issues: #683 (the spike and 1.16), #684 (this completion). Decision: [ADR-071](../../../decisions/ADR-071-gpu-compute-tile-rasterizer.md)
   (Accepted with conditions), [ADR-072](../../../decisions/ADR-072-rhi-copy-buffer-to-texture.md) (the handoff to a texture).
 - Terms: a **workgroup** is the group of shader invocations that share memory and barriers; an
@@ -48,8 +48,36 @@ every compute call throws `std::runtime_error`. Capabilities are never inferred 
 |---|---|
 | Vulkan | Implemented: `vulkan_compute.cpp`; limits probed once at device creation. |
 | Null | `create_null_device` answers no compute (so `GpuPathRasterizer::supported` keeps its CPU route). `create_null_compute_device` answers true with a fixed capability set, validates like Vulkan and records every call in `NullCommandStats` (`command_order`, `dispatches`, counters); `copy_buffer` moves the bytes. |
-| WebGPU | Open: WGSL entry and a compute bind group. Defaults until then. |
+| WebGPU | Implemented (RHI 1.22): `webgpu_compute.cpp`; pipelines from the WGSL registry, see below. Verified against a real device through Dawn (section 4). |
 | Metal | Open: MSL entry. Defaults until then. |
+
+### 3.1 WebGPU
+
+The pipeline is named, not compiled from SPIR-V: `ComputePipelineDesc::shader_id` (RHI 1.22) is looked up in
+the WGSL `ShaderRegistry` and the program's `compute_entry` is the entry point, the way `PipelineDesc::shader_id`
+names a render program. The contract a compute WGSL program follows:
+
+- Storage buffers are group 0, bindings 0 to `storage_buffer_count - 1`, **every one `var<storage,
+  read_write>`**. WebGPU rejects a pipeline whose layout and declared access disagree, and the RHI binds one
+  kind of buffer, so a buffer a kernel only reads is still declared `read_write`. A buffer used with
+  `atomicAdd` is declared `array<atomic<u32>>`, which WGSL requires.
+- Push constants do not exist in WebGPU. The block is a uniform at group 0, **binding 8**
+  (`kBindingComputePush`), written per `compute_push_constants` call into a per-list arena and bound with a
+  dynamic offset, so changing it between dispatches builds no new bind group. A pipeline that declares push
+  constants and gets none reads zeros.
+- `compute_barrier` ends the compute pass, so the order it documents never depends on WebGPU's own
+  in-pass ordering. `copy_buffer`, a render pass and the submit end it too.
+- A pipeline's bindings belong to the pipeline object, as on Vulkan: binding a different pipeline starts with
+  no buffers, and every slot must be bound before a dispatch (a missing one throws `std::logic_error`).
+- `copy_buffer` needs a size that is a multiple of 4 (the API copies words); a Storage buffer carries the
+  copy-source, copy-destination and indirect usages, so it can be filled by the queue, copied out and used as
+  `dispatch_indirect` arguments. A buffer must not be bound as storage **and** be the indirect buffer of the
+  same dispatch (WebGPU's usage-scope rule); the conformance kernels keep the two apart.
+- Limits come from the device's own limits (`wgpuDeviceGetLimits`), not the adapter's best: a default device
+  reports 256 invocations and 16 KiB of shared memory. `max_workgroup_count` is clamped to 65535, the number
+  `dispatch` validates everywhere. `subgroup_size` is 0 (not core WebGPU).
+- Readback is asynchronous only (`WebGpuBuffer::read` throws): copy into a `Readback` buffer, wait for the
+  submission, then map it.
 
 ## 4. Conformance
 
@@ -62,4 +90,13 @@ every compute call throws `std::runtime_error`. Capabilities are never inferred 
 
 The null half runs everywhere and asserts the recorded stream and validation. The Vulkan half runs on
 any Vulkan device, lavapipe included, and skips without one. `compute_dispatch` keeps the original
-probe (dispatch, barrier, readback, misuse). Every backend that adds compute runs the same file.
+probe (dispatch, barrier, readback, misuse). Every backend that adds compute runs the same kernels.
+
+**WebGPU.** `webgpu_compute_conformance` (`backend/webgpu/smoke/`, kernels in `shaders/compute_conformance.wgsl`)
+runs the same three kernels with the same exact expectations. It needs a real WebGPU device, which the host
+injects as `Module.preinitializedWebGPUDevice`, so the Wasm lane builds it (the `wasm-webgpu` build preset) but
+cannot run it under plain Node. `scripts/webgpu_compute_conformance.mjs` runs it on a GPU under Node with
+Dawn's `webgpu` npm bindings (installed outside the repository; the script's header has the commands). It is
+built with JSPI, because ASYNCIFY cannot be mixed with the wasm exceptions the lane compiles with. Measured
+on 2026-11-27 on an NVIDIA RTX 4060 through Dawn on D3D12 (Node 25.2.1): the indirect arguments, all 16 histogram
+bins and the 200 prefix sums matched, with no validation errors. A browser run is the same program in a page.

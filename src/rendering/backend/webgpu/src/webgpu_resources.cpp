@@ -31,7 +31,8 @@ WGPUTexture create_texture_2d(WebGpuContext& context, rhi::Extent2D extent,
 
 WebGpuBuffer::WebGpuBuffer(std::shared_ptr<WebGpuContext> context, const rhi::BufferDesc& desc)
     : context_(std::move(context)),
-      size_(desc.size) {
+      size_(desc.size),
+      usage_(desc.usage) {
     WGPUBufferDescriptor wgpu_desc = WGPU_BUFFER_DESCRIPTOR_INIT;
     wgpu_desc.usage = buffer_usage_flags(desc.usage);
     // writeBuffer and copies need 4-byte multiples; the RHI-visible size stays as requested.

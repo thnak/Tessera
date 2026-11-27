@@ -38,8 +38,8 @@ int main() {
     // added `Device::supports_analytic_gradients()` (ADR-076); 1.21 added `BlendMode::SourceOut`
     // and `BlendMode::Xor`, the `mask-composite` combine steps (issue #617). All are additive
     // compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 21 ||
-        rhi::kRhiVersion != ((1u << 16) | 21u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 22 ||
+        rhi::kRhiVersion != ((1u << 16) | 22u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }
