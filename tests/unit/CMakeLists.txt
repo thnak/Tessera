@@ -1492,6 +1492,15 @@ target_link_libraries(property_registry_tests PRIVATE tessera_style)
 
 add_test(NAME property_registry COMMAND property_registry_tests)
 
+# The `-webkit-mask*` alias family (#617's last item): the prefixed spelling must expand to exactly
+# the unprefixed one's declarations, through the same shorthand parser, so the two cannot disagree.
+add_executable(webkit_mask_alias_tests
+    webkit_mask_alias_tests.cpp)
+
+target_link_libraries(webkit_mask_alias_tests PRIVATE tessera_style)
+
+add_test(NAME webkit_mask_alias COMMAND webkit_mask_alias_tests)
+
 # Every registered property has a real effect (issue #213): `order` reorders flex items in a layout
 # result, `visibility` leaves paint/hit testing/a11y while keeping its box, `text-overflow` reaches
 # painted output, `container-type`/`container-name` select the `@container` ancestor, and

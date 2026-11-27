@@ -101,6 +101,14 @@ longhand mask-mode paint
 longhand mask-origin paint
 longhand mask-clip paint
 longhand mask-composite paint
+longhand -webkit-mask-image paint
+longhand -webkit-mask-size paint
+longhand -webkit-mask-position paint
+longhand -webkit-mask-repeat paint
+longhand -webkit-mask-mode paint
+longhand -webkit-mask-origin paint
+longhand -webkit-mask-clip paint
+longhand -webkit-mask-composite paint
 longhand filter paint
 shorthand background paint
 shorthand mask paint

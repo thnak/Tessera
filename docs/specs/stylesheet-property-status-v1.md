@@ -129,6 +129,14 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `transform-origin` | applied | `scene_style_sync.cpp` resolves the matrix around the origin; `scene_style_sync` |
 | `backdrop-filter` | applied | `paint_properties.cpp` `backdrop_filter_value` → glass sigma; `glass_paint` |
 | `-webkit-backdrop-filter` | applied | Registry alias of `backdrop-filter` (one computed value); `glass_style` |
+| `-webkit-mask-image` | applied | Registry alias of `mask-image` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-image` above |
+| `-webkit-mask-size` | applied | Registry alias of `mask-size` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-size` above |
+| `-webkit-mask-position` | applied | Registry alias of `mask-position` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-position` above |
+| `-webkit-mask-repeat` | applied | Registry alias of `mask-repeat` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-repeat` above |
+| `-webkit-mask-mode` | applied | Registry alias of `mask-mode` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-mode` above |
+| `-webkit-mask-origin` | applied | Registry alias of `mask-origin` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-origin` above |
+| `-webkit-mask-clip` | applied | Registry alias of `mask-clip` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-clip` above |
+| `-webkit-mask-composite` | applied | Registry alias of `mask-composite` (one computed value), folded at the expand step so the two spellings cannot fight in the cascade (#617); behaves exactly as `mask-composite` above |
 | `window-backdrop` | applied | `window_backdrop_request.cpp` reads the **root node's inline** declaration and hands it to the HAL. A stylesheet rule is not read: the window material is chosen before the host exists (glass-v1 section 6). `property_effects` |
 
 ## 4. Typography

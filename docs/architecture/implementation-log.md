@@ -576,3 +576,25 @@ browser gate stops at geometry. And the device controls are menu items whose DOM
 their row index, so a gate must drive them by label. `tessera_canvas_draw` also took the logical
 rectangle rather than the physical extent the page sized; the two agreed only while both derived the
 same scale, and it now takes what `sizeToDevicePixels` produced.
+
+### Late: the `-webkit-mask*` alias family closes #617 (2026-11-27)
+
+The last open item on #617 was the prefixed spelling a real stylesheet reaches for. It is an alias,
+not a second implementation: `mask-image` and its seven longhands are implemented once, and a second
+registered name would mean a second computed value and two spellings that can disagree.
+
+The family is a closed list folded at the registry's expand step, copying the `-webkit-backdrop-filter`
+precedent. The one subtlety is the shorthand: `mask` has a parser of its own, so `-webkit-mask` is
+mapped to `mask` *before* the registry dispatches. An alias applied after the dispatch would have sent
+the prefixed shorthand down the generic single-value path, where an invalid layer list is accepted as
+an image - a silent wrong answer rather than a diagnostic. `webkit_mask_alias` asserts the prefixed and
+canonical expansions are equal, including for values `mask` rejects, and that a typo
+(`-webkit-mask-compostite`) keeps its UnsupportedProperty rather than being rewritten into something
+that exists.
+
+Registering eight names tripped three gates that exist to stop exactly that drift, which is worth
+noting because each is a rule rather than a chore: `schema_style_registry` wants a row per longhand
+(`src/schema/src/style.cpp`, count 139 -> 147), `property_status` wants a status row per registered
+property, and the matrix test walks `stylesheet-v1.properties.txt` in both directions. The `mask`
+shorthand is absent from the schema table by design - that table is the TSX `style` surface, which
+carries longhands only - so `-webkit-mask` is too.

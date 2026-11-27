@@ -486,7 +486,7 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       bottom to top, the `background` shorthand puts the colour on the final layer only, `url()` is
       rejected with a diagnostic — `src/ui/style/background_layers.cpp`,
       `tests/unit/background_layers_tests.cpp` (PR #676).
-- [ ] #617 conic-gradient, `mask` and `filter` (dials and gauges) — decided 2026-11-20 in
+- [x] #617 conic-gradient, `mask` and `filter` (dials and gauges) — decided 2026-11-20 in
       [`dials-and-gauges.md`](docs/design/dials-and-gauges.md): conic gradient, then `mask`, then
       `filter`; **no `Path` route in V1** (a live `Path` needs paint-time rasterization and an
       animatable `d`, which is a project). Two of the three trails are done:
@@ -504,7 +504,14 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (mode 3), no new RHI feature, and the CPU twin runs them too. A masked, filtered or
       isolated-opacity group is now **retained** across frames instead of re-rendered (#944: the
       layer target stays bound until a dependency dirties, with `layer_retain_*` and
-      `paint_layer_retain` tests and a bench). **Open:** only the `-webkit-mask*` alias family.
+      `paint_layer_retain` tests and a bench). The `-webkit-mask*` family closed it: the eight
+      prefixed longhands are registry aliases of their canonical names (one computed value, folded at
+      the expand step so the two spellings cannot fight in the cascade, the `-webkit-backdrop-filter`
+      pattern), and the prefixed **shorthand** is mapped to `mask` *before* the registry dispatches,
+      so it goes through the same layer parser and the same eight longhands rather than falling
+      through to the single-value path. ctest `webkit_mask_alias` (the prefixed and canonical
+      expansions are equal, including for values `mask` rejects) and the schema golden's eight new
+      rows. All three trails are therefore closed.
 - [x] #622 `:has()` and `@scope` — both supported, no named exception: `@scope` styles a component's
       subtree without a class on every descendant and `:has()` lets a rule reach a nested region it
       hosts, which is what ADR-064 item 6's nested theme region needs; the `:has()` walk is bounded
@@ -733,8 +740,9 @@ owner-planned item and is not part of this milestone.
 **State on 2026-11-27:** every P0-P7 stage, the studio shell, the folder IDE's IO layer, live edit,
 device profiles, the workbench dock and the studio-side mock services have landed. What is left in
 this milestone is the IDE work listed under #584 (W5b-W9), #516, #567-#569 and #575-#583, the canvas
-viewport work (#690), the fold-hinge overlay (#433), the remaining MCP tools (#396), and the paint
-family's last item (#617's `-webkit-mask` alias; the filter colour functions landed in #942).
+viewport work (#690), the fold-hinge overlay (#433) and the remaining MCP tools (#396). The paint
+family is complete: #617 closed with the `-webkit-mask*` alias family, after #942's filter colour
+functions and #944's retained layers.
 
 - [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
@@ -1689,7 +1697,7 @@ budgets, the MCP adapter and the devtools overlay) has landed, as have the studi
 #422), the folder IDE's IO layer (#391, mostly), live edit (#444), device profiles (#445-#448), the
 workbench (W0-W5, PR #586) and the studio-side mock services (#434). What is left is the IDE work in
 #584 (W5b-W9, #516, #567-#583, #589, #590), the canvas viewport work (#690), the fold-hinge overlay
-(#433), the last three MCP tools (#396) and the tail of #617. V1-M3 closed with #159: the
+(#433) and the last three MCP tools (#396). V1-M3 closed with #159: the
 `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
