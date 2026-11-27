@@ -128,6 +128,16 @@ void MemoryLogSink::clear() {
     dropped_ = 0;
 }
 
+void FileLogSink::write(const LogRecord& record) {
+    if (file_ == nullptr) {
+        return;
+    }
+    const std::string_view level = level_name(record.level);
+    const std::string_view category = category_name(record.category);
+    (void)std::fprintf(file_, "[%.*s] [%.*s] %s\n", static_cast<int>(level.size()), level.data(),
+                       static_cast<int>(category.size()), category.data(), record.message.c_str());
+}
+
 Logger::Logger(LogConfig config)
     : config_(config) {}
 

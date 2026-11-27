@@ -29,7 +29,7 @@ public:
     // `glass` supplies the two pipelines; leaving it empty makes compose() a documented no-op that
     // the caller reports as unsupported. `max_targets` is glassMaxBlurTargets (0 disables the
     // pool).
-    GlassCompositor(rhi::Device& device, GlassPipelines glass, std::uint32_t max_targets,
+    GlassCompositor(rhi::Device& device, GlassPipelines glass, OffscreenTargetPoolConfig pool,
                     const GlassLimits& limits);
 
     GlassCompositor(const GlassCompositor&) = delete;
@@ -136,8 +136,16 @@ public:
                                   const std::vector<rhi::Scissor>& scissors);
 
     [[nodiscard]] rhi::RenderTarget* acquire(rhi::Extent2D extent);
+    // Returns a target the caller is finished with to the pool, for reuse later in the same frame
+    // (OffscreenTargetPool::release). A null or foreign pointer is ignored.
+    void release(const rhi::RenderTarget* target);
+    // Destroys the free targets (OffscreenTargetPool::trim).
+    void trim(bool all_complete);
     [[nodiscard]] std::uint32_t target_count() const {
         return pool_ != nullptr ? pool_->target_count() : 0;
+    }
+    [[nodiscard]] OffscreenPoolStats pool_stats() const {
+        return pool_ != nullptr ? pool_->stats() : OffscreenPoolStats{};
     }
     // Composite draws recorded so far (diagnostics and the benchmark).
     [[nodiscard]] std::uint32_t draws() const {

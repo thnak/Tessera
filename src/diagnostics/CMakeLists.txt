@@ -12,6 +12,7 @@ add_library(tessera_diagnostics STATIC
     log.cpp
     memory.cpp
     metrics.cpp
+    offscreen_pressure.cpp
     overlay.cpp)
 
 # Crash capture arms are mutually exclusive (SEH versus signals), so each source is listed only on

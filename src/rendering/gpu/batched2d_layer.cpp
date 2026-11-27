@@ -190,7 +190,11 @@ void Batched2DRenderer::pop_layer() {
     frame.content_scale_x = content_scale_x_;
     frame.content_scale_y = content_scale_y_;
     frame.seam = GlassCompositor::PassSeam{this, &Batched2DRenderer::resume_pass_callback};
-    if (!glass_.composite_layer(frame, *layer.layer_target, scissors, layer.opacity)) {
+    const bool composited =
+        glass_.composite_layer(frame, *layer.layer_target, scissors, layer.opacity);
+    // The composite is the layer's last use: the next layer of this frame may take its target.
+    glass_.release(layer.layer_target);
+    if (!composited) {
         // Unreachable while push_layer() checked layers_supported(); reopen the frame pass so the
         // recording stays well formed if a future change breaks the pairing.
         resume_pass();

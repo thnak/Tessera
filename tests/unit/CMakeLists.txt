@@ -1168,6 +1168,15 @@ target_link_libraries(diagnostics_metrics_tests PRIVATE tessera_diagnostics)
 
 add_test(NAME diagnostics_metrics COMMAND diagnostics_metrics_tests)
 
+# The offscreen pool's observable fallback: counter, gauges and one warning per run
+# (offscreen-layers.md section 5e). Pure CPU.
+add_executable(diagnostics_offscreen_tests
+    diagnostics_offscreen_tests.cpp)
+
+target_link_libraries(diagnostics_offscreen_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_offscreen COMMAND diagnostics_offscreen_tests)
+
 add_executable(memory_steady_state_tests
     memory_steady_state_tests.cpp)
 

@@ -111,6 +111,16 @@ add_executable(layer_mask_null_tests
     batched2d/layer_mask_null_tests.cpp)
 target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_mask_null COMMAND layer_mask_null_tests)
+# The offscreen target pool itself (offscreen-layers.md section 5e): in-frame and cross-frame
+# release, retirement, both caps, idle trim, zero steady-state allocation. Runs everywhere.
+add_executable(offscreen_pool_tests
+    batched2d/offscreen_pool_tests.cpp)
+target_link_libraries(offscreen_pool_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME offscreen_pool COMMAND offscreen_pool_tests)
+add_executable(layer_pool_null_tests
+    batched2d/layer_pool_null_tests.cpp)
+target_link_libraries(layer_pool_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_pool_null COMMAND layer_pool_null_tests)
 add_executable(layer_filter_null_tests
     batched2d/layer_filter_null_tests.cpp)
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
@@ -715,6 +725,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # The offscreen layer pool on a real device (issue #617, offscreen-layers.md section 5e): six and
+    # twelve sibling masked cards plus blurred cards all mask correctly on two recycled targets, at
+    # frame ring depths 1, 2 and 8, validation-clean. Skips without a Vulkan device.
+    add_executable(layer_pool_gpu_tests
+        batched2d/layer_pool_gpu_tests.cpp)
+    target_link_libraries(layer_pool_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_pool_gpu COMMAND layer_pool_gpu_tests)
+    set_tests_properties(layer_pool_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Damage-limited redraw of a filtered node equals a full redraw (the filter dependency walk).
     # Skips without a Vulkan device.
     add_executable(filter_damage_gpu_tests
@@ -1082,6 +1101,17 @@ if (TARGET tessera_app_window)
     # `WindowDevice`, closing one leaves the other running, and a resize of one does not relayout the
     # other. It runs on whatever device the lane has; a lane with no presentation surface prints
     # `skipped`, which the property below turns into a skip rather than a pass.
+    # The offscreen pool on a real window (offscreen-layers.md section 5e): six masked boxes need two
+    # live targets, and a pool too small for them is a counter, run stats and one warning.
+    add_executable(app_window_offscreen_tests
+        app_window_offscreen_tests.cpp)
+    target_compile_definitions(app_window_offscreen_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_offscreen_tests PRIVATE tessera_app_window tessera_diagnostics)
+    add_test(NAME app_window_offscreen COMMAND app_window_offscreen_tests)
+    set_tests_properties(app_window_offscreen PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     add_executable(app_window_multi_tests
         app_window_multi_tests.cpp)
     target_compile_definitions(app_window_multi_tests PRIVATE

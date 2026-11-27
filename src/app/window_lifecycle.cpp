@@ -444,8 +444,8 @@ bool WindowHost::Impl::pump_once(const runtime::RuntimeTick& tick, bool advance_
     }
 
     if (tick.device_blocked || tick.device_failed || tick.device_recovered || !tick.should_render) {
-        // No device-loss servicing and no forced frames here: a lost device makes this iteration a
-        // no-op, and run() remains the bounded recovery path.
+        // Nothing to paint (run() owns recovery); a settled scene gets run()'s idle pool trim.
+        trim_idle_offscreen(hal::steady_now_seconds());
         return false;
     }
     const double now = hal::steady_now_seconds();

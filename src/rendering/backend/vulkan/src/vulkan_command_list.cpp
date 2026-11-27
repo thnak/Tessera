@@ -95,29 +95,25 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
             : (multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                             : (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : readable_layout));
     const bool preserving_existing = preserve && had_content;
-    // The barrier that makes the previous content available: a transfer read after a copy/blit, a
-    // shader read after a sampled bind, nothing for a fresh image.
-    const LayoutSource readable_source = preserving_existing && !present && !multisampled
-                                             ? source_for_layout(previous_layout)
-                                             : LayoutSource{};
+    // A cleared pass on a target this list already used (a pooled target recycled in a frame,
+    // offscreen-layers.md section 5e) must wait for the reads recorded before it, not TOP_OF_PIPE.
+    const bool recycling = !preserve && had_content && !present && !multisampled;
     const VkAccessFlags color_access =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
-    // The stage/access the previous content has to become available from. Explicit assignments keep
-    // the enumerator and flags types apart, which -Wextra (warnings as errors) insists on.
-    VkPipelineStageFlags source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    VkAccessFlags source_access = 0;
+    // What the previous content becomes available from: a transfer read after a copy/blit, a shader
+    // read after a sampled bind, nothing if fresh. Assignments keep -Wextra (an error) quiet.
+    LayoutSource source{static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT), 0};
     if (multisampled) {
         if (preserving_existing) {
-            source_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            source_access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            source.stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            source.access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         }
-    } else if (preserving_existing) {
-        if (present) {
-            source_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        } else {
-            source_stage = readable_source.stage;
-            source_access = readable_source.access;
+    } else if (present) {
+        if (preserving_existing) {
+            source.stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
         }
+    } else if (preserving_existing || recycling) {
+        source = source_for_layout(readable_layout);
     }
     // The submission that renders an acquired swapchain image waits on its acquire semaphore at
     // COLOR_ATTACHMENT_OUTPUT (vulkan_command_list.cpp submit_async), so anything that executes
@@ -130,8 +126,8 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     const VkPipelineStageFlags acquire_stage =
         static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     record_image_transition(buffer_, vulkan_target->image(), previous_layout,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, source_access, color_access,
-                            waits_for_acquire ? acquire_stage : source_stage,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, source.access, color_access,
+                            waits_for_acquire ? acquire_stage : source.stage,
                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (multisampled) {
         record_image_transition(
@@ -209,6 +205,9 @@ void VulkanCommandList::end_render_pass() {
                                                    : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     }
     render_pass_active_ = false;
+    // The pass that drew with a sampled bind is over, so the binding is consumed and the target may
+    // be rendered into again (a recycled pooled target); bind-then-pass on it still throws.
+    sampled_target_ = nullptr;
     // The target now holds a known layout (PRESENT_SRC / TRANSFER_SRC / COLOR_ATTACHMENT_OPTIMAL),
     // so a later preserving pass may transition from that layout instead of UNDEFINED.
     current_target_->mark_content_initialized();

@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <deque>
 #include <string>
 #include <string_view>
@@ -84,6 +85,19 @@ private:
     std::deque<LogRecord> records_;
     std::size_t capacity_ = 0;
     std::size_t dropped_ = 0;
+};
+
+// Writes one line per record, "[level] [category] message", to a C stream (stderr for a process
+// with no other sink). The stream is borrowed and must outlive the sink.
+class FileLogSink final : public LogSink {
+public:
+    explicit FileLogSink(std::FILE* file)
+        : file_(file) {}
+
+    void write(const LogRecord& record) override;
+
+private:
+    std::FILE* file_ = nullptr;
 };
 
 struct LogConfig {

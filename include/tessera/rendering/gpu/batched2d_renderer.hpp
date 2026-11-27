@@ -91,27 +91,31 @@ public:
 
     // A pooled offscreen render target of at least `extent` and the frame target's format, for use
     // between break_pass() and resume_pass(). The pool is bounded by
-    // Batched2DConfig::max_offscreen_targets (= glassMaxBlurTargets, default 4) and recycles a
-    // target only after its frame is complete (frames_in_flight). Null when the pool is disabled or
-    // every target is still in flight; the caller then paints that frame without the effect.
+    // Batched2DConfig::max_offscreen_targets (= glassMaxBlurTargets, default 4). Null when it is
+    // disabled or every target is live or in flight; the caller then paints without the effect.
     [[nodiscard]] rhi::RenderTarget* acquire_offscreen_target(rhi::Extent2D extent);
+    // Returns a target once its last use is recorded, so this frame may reuse it.
+    void release_offscreen_target(const rhi::RenderTarget* target);
     [[nodiscard]] std::uint32_t offscreen_target_count() const;
+    // Pool state: targets, peak live, bytes and refused requests (each painted without its effect).
+    [[nodiscard]] OffscreenPoolStats offscreen_stats() const;
+    // Destroys the free pooled targets: call from an idle driver once every frame's GPU work is
+    // done (`all_complete`). The frame path also trims on its own. Never call inside a frame.
+    void trim_offscreen_targets(bool all_complete);
 
     // --- Glass backdrop composite (docs/specs/glass-v1.md sections 3-5, issue #244) -------------
-    // Executes one glass node's backdrop entirely on this frame's command list, at the node's paint
-    // position: the pass is broken (pending geometry flushed first), the node's 3-sigma dependency
-    // region is copied out of the frame target into a pooled target, the horizontal Gaussian runs
-    // into a second pooled target sampling that copy, the frame pass is resumed with LoadOp::Load,
-    // and the vertical pass composites the result back through the node's rounded clip, with the
-    // saturate/brightness/contrast matrix and the folded node opacity. Above
+    // Executes one glass node's backdrop on this frame's command list, at the node's paint
+    // position: the pass is broken (pending geometry flushed first), the 3-sigma dependency region
+    // is copied out of the frame target into a pooled target, the horizontal Gaussian runs into a
+    // second pooled target sampling that copy, the pass is resumed with LoadOp::Load, and the
+    // vertical pass composites the result back through the node's rounded clip with the
+    // saturate/brightness/ contrast matrix and the folded node opacity. Above
     // `Batched2DConfig::glass.max_backdrop_area` the blur target is half the region and the
     // vertical pass upsamples bilinearly.
     //
-    // Returns false without recording anything when the effect cannot run this frame: no glass
-    // pipelines or pool, a pass-through sigma, a frame target that cannot be read (a swapchain
-    // image is not a copy source), or the bounded pool having no free target. The caller then
-    // paints the node without the effect - the documented bounded-cost behavior, never a block and
-    // never an exception on the frame path.
+    // Returns false, recording nothing, when the effect cannot run (no glass pipelines or pool, a
+    // pass-through sigma, an unreadable frame target, no free pooled target); the caller then
+    // paints the node without it. Never blocks or throws on the frame path.
     [[nodiscard]] bool draw_backdrop(const GlassBackdropDraw& draw);
 
     // --- Isolated layers (docs/design/gpu/offscreen-layers.md section 5.2, issue #227) ----------

@@ -204,7 +204,9 @@ bool filter_precedes_mask() {
                   "both the filter and the mask ran") &&
            expect(binds == 4,
                   "horizontal, vertical, mask and layer composite are each one sampled bind") &&
-           expect(frame.renderer.offscreen_target_count() == 3, "layer, scratch and mask target") &&
+           expect(frame.renderer.offscreen_target_count() == 2 &&
+                      frame.renderer.offscreen_stats().peak_live == 2,
+                  "layer and scratch; the mask reuses the finished scratch target") &&
            expect(frame.fixture.stats().begin_render_passes ==
                       frame.fixture.stats().end_render_passes,
                   "passes stay balanced");

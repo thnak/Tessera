@@ -117,6 +117,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             // cannot be stranded behind a frame that never happens.
             tick_accessibility();
             ++stats.idle_waits;
+            trim_idle_offscreen(hal::steady_now_seconds());
             idle(idle_wait_seconds(pacer->ready(hal::steady_now_seconds())));
             continue;
         }

@@ -277,7 +277,8 @@ bool check_arena_cancel_does_not_consume_a_slot() {
 
 bool check_compositor_reports_unsupported_without_pipelines() {
     Fixture fixture;
-    gpu::GlassCompositor compositor(*fixture.device, gpu::GlassPipelines{}, 4, gpu::GlassLimits{});
+    gpu::GlassCompositor compositor(*fixture.device, gpu::GlassPipelines{},
+                                    gpu::OffscreenTargetPoolConfig{4}, gpu::GlassLimits{});
     return expect(!compositor.supported(), "no pipelines means unsupported") &&
            expect(compositor.target_count() == 0, "no pool when glass is not configured");
 }
@@ -287,7 +288,8 @@ bool check_compositor_reports_unsupported_without_pool() {
     auto blur = fixture.device->create_pipeline(rhi::PipelineDesc{});
     auto composite = fixture.device->create_pipeline(rhi::PipelineDesc{});
     gpu::GlassPipelines pipelines{blur.get(), composite.get()};
-    gpu::GlassCompositor compositor(*fixture.device, pipelines, 0, gpu::GlassLimits{});
+    gpu::GlassCompositor compositor(*fixture.device, pipelines, gpu::OffscreenTargetPoolConfig{0},
+                                    gpu::GlassLimits{});
     return expect(!compositor.supported(),
                   "max_targets == 0 disables the pool and therefore the effect") &&
            expect(compositor.target_count() == 0, "a disabled pool holds no targets");
@@ -298,7 +300,8 @@ bool check_compositor_supported_with_pipelines_and_pool() {
     auto blur = fixture.device->create_pipeline(rhi::PipelineDesc{});
     auto composite = fixture.device->create_pipeline(rhi::PipelineDesc{});
     gpu::GlassPipelines pipelines{blur.get(), composite.get()};
-    gpu::GlassCompositor compositor(*fixture.device, pipelines, 4, gpu::GlassLimits{});
+    gpu::GlassCompositor compositor(*fixture.device, pipelines, gpu::OffscreenTargetPoolConfig{4},
+                                    gpu::GlassLimits{});
     compositor.begin_frame(1, 1, rhi::TextureFormat::R8G8B8A8Unorm);
     return expect(compositor.supported(), "pipelines and a pool mean supported") &&
            expect(compositor.draws() == 0, "a fresh frame records no composite");
@@ -308,8 +311,9 @@ bool check_compositor_rejects_a_pass_through_sigma() {
     Fixture fixture;
     auto blur = fixture.device->create_pipeline(rhi::PipelineDesc{});
     auto composite = fixture.device->create_pipeline(rhi::PipelineDesc{});
-    gpu::GlassCompositor compositor(
-        *fixture.device, gpu::GlassPipelines{blur.get(), composite.get()}, 4, gpu::GlassLimits{});
+    gpu::GlassCompositor compositor(*fixture.device,
+                                    gpu::GlassPipelines{blur.get(), composite.get()},
+                                    gpu::OffscreenTargetPoolConfig{4}, gpu::GlassLimits{});
     compositor.begin_frame(1, 1, rhi::TextureFormat::R8G8B8A8Unorm);
 
     auto target = fixture.device->create_render_target(

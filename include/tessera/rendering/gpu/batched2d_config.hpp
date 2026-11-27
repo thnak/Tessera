@@ -8,6 +8,8 @@
 
 namespace tessera::rendering::gpu {
 
+// Construction-time policy of Batched2DRenderer (batched2d_renderer.hpp), split out so the renderer
+// header stays inside its size budget.
 struct Batched2DConfig {
     std::uint32_t initial_vertex_capacity = 4096;
     bool enable_aa = true;
@@ -26,8 +28,16 @@ struct Batched2DConfig {
     std::uint32_t frames_in_flight = 1;
 
     // Bounded offscreen targets for the isolated-layer seam (offscreen-layers.md): glass-v1
-    // `glassMaxBlurTargets`, 4 by default, 0 disables the pool; recycled after frames_in_flight.
+    // `glassMaxBlurTargets`, 4 by default, 0 disables the pool. The cap is on targets LIVE at
+    // once, not on layers: a finished layer, mask or scratch target is recycled inside the frame,
+    // and a target is recycled across frames after frames_in_flight (section 5e).
     std::uint32_t max_offscreen_targets = 4;
+    // Hard cap on the bytes of all pooled targets together (the RHI reports no heap budget, so it
+    // is fixed): 256 MiB holds 7 frame-size targets at 4K and every count cap at 1080p. 0 = no cap.
+    std::uint64_t max_offscreen_bytes = 256ull * 1024 * 1024;
+    // A pooled target unused for this many frames is destroyed (never sooner than
+    // frames_in_flight), so a scene that stops using layers gives the memory back. 0 never trims.
+    std::uint32_t offscreen_idle_trim_frames = 120;
 
     // Glass cost limits (glass-v1 sections 5 and 8), the same runtime keys the paint pass uses:
     // `glassMaxBlurRadius` (CSS px) and `glassMaxBackdropArea` (the half-resolution threshold).

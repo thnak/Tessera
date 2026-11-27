@@ -43,6 +43,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // The shared device, loop and pacer are views into the group (issue #228). A group with no
     // device leaves every view null, which is the "no usable device" path the rest of the driver
     // already handles.
+    init_offscreen_diagnostics();
     device = group->device_or_null();
     loop = group->available() ? &group->loop() : nullptr;
     pacer = group->available() ? &group->pacer() : nullptr;

@@ -44,18 +44,17 @@ float mean_scale(float x, float y) {
 } // namespace
 
 GlassCompositor::GlassCompositor(rhi::Device& device, GlassPipelines glass,
-                                 std::uint32_t max_targets, const GlassLimits& limits)
+                                 OffscreenTargetPoolConfig pool, const GlassLimits& limits)
     : device_(&device),
       glass_(glass),
       limits_(limits),
-      max_targets_(max_targets) {
+      max_targets_(pool.max_targets) {
     // The pool is created here rather than on the first frame: unlike the renderer it used to live
     // in, a compositor exists only because the renderer always constructs one, so an unconditional
     // pool keeps the "no offscreen texture for a no-glass tree" property that matters (a target is
     // still only created when a break actually asks for one).
     if (max_targets_ > 0) {
-        pool_ = std::make_unique<OffscreenTargetPool>(*device_,
-                                                      OffscreenTargetPoolConfig{max_targets_});
+        pool_ = std::make_unique<OffscreenTargetPool>(*device_, pool);
     }
 }
 
@@ -74,6 +73,18 @@ void GlassCompositor::begin_frame(std::uint64_t frame_index, std::uint32_t frame
 
 rhi::RenderTarget* GlassCompositor::acquire(rhi::Extent2D extent) {
     return pool_ != nullptr ? pool_->acquire(extent) : nullptr;
+}
+
+void GlassCompositor::release(const rhi::RenderTarget* target) {
+    if (pool_ != nullptr) {
+        pool_->release(target);
+    }
+}
+
+void GlassCompositor::trim(bool all_complete) {
+    if (pool_ != nullptr) {
+        pool_->trim(all_complete);
+    }
 }
 
 bool GlassCompositor::can_read_target(const rhi::RenderTarget& target) const {
@@ -175,6 +186,8 @@ bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw
     rhi::RenderTarget* source = acquire(rhi::Extent2D{region.source.width, region.source.height});
     rhi::RenderTarget* blur = acquire(region.blur);
     if (source == nullptr || blur == nullptr) {
+        release(source);
+        release(blur);
         return false;
     }
 
@@ -269,6 +282,10 @@ bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw
     commands.push_constants(&vertical, sizeof(vertical));
     commands.draw(kFullscreenVertices);
     ++draws_;
+    // Both targets were last read by the passes recorded above, so a later node of this frame may
+    // reuse them (a page of glass cards needs two targets, not two per card).
+    release(source);
+    release(blur);
     return true;
 }
 

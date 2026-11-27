@@ -95,27 +95,40 @@ Contract:
 
 ## 4. Pooled offscreen targets
 
-The pool (`include/tessera/rendering/gpu/offscreen_target_pool.hpp`) is bounded and frame-aware:
+The pool (`include/tessera/rendering/gpu/offscreen_target_pool.hpp`) is bounded, recycled inside the
+frame and across frames, and gives its memory back when idle (the numbers are in section 5.2, 5e):
 
-- **Bound:** `Batched2DConfig::max_offscreen_targets`, which is `glassMaxBlurTargets` from
-  [`glass-v1.md`](../../specs/glass-v1.md) section 5, default **4**; 0 disables the pool
-  (`acquire_offscreen_target` returns null and the caller paints without the effect).
-- **Retirement:** a target acquired in frame F is referenced by F's command list, so it is handed
-  out again only after `frames_in_flight` frame slots have rotated - the same "frame F is complete"
-  point the vertex-buffer slots already rely on. A target is never destroyed while the GPU may still
-  read it, and the pool never grows past the cap: when every target is in flight, `acquire` returns
-  null and the caller skips the effect for that frame (the bounded-cost rule of
-  [`performance.md`](../performance.md) section 6, not a quality fallback).
-- **Reuse:** a steady-state screen acquires one target per frame and reuses it for the whole run
-  (the 300-frame null test keeps `offscreen_target_count()` at one with `frames_in_flight = 1`, at
-  two with `frames_in_flight = 2`). Consecutive acquires in one frame return different targets, so
-  a two-pass blur can ping-pong.
+- **Bound:** two hard caps, both on what is held at once. `Batched2DConfig::max_offscreen_targets` is
+  `glassMaxBlurTargets` from [`glass-v1.md`](../../specs/glass-v1.md) section 5, default **4**, and
+  0 disables the pool (`acquire_offscreen_target` returns null and the caller paints without the
+  effect). `Batched2DConfig::max_offscreen_bytes` (default 256 MiB; 0 = none) caps the bytes of all
+  pooled targets, retired ones included. A request over either cap returns null and is counted in
+  `OffscreenPoolStats::exhausted`.
+- **Release:** a caller that is finished with a target - its last pass and sampled bind are recorded -
+  returns it with `release_offscreen_target` (the renderer does this for layer, mask, filter scratch
+  and glass source/blur targets), and the pool hands it out again at once, in the same frame and in
+  the next, at any `frames_in_flight`. The command list is sequential and the queue executes
+  submissions in order, so the backend only has to order the new pass after the old reads
+  (section 5e). The cap is therefore on the PEAK number of live targets, not the number of layers or
+  the ring depth.
+- **Retirement of an unreleased target:** a target a caller never releases (a bare
+  `acquire_offscreen_target`) is referenced by its frame's command list, so it is handed out again
+  only after `frames_in_flight` frame slots have rotated - the "frame F is complete" point the
+  vertex-buffer slots already rely on. A target is only ever destroyed (grown, trimmed) after that
+  rotation: when a free target that a frame in flight may still read is too small for a request, it is
+  retired - kept alive outside the pool, charged to the byte cap - and a larger one takes its slot, so
+  a live window resize does not starve the pool for `frames_in_flight` frames.
+- **Reuse:** a steady-state screen holds the same targets for the whole run (the 300-frame null tests
+  keep `offscreen_target_count()` at the peak live count at every ring depth, 1, 2 and 8, the window's).
+  Consecutive acquires without a release return different targets, so a two-pass blur can ping-pong.
 - **Sizing:** a free target grows to the largest extent requested on it and keeps that high-water
-  extent; a target used by the current frame is never recreated mid-frame, because a recorded copy
-  may still reference its image. Targets use the frame target's format and a transparent-black
-  clear.
-- **Allocation:** targets are created on demand at a frame boundary and reused forever after; no
-  per-draw or per-glass-node allocation happens on the hot path, and nothing blocks the UI thread.
+  extent. Targets use the frame target's format and a transparent-black clear.
+- **Idle:** a target unused for `Batched2DConfig::offscreen_idle_trim_frames` frames (default 120, never
+  fewer than `frames_in_flight`) is destroyed at the next `begin()`, and an idle driver calls
+  `trim_offscreen_targets(true)` once its GPU work has drained, so a static UI holds no layer memory.
+- **Allocation:** targets are created lazily and reused; the pool's slots are reserved at construction,
+  so acquire, release, begin and stats allocate nothing in the steady state (a test replaces
+  `operator new` and counts), and nothing blocks the UI thread.
 
 ## 5. Consumers
 
@@ -193,7 +206,7 @@ slice behavior + tests + docs, nothing user-visible until the last:
    mode 2 divides the colour back and applies the group opacity once; the composite pipeline and
    pool are the glass ones, so no new pipeline exists. A layer that cannot be isolated (no composite
    pipeline or pool, a multisampled frame, an empty or off-frame box, or the bounded pool out of
-   targets: one frame never reuses a target, so the default pool of 4 holds four layers) paints flat:
+   targets: the default pool of 4 holds four layers live at once, section 5e) paints flat:
    its opacity multiplies into every primitive until the pop, which is the §14.1 rule. A
    `backdrop-filter` inside an isolated layer sees the layer's content only, which is the CSS
    backdrop-root behaviour. Tests: `layer_null` (pass and draw skeleton, nesting, the bound, the flat
@@ -206,7 +219,7 @@ slice behavior + tests + docs, nothing user-visible until the last:
    pool that cannot hand out a target, or a frame target that cannot be read, paints flat and counts it
    in a `LayerPaintStats::unsupported`, like the glass fallback. Null-backend structure test first, then
    the lavapipe pixel test.
-3. **`CpuCanvas` twin (landed, issue #617).** `CpuPaintSink` reports layers and masks, so the CPU path and the goldens match the GPU path. The canvas is an opaque framebuffer, so a layer cannot accumulate premultiplied alpha in it; instead every draw inside a layer goes to two frame-sized scratch canvases, one cleared opaque black and one opaque white, and the pop recovers per pixel `P = black` and `A = 1 - (white - black)` (the rounded mean of the three channel differences) and writes `backdrop * (1 - opacity * A) + P * opacity` once, inside the layer box and the active clip (`composite_layer`, `include/tessera/rendering/software/cpu_layer.hpp`). The composite is linear in the backdrop, so a nested layer composites into the outer pair and both canvases stay consistent. A mask image is drawn into its own transparent pair, so seams and overlaps are the ordinary blend's, and `apply_layer_mask` scales the layer pair by its alpha (the GPU's DestinationIn step); a layer takes one mask and a sink with no open layer refuses, like the renderer. No replay of recorded ops was needed. The same change makes the CPU linear gradient use `band_edge` like the GPU sink (it still grew each band by half a pixel, so a translucent ramp composited twice there); only `tests/golden/baseline/cpu_wide/layers.png` moved, whose top ramp is translucent. Tests: `cpu_layer` (pair math, composite, nesting, mask, on exact bytes), `cpu_layer_sink` (sink calls, refusals, group opacity through the pass) and the `masks` scene of `cpu_wide_golden`. **Lavapipe golden:** `layer_mask_golden` (`tests/gpu/batched2d/layer_mask_golden_tests.cpp`, baseline `tests/golden/gpu/mask_image.png`, regenerated with `--update-goldens` on a software device only) paints that same scene through the paint pass and the renderer's mask step, refuses a hardware device, requires two byte-identical frames, compares bit-exactly with the baseline and compares with the CPU twin; the measured worst channel difference between the two paths on llvmpipe is 1 of 255 (the test allows 2). The scene has four masked nodes, so the test raises `max_offscreen_targets` to 8: with the default pool of 4 only the first two masked nodes of a frame are masked on the GPU and the rest paint unmasked (section 5a), where the CPU twin has no pool and masks all of them. Original scope: The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
+3. **`CpuCanvas` twin (landed, issue #617).** `CpuPaintSink` reports layers and masks, so the CPU path and the goldens match the GPU path. The canvas is an opaque framebuffer, so a layer cannot accumulate premultiplied alpha in it; instead every draw inside a layer goes to two frame-sized scratch canvases, one cleared opaque black and one opaque white, and the pop recovers per pixel `P = black` and `A = 1 - (white - black)` (the rounded mean of the three channel differences) and writes `backdrop * (1 - opacity * A) + P * opacity` once, inside the layer box and the active clip (`composite_layer`, `include/tessera/rendering/software/cpu_layer.hpp`). The composite is linear in the backdrop, so a nested layer composites into the outer pair and both canvases stay consistent. A mask image is drawn into its own transparent pair, so seams and overlaps are the ordinary blend's, and `apply_layer_mask` scales the layer pair by its alpha (the GPU's DestinationIn step); a layer takes one mask and a sink with no open layer refuses, like the renderer. No replay of recorded ops was needed. The same change makes the CPU linear gradient use `band_edge` like the GPU sink (it still grew each band by half a pixel, so a translucent ramp composited twice there); only `tests/golden/baseline/cpu_wide/layers.png` moved, whose top ramp is translucent. Tests: `cpu_layer` (pair math, composite, nesting, mask, on exact bytes), `cpu_layer_sink` (sink calls, refusals, group opacity through the pass) and the `masks` scene of `cpu_wide_golden`. **Lavapipe golden:** `layer_mask_golden` (`tests/gpu/batched2d/layer_mask_golden_tests.cpp`, baseline `tests/golden/gpu/mask_image.png`, regenerated with `--update-goldens` on a software device only) paints that same scene through the paint pass and the renderer's mask step, refuses a hardware device, requires two byte-identical frames, compares bit-exactly with the baseline and compares with the CPU twin; the measured worst channel difference between the two paths on llvmpipe is 1 of 255 (the test allows 2). The scene has four masked nodes and the test still raises `max_offscreen_targets` to 8 from the days when the pool of 4 masked only the first two nodes of a frame; sibling layers now recycle their targets (section 5e), so the default pool masks all four like the CPU twin. Original scope: The same layer on the CPU canvas, so goldens and `CpuPaintSink` agree with the
    GPU path to the existing tolerance.
 4. **Group opacity becomes isolated (landed behind `PaintContext::isolate_group_opacity`, default false, issue #227 slice 4).** `paint_node` opens a layer after the node's transform push and before its backdrop, shadow and box paint, closes it after the children, the clip pop and before the transform pop; the node's own opacity moves to the layer and the primitives inside carry only the ancestor product; text inside a layer is grayscale (`PaintScope::in_layer`); `isolate_groups` and `in_layer` are part of the paint-cache key. The box is the whole frame for now (the renderer clamps it to the frame, the clip and the damage). A culled node still fades its visible children flat. Tests: `paint_layer_pass` and the paint-path case of `layer_gpu`. Original scope: **Group opacity becomes isolated** only where it is observable (overlapping children), behind the
    same seam; the §14.1 product rule stays the fallback.
@@ -222,7 +235,7 @@ slice behavior + tests + docs, nothing user-visible until the last:
    pipeline, a flat or already-masked layer, no second pooled target) returns false and records
    nothing, so the caller skips the mask draws and the group paints unmasked, counted in
    `layer_masks_unsupported()`. Cost: one more pooled target and one fullscreen draw per masked layer
-   (the pool of 4 holds two masked layers a frame). Tests: `layer_mask_null` (skeleton and every
+   (two live targets while a mask is open; sibling masked layers recycle them, section 5e). Tests: `layer_mask_null` (skeleton and every
    fallback) and `layer_mask_gpu` (opaque, half and undrawn mask, composition with opacity, the
    unmasked fallback, repeated frames, validation clean). 
 5b. **`mask-image` in the paint pass (landed, issue #617 slice 3).** `PaintSink::begin_layer_mask()` /
@@ -365,6 +378,87 @@ slice behavior + tests + docs, nothing user-visible until the last:
    layer's alpha multiplier, then `mask-mode`/`mask-size`/`mask-position`/`mask-repeat`, then `filter`
    (`drop-shadow()`, `blur()`, landed in 5d) as a layer post-process. Each with a Chromium comparison and a lavapipe
    golden, and the property-status table updated.
+5e. **Pool sizing, recycling and observability (landed, issue #617).** The pool used to hand a
+    target out once per frame and take it back only after `frames_in_flight` frames, so the default
+    pool of four held two masked layers (layer + mask) and every later masked or filtered node of the
+    frame silently painted without the effect; and because the window rings `frames_in_flight =
+    kFramesInFlightPerWindow * kMaxWindowsPerDevice = 8`, a layer used on every frame found its targets
+    still "in flight" after four frames and painted flat until the ring wrapped. Three changes, each
+    tested on the null backend (`layer_pool_null`, `offscreen_pool`) and on a device
+    (`layer_pool_gpu`):
+    - **Recycle when dead.** `GlassCompositor::release` / `OffscreenTargetPool::release`. The renderer
+      releases a mask target right after its `DestinationIn` multiply, the filter scratch (and the
+      shadow's spare) after the chain, a layer target right after its composite, and a glass node's
+      source and blur targets after its composite. The next acquire, in the same frame or the next,
+      takes the target again. The bound that matters is the **peak live targets**:
+
+      | scene | peak live | why |
+      |---|---|---|
+      | any number of plain sibling layers | 1 | the layer |
+      | sibling masked layers | 2 | layer + mask (mask dead after the multiply) |
+      | sibling blurred layers, blurred then masked | 2 | layer + scratch; the mask takes the scratch |
+      | sibling drop-shadow layers (masked or not) | 3 | layer + scratch + shadow target |
+      | glass backdrops, any number of nodes | 2 | source + blur, per node |
+      | nested layers, depth d, innermost masked | d + 1 | one per open layer + the mask |
+      | nested, innermost drop-shadow | d + 2 | one per open layer + scratch + spare |
+
+      The default count cap of 4 therefore covers a masked layer nested three deep or a shadow nested
+      two deep; deeper nesting falls back as before, but now counted (next bullet).
+    - **Backend ordering.** Reusing a target inside a command list needs the new pass ordered after the
+      old reads. Vulkan `begin_render_pass` now uses the target's tracked layout as the barrier's
+      source scope for a cleared pass on a target the list already used (it used TOP_OF_PIPE, which
+      orders nothing after a fragment-shader read: a write-after-read hazard), and a bind of a sampled
+      target is consumed when the pass that sampled it ends (`sampled_target_` was only cleared by
+      `bind_texture`, so the first reuse of the target just composited threw). WebGPU already
+      cleared its sampled binding at the end of the pass; the queue executes submissions in order, so
+      the barrier's first scope reaches back across frames. A target is still destroyed only after
+      `frames_in_flight` frames.
+    - **Hard memory cap.** `max_offscreen_bytes` (256 MiB) next to the count cap. The RHI reports no
+      heap budget or device limit, so the cap is a fixed default sized from the frame: a target is
+      width x height x 4, 8.3 MB at 1080p, 33.2 MB at 4K, 132.7 MB at 8K, so 256 MiB lets the count cap
+      (4) bind up to 4K (4 x 33.2 = 133 MB) and holds one 8K target. Retired targets (a resize) count
+      against it.
+    - **Idle release.** A free target unused for `offscreen_idle_trim_frames` (120) frames is destroyed
+      at the next `begin()`; a driver with nothing to draw calls `trim_offscreen_targets(true)` after
+      its drain, so a static UI holds zero layer memory (the pool's slots stay reserved, the images
+      go). Steady state allocates nothing: the pool reserves its slots at construction, and the
+      `offscreen_pool` test counts `operator new` across 400 frames of acquire/release.
+    **Observable fallback.** When a cap still refuses a request the behaviour is unchanged - the layer,
+    mask, filter or glass node paints without the effect - but it is counted: `offscreen_stats()`
+    reports `exhausted` (this frame) and `exhausted_total` next to `peak_live`, `peak_live_max`, `bytes`
+    and `peak_bytes`, and `layers_flat()` / `layer_masks_unsupported()` / `layer_filters_unsupported()`
+    keep saying which effect was lost. The window driver samples the pool after every frame
+    (`window_offscreen.cpp`): `WindowFrameStats::offscreen_peak_live`, `offscreen_bytes` and
+    `offscreen_refused`, and a `diagnostics::OffscreenPressureReporter`
+    (`include/tessera/diagnostics/offscreen_pressure.hpp`) that adds the refused requests to the
+    `gpu.offscreen.refused` counter, sets the `gpu.offscreen.peak_live` and `gpu.offscreen.bytes`
+    gauges, and writes ONE `TESSERA_GPU_OFFSCREEN_EXHAUSTED` warning per run (category `gpu`, with the
+    peak, the targets, the bytes, and the knob to turn) through the `Logger`. `WindowOptions::logger` and
+    `metrics` supply them; with no logger the window logs to its own stderr `FileLogSink`, with no
+    registry the metrics are skipped. A single-window driver that has used no layer for
+    `WindowOptions::offscreen_idle_seconds` (default 2), with its in-flight frames complete, calls
+    `trim_offscreen_targets(true)` from its settled-scene branch (`run()` and `pump_once()`),
+    so a static UI holds no layer memory; a multi-window group relies on the 120-frame trim, because
+    another window's frames may still read the shared pool. Tests: `diagnostics_offscreen` (counter,
+    gauges, one warning, optional halves, the stderr line format) and `app_window_offscreen` (a real
+    window: six masked boxes peak at two targets and refuse nothing; a pool capped at one target
+    counts the refusals, reports them in the stats and logs exactly once; an idle window with a
+    0.15 s threshold destroys its targets and a later restyle rebuilds them with nothing refused;
+    mutation-checked by removing the trim call).
+    **Measured (1920x1080, 12 masked sibling cards, default config, null backend sizes; a target is
+    exactly 8,294,400 bytes).**
+
+    | | before | after |
+    |---|---|---|
+    | layers isolated / flat | 2 / 10 | 12 / 0 |
+    | masks applied / unsupported | 2 / 10 | 12 / 0 |
+    | peak live targets | 4 (cap) | 2 |
+    | pooled targets / GPU bytes held | 4 / 33,177,600 | 2 / 16,588,800 |
+    | pooled targets after 120 idle frames | 4 | 0 |
+
+    On the GPU the test scene (6 and 12 masked cards plus three blurred, masked cards, ring depths 1, 2
+    and 8, three frames each) matches the expected pixels and is byte-identical frame to frame, with no
+    validation message; the CPU twin, which has no pool, masked all of them all along.
 
 **Integration points found in `paint_node` (`src/ui/paint/paint_pass.cpp`), to settle in slice 1:**
 
@@ -438,6 +532,18 @@ wait on this seam.
   kernel reference derived from the renderer's own region plan, the half-resolution rule still blurs
   the same edge, the rounded clip leaves the backdrop outside the corner radius, the opacity fold and
   `blur(0)` pass-through hold, and the run is validation-clean.
+- `tests/gpu/batched2d/offscreen_pool_tests.cpp` (null, always runs): the pool alone - release and
+  reuse in a frame and at ring depth 8, the never-released rotation rule, retirement of an in-flight
+  target on growth, both caps, idle trim and explicit trim, the counters, and zero allocations over
+  400 steady-state frames.
+- `tests/gpu/batched2d/layer_pool_null_tests.cpp` (null, always runs): 1, 2, 6 and 12 sibling masked
+  layers all isolate and mask on two targets, the peak-live table of section 5e, glass cards, nested
+  layers up to and past the cap (counted, graceful), the byte cap, idle trim, and 300 frames at ring
+  depths 1, 2 and 8. `layer_hazard_device.hpp` wraps the null device and fails a stream that clears a
+  target whose last write nobody sampled (an early release) or passes on a still-bound sampled target;
+  a test shows it catching one.
+- `tests/gpu/batched2d/layer_pool_gpu_tests.cpp` (lavapipe/real Vulkan, skips without a device): the
+  same scene in pixels, validation clean.
 - Existing image goldens are unchanged: no golden scene breaks a pass or samples a target, so the
   single-pass command stream and its pixels are untouched, and a no-glass frame records no sampled
   bind.

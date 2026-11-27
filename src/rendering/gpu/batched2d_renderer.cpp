@@ -35,7 +35,10 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
       white_texture_(&white_texture),
       // Declaration order, not readability order: the collaborators are declared above the frame
       // state, and -Wreorder is an error on the Linux lane.
-      glass_(device, glass, config.max_offscreen_targets, config.glass),
+      glass_(device, glass,
+             OffscreenTargetPoolConfig{config.max_offscreen_targets, config.max_offscreen_bytes,
+                                       config.offscreen_idle_trim_frames},
+             config.glass),
       clips_(),
       clip_buffer_(device, config.frames_in_flight),
       vertices_(device, config.initial_vertex_capacity, config.frames_in_flight),

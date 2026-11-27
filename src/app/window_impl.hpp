@@ -15,6 +15,8 @@
 #include "tessera/app/recovery_policy.hpp"
 #include "tessera/app/system_motion.hpp"
 #include "tessera/app/window.hpp"
+#include "tessera/diagnostics/log.hpp"
+#include "tessera/diagnostics/offscreen_pressure.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
@@ -96,6 +98,14 @@ struct WindowHost::Impl {
     // Copies the swapchain's frame-pacing counters into stats(). A host counter query, never a
     // wait, so it is cheap enough to sample around each frame attempt.
     void sample_frame_sync();
+    // Wires the offscreen reporter to the app's logger and metrics (or the window's own logger).
+    void init_offscreen_diagnostics();
+    // Samples the pool after a frame was recorded: stats, metrics, the one-per-run warning.
+    void observe_offscreen();
+    // From the settled-scene branch: frees the pool's idle targets once nothing has used them for
+    // `WindowOptions::offscreen_idle_seconds` and every in-flight frame has completed.
+    // Single-window groups only, because another window's frames may still read the shared pool.
+    void trim_idle_offscreen(double now_seconds);
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);
     // One frame from inside the OS's modal resize loop (hal::Window::set_live_frame_callback):
@@ -377,6 +387,12 @@ struct WindowHost::Impl {
     ui::InputPump pump;
     bool auto_focus_applied = false;
     WindowFrameStats stats;
+    // The offscreen pool's observable fallback (window_offscreen.cpp). The window's own stderr
+    // logger backs it when the app supplied none.
+    diagnostics::FileLogSink stderr_sink{stderr};
+    diagnostics::Logger own_logger;
+    diagnostics::OffscreenPressureReporter offscreen_pressure;
+    double offscreen_last_use_seconds = 0.0;
     // Which lifecycle states pause, mapped once from WindowOptions::runtime (window_config.hpp).
     // Focus/blur is not in this policy, so it can never contribute.
     WindowPausePolicy pause_policy;

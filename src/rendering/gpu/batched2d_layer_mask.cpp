@@ -76,7 +76,10 @@ void Batched2DRenderer::end_layer_mask() {
     frame.content_scale_x = content_scale_x_;
     frame.content_scale_y = content_scale_y_;
     frame.seam = GlassCompositor::PassSeam{this, &Batched2DRenderer::resume_pass_callback};
-    if (!glass_.mask_layer(frame, *mask, layer_scissors(layer))) {
+    const bool masked = glass_.mask_layer(frame, *mask, layer_scissors(layer));
+    // The multiply is the mask target's last use; it is dead from here on.
+    glass_.release(mask);
+    if (!masked) {
         // Unreachable while begin_layer_mask() checked masks_supported(); reopen the layer pass so
         // the recording stays well formed.
         resume_pass();
