@@ -4,6 +4,7 @@
 // the WebGPU command list and the compute pipeline (RHI 1.22, issue #684,
 // docs/design/gpu/compute.md).
 
+#include "tessera/rendering/rhi/texture_region.hpp"
 #include "webgpu_internal.hpp"
 
 #include <cstring>
@@ -310,6 +311,42 @@ void WebGpuComputeCommands::copy_buffer(const rhi::Buffer& source, rhi::Buffer& 
     wgpuCommandEncoderCopyBufferToBuffer(compute_encoder(),
                                          static_cast<const WebGpuBuffer&>(source).handle(), 0,
                                          static_cast<WebGpuBuffer&>(destination).handle(), 0, size);
+}
+
+// RHI 1.17 (ADR-072): the handoff from a compute pass's storage buffer to a texture a later draw
+// samples. The RHI pitch is already a multiple of 256 bytes (`checked_buffer_texture_copy`), which
+// is WebGPU's own bytesPerRow rule, so the region maps one to one. The copy is its own encoder
+// command, so it ends the compute pass and is ordered after the dispatches recorded before it.
+void WebGpuComputeCommands::copy_buffer_to_texture(const rhi::Buffer& source,
+                                                   rhi::Texture& destination,
+                                                   const rhi::BufferTextureCopy& copy) {
+    require_outside_render_pass("copy_buffer_to_texture");
+    const auto& from = static_cast<const WebGpuBuffer&>(source);
+    auto& to = static_cast<WebGpuTexture&>(destination);
+    if (from.usage() != rhi::BufferUsage::Staging && from.usage() != rhi::BufferUsage::Storage) {
+        throw std::invalid_argument(
+            "copy_buffer_to_texture: the source must be a Staging or Storage buffer");
+    }
+    if (to.sample_count() != 1 || to.levels() != 1) {
+        throw std::invalid_argument(
+            "copy_buffer_to_texture: the destination must have one sample and one level");
+    }
+    const std::size_t pitch =
+        rhi::checked_buffer_texture_copy(to.extent(), to.format(), copy, from.size());
+    if (pitch == 0) {
+        return; // an empty region copies nothing
+    }
+    end_compute_pass();
+    WGPUTexelCopyBufferInfo src = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    src.buffer = from.handle();
+    src.layout.offset = copy.buffer_offset;
+    src.layout.bytesPerRow = static_cast<std::uint32_t>(pitch);
+    src.layout.rowsPerImage = copy.region.height;
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = to.handle();
+    dst.origin = {copy.region.x, copy.region.y, 0};
+    const WGPUExtent3D extent{copy.region.width, copy.region.height, 1};
+    wgpuCommandEncoderCopyBufferToTexture(compute_encoder(), &src, &dst, &extent);
 }
 
 } // namespace tessera::rendering::webgpu

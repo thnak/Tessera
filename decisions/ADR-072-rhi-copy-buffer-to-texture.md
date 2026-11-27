@@ -103,7 +103,7 @@ for one backend produces a buffer the others accept. The consumer pads its rows;
 |---|---|---|
 | null | validates the whole contract and records the call, so the renderer paths and the validation matrix are unit-testable | answers true |
 | Vulkan | in the command list: buffer barrier (shader write to transfer read), image barrier shader-read to transfer-dst, `vkCmdCopyBufferToImage` with `bufferRowLength = pitch / bytes-per-pixel`, image barrier back to shader-read; the same texture state machine `write_region` uses (textures rest in shader-read), the same epoch check | answers true |
-| WebGPU (Tier 1) | `wgpuCommandEncoderCopyBufferToTexture`; buffers get `CopySrc`; the pitch rule is its own | answers false until a conformance run passes on it (ADR-049 item 3); the default keeps it unaffected |
+| WebGPU (Tier 1) | `wgpuCommandEncoderCopyBufferToTexture`; buffers get `CopySrc`; the pitch rule is its own | answers true since 2026-11-27 with the caveat of slice 3 above; was false until a conformance run could use it (ADR-049 item 3) |
 | Metal (Tier 2) | `MTLBlitCommandEncoder copyFromBuffer:...toTexture:`, ending and restarting the encoder around it | answers false; a follow-up |
 
 A backend that answers false throws from the new command and keeps its CPU path; no existing call
@@ -131,7 +131,10 @@ Each slice is behaviour, tests and docs; the first two land together in one push
    copy ordered against a dispatch before it and a draw after it; the error cases, including inside a
    render pass and a mipmapped destination; a stale device epoch.
 3. **WebGPU**, when its conformance lane can run it: implement, run the same contract tests, then
-   answer true.
+   answer true. Implemented and answering true (2026-11-27, `webgpu_compute.cpp`), but only the path
+   rasterizer's use is exercised so far (`webgpu_path_raster_conformance`, Dawn on D3D12: a 4K copy per
+   frame, no validation error, ADR-071 "WebGPU numbers"). The contract tests above (sub-rectangle, padded
+   pitch, error cases) have not been run on WebGPU.
 4. **Metal**, with the Tier-2 maintainer's agreement.
 
 The consumer is **not part of this ADR** and lands separately, after slice 2: the spike's shader

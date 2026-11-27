@@ -9,15 +9,19 @@
 // compute.
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
+#include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/path_raster_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -239,6 +243,84 @@ void wait_collect(path::GpuPathRasterizer& rasterizer, rhi::Device& device) {
          ok;
     ok = expect(tiny.flush().has_value(), "flush the single job") && ok;
     wait_collect(tiny, device);
+
+    // A scale-independent document at 3x equals the legacy route (shapes pre-scaled, encoded for
+    // the target): the scale is applied on the GPU through the per-path affine.
+    {
+        const std::array<path::PathShape, 2> doc_shapes{box(12.0f, 8.0f, 200, 40, 90),
+                                                        stroked_line()};
+        const rhi::Extent2D big{36, 24};
+        const auto scaled = path::scale_path_shapes(doc_shapes, 3.0f);
+        std::vector<Raster> pair;
+        pair.push_back(blank_texture(device, big));
+        pair.push_back(blank_texture(device, big));
+        const auto document = path::make_gpu_document(doc_shapes, 4.0f);
+        path::GpuPathRasterizer docs(device, vk::path_raster_pipeline_descs());
+        ok = expect(docs.enqueue(scaled, *pair[0].texture, big).has_value() &&
+                        docs.enqueue(document, 3.0f, *pair[1].texture, big).has_value() &&
+                        docs.flush().has_value(),
+                    "legacy and document rasters queue") &&
+             ok;
+        wait_collect(docs, device);
+        const auto both = draw(device, pair);
+        std::size_t worst = 0;
+        for (std::uint32_t y = 0; y < big.height; ++y) {
+            for (std::uint32_t x = 0; x < big.width; ++x) {
+                for (std::size_t c = 0; c < 4; ++c) {
+                    const auto at = [&](std::uint32_t px) {
+                        return both[(static_cast<std::size_t>(y) * kTargetWidth + px) * 4U + c];
+                    };
+                    const int diff = std::abs(int{at(x)} - int{at(40 + x)});
+                    worst = std::max<std::size_t>(worst, static_cast<std::size_t>(diff));
+                }
+            }
+        }
+        // The document flattens at 0.05/4 document units and the legacy shapes at 0.05 pixels: the
+        // same curve tolerance, so straight-edged shapes agree exactly and curves within a level.
+        ok = expect(worst <= 2, "a document at 3x matches the pre-scaled shapes (worst diff " +
+                                    std::to_string(worst) + ")") &&
+             ok;
+        ok = expect(is(both, 20, 5, 200, 40, 90), "the scaled document fills its rectangle") && ok;
+        // The document is resident after its first raster: a second raster at another scale, in a
+        // later flush, uploads only its job record and path records.
+        const auto before = docs.stats();
+        ok = expect(before.resident_uploads == 1 && before.resident_documents == 1,
+                    "the document was uploaded to the arena once") &&
+             ok;
+        auto other = blank_texture(device, {24, 16});
+        ok = expect(docs.enqueue(document, 2.0f, *other.texture, {24, 16}).has_value() &&
+                        docs.flush().has_value(),
+                    "a second scale of the same document") &&
+             ok;
+        wait_collect(docs, device);
+        const auto after = docs.stats();
+        const std::uint64_t expected_bytes =
+            sizeof(path::PathRasterJob) + document->encoded.path_count * path::kGpuPathWords * 4U;
+        ok =
+            expect(after.resident_uploads == 1 && after.resident_hits == before.resident_hits + 1 &&
+                       after.uploaded_bytes - before.uploaded_bytes == expected_bytes,
+                   "a resident raster uploads only its job and path records (" +
+                       std::to_string(after.uploaded_bytes - before.uploaded_bytes) + " vs " +
+                       std::to_string(expected_bytes) + ")") &&
+            ok;
+        // A batch mixing a resident and a legacy raster still renders both correctly.
+        auto mixed = blank_texture(device, big);
+        auto mixed_legacy = blank_texture(device, big);
+        ok = expect(docs.enqueue(document, 3.0f, *mixed.texture, big).has_value() &&
+                        docs.enqueue(scaled, *mixed_legacy.texture, big).has_value() &&
+                        docs.flush().has_value(),
+                    "mixed resident and legacy batch") &&
+             ok;
+        wait_collect(docs, device);
+        std::vector<Raster> mixed_pair;
+        mixed_pair.push_back(std::move(mixed));
+        mixed_pair.push_back(std::move(mixed_legacy));
+        ok = expect(draw(device, mixed_pair) == both, "a mixed batch matches the resident batch") &&
+             ok;
+        ok = expect(!docs.enqueue(document, 8.0f, *pair[1].texture, big).has_value(),
+                    "a scale above the document's bound is refused") &&
+             ok;
+    }
     return ok;
 }
 

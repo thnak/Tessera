@@ -60,7 +60,10 @@ names a render program. The contract a compute WGSL program follows:
 - Storage buffers are group 0, bindings 0 to `storage_buffer_count - 1`, **every one `var<storage,
   read_write>`**. WebGPU rejects a pipeline whose layout and declared access disagree, and the RHI binds one
   kind of buffer, so a buffer a kernel only reads is still declared `read_write`. A buffer used with
-  `atomicAdd` is declared `array<atomic<u32>>`, which WGSL requires.
+  `atomicAdd` is declared `array<atomic<u32>>`, which WGSL requires. An atomic array reads through `atomicLoad`, which D3D12 compiles to an interlocked
+  operation: a pass that only reads such a buffer should declare the same binding again as a plain `array<u32>`
+  (allowed while no entry point uses both views), as the path rasterizer's fine pass does (ADR-071: dense 4K
+  frame 93 ms with atomic reads, 4.8 ms with the plain view).
 - Push constants do not exist in WebGPU. The block is a uniform at group 0, **binding 8**
   (`kBindingComputePush`), written per `compute_push_constants` call into a per-list arena and bound with a
   dynamic offset, so changing it between dispatches builds no new bind group. A pipeline that declares push
@@ -68,7 +71,13 @@ names a render program. The contract a compute WGSL program follows:
 - `compute_barrier` ends the compute pass, so the order it documents never depends on WebGPU's own
   in-pass ordering. `copy_buffer`, a render pass and the submit end it too.
 - A pipeline's bindings belong to the pipeline object, as on Vulkan: binding a different pipeline starts with
-  no buffers, and every slot must be bound before a dispatch (a missing one throws `std::logic_error`).
+  no buffers, and every slot must be bound before a dispatch (a missing one throws `std::logic_error`). The
+  bind group layout holds all `storage_buffer_count` slots even when an entry point declares fewer, so a pass
+  that does not use a buffer still binds one (the path rasterizer binds all seven for each of its four passes;
+  Vulkan ignores the extras).
+- `copy_buffer_to_texture` (ADR-072 slice 3) is implemented: the RHI's 256-byte row pitch is WebGPU's
+  `bytesPerRow` rule, so the region maps to `wgpuCommandEncoderCopyBufferToTexture` directly, ending the compute
+  pass first. `supports_buffer_texture_copy()` is true, which is what lets `GpuPathRasterizer` run.
 - `copy_buffer` needs a size that is a multiple of 4 (the API copies words); a Storage buffer carries the
   copy-source, copy-destination and indirect usages, so it can be filled by the queue, copied out and used as
   `dispatch_indirect` arguments. A buffer must not be bound as storage **and** be the indirect buffer of the
@@ -100,3 +109,12 @@ Dawn's `webgpu` npm bindings (installed outside the repository; the script's hea
 built with JSPI, because ASYNCIFY cannot be mixed with the wasm exceptions the lane compiles with. Measured
 on 2026-11-27 on an NVIDIA RTX 4060 through Dawn on D3D12 (Node 25.2.1): the indirect arguments, all 16 histogram
 bins and the 200 prefix sums matched, with no validation errors. A browser run is the same program in a page.
+
+**Path rasterizer.** `webgpu_path_raster_conformance` (same host script, `TESSERA_CONFORMANCE_JS` pointing at it;
+`--goldens <dir>` for the PNGs, `--measure [--dense]` for the 4K frame) runs the corpus of
+`tests/gpu/batched2d/path_raster_corpus.hpp` through `webgpu::path_raster_pipeline_descs()` (four programs of
+`shaders/path_raster.wgsl`, seven `read_write` storage buffers, the push block at binding 8) and compares the
+readback with the lavapipe goldens under the ThorVG limits of ADR-071. The results (RTX 4060 through Dawn on
+D3D12: every scene within 1 premultiplied level) and the 4K timings are in ADR-071, section "WebGPU numbers
+(Dawn)". `TESSERA_DAWN_MAX_LIMITS=1` asks the device for the adapter's own storage-binding and buffer limits (a 4K
+raster's buffers exceed the 128 MiB default binding size).

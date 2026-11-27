@@ -50,6 +50,15 @@ struct EncodedGpuScene {
 [[nodiscard]] EncodedGpuScene encode_gpu_scene(const GpuPathScene& scene, std::uint32_t width,
                                                std::uint32_t height, float max_scale = 1.0f);
 
+// The per-path records for one raster of `encoded` as a new word vector (kGpuPathWords per path),
+// without touching `encoded`: the same affine and clamped device box as `write_path_records`. A
+// shared, immutable encoded scene (GpuPathDocument) is rasterized at many scales by giving each
+// raster its own records.
+[[nodiscard]] std::vector<std::uint32_t> make_path_records(const EncodedGpuScene& encoded,
+                                                           std::span<const PathAffine> matrices,
+                                                           std::uint32_t width,
+                                                           std::uint32_t height);
+
 // Rewrites the per-path records for one frame: the affine (an empty span is identity for every
 // path, otherwise one per path), and the device-space box bounding the transformed local box,
 // clamped to the target, which the fine pass uses to skip a pixel outside it.
@@ -73,7 +82,9 @@ struct PathRasterPush {
     std::uint32_t stroke_count = 0;
     std::uint32_t arc_edges = 0;
     std::uint32_t out_stride = 0; // words between output rows (the copy's pitch / 4)
-    std::uint32_t spare = 0;
+    // First word of the device-space segment records inside work (4 floats per segment id: the
+    // endpoints after the path transform, written by the bin pass and read by the fine pass).
+    std::uint32_t dev_base = 0;
 };
 static_assert(sizeof(PathRasterPush) == 48);
 

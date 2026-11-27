@@ -560,6 +560,15 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (waits for #683 Accepted and #669), then #685 the GPU path renderer (waits for #683 and
       #684), then #686 the glyph rasterization measurement. Measurement tool:
       `tests/gpu/batched2d/cpu_to_gpu_4k_measure.cpp`.
+      Landed 2026-11-27 (PR #951): #685 the GPU path renderer — scale-independent documents
+      (`GpuPathDocument`, cached by geometry), a device-resident arena for fill edges, strokes and dashes,
+      the `PathRenderer` seam (`GpuPathRasterizer` implements it; `PathTextureCache::set_path_renderer`),
+      the 27-scene corpus with a ThorVG tolerance table and lavapipe goldens
+      (`tests/gpu/batched2d/path_raster_*`, `tests/golden/gpu/path_raster/`), the WGSL twin on WebGPU
+      (Dawn and real Chrome), and `gpu_path_animated_measure`: RTX 4060 4K, CPU 0.04 ms per frame,
+      GPU 1.25 ms sparse and 3.2 ms dense, 7.8 KB and 912 B written per frame (not literally zero;
+      ADR-071 says why). #947 fixed (zero-length strokes). #686 measured (`docs/design/text-gpu-raster.md`
+      section 6; follow-ups #948, #949, #950). Left: #689 (the GPU downscale was rejected on numbers).
 
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C

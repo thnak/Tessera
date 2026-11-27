@@ -17,22 +17,28 @@
 // push constant is a uniform (WebGPU has none). A batch of N rasters is N job records and the job is
 // the workgroup id's y (the fine pass: z), as in the GLSL.
 //
-// Not wired to a backend yet: the WebGPU backend has no compute support (RHI 1.16 is Vulkan only, and
-// ADR-072 slice 3 adds the buffer-to-texture copy), so nothing embeds this file; the CI gate
-// (scripts/ci/validate_wgsl.py) validates it with naga so it cannot rot before the backend arrives.
+// Run by the WebGPU backend (RHI 1.22, docs/design/gpu/compute.md section 3.1): the file is embedded
+// and registered as four programs (one per entry point, ids in webgpu_path_raster.hpp). The compute
+// contract fixes two things that differ from the GLSL's interface: every storage buffer at group 0,
+// bindings 0..6, is declared read_write (WebGPU rejects a layout whose access disagrees, and the RHI
+// binds one kind of buffer), and the push block is the uniform at binding 8 (kBindingComputePush),
+// not 7. scripts/ci/validate_wgsl.py validates it with naga.
 
-@group(0) @binding(0) var<storage, read> segs: array<u32>;
-@group(0) @binding(1) var<storage, read> paths: array<u32>;
+@group(0) @binding(0) var<storage, read_write> segs: array<u32>;
+@group(0) @binding(1) var<storage, read_write> paths: array<u32>;
 @group(0) @binding(2) var<storage, read_write> work: array<atomic<u32>>;
+// The fine pass only reads work, and an atomicLoad is an interlocked operation on some drivers (D3D12:
+// slow on the node walk), so it sees the same binding as a plain array. No entry point uses both views.
+@group(0) @binding(2) var<storage, read_write> work_plain: array<u32>;
 @group(0) @binding(3) var<storage, read_write> pixels: array<u32>;
-@group(0) @binding(4) var<storage, read> strokes: array<u32>;
-@group(0) @binding(5) var<storage, read> dashes: array<u32>;
-@group(0) @binding(6) var<storage, read> jobs: array<u32>;
+@group(0) @binding(4) var<storage, read_write> strokes: array<u32>;
+@group(0) @binding(5) var<storage, read_write> dashes: array<u32>;
+@group(0) @binding(6) var<storage, read_write> jobs: array<u32>;
 
 struct Push {
     job_base: u32,
 }
-@group(0) @binding(7) var<uniform> pcb: Push;
+@group(0) @binding(8) var<uniform> pcb: Push;
 
 struct Job {
     width: u32,
@@ -46,7 +52,7 @@ struct Job {
     stroke_count: u32,
     arc_edges: u32,
     out_stride: u32,
-    spare: u32,
+    dev_base: u32, // first word of the device-space segment records inside work (4 floats each)
 }
 
 // The raster this invocation works on, and where its slices of the shared buffers start (words).
@@ -75,6 +81,10 @@ fn load_job(index: u32) {
 
 fn wload(i: u32) -> u32 {
     return atomicLoad(&work[wb + i]);
+}
+
+fn wread(i: u32) -> u32 {
+    return work_plain[wb + i];
 }
 
 fn wstore(i: u32, v: u32) {
@@ -405,11 +415,19 @@ fn bin_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id
     }
     let path = seg_word(i, 4u);
     let m = path_xf(path);
-    let y0 = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 0u)), bitcast<f32>(seg_word(i, 1u)))).y;
-    let y1 = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 2u)), bitcast<f32>(seg_word(i, 3u)))).y;
+    let da = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 0u)), bitcast<f32>(seg_word(i, 1u))));
+    let db = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 2u)), bitcast<f32>(seg_word(i, 3u))));
+    let y0 = da.y;
+    let y1 = db.y;
     if (y0 == y1) {
         return;
     }
+    // The fine pass reads the transformed endpoints instead of transforming them again per pixel.
+    let dev = pc.dev_base + i * 4u;
+    wstore(dev, bitcast<u32>(da.x));
+    wstore(dev + 1u, bitcast<u32>(da.y));
+    wstore(dev + 2u, bitcast<u32>(db.x));
+    wstore(dev + 3u, bitcast<u32>(db.y));
     let ymin = min(y0, y1);
     let ymax = max(y0, y1);
     let row0 = max(i32(floor(ymin)), 0);
@@ -441,6 +459,14 @@ fn segment_area(a_in: vec2<f32>, b_in: vec2<f32>, px: f32, py: f32) -> f32 {
     let y0 = max(a.y, py);
     let y1 = min(b.y, py + 1.0);
     if (y1 <= y0) {
+        return 0.0;
+    }
+    // Entirely left or right of the pixel by the endpoints' x range, which bounds the clipped piece:
+    // the same answers as the checks below, without the division.
+    if (max(a.x, b.x) <= px) {
+        return sign_v * (y1 - y0);
+    }
+    if (min(a.x, b.x) >= px + 1.0) {
         return 0.0;
     }
     let inv_slope = (b.x - a.x) / (b.y - a.y);
@@ -482,49 +508,95 @@ fn segment_area(a_in: vec2<f32>, b_in: vec2<f32>, px: f32, py: f32) -> f32 {
     return sign_v * area;
 }
 
+// The paths whose device box overlaps this 16 x 16 tile, as a bitmask over one chunk of 256 paths (one
+// bit per invocation of the workgroup), as in the GLSL: a pixel visits only those paths, and walking
+// the bits in ascending order keeps the compositing order the path order. workgroupBarrier must be in
+// uniform control flow, and the path count is loaded from a storage buffer (which WGSL treats as
+// non-uniform), so invocation 0 publishes it and every invocation reads it back with
+// workgroupUniformLoad; there is no early return before the barriers (`inside` guards the pixel).
+var<workgroup> tile_mask: array<atomic<u32>, 8>;
+var<workgroup> tile_path_count: u32;
+
 @compute @workgroup_size(16, 16)
-fn fine_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id) gid: vec3<u32>) {
+fn fine_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id) gid: vec3<u32>,
+             @builtin(local_invocation_index) lane: u32) {
     load_job(wid.z);
     let x = gid.x;
     let y = gid.y;
-    if (x >= pc.width || y >= pc.height) {
-        return;
-    }
+    let inside = x < pc.width && y < pc.height;
+    let tx0 = i32(wid.x * 16u);
+    let ty0 = i32(wid.y * 16u);
     let px = f32(x);
     let py = f32(y);
     var dst = vec4<f32>(0.0);
-    for (var p = 0u; p < pc.path_count; p++) {
-        let base = pb + p * 16u;
-        if (i32(x) < i32(paths[base + 8u]) || i32(x) >= i32(paths[base + 10u]) ||
-            i32(y) < i32(paths[base + 9u]) || i32(y) >= i32(paths[base + 11u])) {
-            continue;
+    if (lane == 0u) {
+        tile_path_count = pc.path_count;
+    }
+    workgroupBarrier();
+    let path_count = workgroupUniformLoad(&tile_path_count);
+    for (var chunk = 0u; chunk < path_count; chunk += 256u) {
+        if (lane < 8u) {
+            atomicStore(&tile_mask[lane], 0u);
         }
-        let m = path_xf(p);
-        var w = 0.0;
-        var node = wload(1u + p * pc.height + y);
-        while (node != kNil) {
-            let s = wload(pc.nodes_base + node * 2u);
-            let a = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 0u)), bitcast<f32>(seg_word(s, 1u))));
-            let b = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 2u)), bitcast<f32>(seg_word(s, 3u))));
-            w += segment_area(a, b, px, py);
-            node = wload(pc.nodes_base + node * 2u + 1u);
+        workgroupBarrier();
+        let tp = chunk + lane;
+        if (tp < path_count) {
+            let tb = pb + tp * 16u;
+            if (i32(paths[tb + 8u]) < tx0 + 16 && i32(paths[tb + 10u]) > tx0 &&
+                i32(paths[tb + 9u]) < ty0 + 16 && i32(paths[tb + 11u]) > ty0) {
+                atomicOr(&tile_mask[lane >> 5u], 1u << (lane & 31u));
+            }
         }
-        let t = abs(w);
-        var cov: f32;
-        if (paths[base + 6u] == 0u) {
-            cov = min(t, 1.0);
-        } else {
-            let f = glsl_mod(t, 2.0);
-            cov = select(f, 2.0 - f, f > 1.0);
+        workgroupBarrier();
+        for (var word = 0u; word < 8u; word++) {
+            var bits = atomicLoad(&tile_mask[word]);
+            while (bits != 0u) {
+                let p = chunk + word * 32u + firstTrailingBit(bits);
+                bits &= bits - 1u;
+                if (!inside) {
+                    continue;
+                }
+                let base = pb + p * 16u;
+                if (i32(x) < i32(paths[base + 8u]) || i32(x) >= i32(paths[base + 10u]) ||
+                    i32(y) < i32(paths[base + 9u]) || i32(y) >= i32(paths[base + 11u])) {
+                    continue;
+                }
+                // No segment on this row: the path does not touch it, whatever its box says.
+                var node = wread(1u + p * pc.height + y);
+                if (node == kNil) {
+                    continue;
+                }
+                var w = 0.0;
+                while (node != kNil) {
+                    let s = wread(pc.nodes_base + node * 2u);
+                    let dev = pc.dev_base + s * 4u;
+                    let a = vec2<f32>(bitcast<f32>(wread(dev)), bitcast<f32>(wread(dev + 1u)));
+                    let b = vec2<f32>(bitcast<f32>(wread(dev + 2u)), bitcast<f32>(wread(dev + 3u)));
+                    w += segment_area(a, b, px, py);
+                    node = wread(pc.nodes_base + node * 2u + 1u);
+                }
+                let t = abs(w);
+                var cov: f32;
+                if (paths[base + 6u] == 0u) {
+                    cov = min(t, 1.0);
+                } else {
+                    let f = glsl_mod(t, 2.0);
+                    cov = select(f, 2.0 - f, f > 1.0);
+                }
+                if (cov <= 0.0) {
+                    continue;
+                }
+                let rgba = paths[base + 7u];
+                let c = vec4<f32>(f32(rgba & 255u), f32((rgba >> 8u) & 255u), f32((rgba >> 16u) & 255u),
+                                  f32(rgba >> 24u)) / 255.0;
+                let src = vec4<f32>(c.rgb * c.a, c.a) * cov;
+                dst = src + dst * (1.0 - src.a);
+            }
         }
-        if (cov <= 0.0) {
-            continue;
-        }
-        let rgba = paths[base + 7u];
-        let c = vec4<f32>(f32(rgba & 255u), f32((rgba >> 8u) & 255u), f32((rgba >> 16u) & 255u),
-                          f32(rgba >> 24u)) / 255.0;
-        let src = vec4<f32>(c.rgb * c.a, c.a) * cov;
-        dst = src + dst * (1.0 - src.a);
+        workgroupBarrier();
+    }
+    if (!inside) {
+        return;
     }
     var rgb = vec3<f32>(0.0);
     if (dst.a > 0.0) {

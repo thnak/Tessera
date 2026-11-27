@@ -110,6 +110,9 @@ public:
     void write_region(const rhi::TextureRegion& region, const void* data,
                       std::size_t row_pitch) override;
 
+    [[nodiscard]] WGPUTexture handle() const {
+        return texture_;
+    }
     [[nodiscard]] WGPUTextureView view() const {
         return view_;
     }
@@ -272,6 +275,8 @@ public:
     void compute_barrier() override;
     void copy_buffer(const rhi::Buffer& source, rhi::Buffer& destination,
                      std::size_t size) override;
+    void copy_buffer_to_texture(const rhi::Buffer& source, rhi::Texture& destination,
+                                const rhi::BufferTextureCopy& copy) override;
 
 protected:
     [[nodiscard]] virtual WGPUCommandEncoder compute_encoder() const = 0;

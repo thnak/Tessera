@@ -22,10 +22,14 @@ tessera_embed_wgsl(mip_downsample.wgsl)
 # Compute conformance kernels (RHI 1.22, issue #684): embedded for the Wasm conformance program only,
 # not registered as a built-in program.
 tessera_embed_wgsl(compute_conformance.wgsl)
+# GPU path rasterizer passes (ADR-071, issue #685): four entry points of one module, registered as
+# four compute programs by webgpu::register_path_raster_shaders.
+tessera_embed_wgsl(path_raster.wgsl)
 
 add_library(tessera_webgpu_mapping STATIC
     src/webgpu_mapping.cpp
-    src/shader_registry.cpp)
+    src/shader_registry.cpp
+    src/path_raster_pipeline.cpp)
 
 target_include_directories(tessera_webgpu_mapping
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -43,7 +47,8 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         src/webgpu_pipeline.cpp
         src/webgpu_canvas_target.cpp
         src/webgpu_command_list.cpp
-        src/webgpu_compute.cpp)
+        src/webgpu_compute.cpp
+        src/path_raster_register.cpp)
     target_link_libraries(tessera_webgpu PUBLIC tessera_webgpu_mapping)
     if (EMSCRIPTEN)
         # Dawn's emdawnwebgpu port supplies webgpu/webgpu.h and the browser bindings. The port
@@ -64,5 +69,37 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         target_link_libraries(webgpu_compute_conformance PRIVATE tessera_webgpu)
         target_link_options(webgpu_compute_conformance PRIVATE
             "-sENVIRONMENT=node" "-sJSPI" "-sEXIT_RUNTIME=1")
+
+        # GPU path rasterizer (issue #685, ADR-071) on WebGPU: corpus pixels against the lavapipe
+        # goldens and the animated 4K frame, through the production encoder and GpuPathRasterizer.
+        # Needs a real device like the compute conformance (scripts/webgpu_path_raster.mjs); the
+        # golden PNGs are read from the host file system (NODERAWFS). tessera_path is the same
+        # library the native build links; the corpus headers are the tests', included in place.
+        add_executable(webgpu_path_raster_conformance
+            smoke/webgpu_path_raster_conformance.cpp
+            smoke/webgpu_path_raster_measure.cpp)
+        target_include_directories(webgpu_path_raster_conformance PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${PROJECT_SOURCE_DIR}/tests/gpu/batched2d)
+        target_link_libraries(webgpu_path_raster_conformance PRIVATE
+            tessera_webgpu tessera_path tessera_harness_image)
+        target_link_options(webgpu_path_raster_conformance PRIVATE
+            "-sENVIRONMENT=node" "-sJSPI" "-sEXIT_RUNTIME=1" "-sNODERAWFS=1"
+            "-sALLOW_MEMORY_GROWTH=1")
+
+        # The same program for a browser page (tools/webgpu_browser/run_path_raster.py serves it and
+        # drives Chrome): the goldens are preloaded into the Wasm file system at /goldens, and the
+        # page hands over the device as Module.preinitializedWebGPUDevice.
+        add_executable(webgpu_path_raster_web
+            smoke/webgpu_path_raster_conformance.cpp
+            smoke/webgpu_path_raster_measure.cpp)
+        target_include_directories(webgpu_path_raster_web PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${PROJECT_SOURCE_DIR}/tests/gpu/batched2d)
+        target_link_libraries(webgpu_path_raster_web PRIVATE
+            tessera_webgpu tessera_path tessera_harness_image)
+        target_link_options(webgpu_path_raster_web PRIVATE
+            "-sENVIRONMENT=web" "-sJSPI" "-sEXIT_RUNTIME=1" "-sALLOW_MEMORY_GROWTH=1"
+            "--preload-file" "${PROJECT_SOURCE_DIR}/tests/golden/gpu/path_raster@/goldens")
     endif()
 endif()

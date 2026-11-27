@@ -5,6 +5,7 @@
 // buffer / push block plan. No GPU is involved; tests/gpu/batched2d/path_raster_gpu_tests.cpp runs
 // the same encoding through the compute passes.
 
+#include "tessera/rendering/path/gpu_path_document.hpp"
 #include "tessera/rendering/path/gpu_path_encoder.hpp"
 
 #include <array>
@@ -214,13 +215,103 @@ void test_plan() {
                    push.path_count == 2,
                "the push block mirrors the encoding");
         expect(push.exp_base == push.nodes_base + push.node_capacity * 2 &&
-                   tight->work_words ==
-                       push.exp_base + std::size_t{encoded.stroke_edges} * path::kGpuSegWords,
-               "the work buffer holds counter, heads, nodes and expanded stroke edges");
+                   push.dev_base ==
+                       push.exp_base + std::size_t{encoded.stroke_edges} * path::kGpuSegWords &&
+                   tight->work_words == push.dev_base + std::size_t{encoded.seg_count} * 4,
+               "the work buffer holds counter, heads, nodes, expanded stroke edges and the "
+               "device-space segment records");
     }
     const auto scaled = path::plan_path_raster(encoded, 100, 40, 0, 3.0f);
     expect(scaled && tight && scaled->push.node_capacity > tight->push.node_capacity,
            "a larger scale bound reserves more bin nodes");
+}
+
+void test_zero_length_strokes() {
+    const auto stroke = [](std::vector<float> contours, path::GpuCap cap) {
+        path::GpuPathScene scene;
+        path::GpuPathShape shape;
+        shape.contours = std::move(contours);
+        shape.half_width = 3.0f;
+        shape.open = true;
+        shape.cap = cap;
+        scene.shapes.push_back(std::move(shape));
+        return path::encode_gpu_scene(scene, 64, 64);
+    };
+    // A,B,B,C: the zero-length B->B segment is dropped, leaving two records that join at B.
+    const auto mid = stroke({10, 10, 30, 30, 30, 30, 30, 30, 30, 30, 50, 10}, path::GpuCap::butt);
+    expect(mid.stroke_count == 2, "a zero-length segment inside a polyline is dropped");
+    // A contour of nothing else is a dot: round and square caps draw one, a butt cap nothing.
+    const auto round_dot = stroke({20, 20, 20, 20}, path::GpuCap::round);
+    expect(round_dot.stroke_count == 1 &&
+               as_float(round_dot.strokes[2]) - as_float(round_dot.strokes[0]) == 1.0f / 64.0f,
+           "a lone zero-length segment with a round cap becomes a 1/64 px segment");
+    expect(stroke({20, 20, 20, 20}, path::GpuCap::square).stroke_count == 1,
+           "and with a square cap");
+    expect(stroke({20, 20, 20, 20}, path::GpuCap::butt).stroke_count == 0,
+           "a butt cap draws nothing for it");
+}
+
+void test_document() {
+    path::PathShape shape;
+    shape.path.segments.push_back({path::SegmentKind::move_to, {0, 0}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::line_to, {20, 0}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::line_to, {20, 10}, {}, {}});
+    shape.path.segments.push_back({path::SegmentKind::close, {}, {}, {}});
+    shape.paint.fill = path::Rgba8{9, 8, 7, 255};
+    const std::array<path::PathShape, 1> shapes{shape};
+
+    expect(path::document_scale_bucket(0.3f) == 1.0f && path::document_scale_bucket(1.0f) == 1.0f &&
+               path::document_scale_bucket(1.01f) == 2.0f &&
+               path::document_scale_bucket(5.0f) == 8.0f &&
+               path::document_scale_bucket(path::kMaxDocumentScale) == path::kMaxDocumentScale,
+           "scale buckets are powers of two");
+    expect(path::document_scale_bucket(0.0f) == 0.0f &&
+               path::document_scale_bucket(-1.0f) == 0.0f &&
+               path::document_scale_bucket(1000.0f) == 0.0f &&
+               path::document_scale_bucket(std::nanf("")) == 0.0f,
+           "a scale without a bucket keeps the CPU route");
+
+    const auto document = path::make_gpu_document(shapes, 1.0f);
+    expect(document && document->encoded.paths.empty() && document->encoded.path_count == 1 &&
+               document->encoded.fill_count == 3,
+           "a document keeps geometry and no per-raster records");
+
+    // The records of a scaled raster equal the legacy route: encode the pre-scaled shape and
+    // compare the affine and device box the shader reads.
+    const std::array<path::PathAffine, 1> view{path::document_view(2.0f)};
+    const auto records = path::make_path_records(document->encoded, view, 100, 40);
+    expect(records.size() == path::kGpuPathWords && as_float(records[0]) == 2.0f &&
+               as_float(records[3]) == 2.0f && records[12] == 0U,
+           "the document view is a uniform scale record");
+    expect(records[10] == 41U && records[11] == 21U, "the device box follows the scaled bounds");
+    expect(document->encoded.paths.empty(), "making records leaves the shared document alone");
+
+    path::GpuPathDocumentCache cache;
+    path::PathTextureKey key;
+    key.path_id = 7;
+    key.path_version = 1;
+    key.width = 20;
+    key.height = 10;
+    const auto first = cache.acquire(key, shapes, 1.0f);
+    key.width = 40;
+    key.height = 20;
+    key.scale_milli = 2000;
+    const auto resized = cache.acquire(key, shapes, 1.0f);
+    expect(first && first == resized && cache.stats().misses == 1 && cache.stats().hits == 1,
+           "a size change reuses the encoded document");
+    const auto bigger = cache.acquire(key, shapes, 3.0f);
+    expect(bigger && bigger != first && bigger->max_scale == 4.0f && cache.stats().misses == 2,
+           "a larger bucket encodes a second document");
+    key.path_version = 2;
+    expect(cache.acquire(key, shapes, 1.0f) != first, "a geometry version bump is a new document");
+    expect(cache.acquire(key, shapes, 100.0f) == nullptr, "an out-of-range scale has no document");
+
+    path::GpuPathDocumentCache tiny(1);
+    key.path_version = 1;
+    (void)tiny.acquire(key, shapes, 1.0f);
+    (void)tiny.acquire(key, shapes, 2.0f);
+    expect(tiny.stats().documents == 1 && tiny.stats().evictions == 1,
+           "the byte bound evicts the least recently used document");
 }
 
 } // namespace
@@ -232,6 +323,8 @@ int main() {
     test_encode_strokes();
     test_encode_dashes();
     test_plan();
+    test_zero_length_strokes();
+    test_document();
     if (!g_ok) {
         return 1;
     }

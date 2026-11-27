@@ -70,5 +70,39 @@ and uploads one 512x512 page (1 MiB); the **next 359 frames upload 0 bytes** and
 2. Move the scale-step rebuild off the UI thread (worker rasterization, old page until the swap) and upload
    the used extent of a new atlas page instead of the whole page. Both are CPU-side, byte-identical to today,
    and open as follow-ups.
-3. Revisit a GPU or SDF route for display-size text (256 px and up) only after #685 ships its path renderer
-   and ADR-071's conditions are met; measure it against section 1 then. Until then step 2 of #686 stays open.
+3. A GPU outline route for batch rebuilds of display-size glyphs is worth building as an option (section 6);
+   it is not a replacement for FreeType on small text.
+
+## 6. GPU outlines measured (#686 step 2, 2026-11-27)
+
+`glyph_gpu_raster_measure <font.ttf>` decomposes the 94 printable ASCII outlines of Noto Sans into one
+scale-independent document each and rasterizes them through `GpuPathRasterizer` (#685) into S x S
+textures. RTX 4060 desktop, Release, median per glyph. "Batch" is all 94 in one flush (an atlas rebuild
+on a scale step); "single" is one glyph per flush (one new glyph).
+
+| Pixel size | encode (once, any size) | batch CPU | batch GPU | single CPU | single GPU wall | FreeType gray miss (section 1) |
+|---|---|---|---|---|---|---|
+| 128 | 5.6 us | 1.0 us | 3.8 us | 10.9 us | 75.6 us | 31 us |
+| 256 | 4.5 us | 1.3 us | 10.4 us | 10.9 us | 97.5 us | 31 us |
+| 512 | 5.4 us | 1.3 us | 35.8 us | 10.9 us | 138.8 us | 74 us |
+
+What it says:
+
+- **Rebuilds.** The UI-thread cost of a rebuild falls from about 29 us per glyph (11 to 13 ms for 380
+  glyphs) to about 1 us per glyph, and the glyphs are on the GPU already: no bitmap, no upload. The GPU
+  time per glyph is small at 128 px (3.8 us) and grows with area (35.8 us at 512 px), so one 94-glyph
+  set at 512 px is 3.4 ms of GPU time.
+- **Single glyphs.** The wall time to complete is 76 to 139 us (submit round trip), but the UI thread
+  pays 11 us and does not wait; the glyph shows one frame later, like any async raster.
+- **The encode is a one-time, size-independent cost** (about 5 us per glyph): the same document serves
+  every size, so the per-size atlas entries stop being a rebuild cost.
+- **What this does not show.** The output is straight-alpha RGBA8, not an R8 coverage atlas, so a real
+  route needs to rasterize into atlas regions (or copy), and a coverage-only output pass; outlines are
+  unhinted and carry no LCD subpixel rendering, so text under about 64 px (where `display-aware-rendering`
+  section 3 hinting matters, and where FreeType goldens are the reference) stays on FreeType. Only an
+  RTX 4060 was measured; the weaker GPUs of ADR-071 are slower at large areas. An SDF/MSDF atlas was
+  not prototyped.
+
+Recommendation after step 2: keep FreeType for goldens and small sizes; build the GPU outline route as
+an opt-in for batch rebuilds at 128 px and above, after the worker-thread rebuild and used-extent
+upload fixes of section 5 (cheaper, no pixel change) and measured against them.

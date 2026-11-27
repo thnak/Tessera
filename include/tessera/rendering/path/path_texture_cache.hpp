@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/path/gpu_path_rasterizer.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
+#include "tessera/rendering/path/path_renderer.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
 #include "tessera/rendering/path/raster_route.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -76,6 +77,8 @@ public:
         std::uint64_t gpu_rasterizations =
             0; // misses queued on the GPU rasterizer (not in `rasterizations`)
         std::uint64_t gpu_fallbacks = 0; // GPU route chosen but refused (too dense, device error)
+        std::uint64_t gpu_documents_encoded = 0; // geometry encodings for the GPU route
+        std::uint64_t gpu_document_hits = 0;     // GPU rasters that reused an encoded document
         std::uint32_t entries = 0;
         std::uint32_t retired = 0; // evicted textures parked until end_frame()
         std::uint64_t bytes = 0;   // sum of entry pixel bytes
@@ -112,6 +115,10 @@ public:
     // that samples the textures. `end_frame()` flushes anything left, so a forgotten call costs a
     // frame of transparent textures, not a dangling one.
     void set_gpu_rasterizer(GpuPathRasterizer* gpu, RasterRouteConfig route = {});
+
+    // The same, through the renderer seam (path_renderer.hpp): any PathRenderer the cache can
+    // enqueue textures into. `set_gpu_rasterizer` is this with the compute implementation.
+    void set_path_renderer(PathRenderer* renderer, RasterRouteConfig route = {});
 
     // Submits the queued GPU rasters in one command list and returns without waiting. On failure
     // the queued entries are dropped from the cache, so the next acquire() rasterizes them on the

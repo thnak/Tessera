@@ -1,10 +1,11 @@
 # ADR-071: A GPU compute tile rasterizer for vector paths
 
 - Status: **Accepted with conditions** (2026-11-26, owner decision). Conditions: browser WebGPU numbers
-  are recorded and the comparison tolerance against ThorVG is defined before #685 ships; the CPU
+  (recorded 2026-11-27 in Chrome, see "WebGPU numbers (Dawn)", Chrome subsection; the dense scene missed
+  the line until the plain-view fix, 4.3 ms after) and the comparison tolerance against ThorVG is defined before #685 ships; the CPU
   raster stays the fallback for icon-sized and weak-GPU cases. Proposed on 2026-11-24. The spike
   (`tools/poc/compute_raster`, #683) and the production pieces have landed; the evidence table below
-  holds the measurements and lists what is still open (browser WebGPU, the alternatives, the
+  holds the measurements and lists what is still open (the alternatives, the
   tolerance against ThorVG).
 - Date: 2026-11-24
 - Amends: [ADR-057](ADR-057-vector-paths-thorvg-default-and-exit.md) (its section 3 **Cost** trigger
@@ -21,7 +22,7 @@ ThorVG is the vector rasterizer today (ADR-057). It rasterizes on the CPU into a
 uploads as a texture. At 3840x2160 RGBA8 the cost scales with **pixel area**, and the upload is the
 smaller share, so moving only the copy to the GPU cannot fix it: the raster has to leave the CPU.
 
-| 4K step (median) | RX 5300M dGPU | Radeon iGPU | RTX 4060 box (Ryzen laptop CPU) |
+| 4K step (median) | RX 5300M dGPU | Radeon iGPU | RTX 4060 desktop (Ryzen 5 9600X) |
 |---|---|---|---|
 | ThorVG raster, sparse scene (30 shapes), incl. clear | 14.9 ms | 13.9 ms | **5.2 ms** |
 | ThorVG raster, dense scene (13 full-frame fills), incl. clear | 30.9 ms | 31.0 ms | **9.2 ms** |
@@ -84,6 +85,75 @@ subgroups), and Metal and lavapipe both provide compute.
 - What moves to the GPU next on the same machinery: gradients, dash, clip-path polygon/path()
   (ADR-068, #673), conic gradients for dials (#617), glyph outlines.
 - Per-frame budget gates (frame time and bytes uploaded) keep the claim measured.
+
+## Corpus, ThorVG comparison and goldens (#685)
+
+The committed corpus lives in code: [`path_raster_corpus.hpp`](../tests/gpu/batched2d/path_raster_corpus.hpp),
+27 scenes of 96 x 96 px built from `GpuPathShape` values. It covers both fill rules (self-intersecting
+star, nested contours with the same and opposite winding, alpha overlap, a fractional axis-aligned
+rectangle), every cap (butt, round, square), every join (miter, bevel, round) and the miter-limit
+bevel fallback, closed against open contours, dashes (even array, odd array with offset, closed
+polygon, curve), and the degenerate cases (zero-length segment inside a line and alone, collinear
+points, a sliver and a hairline, an empty scene, a shape fully outside the target, a shape clipped
+by the target edge). Two tests iterate it:
+
+- `path_raster_thorvg_compare` rasterizes every scene with the GPU passes and with ThorVG and diffs
+  them with `rendering::golden::compare_rgba` on premultiplied channels. ThorVG has no dash in the
+  seam, so a dashed scene's reference is the same dashes cut on the CPU (`path_raster_reference.hpp`)
+  and stroked as open sub-paths, as in the spike; every scene is expressible. The tolerance table is in
+  the test, one row per scene with the reason. Measured on lavapipe (llvmpipe, LLVM 21.1.8) as the
+  largest per-channel delta of 255 and the pixels over 4 / over 16 of 9216, with the enforced limit
+  (max / over 4 / over 16 pixels = measurement plus 25% or 2, counts x 1.5 + 1, a measured 0 stays 0).
+  Run `path_raster_thorvg_compare_tests --report` to print the measurements. It skips without Vulkan,
+  compute or ThorVG.
+- `path_raster_golden` renders every scene twice (byte-identical or it fails), then compares bit for bit
+  with [`tests/golden/gpu/path_raster/<scene>.png`](../tests/golden/gpu/path_raster) (straight-alpha
+  RGBA, the rasterizer's own output). It skips on a hardware device and registers on the lavapipe lane
+  only. Regenerate on a software device with `path_raster_golden_tests --update-goldens`, review the
+  PNGs, commit.
+
+| Scene | max | over 4 | over 16 | limit |
+| --- | --- | --- | --- | --- |
+| fill_star_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_star_even_odd | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_same_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_same_even_odd | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_nested_opposite_non_zero | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_circle_alpha_overlap | 2 | 0 | 0 | 4 / 0 / 0 |
+| fill_rect_fractional | 159 | 256 | 256 | 199 / 385 / 385 |
+| stroke_cap_butt | 20 | 37 | 7 | 25 / 57 / 12 |
+| stroke_cap_round | 24 | 99 | 27 | 30 / 150 / 42 |
+| stroke_cap_square | 20 | 32 | 7 | 25 / 49 / 12 |
+| stroke_join_miter | 6 | 16 | 0 | 8 / 25 / 0 |
+| stroke_join_bevel | 6 | 21 | 0 | 8 / 33 / 0 |
+| stroke_join_round | 16 | 57 | 0 | 20 / 87 / 0 |
+| stroke_miter_exceeds_limit | 5 | 6 | 0 | 7 / 10 / 0 |
+| stroke_closed_triangle_miter | 5 | 12 | 0 | 7 / 19 / 0 |
+| stroke_open_triangle_butt | 5 | 2 | 0 | 7 / 4 / 0 |
+| dash_even_butt | 5 | 2 | 0 | 7 / 4 / 0 |
+| dash_odd_offset_round | 21 | 191 | 3 | 27 / 288 / 6 |
+| dash_closed_polygon_butt | 52 | 18 | 2 | 65 / 28 / 4 |
+| dash_curve_square | 62 | 44 | 3 | 78 / 67 / 6 |
+| degenerate_zero_length_mid | 5 | 2 | 0 | 7 / 4 / 0 |
+| degenerate_zero_length_dot | 12 | 21 | 0 | 15 / 32 / 0 |
+| degenerate_collinear | 4 | 0 | 0 | 6 / 0 / 0 |
+| degenerate_thin | 4 | 0 | 0 | 6 / 0 / 0 |
+| degenerate_empty | 0 | 0 | 0 | 0 / 0 / 0 |
+| degenerate_outside_target | 0 | 0 | 0 | 0 / 0 / 0 |
+| degenerate_clipped_by_edge | 16 | 14 | 0 | 20 / 22 / 0 |
+
+Reading the table: the fills agree to the coverage rounding of two anti-aliasers (2 of 255, no pixel
+over 4). The strokes differ on edge pixels of joins, caps and dash ends (round caps and joins most:
+arc tessellation). `fill_rect_fractional` differs by up to 159 by design: ThorVG snaps an axis-aligned
+rectangle to whole pixels, the GPU keeps the coverage.
+
+Two rows first recorded real GPU defects (issue #947): a zero-length segment inside a polyline
+(`A, B, B, C`) lost the miter tip at `B` (32 pixels, up to 255) and a lone zero-length segment with a
+round or square cap drew no dot (368 pixels). The stroke encoder now drops zero-length segments and
+turns a contour that is nothing else into a 1/64 px segment (butt caps draw nothing), so both rows
+sit at the normal stroke tolerance. `gpu_scene_from_shapes` already drops repeated points, so the
+production path never produced these inputs; the scenes build `GpuPathShape` directly to pin the
+kernels' behavior.
 
 ## Production pieces (2026-11-24)
 
@@ -203,8 +273,8 @@ that have hundreds of paths; not worth it for the stroked icons, which the route
 manifest entry) carries the four passes as four entry points of one module. It differs from the GLSL
 only where WGSL forces it: the work buffer is `array<atomic<u32>>` (every access is an
 `atomicLoad`/`atomicStore`, relaxed, which is enough because each pass is its own dispatch), GLSL's
-`mod` is written out (WGSL's `%` truncates), and the push constant is a uniform at binding 7
-(`pc`). It binds seven storage buffers and one uniform; WebGPU's default limit is eight storage buffers
+`mod` is written out (WGSL's `%` truncates), and the push constant is a uniform (binding 7 in the file as first written, 8 for the WebGPU
+compute contract: `pc`). It binds seven storage buffers and one uniform; WebGPU's default limit is eight storage buffers
 per stage, so there is one spare. The CI gate (`validate_wgsl.py`, naga 30.0.1) validates it. It was
 also **run**: each entry point was translated to SPIR-V with naga, the entry renamed to `main`, and
 the Vulkan tests and the 4K spike were rerun with those modules in place of the glslc ones (a
@@ -212,11 +282,239 @@ temporary hook, not kept). `path_raster_gpu`, `path_raster_batch_gpu` and `path_
 a control that swaps the fine pass for the clear pass fails all three, and all 43 comparison lines of the
 spike against ThorVG (round, bevel and miter joins, the three caps, dashes, per-path transforms, the
 animated frames) are identical to the digit with the GLSL. What is not shown: WebGPU itself (no
-backend runs compute yet; ADR-072 slice 3 adds the buffer-to-texture copy there), and naga's
+backend ran compute when this was written; see the WebGPU numbers below), and naga's
 SPIR-V is not what a browser's compiler produces.
 
-Still open: a WebGPU compute backend that embeds the module and runs it (RHI 1.16 is Vulkan only), and
-the frame code that owns a `GpuPathRasterizer` once windowed apps get a vector stack.
+Still open: the frame code that owns a `GpuPathRasterizer` once windowed apps get a vector stack. The
+WebGPU backend now embeds and runs the module (next subsection).
+
+### WebGPU numbers (Dawn)
+
+The module runs on the WebGPU backend (RHI 1.22 compute; `webgpu::path_raster_pipeline_descs()` and
+`register_path_raster_shaders`, four programs of one WGSL source, one per entry point). The compute contract
+([compute.md 3.1](../docs/design/gpu/compute.md)) fixed two edits to the WGSL: every storage buffer is
+`read_write`, and the push block moved from binding 7 to 8. `GpuPathRasterizer` now binds all seven buffers for
+every pass (a WebGPU bind group layout holds every slot; Vulkan ignores the extras), and the WebGPU backend
+implements `copy_buffer_to_texture` (ADR-072 slice 3), so the production rasterizer runs unchanged.
+
+**Where it ran, honestly:** `webgpu_path_raster_conformance` (Wasm, JSPI, run under Node 25.2.1 by
+`scripts/webgpu_compute_conformance.mjs` with `TESSERA_CONFORMANCE_JS` pointing at it) on **Dawn-native through the
+`webgpu` npm bindings, D3D12 backend, a real GPU adapter: NVIDIA GeForce RTX 4060 (Lovelace, driver 32.0.16.2140,
+not a fallback adapter)**, 2026-11-27. It is **not a browser**: a page adds its own process split and
+callback scheduling, so these numbers describe the backend on Dawn, not a page. Dawn's Vulkan backend did not start here (`vulkan-1.dll` failed to load in the Node
+binding), so no Dawn-on-Vulkan comparison exists. No software adapter was used.
+
+**Pixels.** The 27 corpus scenes were rendered by the WebGPU device and compared with the committed lavapipe
+goldens, on premultiplied channels (a pixel whose alpha rounds to 0 carries no colour; the goldens keep the RGB
+bytes of such a pixel, other devices do not), against the ThorVG limits of the table above. Largest premultiplied
+channel delta per scene: **0 in 24 scenes and 1 in 3** (`fill_nested_same_non_zero`, `fill_nested_same_even_odd`,
+`fill_nested_opposite_non_zero`, 2 pixels each); no pixel over 4 anywhere. 20 scenes are bit-identical to the
+golden in straight alpha; the other 7 differ in 1 to 5 pixels (the 3 above, plus the RGB of alpha-0 pixels in
+`stroke_cap_butt`, `stroke_cap_round`, `stroke_cap_square`, `stroke_join_miter`). Every scene is within its limit, with a
+large margin. Rendering a scene twice gives the same bytes except `stroke_cap_square` (alpha-0 RGB again): the
+node order of a row's list follows the atomic counter, so a GPU may sum a pixel's segments in another order
+(lavapipe does not), which the test accepts up to 1 premultiplied. The reference is lavapipe, not ThorVG
+(ThorVG is not part of the Wasm build), so the margin above is the cross-device spread of the same algorithm,
+not an independent check.
+
+**Time, 4K animated zoom** (`--measure`, the scenes of `gpu_path_animated_measure`: 120 paths with round-cap strokes,
+and `--dense`: 13 overlapping fills; target 3840 x 2160 texture, 60 frames after 4 warm-up frames; the native column
+is the same tool on the same machine and GPU through Vulkan, run the same minute):
+
+First measurement (the fine pass visiting every path; the Vulkan columns are the same tool the same minute):
+
+| | WebGPU sparse | WebGPU dense | Vulkan sparse | Vulkan dense |
+|---|---|---|---|---|
+| CPU enqueue + flush (min / p50 / max, us) | 287 / 513 / 889 | 398 / 541 / 804 | 15 / 44 / 88 | 12 / 41 / 79 |
+| until the queue reported done (p50, ms) | 14.8 | 36.0 | 4.5 | 4.2 |
+| 16 frames submitted, one wait: per frame (p50, ms) | 8.7 | 29.1 | n/a | n/a |
+| empty-queue wait, the host's floor (p50, ms) | 15.4 | 15.5 | n/a | n/a |
+| bytes the CPU wrote per frame | 7760 | 912 | 7760 | 912 |
+
+**After the per-tile path mask** (commit f6218b58 for the GLSL, ported to `fine_main`: `var<workgroup>
+tile_mask: array<atomic<u32>, 8>`, chunks of 256 paths, `atomicOr`, ascending-bit walk, no early return before the
+barriers, x-range early-outs in `segment_area`, `node == kNil` skip). WGSL needs the barriers in uniform control
+flow and the path count comes from a storage buffer, so invocation 0 stores it in a `var<workgroup>`, and every
+invocation reads it back with `workgroupUniformLoad` for the chunk loop bound. Dawn accepted the module. Pixels:
+the 27 scenes are unchanged against the lavapipe goldens (max premultiplied delta 0 in 24, 1 in the same 3, none
+over 4; same 20 bit-identical). Same host, same session:
+
+| | WebGPU sparse | WebGPU dense | Vulkan sparse | Vulkan dense |
+|---|---|---|---|---|
+| CPU enqueue + flush p50 (us) | 500 | 536 | 42 | 43 |
+| until done p50 (ms) | 14.9 (floor 15.5) | 30.5 (floor 15.5) | 1.55 | 4.75 |
+| 16 frames, one wait, per frame p50 (ms) | **5.8** (was 8.7) | **29.1** (was 29.1) | n/a | n/a |
+
+The mask helps WebGPU's sparse scene (8.7 to 5.8 ms per frame) and does nothing for the dense one, the same shape
+as on Vulkan (sparse 3.84 to 1.55 ms; dense 4.2 to 4.75 ms here, within this machine's run-to-run spread of the
+dense scene, 4.12 ms in the coordinator's run). The dense scene is the 13 full-frame fills, where every tile
+overlaps every path, so the mask removes nothing and WebGPU stays about 7x behind Vulkan there. Sparse is now
+about 3.7x Vulkan's time.
+
+Reading it: the first GPU row cannot be read as GPU time on WebGPU. Dawn-node resolves a completion about every
+15.5 ms (an empty queue takes 15.4 ms at the median), so the sparse figure is the polling floor and the dense one
+is that plus the work. The burst row pays the wait once for 16 frames and is the better estimate: **the sparse
+frame costs about 8.7 ms and the dense frame about 29 ms, against 4.5 and 4.2 ms on Vulkan on the same GPU**, so
+WebGPU on D3D12 is about 2x slower on sparse and **about 7x slower on dense, which misses the 4.7 ms line by far**
+(the burst number includes the enqueue and flush, ~0.5 ms, and is not a pure GPU time; a
+timestamp query would be, and is not wired). The CPU cost per frame is **0.5 ms, 12x the Vulkan cost** (0.04 ms),
+and sits at the 0.5 ms line of the evidence table: each frame builds bind groups, writes four push slices and
+encodes four passes through the JS bindings. Bytes written per frame equal Vulkan's (7760 and 912: the job
+record and the per-path records, the document stays resident). The pool reuses buffers in steady state (4
+created for the sequential run), and giving the pool room for 16 flights changed nothing, so the gap is not
+allocation. Dawn's `disable_robustness` and `disable_workgroup_init` toggles changed nothing either (one run each,
+dense); the cause of the dense gap is not found. A page may differ in either direction.
+
+Consequence for the evidence table (Dawn-node numbers; Chrome follows): the browser column is no longer empty, but it is **not met** for the dense
+scene on this stack, and the CPU line is met only at the limit. A page is measured in the next subsection; Dawn on Vulkan or Metal is not.
+
+#### Device-space segment records, and the atomic loads (f2fd15b5)
+
+The bin pass now stores each segment's transformed endpoints in the work buffer (`dev_base`, 4 floats per segment id)
+and the fine pass loads them instead of transforming per pixel; the WGSL port is the same change (`dev_base` in
+`Job`, `wstore(bitcast<u32>(..))` in `bin_main`, loads in `fine_main`). Pixels: the 27 scenes are unchanged against
+the goldens in both Dawn-node and Chrome (max premultiplied delta 0 in 24, 1 in the same 3, none over 4; the
+alpha-0-RGB difference in `stroke_cap_square` is now 4 pixels instead of 5 and the two-render check found no
+difference).
+
+**The exact port made WebGPU dense three times slower** (per frame, 16-frame burst, Dawn-node: dense 29.1 to 93.2
+ms, sparse 5.8 to 6.8 ms; Chrome: dense 30.0 to 93.0 ms, sparse 6.1 to 7.0 ms), while Vulkan got faster. The cause is
+the work buffer's WGSL type: it is `array<atomic<u32>>` because bin and stroke use atomics, so every read in the
+fine pass is an `atomicLoad`, an interlocked operation in D3D12, and the port added four per node to the two it
+already had. This was also, in all likelihood, most of the earlier 7x dense gap to Vulkan. The fix, kept: the fine
+pass declares the same binding (group 0, binding 2) a second time as a plain `array<u32>` (`work_plain`) and reads
+only through it. WGSL allows two variables with one binding as long as no entry point uses both, which holds
+(`fine_main` reads `work_plain`, the other three use `work`); Dawn and Chrome accept it, and the pixels are
+unchanged. Each pass is its own dispatch with a barrier before it, so the plain reads see the bin pass's atomic
+writes. (naga was not available to re-run `validate_wgsl.py`; Tint accepted the module in both hosts.)
+
+Per frame, 16-frame burst, p50 (Dawn-node D3D12 and Chrome 158 headless on the RTX 4060; Vulkan is the median of 5
+runs of `gpu_path_animated_measure`, GPU until complete; the "until done" rows of WebGPU sit on the host's wait
+floor and are not repeated):
+
+| | Dawn sparse | Dawn dense | Chrome sparse | Chrome dense | Vulkan sparse | Vulkan dense |
+|---|---|---|---|---|---|---|
+| after the tile mask (f6218b58) | 5.8 | 29.1 | 6.1 | 30.0 | 1.55 | 4.75 (4.12 elsewhere) |
+| exact port of f2fd15b5 | 6.8 | 93.2 | 7.0 | 93.0 | 1.26 | 3.22 |
+| + plain `work_plain` view in the fine pass | **2.9** | **4.8** (4.84 in a second run) | **2.3** | **4.3** | 1.26 | 3.22 |
+| CPU enqueue + flush p50 (us), final | 479 | 496 | 75 | 70 | 43 | 40 |
+
+(The five Vulkan sparse runs were 1.47, 1.47, 1.25, 1.26, 1.26 ms; dense 3.20, 3.22, 3.22, 3.22, 3.21 ms; the
+"after the tile mask" Vulkan row is the earlier run recorded above, on a noisier minute.) WebGPU dense is now about
+1.5x Vulkan (4.3 to 4.8 against 3.2 ms) instead of 7x, and WebGPU sparse about 2x (2.3 to 2.9 against 1.26 ms).
+Against the 4.7 ms dense line: Chrome 4.3 ms meets it, Dawn-node 4.8 ms misses it by 0.1 ms. CPU per frame is
+unchanged by the shader.
+
+#### Chrome
+
+The same Wasm program, built for a page (`webgpu_path_raster_web`: `-sENVIRONMENT=web -sJSPI`, the goldens
+preloaded at `/goldens`), run in **Google Chrome 158.0.8127.38 (HeadlessChrome, `--headless=new
+--enable-unsafe-webgpu`, default GPU flags, Windows 11)** on the same machine, 2026-11-27, driven by
+`tools/webgpu_browser/run_path_raster.mjs` (a local server on 127.0.0.1, `tools/webgpu_browser/page.html` hands the
+page's `navigator.gpu` device to `Module.preinitializedWebGPUDevice`, requested with the adapter's own
+`maxStorageBufferBindingSize` and `maxBufferSize`, and POSTs what the program printed). JSPI was available with no
+flag. Adapter as Chrome reports it: vendor `nvidia`, architecture `lovelace`, `isFallbackAdapter` false;
+device and description are empty (Chrome withholds them), so that it is the RTX 4060 is inferred from the
+machine having one GPU adapter, and the backend (D3D12 is Chrome's default on Windows) was not read out. The page
+is cross-origin isolated (COOP/COEP headers) so `performance.now` has 5 us resolution instead of 100 us.
+**Headless, not a visible window**, with background-timer throttling flags off; nothing is presented, so this
+measures compute and the buffer-to-texture copy, not a frame on screen.
+
+**Pixels.** Identical to the Dawn-node run, scene by scene: 27 scenes, max premultiplied delta 0 in 24 and 1 in the
+3 `fill_nested_*` scenes (2 pixels each), none over 4, none over its limit; 20 bit-identical to the golden, one
+scene (`stroke_cap_square`) not byte-identical between two renders (alpha-0 RGB). No validation errors, device
+losses or warnings reached the page's error handler in any of the runs (corpus, sparse, dense).
+
+**Time, 4K animated zoom** (60 frames after 4 warm-up frames; rows as in the Dawn tables, after the per-tile path
+mask; Dawn-node and Vulkan columns repeated from above):
+
+| | Chrome sparse | Chrome dense | Dawn-node sparse | Dawn-node dense | Vulkan sparse | Vulkan dense |
+|---|---|---|---|---|---|---|
+| CPU enqueue + flush (min / p50 / max, us) | 180 / 215 / 420 | 125 / 160 / 620 | ~313 / 500 / 699 | 363 / 536 / 863 | 13 / 42 / 64 | 21 / 43 / 76 |
+| until the queue reported done (p50, ms) | 9.7 | 34.4 | 14.9 | 30.5 | 1.55 | 4.75 |
+| 16 frames, one wait, per frame (p50, ms) | **6.1** | **30.0** | 5.8 | 29.1 | n/a | n/a |
+| empty-queue wait (p50, ms) | 4.5 | 5.0 | 15.5 | 15.5 | n/a | n/a |
+| bytes the CPU wrote per frame | 7760 | 912 | 7760 | 912 | 7760 | 912 |
+
+Reading it. (1) **The GPU cost is the same as Dawn-node's**: 6.1 against 5.8 ms (sparse) and 30.0 against
+29.1 ms (dense) per frame in the burst, so Chrome's WebGPU on this GPU shows the same ~7x gap to Vulkan on the
+dense scene and ~4x on sparse; the dense scene misses the 4.7 ms line by a wide margin in a real browser too.
+(2) **CPU per frame is about 0.2 ms** (2.5x better than Dawn-node's JS binding, 4-5x worse than native Vulkan),
+inside the 0.5 ms line. (3) The empty-queue wait of 4.5 to 5 ms is mostly the program's own wait: it yields with
+`emscripten_sleep(0)`, a `setTimeout(0)` that Chrome clamps to about 4 ms once nested, so the "until done" row
+carries up to that much quantization and the burst row is the one to read (the first empty-queue wait is much
+longer, hundreds of ms, from pipeline and device warm-up: the max column). (4) A headless run can differ from a
+visible tab (GPU process scheduling, power state); it was not compared with a headed run, and the numbers are
+from one run each of the commands in the table.
+
+Consequence (before the fix in the previous subsection, which supersedes the dense conclusion: dense is now 4.3 ms in Chrome): the browser condition of this ADR is **recorded and the dense scene is not met** (Chrome and
+Dawn-node agree). The CPU fallback for dense, stroke-heavy and icon-sized rasters stays required on the web;
+the sparse scene is inside the 8.3 ms (120 Hz) budget (6.1 ms) and not inside 4.2 ms (240 Hz).
+
+## Document residency and the 4K steady state (#685, 2026-11-27)
+
+Three pieces take the CPU out of the frame. `GpuPathDocument` encodes geometry once in document
+space (the scale is the per-path affine the shader already reads, so a resize re-encodes nothing; the
+flatten tolerance and round-join arcs are sized for a power-of-two scale bucket, 1 to 32).
+`GpuPathArena` keeps the fill edges, strokes and dashes in device buffers, uploaded once; a batch
+whose rasters are all resident binds them and writes only its job record and 64 bytes per path (mixed
+batches fall back to the per-flush copy). `PathTextureCache` acquires a document per geometry
+identity and enqueues it with the raster scale.
+
+`gpu_path_animated_measure` (RTX 4060, Windows, Release): 60 filled blobs and 60 round-cap strokes
+(120 paths) into a 3840x2160 texture, the scale animating 1.90 to 2.00, 120 frames after 4 warm-up
+frames.
+
+| per frame | median | min | max |
+|---|---|---|---|
+| CPU, enqueue + flush (nothing waits) | **0.042 ms** | 0.015 | 0.083 |
+| GPU until complete | 3.84 ms (1.55 ms after the per-tile path mask, f6218b58; **1.26 ms** after the device-space records, f2fd15b5: median of 5 runs 1.26, runs 1.25 to 1.47) | 3.78 | 4.75 |
+| bytes written by the CPU | 7,760 | 7,760 | 7,760 |
+
+The dense scene (`--dense`: 13 overlapping full-frame fills, 177 KB document) takes 0.041 ms of CPU,
+912 bytes per frame and **4.23 ms** until the GPU is done (min 4.10, max 5.39; after the path mask 4.75 ms here, min 4.03, max 5.19, no gain: every tile overlaps every path, and 4.12 ms in another run; **3.22 ms** after the device-space records, f2fd15b5: five runs 3.20 to 3.22 ms): 0.06 ms over the
+4.17 ms budget of 240 Hz, so "inside the 240 Hz budget on the dGPU" is **not** met by a hair on the
+RTX 4060 at full 4K (the figure includes the 33 MB copy into the texture and the submit round trip;
+the sparse scene is 3.84 ms). The second GPU of the manual gate has not been run here.
+
+Against the ThorVG baseline above on the same machine (raster 5.2 ms, upload 1.2 ms CPU side, 33 MB
+copied), the CPU cost drops by about 150x and the bytes by about 4,000x. The issue's "zero bytes
+after the first frame" is not met literally: 7,760 bytes is the job record (80) plus 64 per path,
+and it scales with the path count, not the pixel count. A frame whose transform did not change is a
+texture cache hit and writes nothing. The arena took one upload and 123 hits; the pool reused 492
+of 496 buffer requests only because the measurement raises `max_pooled_bytes` to 256 MiB: the
+default 16 MiB bound destroys a 4K output buffer (33 MB, 64 MiB pooled) after every flush, so a
+4K consumer must set the bound (or the default should follow the largest live target).
+
+**Integration as built.** The app already routes vectors through this: `VectorStack`
+(`src/app/window_vector.cpp`) owns the `GpuPathRasterizer` and attaches it to the
+`PathTextureCache`, `PaintSink` vector draws and `Icon` acquire textures, and the GPU copy fills
+them before the frame that samples them. The result is an ordinary textured quad, so clip state
+(ADR-068), the sRGB/UNORM rule and the batched 2D renderer apply unchanged, and null and
+`CpuCanvas` keep the ThorVG route. The seam of the issue's item 3 is `PathRenderer`
+(`include/tessera/rendering/path/path_renderer.hpp`): asynchronous and batched (`enqueue` into a
+texture the caller made, `flush` without waiting, `collect`), which the old `PathRasterizer`
+contract (an RGBA8 buffer on the CPU) cannot express. `GpuPathRasterizer` implements it and
+`PathTextureCache::set_path_renderer` takes any implementation. A renderer that blends straight
+into the frame target (dropping the intermediate texture, with its own clip and blend handling) is
+a possible second implementation; nothing measured needs it, so it is not built.
+`VectorStack` raises the rasterizer's pool bound to 96 MiB so a 4K output buffer is kept.
+
+**Where the dense 4K time goes (2026-11-27, RTX 4060, temporary shader experiments, not kept).** Dense
+fine pass, 4.13 ms median: with `segment_area` replaced by a no-op 1.63 ms, and with the list walk
+removed 0.80 ms (which still contains the 33 MB copy, about 0.55 ms). So the per-node coverage math is
+about 2.5 ms, the list walk and transform about 0.85 ms, the rest copy, box tests and blend. The
+sparse scene is the opposite (path loop, fixed by the tile mask). The next lever is to classify each
+(row, path) list once per tile instead of once per pixel: segments wholly left of the tile add a
+constant winding, wholly right add nothing, and only crossing segments need the per-pixel math,
+which cuts the redundant work about 16x. It changes the summation order of the winding (rounding, so
+goldens would be regenerated) and needs per-row shared lists with an overflow fallback in both the
+GLSL and the WGSL; **It was built and measured, and it is slower:** four barriers per overlapping path (reset, classify,
+total and compact, evaluate) plus a serial per-row compaction took the dense scene from 4.1 to 12.3 ms
+and the sparse scene from 1.32 to 1.67 ms on the RTX 4060, so it was reverted. Barrier-heavy
+per-tile cooperation does not pay here; a version that avoids the barriers (for example classifying in
+the bin pass, where the segment order is already known) is the remaining idea, not built. Dense stays
+at 4.10 to 4.16 ms against the 4.17 ms budget.
 
 ## Alternatives, to be measured on the same 4K scenes
 
@@ -239,9 +537,9 @@ default and changes no default, and renders the `sparse` and `dense` scenes of
 
 | target (to be confirmed by the owner) | RX 5300M | iGPU | RTX 4060 | browser WebGPU |
 |---|---|---|---|---|
-| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | **ring strokes: dense 5.61 / 5.66 ms (over the line), sparse 2.85 / 2.86 ms; GPU strokes: dense 8.77 / 8.82 ms (over), sparse 3.13 / 3.13 ms** (min / p50, 30 runs, 2026-11-25) | **ring strokes: dense 18.6 / 18.6 ms, sparse 8.45 / 8.45 ms; GPU strokes: dense 34.0 / 34.0 ms, sparse 10.1 / 10.1 ms** (both over the line) | **ring strokes: dense 3.22 / 3.22 ms, sparse 0.99 / 0.99 ms (2.53 / 2.56 and 0.92 / 0.92 for the first fill-only spike); GPU strokes: dense 4.07 / 4.09 ms, sparse 1.12 / 1.12 ms (min / p50, 20 runs)** | open |
-| CPU time per frame <= 0.5 ms and zero bytes uploaded per frame after the first | **record+submit 0.32 ms p50 (met); 0 B per frame after 94 / 149 KB once; full re-encode 0.18 ms** | **record+submit 0.31 ms p50 (met); same bytes; re-encode 0.17 ms** | **record+submit 0.01 / 0.03 ms; full re-encode 0.09 / 0.11 ms; 0 B per frame after 93 / 149 KB once** | open |
-| ThorVG comparison within the defined tolerance on the lavapipe golden | **lavapipe run (llvmpipe, LLVM 21.1.8): the pixels are identical to the RTX 4060's** (premultiplied diff max 57 sparse / 28 dense with ring strokes, 71 / 28 with GPU strokes; 0.49% / 0.37% of pixels off by >4, 0.28% / 0.013% by >16). The "defined tolerance" itself is still undefined; the golden image is not committed | - | - | - |
+| dense scene GPU time <= 4.7 ms (half the 64-disc proxy); sparse strictly lower; report min and p50 | **ring strokes: dense 5.61 / 5.66 ms (over the line), sparse 2.85 / 2.86 ms; GPU strokes: dense 8.77 / 8.82 ms (over), sparse 3.13 / 3.13 ms** (min / p50, 30 runs, 2026-11-25) | **ring strokes: dense 18.6 / 18.6 ms, sparse 8.45 / 8.45 ms; GPU strokes: dense 34.0 / 34.0 ms, sparse 10.1 / 10.1 ms** (both over the line) | **ring strokes: dense 3.22 / 3.22 ms, sparse 0.99 / 0.99 ms (2.53 / 2.56 and 0.92 / 0.92 for the first fill-only spike); GPU strokes: dense 4.07 / 4.09 ms, sparse 1.12 / 1.12 ms (min / p50, 20 runs)** | **Chrome 158 headless, burst per frame: dense 4.3 ms (met; 30.0 ms before the plain-view fix, 93 ms with the naive port of f2fd15b5), sparse 2.3 ms; Dawn-node (not a browser): dense 29.1 ms (not met), sparse 8.7 ms; the sequential wait is 14.8 / 36.0 ms p50 but sits on a 15.4 ms host polling floor** (see WebGPU numbers) |
+| CPU time per frame <= 0.5 ms and zero bytes uploaded per frame after the first | **record+submit 0.32 ms p50 (met); 0 B per frame after 94 / 149 KB once; full re-encode 0.18 ms** | **record+submit 0.31 ms p50 (met); same bytes; re-encode 0.17 ms** | **record+submit 0.01 / 0.03 ms; full re-encode 0.09 / 0.11 ms; 0 B per frame after 93 / 149 KB once** | **Chrome 158 headless: CPU 0.22 / 0.16 ms p50 (met); Dawn-node: 0.51 / 0.54 ms (at the line, 12x Vulkan); 7760 / 912 B per frame, document resident** |
+| ThorVG comparison within the defined tolerance on the lavapipe golden | **lavapipe run (llvmpipe, LLVM 21.1.8): the pixels are identical to the RTX 4060's** (premultiplied diff max 57 sparse / 28 dense with ring strokes, 71 / 28 with GPU strokes; 0.49% / 0.37% of pixels off by >4, 0.28% / 0.013% by >16). The "defined tolerance" itself is still undefined; the golden image is not committed | - | - | **27 corpus scenes vs the lavapipe goldens, premultiplied: max delta 0 (24 scenes) or 1 (3), none over 4** |
 | the alternatives above measured on the same scenes | open | open | open | open |
 
 Spike caveats (issue #683, `tools/poc/compute_raster`, RHI 1.16): the measured variant is a **scanline-binned exact-area** rasterizer (clear, bin per segment, fine per pixel), not the tile design above, and strokes are expanded on the GPU by a fourth pass (the CPU still flattens the curve to a centerline and uploads it once): each segment becomes a body quad plus a join wedge at its start and, on an open contour, a half-disc cap at its end, all wound the same way so signed areas cancel along the shared radii. Round, bevel and miter joins (with the SVG miter limit and its bevel fallback) and round, butt and square caps exist, and so do dashes (below). Per-path affine transforms exist (the 6 words of each path's record; a stroke is expanded in its own space and transformed when binned and shaded, so the pen scales with the path), which lets the "animation changes a factor, not an encode" claim be tested: an animated frame rewrites the path records only (13 / 30 / 9 paths = 832 / 1920 / 576 bytes, about 1 µs of CPU on the RTX 4060, against 0.13 / 0.16 / 0.007 ms for a full re-encode) and costs the GPU 4.54 / 1.10 / 0.74 ms p50 (dense / sparse / joins; the dense scene is 4.33 ms at best, inside the 4.7 ms line but with little room: the per-path affine lookup and the stroke-edge indirection cost the fill-heavy ring scene about 25% against the first fill-only spike, 3.22 ms against 2.56 ms, and skipping the multiply for identity paths bought nothing, so the cost is in the loads). Against ThorVG with the same transforms (rotate, scale 0.75 to 1.25, drift, a different transform per path) the frame matches as well as the static one: dense max 29, 0.26% off by >4; joins and caps max 58, 0.019%; fills under a non-uniform scale and shear max 60, 0.093% (ThorVG cannot stroke with a non-uniform pen, so strokes are compared under similarities only), identical on lavapipe. Two limits: the arc tessellation of round joins and caps is chosen once for the largest scale in the animation, and the bin-node capacity is sized for it, so an unbounded zoom would need a re-encode; and a transform that changes the box (the CPU rewrites each path's device-space box) is a per-path CPU cost that grows with the path count, not with the segment count.

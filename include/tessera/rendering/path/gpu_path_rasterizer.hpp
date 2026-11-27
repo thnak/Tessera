@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/path/path_model.hpp"
+#include "tessera/rendering/path/path_renderer.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
 #include <cstdint>
@@ -11,6 +12,8 @@
 #include <span>
 
 namespace tessera::rendering::path {
+
+struct GpuPathDocument;
 
 // The four compute passes of the GPU path rasterizer (ADR-071), as the backend describes them. The
 // path library knows no backend: the Vulkan lib builds these with `path_raster_pipeline_desc`.
@@ -29,15 +32,15 @@ struct GpuPathRasterizerConfig {
     // Bound on the idle buffers the pool keeps between batches (capacity bytes); past it a returned
     // buffer is destroyed. 16 MiB holds a few dozen 256 px rasters or two 1024 px ones.
     std::uint64_t max_pooled_bytes = 16ULL * 1024ULL * 1024ULL;
+    // Device-resident geometry for document rasters (see GpuPathArena): fill edges, strokes and
+    // dashes of a document upload once and later rasters of it upload only their job record and
+    // path records. 0 disables it (every raster copies its geometry each flush, as before). A
+    // batch uses the resident copy only when every raster in it is resident.
+    std::uint64_t resident_bytes = 8ULL * 1024ULL * 1024ULL;
 };
 
-enum class GpuRasterError : std::uint8_t {
-    unsupported = 0, // the device has no compute or no buffer-to-texture copy
-    batch_full,      // `max_jobs_per_batch` jobs are pending: flush(), then enqueue again
-    too_large,       // a size does not fit the shader's 32-bit indices or the dispatch limit
-    too_dense,       // the raster has more bin nodes than the caller's bound: the CPU is faster
-    device_failure,  // the device refused a buffer, pipeline or submission
-};
+// The GPU rasterizer reports the seam's errors; the old name stays for its callers.
+using GpuRasterError = PathRenderError;
 
 // Rasterizes shapes on the GPU into textures, many per submission.
 //
@@ -46,17 +49,21 @@ enum class GpuRasterError : std::uint8_t {
 // without waiting. The submission is ordered before any draw submitted after it on the same queue,
 // so the target texture is ready when the frame that samples it runs. `collect()` frees a flushed
 // batch's buffers once the GPU is done with it; call it once per frame. Not thread-safe.
-class GpuPathRasterizer {
+class GpuPathRasterizer final : public PathRenderer {
 public:
     struct Stats {
-        std::uint64_t jobs = 0;            // rasters submitted
-        std::uint64_t flushes = 0;         // submissions
-        std::uint32_t pending = 0;         // queued, not yet flushed
-        std::uint32_t in_flight = 0;       // flushed, not yet collected
-        std::uint32_t pipeline_slots = 0;  // pipeline sets created (one per batch in flight)
-        std::uint64_t buffers_created = 0; // device buffers allocated
-        std::uint64_t buffers_reused = 0;  // buffer requests served by the pool
-        std::uint64_t pooled_bytes = 0;    // idle buffer capacity held
+        std::uint64_t jobs = 0;             // rasters submitted
+        std::uint64_t flushes = 0;          // submissions
+        std::uint32_t pending = 0;          // queued, not yet flushed
+        std::uint32_t in_flight = 0;        // flushed, not yet collected
+        std::uint32_t pipeline_slots = 0;   // pipeline sets created (one per batch in flight)
+        std::uint64_t buffers_created = 0;  // device buffers allocated
+        std::uint64_t buffers_reused = 0;   // buffer requests served by the pool
+        std::uint64_t pooled_bytes = 0;     // idle buffer capacity held
+        std::uint64_t uploaded_bytes = 0;   // bytes the CPU wrote to device buffers, arena included
+        std::uint64_t resident_uploads = 0; // documents uploaded to the arena
+        std::uint64_t resident_hits = 0;    // document rasters served from the arena
+        std::uint32_t resident_documents = 0;
     };
 
     GpuPathRasterizer(rhi::Device& device, GpuPathPipelineDescs descs,
@@ -68,6 +75,7 @@ public:
 
     // True when `device` can run this rasterizer: compute plus the buffer-to-texture copy.
     [[nodiscard]] static bool supported(const rhi::Device& device);
+    [[nodiscard]] bool available() const override;
 
     // Creates pipeline sets up front, one per batch that can be in flight at once, so the first
     // batch does not pay for them: building the four pipelines of a set took about 2 ms on the RX
@@ -79,20 +87,26 @@ public:
     // non-zero `max_row_nodes`, a raster whose bin-node bound is larger is refused with `too_dense`
     // before anything is queued (the route policy's density rule; the node count is only known
     // after encoding).
-    [[nodiscard]] std::expected<void, GpuRasterError> enqueue(std::span<const PathShape> shapes,
-                                                              rhi::Texture& target,
-                                                              rhi::Extent2D extent,
-                                                              std::uint64_t max_row_nodes = 0);
+    [[nodiscard]] std::expected<void, GpuRasterError>
+    enqueue(std::span<const PathShape> shapes, rhi::Texture& target, rhi::Extent2D extent,
+            std::uint64_t max_row_nodes = 0) override;
+
+    // Queues a raster of a scale-independent `document` at `scale` (<= document->max_scale): the
+    // document's encoded geometry is shared, not re-encoded, and only this raster's per-path
+    // records (64 bytes per path) are built. Same contract as the overload above otherwise.
+    [[nodiscard]] std::expected<void, GpuRasterError>
+    enqueue(std::shared_ptr<const GpuPathDocument> document, float scale, rhi::Texture& target,
+            rhi::Extent2D extent, std::uint64_t max_row_nodes = 0) override;
 
     // Drops the queued rasters without submitting them (their target textures are about to go away,
     // for example on device loss). Flights already submitted are untouched.
-    void discard_pending();
+    void discard_pending() override;
 
     // Submits every queued raster in one command list. A no-op without pending work.
-    [[nodiscard]] std::expected<void, GpuRasterError> flush();
+    [[nodiscard]] std::expected<void, GpuRasterError> flush() override;
 
     // Releases the buffers of flushed batches the GPU has finished. Never blocks.
-    void collect();
+    void collect() override;
 
     [[nodiscard]] Stats stats() const;
 

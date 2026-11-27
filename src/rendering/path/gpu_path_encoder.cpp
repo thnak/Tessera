@@ -41,7 +41,14 @@ namespace {
 // transformed local box (the fine pass skips a pixel outside it). An empty `matrices` is identity.
 void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> matrices,
                         std::uint32_t width, std::uint32_t height) {
-    encoded.paths.assign(static_cast<std::size_t>(encoded.path_count) * kGpuPathWords, 0);
+    encoded.paths = make_path_records(encoded, matrices, width, height);
+}
+
+std::vector<std::uint32_t> make_path_records(const EncodedGpuScene& encoded,
+                                             std::span<const PathAffine> matrices,
+                                             std::uint32_t width, std::uint32_t height) {
+    std::vector<std::uint32_t> paths(static_cast<std::size_t>(encoded.path_count) * kGpuPathWords,
+                                     0);
     for (std::uint32_t p = 0; p < encoded.path_count; ++p) {
         const PathAffine m = matrices.empty() ? PathAffine{} : matrices[p];
         const auto& box = encoded.local_boxes[p];
@@ -57,7 +64,7 @@ void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> ma
         const auto clamp_to = [](float v, std::uint32_t limit) {
             return static_cast<std::uint32_t>(std::clamp(v, 0.0f, static_cast<float>(limit)));
         };
-        std::uint32_t* record = &encoded.paths[static_cast<std::size_t>(p) * kGpuPathWords];
+        std::uint32_t* record = &paths[static_cast<std::size_t>(p) * kGpuPathWords];
         record[0] = bits(m.a);
         record[1] = bits(m.b);
         record[2] = bits(m.c);
@@ -75,6 +82,7 @@ void write_path_records(EncodedGpuScene& encoded, std::span<const PathAffine> ma
                 ? 1U
                 : 0U;
     }
+    return paths;
 }
 
 EncodedGpuScene encode_gpu_scene(const GpuPathScene& scene, std::uint32_t width,
@@ -120,10 +128,28 @@ EncodedGpuScene encode_gpu_scene(const GpuPathScene& scene, std::uint32_t width,
                 if (range.count == 0) {
                     continue;
                 }
-                std::vector<Chunk> chunks;
-                float length_so_far = 0.0f;
+                // Zero-length segments carry no direction, so the stroke expansion would lose the
+                // join they sit in (A,B,B,C drops the miter at B). Drop them; a contour that is
+                // nothing else is a dot, which only a round or square cap draws (SVG): it becomes
+                // a 1/64 px segment along +x, exact in float at any practical coordinate.
+                std::vector<std::array<float, 4>> kept;
                 for (std::size_t i = range.first; i < range.first + range.count; ++i) {
                     const float* s = &shape.contours[i * 4];
+                    if (s[0] != s[2] || s[1] != s[3]) {
+                        kept.push_back({s[0], s[1], s[2], s[3]});
+                    }
+                }
+                if (kept.empty()) {
+                    if (shape.cap == GpuCap::butt) {
+                        continue;
+                    }
+                    const float* s = &shape.contours[range.first * 4];
+                    kept.push_back({s[0], s[1], s[0] + 1.0f / 64.0f, s[1]});
+                }
+                std::vector<Chunk> chunks;
+                float length_so_far = 0.0f;
+                for (const std::array<float, 4>& segment : kept) {
+                    const float* s = segment.data();
                     const float length = std::hypot(s[2] - s[0], s[3] - s[1]);
                     const std::size_t parts =
                         period > 0.0f ? std::max<std::size_t>(
@@ -256,8 +282,10 @@ std::optional<PathRasterLayout> plan_path_raster(const EncodedGpuScene& encoded,
     // Word 0 is the node counter, then one list head per (path, row), then two words per node.
     const std::uint64_t nodes_base = 1 + static_cast<std::uint64_t>(encoded.path_count) * height;
     const std::uint64_t exp_base = nodes_base + node_capacity * 2;
-    const std::uint64_t work_words =
+    // After the expanded stroke edges: the device-space endpoints of every segment id.
+    const std::uint64_t dev_base =
         exp_base + static_cast<std::uint64_t>(encoded.stroke_edges) * kGpuSegWords;
+    const std::uint64_t work_words = dev_base + static_cast<std::uint64_t>(encoded.seg_count) * 4;
     const std::uint64_t output_words = static_cast<std::uint64_t>(stride) * height;
     if (node_capacity > kIndexLimit || work_words > kIndexLimit || output_words > kIndexLimit) {
         return std::nullopt;
@@ -274,7 +302,7 @@ std::optional<PathRasterLayout> plan_path_raster(const EncodedGpuScene& encoded,
                    encoded.stroke_count,
                    encoded.arc_edges,
                    stride,
-                   0};
+                   static_cast<std::uint32_t>(dev_base)};
     layout.work_words = static_cast<std::size_t>(work_words);
     layout.output_words = static_cast<std::size_t>(output_words);
     return layout;

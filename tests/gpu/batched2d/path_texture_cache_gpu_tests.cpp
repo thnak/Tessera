@@ -137,6 +137,37 @@ bool run(rhi::Device& device, path::PathRasterizer& cpu) {
                 "a GPU-rasterized texture is a normal cache hit") &&
          ok;
 
+    // The same geometry at another scale: the first scale in a new power-of-two bucket encodes one
+    // document (its flatten tolerance depends on the bucket); every later size in that bucket
+    // reuses it, and the scale itself is applied on the device.
+    {
+        const auto before = cache.stats();
+        const auto doubled =
+            cache.acquire(path::make_path_texture_key(1, 1, 128, 128, 2000, red), red);
+        ok = expect(doubled.has_value() && doubled->extent.width == 256 &&
+                        cache.stats().gpu_documents_encoded == before.gpu_documents_encoded + 1,
+                    "the first 2x raster encodes the 2x-bucket document") &&
+             ok;
+        const auto between =
+            cache.acquire(path::make_path_texture_key(1, 1, 128, 128, 1500, red), red);
+        ok = expect(between.has_value() && between->extent.width == 192 &&
+                        cache.stats().gpu_documents_encoded == before.gpu_documents_encoded + 1 &&
+                        cache.stats().gpu_document_hits == before.gpu_document_hits + 1,
+                    "a 1.5x raster reuses the same document") &&
+             ok;
+        ok = expect(cache.flush_gpu().has_value(), "flush the scaled rasters") && ok;
+        device.wait_idle();
+        cache.end_frame();
+        for (const auto* raster : {&doubled, &between}) {
+            if (raster->has_value()) {
+                const auto pixels = draw(device, *(*raster)->texture, (*raster)->extent);
+                ok = expect(is(pixels, 100, 100, 255, 0, 0) && is(pixels, 159, 127, 255, 0, 0),
+                            "a scaled raster (its visible 160x128 corner) is solid red") &&
+                     ok;
+            }
+        }
+    }
+
     // A bound of one bin node refuses the large raster: it is rasterized on the CPU, counted.
     {
         path::PathTextureCache dense_cache(device, cpu, config);
