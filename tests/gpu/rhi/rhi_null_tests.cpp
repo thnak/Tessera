@@ -34,10 +34,10 @@ int main() {
     // the `CommandList` compute commands (ADR-071 spike, issue #683); 1.17 added
     // `CommandList::copy_buffer_to_texture` and its capability (ADR-072); 1.18 added
     // `ComputeCapabilities`, `Device::compute_capabilities()` and `CommandList::dispatch_indirect`
-    // (issue #684); 1.19 added `BlendMode::DestinationIn`, the layer mask step (issue #617). All
-    // are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 19 ||
-        rhi::kRhiVersion != ((1u << 16) | 19u)) {
+    // (issue #684); 1.19 added `BlendMode::DestinationIn`, the layer mask step (issue #617); 1.20
+    // added `Device::supports_analytic_gradients()` (ADR-076). All are additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 20 ||
+        rhi::kRhiVersion != ((1u << 16) | 20u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }
@@ -45,6 +45,12 @@ int main() {
     auto device = null::create_null_device(rhi::DeviceDesc{});
     if (device->backend() != rhi::Backend::Null) {
         std::cerr << "unexpected backend\n";
+        return 1;
+    }
+    // RHI 1.20: the null device records the one gradient quad a real backend draws, so it claims
+    // the capability; a device that does not override it (every backend before 1.20) is false.
+    if (!device->supports_analytic_gradients()) {
+        std::cerr << "the null device must report analytic gradients\n";
         return 1;
     }
     const auto caps = device->capabilities();

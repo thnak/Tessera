@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/clip_records.hpp"
+#include "tessera/rendering/gpu/gradient_table.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
 #include <cstddef>
@@ -24,6 +25,11 @@ namespace tessera::rendering::gpu {
 //
 // The buffer is created lazily on the first upload, so a device without the capability (or a frame
 // that never clips) allocates nothing.
+//
+// The same buffer carries the frame's gradient records and stop ramps after the clip area
+// (gradient_records.hpp, ADR-076). They share the one binding because the pipeline layout already
+// declares exactly one storage buffer, and they follow the same append-only rule, so one upload
+// call and one slot rotation serve both.
 class ClipBuffer {
 public:
     ClipBuffer(rhi::Device& device, std::uint32_t frames_in_flight);
@@ -46,10 +52,12 @@ public:
     // `records` is the frame's full record list, `sets` its full set list and `vertices` the
     // polygon vertex pool (ADR-068 slice 5); the class tracks how much of each it has already
     // written. The records and the vertices must be append-only within a frame, which is what
-    // ClipStateTable guarantees.
+    // ClipStateTable guarantees. `gradients` is the frame's gradient table, append-only the same
+    // way; null uploads none (a test that drives the clip area alone).
     [[nodiscard]] rhi::Buffer* upload(const std::vector<clip::ClipRecord>& records,
                                       const std::vector<clip::ClipSetRange>& sets,
-                                      const std::vector<clip::ClipVertex>& vertices);
+                                      const std::vector<clip::ClipVertex>& vertices,
+                                      const GradientTable* gradients = nullptr);
 
     // The buffer the current frame last uploaded, or nullptr. The renderer binds this before a
     // draw.
@@ -64,6 +72,8 @@ private:
         std::uint32_t uploaded_records = 0;
         std::uint32_t uploaded_sets = 0;
         std::uint32_t uploaded_vertices = 0;
+        std::uint32_t uploaded_gradients = 0;
+        std::uint32_t uploaded_stops = 0;
     };
 
     void ensure_capacity(Slot& slot);

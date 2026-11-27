@@ -294,6 +294,29 @@ public:
     // rectangle, so the quad falls back to `push_texture` with the texture's sampler.
     void push_texture_exact(const rhi::Rect& rect, rhi::Texture& texture, rhi::Color color);
 
+    // --- Per-fragment gradients (docs/design/gpu/gradients.md, ADR-076) -------------------------
+    // A gradient layer is ONE quad: the fragment shader evaluates the linear, radial or conic ramp
+    // exactly at every pixel centre from a record in the frame record buffer, so the cost of a
+    // gradient no longer scales with how finely it was tessellated. The quad batches like any other
+    // (texture, scissor and clip set are unchanged), and it honours the active transform, clip
+    // stack, content scale, flat-layer opacity and damage culling like a solid quad.
+    //
+    // Returns false, recording nothing, when the gradient cannot be drawn this way: the device does
+    // not report `supports_analytic_gradients()`, the frame pipeline has no record buffer (a test
+    // fixture), or the frame's records or stops are full. The caller then paints the banded
+    // approximation instead, which is the capability fallback; every refusal is counted in
+    // gradient_fallbacks(). A culled or out-of-frame gradient returns true: there is nothing to
+    // draw.
+    [[nodiscard]] bool push_gradient(const gradient::Fill& fill);
+    [[nodiscard]] bool gradients_supported() const;
+    // Gradient quads emitted and gradients refused (so painted banded) this frame.
+    [[nodiscard]] std::uint32_t gradient_quads() const {
+        return gradient_quads_;
+    }
+    [[nodiscard]] std::uint32_t gradient_fallbacks() const {
+        return gradient_fallbacks_;
+    }
+
     // --- LCD text (docs/design/display-aware-rendering.md section 3.4.1, step 3) ----------------
     // Supplies the dual-source pipeline LCD glyph quads are drawn with. It must be created from
     // `vulkan::batched2d_lcd_pipeline_desc` with the frame's format and sample count, and only on a
@@ -456,6 +479,10 @@ private:
     // The per-frame clip-record buffer the fragment shader reads (ADR-068 slice 3). Empty and
     // unused on a device without storage buffers, where the push-constant path stays.
     ClipBuffer clip_buffer_;
+    // The frame's gradient records and ramps, uploaded into the same buffer (ADR-076).
+    GradientTable gradients_;
+    std::uint32_t gradient_quads_ = 0;
+    std::uint32_t gradient_fallbacks_ = 0;
     // The pipeline the command list has bound, as far as this renderer knows. Null after anything
     // that binds outside flush() (begin, resume_pass, a glass composite), so the next flush
     // rebinds.

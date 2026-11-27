@@ -10,6 +10,7 @@
 
 // Generated from the authored GLSL by tests/gpu/CMakeLists.txt (ADR-049 drift guard, issue #92).
 #include "batched2d_glsl_sources.hpp"
+#include "tessera/rendering/gpu/gradient_records.hpp"
 #include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/rhi/types.hpp"
@@ -310,6 +311,81 @@ void test_batched2d_parity() {
            "portable vertex stage binds only the uniform block");
 }
 
+// The gradient area of the record buffer (ADR-076): the record struct, the capacities, the array
+// order after the clip vertex pool and the quad mode the fragment stage tests must agree between
+// the two shader sources and the C++ layout (gradient_records.hpp) that writes the bytes.
+void test_gradient_records() {
+    const std::string frag_text(kBatched2dFragGlsl);
+    const std::string wgsl_text(wg::batched2d_wgsl_program().source);
+    const auto frag = code_lines(frag_text, true);
+    const auto wgsl = code_lines(wgsl_text, false);
+
+    const Members record = glsl_block(frag, "struct GradientRecord {");
+    expect(!record.empty() && record == wgsl_members(wgsl, "GradientRecord"),
+           "GradientRecord members differ between GLSL and WGSL");
+    expect(struct_layout(record, {}).first == sizeof(gpu::gradient::GradientRecord),
+           "GradientRecord size differs from the C++ record");
+
+    const auto constant = [](const std::string& text, const std::regex& pattern) {
+        std::smatch match;
+        return std::regex_search(text, match, pattern) ? std::stoul(match[1]) : 0UL;
+    };
+    const struct {
+        const char* name;
+        std::uint32_t expected;
+    } capacities[] = {{"TESSERA_GRADIENT_MAX_RECORDS", gpu::gradient::kMaxGradientRecords},
+                      {"TESSERA_GRADIENT_MAX_STOPS", gpu::gradient::kMaxGradientStops},
+                      {"TESSERA_CLIP_MAX_RECORDS", gpu::clip::kMaxClipRecords},
+                      {"TESSERA_CLIP_MAX_SETS", gpu::clip::kMaxClipSets},
+                      {"TESSERA_CLIP_MAX_VERTICES", gpu::clip::kMaxClipVertices}};
+    for (const auto& capacity : capacities) {
+        const std::string name = capacity.name;
+        const std::regex glsl_pattern("#define " + name + R"( (\d+))");
+        const std::regex wgsl_pattern("const " + name + R"(: u32 = (\d+)u;)");
+        expect(constant(frag_text, glsl_pattern) == capacity.expected,
+               name + " differs between the GLSL and the C++ layout");
+        expect(constant(wgsl_text, wgsl_pattern) == capacity.expected,
+               name + " differs between the WGSL and the C++ layout");
+    }
+    expect(
+        constant(frag_text,
+                 std::regex(R"(#define TESSERA_GRADIENT_MAX_STOPS_PER_RECORD (\d+)u)")) ==
+                gpu::gradient::kMaxStopsPerGradient &&
+            constant(wgsl_text,
+                     std::regex(R"(const TESSERA_GRADIENT_MAX_STOPS_PER_RECORD: u32 = (\d+)u;)")) ==
+                gpu::gradient::kMaxStopsPerGradient,
+        "the per-record stop bound differs between the shaders and the C++ layout");
+
+    // The three arrays follow the clip vertex pool, in the order gradient_records.hpp lays them
+    // out.
+    const auto order = [](const std::string& text, const std::vector<std::string>& needles) {
+        std::size_t at = 0;
+        for (const std::string& needle : needles) {
+            const std::size_t found = text.find(needle, at);
+            if (found == std::string::npos) {
+                return false;
+            }
+            at = found;
+        }
+        return true;
+    };
+    expect(order(frag_text, {"vec2 vertices[", "GradientRecord gradients[", "vec4 stop_colors[",
+                             "float stop_offsets["}),
+           "GLSL record buffer: gradient arrays must follow the clip vertex pool in order");
+    expect(order(wgsl_text, {"vertices: array<vec2<f32>", "gradients: array<GradientRecord",
+                             "stop_colors: array<vec4<f32>", "stop_offsets: array<f32"}),
+           "WGSL record buffer: gradient arrays must follow the clip vertex pool in order");
+
+    // The quad mode the vertex stream carries is tested first by both shaders, above every other
+    // mode (the exact-nearest quad is 4096).
+    expect(gpu::gradient::kGradientMode > 8000.0f &&
+               gpu::gradient::kGradientMode > gpu::kExactNearestMode,
+           "the gradient quad mode must exceed the shaders' 8000 test and every other mode");
+    expect(frag_text.find("v_mode > 8000.0") != std::string::npos &&
+               wgsl_text.find("in.mode > 8000.0") != std::string::npos,
+           "both shaders test the gradient mode");
+}
+
 void test_shader_id() {
     expect(gpu::kBatched2dShaderId == "batched2d", "batched2d id is the manifest name");
     expect(rhi::PipelineDesc{}.shader_id.empty(), "shader_id defaults to empty (SPIR-V words)");
@@ -324,6 +400,7 @@ void test_shader_id() {
 
 int main() {
     test_batched2d_parity();
+    test_gradient_records();
     test_shader_id();
     if (g_failures != 0) {
         std::cerr << "shader_parity: " << g_failures << " failure(s)\n";

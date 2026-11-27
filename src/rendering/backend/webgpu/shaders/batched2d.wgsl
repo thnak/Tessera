@@ -28,18 +28,35 @@ struct ClipSetRange {
     reserved1: u32,
 };
 
+// The gradient area (ADR-076) follows the clip vertex pool. A gradient quad is one quad: mode 8192 and
+// the record index in carve.x; see gpu::gradient::GradientRecord (gradient_records.hpp).
+const TESSERA_GRADIENT_MAX_RECORDS: u32 = 512u;
+const TESSERA_GRADIENT_MAX_STOPS: u32 = 2048u;
+const TESSERA_GRADIENT_MAX_STOPS_PER_RECORD: u32 = 32u;
+
+struct GradientRecord {
+    kind: u32,       // 0 linear, 1 radial, 2 conic
+    stop_count: u32,
+    first_stop: u32,
+    flags: u32,
+    params: vec4<f32>, // quad-local geometry
+};
+
 // The header is four u32s (16 bytes, ClipBufferHeader), so the records start at offset 16 as in the
 // Vulkan std430 layout. A `vec3<u32>` here would align to 16 and push every record to offset 32,
 // so the shader would read the wrong bytes and the struct would be 16 bytes larger than the buffer.
 struct ClipBuffer {
     record_count: u32,
-    header_reserved0: u32,
-    header_reserved1: u32,
-    header_reserved2: u32,
+    vertex_count: u32,
+    gradient_count: u32,
+    gradient_stop_count: u32,
     records: array<ClipRecord, TESSERA_CLIP_MAX_RECORDS>,
     sets: array<ClipSetRange, TESSERA_CLIP_MAX_SETS>,
     // The polygon vertex pool (ADR-068 slice 5), after the sets; `vec2<f32>` is an 8-byte stride.
     vertices: array<vec2<f32>, TESSERA_CLIP_MAX_VERTICES>,
+    gradients: array<GradientRecord, TESSERA_GRADIENT_MAX_RECORDS>,
+    stop_colors: array<vec4<f32>, TESSERA_GRADIENT_MAX_STOPS>,
+    stop_offsets: array<f32, TESSERA_GRADIENT_MAX_STOPS>,
 };
 
 struct Params {
@@ -235,6 +252,60 @@ fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
 }
 
+// The ramp position of a gradient record at a quad-local point: gpu::gradient::position, and
+// gradient_position in batched2d.frag, expression for expression.
+fn gradient_position(record: u32, local: vec2<f32>) -> f32 {
+    let kind = clip_buffer.gradients[record].kind;
+    let params = clip_buffer.gradients[record].params;
+    if (kind == 1u) {
+        let n = (local - params.xy) / params.zw;
+        return sqrt(n.x * n.x + n.y * n.y);
+    }
+    if (kind == 2u) {
+        let d = local - params.xy;
+        // The exact centre has no angle and takes 0; atan2(0, 0) is not specified.
+        var angle = 0.0;
+        if (d.x != 0.0 || d.y != 0.0) {
+            angle = atan2(d.x, -d.y);
+        }
+        let turn = angle / 6.28318530717958647692 - params.z;
+        return turn - floor(turn);
+    }
+    return local.x * params.x + local.y * params.y + params.z;
+}
+
+// Encoded-space interpolation over the record's sorted stops (gpu::gradient::ramp): the last stop at
+// or below t blended with the next; a duplicate offset lets the later stop win.
+fn gradient_color(record: u32, t_in: f32) -> vec4<f32> {
+    let count = min(clip_buffer.gradients[record].stop_count, TESSERA_GRADIENT_MAX_STOPS_PER_RECORD);
+    let first = clip_buffer.gradients[record].first_stop;
+    if (count == 0u) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+    if (count == 1u) {
+        return clip_buffer.stop_colors[first];
+    }
+    let t = clamp(t_in, 0.0, 1.0);
+    var below = -1;
+    for (var i = 0u; i < count; i = i + 1u) {
+        if (clip_buffer.stop_offsets[first + i] <= t) {
+            below = i32(i);
+        }
+    }
+    if (below < 0) {
+        return clip_buffer.stop_colors[first];
+    }
+    let k = u32(below);
+    let offset_k = clip_buffer.stop_offsets[first + k];
+    if (offset_k == t || k + 1u == count) {
+        return clip_buffer.stop_colors[first + k];
+    }
+    let a = clip_buffer.stop_colors[first + k];
+    let b = clip_buffer.stop_colors[first + k + 1u];
+    let local_t = (t - offset_k) / (clip_buffer.stop_offsets[first + k + 1u] - offset_k);
+    return a + (b - a) * local_t;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Local units per device pixel (see batched2d.frag), taken before any branch so the derivative
@@ -265,7 +336,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = in.color;
     // textureSample needs uniform control flow, so sample unconditionally and select.
     let sampled = textureSample(u_texture, u_sampler, in.uv);
-    if (in.mode > 4000.0) {
+    if (in.mode > 8000.0) {
+        // Gradient quad (ADR-076, see batched2d.frag): the record index rides in carve.x, and the ramp
+        // is evaluated at the pixel centre in the quad's local space.
+        let record = min(u32(round(in.carve.x)), TESSERA_GRADIENT_MAX_RECORDS - 1u);
+        color = color * gradient_color(record, gradient_position(record, in.local));
+    } else if (in.mode > 4000.0) {
         // Exact nearest texture (#682, kExactNearestMode; see batched2d.frag): integer math on the
         // fragment's device pixel, so every GPU agrees with the CPU rule. `carve` is the integer
         // device rectangle (xy origin, zw size). textureLoad has no derivative, so it may sit here.

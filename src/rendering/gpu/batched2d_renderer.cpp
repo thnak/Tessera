@@ -124,6 +124,9 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     cull_stats_ = CullStats{};
     split_stats_ = BatchSplitStats{};
     clips_.reset();
+    gradients_.reset();
+    gradient_quads_ = 0;
+    gradient_fallbacks_ = 0;
     // The clip-record buffer rotates with the frame slots, so a frame never rewrites a buffer a
     // submission still reads (ADR-068 slice 3).
     clip_buffer_.begin_frame();
@@ -460,7 +463,7 @@ void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
     // only has to be right for the renderer's own draws.
     if (pipeline_ != nullptr && pipeline_->declares_storage_buffer()) {
         if (rhi::Buffer* records = clip_buffer_.upload(clips_.flat_records(), clips_.set_ranges(),
-                                                       clips_.flat_vertices())) {
+                                                       clips_.flat_vertices(), &gradients_)) {
             commands_->bind_storage_buffer(1, *records);
         }
     }

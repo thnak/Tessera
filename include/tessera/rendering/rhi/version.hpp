@@ -93,7 +93,11 @@ inline constexpr std::uint32_t kRhiVersionMajor = 1;
 // mask step of an isolated layer (issue #617, docs/design/gpu/offscreen-layers.md section 5.2).
 // The enumerator is appended so no existing value changes; Vulkan, WebGPU, Metal and the null
 // backend all express it with fixed blend factors, so there is no capability to query.
-inline constexpr std::uint32_t kRhiVersionMinor = 19;
+// 1.20 (2026-11-27): additive `Device::supports_analytic_gradients()` (ADR-076): the device's
+// batched2d program evaluates a gradient per pixel from the frame record buffer, so one gradient
+// layer is one quad. Not pure virtual and false by default, so no existing backend or caller
+// changes; a backend answering false keeps the banded gradient fallback.
+inline constexpr std::uint32_t kRhiVersionMinor = 20;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

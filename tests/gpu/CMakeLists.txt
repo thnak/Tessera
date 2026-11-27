@@ -100,6 +100,13 @@ add_test(NAME layer_null COMMAND layer_null_tests)
 
 # Layer masks (issue #617 slice 2) on the null backend: the pass and draw skeleton of a masked
 # layer and every fallback. Runs everywhere.
+# Per-fragment gradients (ADR-076) on the null backend: one quad per layer against the banded
+# fallback (counted), the capability fallback, culling, the table limit and batching.
+add_executable(gradient_null_tests
+    batched2d/gradient_null_tests.cpp)
+target_link_libraries(gradient_null_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_null)
+add_test(NAME gradient_null COMMAND gradient_null_tests)
+
 add_executable(layer_mask_null_tests
     batched2d/layer_mask_null_tests.cpp)
 target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
@@ -652,6 +659,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_mask_gpu COMMAND layer_mask_gpu_tests)
     set_tests_properties(layer_mask_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Per-fragment gradients (ADR-076) on a real device: every kind against the CPU twin, the ramp
+    # rules, transforms, clips, one-draw batching, the table limit and frames in flight. Skips
+    # without a Vulkan device.
+    add_executable(gradient_gpu_tests
+        batched2d/gradient_gpu_tests.cpp)
+    target_link_libraries(gradient_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME gradient_gpu COMMAND gradient_gpu_tests)
+    set_tests_properties(gradient_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # Layer filters (issue #617): blur() and drop-shadow() pixels against the analytic Gaussian,
     # the filter-before-mask order, the paint path, the fallbacks. Skips without a Vulkan device.
     add_executable(layer_filter_gpu_tests

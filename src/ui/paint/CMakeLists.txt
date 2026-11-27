@@ -13,6 +13,8 @@ add_library(tessera_paint STATIC
     clip_path.cpp
     paint_shadow.cpp
     paint_sinks.cpp
+    # Gradient fills of the GPU sink: one quad per layer, banded fallback (ADR-076).
+    paint_sink_gradient.cpp
     paint_text.cpp
     paint_list_marker.cpp
     paint_text_flex.cpp

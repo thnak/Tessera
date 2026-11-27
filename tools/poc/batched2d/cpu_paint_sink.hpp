@@ -11,6 +11,7 @@
 #include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/assets/asset_image.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
+#include "tessera/ui/paint/gradient_fill.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
@@ -83,65 +84,24 @@ public:
         fill_rect(rect, color);
     }
 
-    // V1 gradient parity: the same 64 dominant-axis bands the GPU sink emits, sampled with the
-    // shared encoded-space ramp. Rounded corners are approximated by rect bounds here (the CPU
-    // golden path documents that approximation), so parity is exact for unrounded gradients.
+    // Gradients are evaluated per pixel, the CPU twin of the shader (docs/design/gpu/gradients.md,
+    // ADR-076): the fill is packed into the same record the GPU reads (gradient_math.hpp) and
+    // evaluated at every pixel centre with the shader's own expressions, so the two paths differ
+    // only by the shader's arithmetic. Rounded corners are approximated by the rect bounds here
+    // (the CPU golden path documents that approximation).
     void fill_linear_gradient(const ui::paint::GradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        const float radians = draw.angle_degrees * 3.14159265358979323846f / 180.0f;
-        const float dx = std::sin(radians);
-        const float dy = -std::cos(radians);
-        const float span_x = draw.rect.width * std::abs(dx);
-        const float span_y = draw.rect.height * std::abs(dy);
-        const float span = std::max(span_x + span_y, 1.0f);
-        constexpr int kBands = 64;
-        if (std::abs(dx) >= std::abs(dy)) {
-            const float band = draw.rect.width / static_cast<float>(kBands);
-            for (int index = 0; index < kBands; ++index) {
-                const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
-                const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
-                const float left =
-                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index, kBands);
-                const float right =
-                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index + 1, kBands);
-                fill_rect({left, draw.rect.y, right - left, draw.rect.height},
-                          ui::paint::sample_linear_gradient(draw, t));
-            }
-        } else {
-            const float band = draw.rect.height / static_cast<float>(kBands);
-            for (int index = 0; index < kBands; ++index) {
-                const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
-                const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
-                const float top =
-                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index, kBands);
-                const float bottom =
-                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index + 1, kBands);
-                fill_rect({draw.rect.x, top, draw.rect.width, bottom - top},
-                          ui::paint::sample_linear_gradient(draw, t));
-            }
-        }
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::linear_fill(draw, stops));
     }
 
-    // Radial parity: the same shared tessellation the GPU sink uses (paint_sink.hpp), drawn through
-    // this sink's solid-quad path. Because both sinks consume the identical band list, the CPU and
-    // GPU results differ only by how a solid quad is rasterized, which is what makes the golden
-    // meaningful. Rounded corners fall back to the rect bounds here, like the linear path.
     void fill_radial_gradient(const ui::paint::RadialGradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        ui::paint::tessellate_radial_gradient(
-            draw, [this](const ui::paint::RadialBand& band) { fill_rect(band.rect, band.color); });
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::radial_fill(draw, stops));
     }
 
     void fill_conic_gradient(const ui::paint::ConicGradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        ui::paint::tessellate_conic_gradient(
-            draw, [this](const ui::paint::ConicBand& band) { fill_rect(band.rect, band.color); });
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::conic_fill(draw, stops));
     }
 
     void push_clip(const ui::paint::RoundedClip& clip) override {
@@ -337,6 +297,27 @@ public:
     }
 
 private:
+    // One gradient quad: pack once, then shade every covered pixel with the shared evaluator. The
+    // quad-local point is the pixel centre minus the quad's centre, which is what the shader's
+    // interpolated `v_local` is.
+    void fill_gradient(const rendering::gpu::gradient::Fill& fill) {
+        rendering::gpu::gradient::Packed packed;
+        if (!rendering::gpu::gradient::pack(fill, packed)) {
+            return;
+        }
+        const rendering::rhi::Rect clipped = intersect(clip_, fill.rect);
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        const float centre_x = fill.rect.x + fill.rect.width * 0.5f;
+        const float centre_y = fill.rect.y + fill.rect.height * 0.5f;
+        paint_each([&](rendering::software::CpuCanvas& canvas) {
+            canvas.fill_rect_shaded(clipped, [&](float x, float y) {
+                return rendering::gpu::gradient::evaluate(packed, x - centre_x, y - centre_y);
+            });
+        });
+    }
+
     // One open isolated layer: the content pair and, while a mask image is being drawn, the mask
     // pair. Frame-sized like the GPU's pooled target, so no coordinates shift.
     struct Layer {

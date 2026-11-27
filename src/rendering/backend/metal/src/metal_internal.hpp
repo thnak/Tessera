@@ -51,6 +51,8 @@ public:
     [[nodiscard]] bool supports_storage_buffers() const override {
         return false;
     }
+    // RHI 1.20 (ADR-076): the gradient branch reads the record buffer, so Metal keeps the banded
+    // fallback until it answers true above (the default of supports_analytic_gradients() is false).
 
     [[nodiscard]] id<MTLDevice> device() const {
         return device_;

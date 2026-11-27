@@ -474,6 +474,19 @@ public:
     // deadline.
     [[nodiscard]] virtual bool supports_storage_buffers() const = 0;
 
+    // RHI 1.20 (ADR-076): true when this device's batched2d fragment program evaluates a gradient
+    // per pixel from the frame record buffer - a quad whose `Vertex2D::mode` is
+    // `gpu::gradient::kGradientMode` - so the renderer may draw one gradient layer as one quad.
+    // It implies a fragment-readable storage buffer (`supports_storage_buffers()`), but it is its
+    // own bit because it is a statement about the *shader program the backend ships*: a backend
+    // whose program lacks the branch (an older cross-compiled table, a Tier-2 backend) must answer
+    // false and keep the banded fallback, whatever its storage support. The only authority on the
+    // capability; consumers must not infer it from the backend name. The default is false, so a
+    // backend or test double written before 1.20 keeps painting banded gradients unchanged.
+    [[nodiscard]] virtual bool supports_analytic_gradients() const {
+        return false;
+    }
+
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the
     // backend name or any other device fact. The default is the CPU fallback every backend without

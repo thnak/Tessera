@@ -14,6 +14,9 @@ add_library(tessera_gpu STATIC
     # Split out so the renderer core stays inside its size budget.
     batched2d_texture_array.cpp
     batched2d_cull.cpp
+    # The per-fragment gradient quad (ADR-076) and its record table.
+    batched2d_gradient.cpp
+    gradient_table.cpp
     batched2d_layer.cpp
     batched2d_layer_mask.cpp
     batched2d_layer_filter.cpp
@@ -56,6 +59,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/gpu_collaborators_tests.cpp)
     target_link_libraries(gpu_collaborators_tests PRIVATE tessera_gpu tessera_rhi_null)
     add_test(NAME gpu_collaborators COMMAND gpu_collaborators_tests)
+
+    # The gradient record math and table (ADR-076): the shader-shaped ramp against the banded
+    # sampler, the position of every kind, packing limits and the table's capacities.
+    add_executable(gradient_math_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/gradient_math_tests.cpp)
+    target_link_libraries(gradient_math_tests PRIVATE tessera_gpu)
+    add_test(NAME gradient_math COMMAND gradient_math_tests)
 
     # ClipStateTable polygon pooling (ADR-068 slice 5, issue #673): the vertex pool, deduplication
     # and the over-limit fallback.

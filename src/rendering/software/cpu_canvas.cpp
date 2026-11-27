@@ -252,6 +252,25 @@ void CpuCanvas::blit_texture(std::int32_t x, std::int32_t y, std::uint32_t width
     }
 }
 
+CpuCanvas::PixelSpan CpuCanvas::pixel_span(const rhi::Rect& rect) const {
+    PixelSpan span;
+    if (rect.width <= 0.0f || rect.height <= 0.0f) {
+        return span;
+    }
+    span.left = std::max(0.0f, rect.x);
+    span.top = std::max(0.0f, rect.y);
+    span.right = std::min(static_cast<float>(width_), rect.x + rect.width);
+    span.bottom = std::min(static_cast<float>(height_), rect.y + rect.height);
+    if (span.left >= span.right || span.top >= span.bottom) {
+        return span;
+    }
+    span.first_x = static_cast<std::uint32_t>(std::floor(span.left));
+    span.first_y = static_cast<std::uint32_t>(std::floor(span.top));
+    span.last_x = static_cast<std::uint32_t>(std::ceil(span.right));
+    span.last_y = static_cast<std::uint32_t>(std::ceil(span.bottom));
+    return span;
+}
+
 void CpuCanvas::blend(std::uint32_t x, std::uint32_t y, rhi::Color color) {
     const std::size_t index = (static_cast<std::size_t>(y) * width_ + x) * 4;
     const float alpha = color.a;

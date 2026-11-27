@@ -295,10 +295,12 @@ bool chromium_comparison(Harness& harness) {
         std::uint32_t applied = 0;
         const auto pixels = render_masked(harness, scene.css, scene.opacity, isolated, applied);
         ok = expect(isolated == 1 && applied == 1, scene.name) && ok;
+        int worst = 0;
         for (std::size_t i = 0; i < layer_mask_reference::kSampleAt.size(); ++i) {
             const std::uint32_t at = layer_mask_reference::kSampleAt[i];
             const int row = pixel_at(pixels, at, 32)[1] - reference->row32[i];
             const int col = pixel_at(pixels, 32, at)[1] - reference->col32[i];
+            worst = std::max({worst, std::abs(row), std::abs(col)});
             if (std::abs(row) > scene.tolerance || std::abs(col) > scene.tolerance) {
                 std::cerr << "layer_mask_gpu: " << scene.name << " at " << at << ": row "
                           << (row >= 0 ? "+" : "") << row << ", column " << (col >= 0 ? "+" : "")
@@ -306,6 +308,8 @@ bool chromium_comparison(Harness& harness) {
                 ok = false;
             }
         }
+        std::cout << "layer_mask_gpu: " << scene.name << " worst against Chromium: " << worst
+                  << "/255\n";
         // Nothing outside the box, red or blue anywhere in it.
         ok = near(pixel_at(pixels, 4, 4), 0, 0, 0, "outside the box is black", 4, 4) && ok;
         ok = expect(pixel_at(pixels, 32, 32)[0] == 0 && pixel_at(pixels, 32, 32)[2] == 0,

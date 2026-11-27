@@ -44,6 +44,32 @@ public:
     // result is what the shader's hard-test path produces for the same record.
     void fill_rect_clipped(const rhi::Rect& rect, rhi::Color color, const ShapedClip& clip);
 
+    // Fills `rect` with one colour per pixel: `shade(centre_x, centre_y)` is called with each pixel
+    // centre that fill_rect would cover (same pixel-centre rule) and returns the straight-alpha
+    // colour to blend there. This is the CPU reference of a per-fragment shader - the gradient quad
+    // (docs/design/gpu/gradients.md) - so it blends in float exactly like a solid fill does and a
+    // shader's output and this one differ only by the shader's own arithmetic. `Shade` is a
+    // callable `rhi::Color(float, float)`; nothing allocates.
+    template<typename Shade> void fill_rect_shaded(const rhi::Rect& rect, Shade&& shade) {
+        const PixelSpan span = pixel_span(rect);
+        for (std::uint32_t y = span.first_y; y < span.last_y && y < height_; ++y) {
+            const float center_y = static_cast<float>(y) + 0.5f;
+            if (center_y < span.top || center_y >= span.bottom) {
+                continue;
+            }
+            for (std::uint32_t x = span.first_x; x < span.last_x && x < width_; ++x) {
+                const float center_x = static_cast<float>(x) + 0.5f;
+                if (center_x < span.left || center_x >= span.right) {
+                    continue;
+                }
+                const rhi::Color color = shade(center_x, center_y);
+                if (color.a > 0.0f) {
+                    blend(x, y, color);
+                }
+            }
+        }
+    }
+
     // Deterministic reference text blend: composites one 8-bit coverage bitmap (row-major, one
     // byte per pixel, `width * height` bytes) with straight-alpha source-over into an opaque
     // framebuffer. `x`/`y` are the integer bitmap top-left; pixels outside the canvas or outside
@@ -93,6 +119,19 @@ public:
     }
 
 private:
+    // The pixels a rect can reach, clamped to the canvas: the integer range to scan and the float
+    // bounds the pixel-centre test compares against. An empty span has first >= last.
+    struct PixelSpan {
+        std::uint32_t first_x = 0;
+        std::uint32_t last_x = 0;
+        std::uint32_t first_y = 0;
+        std::uint32_t last_y = 0;
+        float left = 0.0f;
+        float top = 0.0f;
+        float right = 0.0f;
+        float bottom = 0.0f;
+    };
+    [[nodiscard]] PixelSpan pixel_span(const rhi::Rect& rect) const;
     void blend(std::uint32_t x, std::uint32_t y, rhi::Color color);
 
     std::uint32_t width_ = 0;
