@@ -98,7 +98,8 @@ on a repeating linear ramp, 40 on repeating radial.
 - `gradient_chromium_gpu`: shader and banded fallback against Chromium per scene.
 - `shader_parity`: GLSL/WGSL struct members, capacities, array order and mode agree.
 - `layer_mask_gpu`: tolerances tightened to 2/255.
-- `cpu_wide_golden`: conics, gradients, layers, masks and radials regenerated.
+- `cpu_wide_golden`: conics, gradients, layers, masks and radials regenerated; `layer_mask_golden`:
+  `tests/golden/gpu/mask_image.png` regenerated on lavapipe (max delta 5 against the banded image, now smooth).
 
 ## 8. Not done
 
