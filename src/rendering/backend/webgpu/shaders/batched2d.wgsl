@@ -228,6 +228,31 @@ fn erf_approx(x: f32) -> f32 {
     return select(y, -y, x < 0.0);
 }
 
+// The blurred coverage of a rounded box (see blurred_box in batched2d.frag).
+fn blurred_box_x(x: f32, y: f32, sigma: f32, corner: f32, half_size: vec2<f32>) -> f32 {
+    let delta = min(half_size.y - corner - abs(y), 0.0);
+    let curved = half_size.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+    let k = 0.70710678 / sigma;
+    return 0.5 * (erf_approx((x + curved) * k) - erf_approx((x - curved) * k));
+}
+
+fn blurred_box(p: vec2<f32>, half_size: vec2<f32>, corner: f32, sigma: f32) -> f32 {
+    let low = p.y - half_size.y;
+    let high = p.y + half_size.y;
+    let start = clamp(-3.0 * sigma, low, high);
+    let end = clamp(3.0 * sigma, low, high);
+    let step_y = (end - start) / 8.0;
+    var y = start + step_y * 0.5;
+    let norm = 0.39894228 / sigma;
+    var value = 0.0;
+    for (var i = 0; i < 8; i = i + 1) {
+        let weight = norm * exp(-0.5 * y * y / (sigma * sigma));
+        value = value + blurred_box_x(p.x, p.y - y, sigma, corner, half_size) * weight * step_y;
+        y = y + step_y;
+    }
+    return clamp(value, 0.0, 1.0);
+}
+
 fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     let clip = clip_buffer.records[index];
     if (clip.kind == 2u) {
@@ -382,6 +407,37 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         var texel = sampled;
         texel.a = min(texel.a * (1.0 + (in.mode - 2.0) * 4.0), 1.0);
         color = color * texel;
+    } else if (in.mode > 2000.0) {
+        // This test comes BEFORE the outer shadow's (mode > 1000): an inset mode (2048 + sigma) is
+        // also above 1000, so the other order sent every inset shadow down the outer-shadow path.
+        // Inset box shadow (issue #612): mode is 2048 + sigma (see batched2d.frag). The quad is the
+        // border box and `carve` is the inner box, so the shadow fills the ring between them: its blurred
+        // coverage is the Gaussian edge profile on the inner box's signed distance d (1 outside it).
+        let sigma = in.mode - 2048.0;
+        var inner_half = in.half_size;
+        var inner_centre = vec2<f32>(0.0, 0.0);
+        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
+            inner_half = in.carve.zw;
+            inner_centre = in.carve.xy;
+        }
+        let inset = in.half_size.x - inner_half.x;
+        let inner_radius = clamp(in.radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        let d = sd_round_box(in.local - inner_centre, inner_half, inner_radius);
+        var cover = 0.0;
+        if (sigma > 0.0) {
+            cover = 1.0 - blurred_box(in.local - inner_centre, inner_half, inner_radius, sigma);
+        } else if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, 1.0, d > 0.0);
+        } else {
+            cover = smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        let outer = sd_round_box(in.local, in.half_size, in.radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, cover, outer <= 0.0);
+        } else {
+            cover = cover * (1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer));
+        }
+        color.a = color.a * cover;
     } else if (in.mode > 1000.0) {
         // Box shadow: mode is 1024 + sigma (see batched2d.frag); sigma 0 is the hard-edged shadow.
         let sigma = in.mode - 1024.0;
@@ -404,34 +460,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             if (sd_round_box(in.local - in.carve.xy, hole_half, hole_radius) <= 0.0) {
                 cover = 0.0;
             }
-        }
-        color.a = color.a * cover;
-    } else if (in.mode > 2000.0) {
-        // Inset box shadow (issue #612): mode is 2048 + sigma (see batched2d.frag). The quad is the
-        // border box and `carve` is the inner box, so the shadow fills the ring between them.
-        let sigma = in.mode - 2048.0;
-        var inner_half = in.half_size;
-        var inner_centre = vec2<f32>(0.0, 0.0);
-        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
-            inner_half = in.carve.zw;
-            inner_centre = in.carve.xy;
-        }
-        let inset = in.half_size.x - inner_half.x;
-        let inner_radius = clamp(in.radius - inset, 0.0, min(inner_half.x, inner_half.y));
-        let d = sd_round_box(in.local - inner_centre, inner_half, inner_radius);
-        var cover = 0.0;
-        if (sigma > 0.0) {
-            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
-        } else if (pc.aa_radius <= 0.0) {
-            cover = select(0.0, 1.0, d <= 0.0);
-        } else {
-            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
-        }
-        let outer = sd_round_box(in.local, in.half_size, in.radius);
-        if (pc.aa_radius <= 0.0) {
-            cover = select(0.0, cover, outer <= 0.0);
-        } else {
-            cover = cover * (1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer));
         }
         color.a = color.a * cover;
     } else if (in.mode > 2.5) {

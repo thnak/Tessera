@@ -525,6 +525,18 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # The inset box-shadow branch of the fragment shader against Chromium (issue #612): six scenes
+    # through the paint pass. The branch was unreachable behind the outer-shadow test (mode > 1000
+    # ahead of mode > 2000) until this test caught it. Skips without a Vulkan device.
+    add_executable(inset_shadow_gpu_tests
+        batched2d/inset_shadow_gpu_tests.cpp)
+    target_include_directories(inset_shadow_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_link_libraries(inset_shadow_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME inset_shadow_gpu COMMAND inset_shadow_gpu_tests)
+    set_tests_properties(inset_shadow_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Isolated-layer seam (#242) pixel test: draw, break the pass, copy a region, resume, draw.
     add_executable(renderer_seam_gpu_tests
         batched2d/renderer_seam_gpu_tests.cpp)

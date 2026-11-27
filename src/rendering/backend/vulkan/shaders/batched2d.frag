@@ -133,6 +133,37 @@ float erf_approx(float x) {
     return x < 0.0 ? -y : y;
 }
 
+// The blurred coverage of a rounded box at a point (inset shadows, issue #612): the box's own
+// indicator convolved with a Gaussian of standard deviation `sigma`. The box is separable, so the
+// x extent is two erf terms; the rounded corners shorten that extent where the row is within the
+// corner radius of the top or bottom, and the y integral is taken numerically over +/- 3 sigma in
+// eight midpoint steps (the method of Evan Wallace's "Fast Rounded Rectangle Shadows"). `p` is
+// relative to the box centre. A signed-distance edge profile is exact for a straight edge only: at
+// the corner of a box that is not much wider than the blur it is 35/255 off Chromium.
+float blurred_box_x(float x, float y, float sigma, float corner, vec2 half_size) {
+    float delta = min(half_size.y - corner - abs(y), 0.0);
+    float curved = half_size.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+    float k = 0.70710678 / sigma;
+    return 0.5 * (erf_approx((x + curved) * k) - erf_approx((x - curved) * k));
+}
+
+float blurred_box(vec2 p, vec2 half_size, float corner, float sigma) {
+    float low = p.y - half_size.y;
+    float high = p.y + half_size.y;
+    float start = clamp(-3.0 * sigma, low, high);
+    float end = clamp(3.0 * sigma, low, high);
+    float step_y = (end - start) / 8.0;
+    float y = start + step_y * 0.5;
+    float norm = 0.39894228 / sigma;
+    float value = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float weight = norm * exp(-0.5 * y * y / (sigma * sigma));
+        value += blurred_box_x(p.x, p.y - y, sigma, corner, half_size) * weight * step_y;
+        y += step_y;
+    }
+    return clamp(value, 0.0, 1.0);
+}
+
 // Hard-edged clip test, used when AA is off (golden mode, aa_radius 0): the pixel-center rule keeps
 // it deterministic and never writes outside the clip. It dispatches on the record's kind (ADR-068
 // slice 4): an `Ellipse` record is a circle/ellipse, a `RoundedRect` is a rect with per-corner
@@ -431,6 +462,40 @@ void main() {
         vec4 texel_color = TESSERA_TEXEL;
         texel_color.a = min(texel_color.a * (1.0 + (v_mode - 2.0) * 4.0), 1.0);
         color *= texel_color;
+    } else if (v_mode > 2000.0) {
+        // This test comes BEFORE the outer shadow's (mode > 1000): an inset mode (2048 + sigma) is
+        // also above 1000, so the other order sent every inset shadow down the outer-shadow path.
+        // Inset box shadow (issue #612): mode is 2048 + sigma. The quad is the element's border box
+        // and `v_carve` is the inner box (the border box moved by the offset and shrunk by the
+        // spread), so the shadow fills the ring between them and fades inward. The shadow's shape is
+        // everything OUTSIDE the inner box, so its blurred coverage is the Gaussian edge profile on
+        // the inner box's signed distance d (negative inside): 1 well outside it, 0.5 on its edge
+        // and falling to 0 inside it.
+        float sigma = v_mode - 2048.0;
+        vec2 inner_half = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.zw : v_half_size;
+        vec2 inner_centre = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.xy : vec2(0.0);
+        // The inner radius is the border radius minus the spread, which is the inset between the
+        // two boxes on the x axis (an engine `border-radius` is one length).
+        float inset = v_half_size.x - inner_half.x;
+        float inner_radius = clamp(v_radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        float d = sd_round_box(v_local - inner_centre, inner_half, inner_radius);
+        float cover;
+        if (sigma > 0.0) {
+            cover = 1.0 - blurred_box(v_local - inner_centre, inner_half, inner_radius, sigma);
+        } else if (pc.aa_radius <= 0.0) {
+            cover = d > 0.0 ? 1.0 : 0.0;
+        } else {
+            cover = smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        // The quad is the border box, so the rounded silhouette clips the shadow: a pixel outside
+        // the border box's rounded shape paints nothing.
+        float outer = sd_round_box(v_local, v_half_size, v_radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = outer <= 0.0 ? cover : 0.0;
+        } else {
+            cover *= 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer);
+        }
+        color.a *= cover;
     } else if (v_mode > 1000.0) {
         // Box shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma. sigma 0 is the
         // hard-edged shadow (`box-shadow: 4px 4px 0`): the same shape with a coverage step, so the
@@ -457,39 +522,6 @@ void main() {
             if (sd_round_box(v_local - v_carve.xy, hole_half, hole_radius) <= 0.0) {
                 cover = 0.0;
             }
-        }
-        color.a *= cover;
-    } else if (v_mode > 2000.0) {
-        // Inset box shadow (issue #612): mode is 2048 + sigma. The quad is the element's border box
-        // and `v_carve` is the inner box (the border box moved by the offset and shrunk by the
-        // spread), so the shadow fills the ring between them and fades inward. The Gaussian is
-        // evaluated on the inner box's signed distance, which is the same edge profile an outer
-        // shadow has, mirrored: coverage is 1 at the inner box and falls off outward from it.
-        float sigma = v_mode - 2048.0;
-        vec2 inner_half = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.zw : v_half_size;
-        vec2 inner_centre = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.xy : vec2(0.0);
-        // The inner radius is the border radius minus the spread, which is the inset between the
-        // two boxes on the x axis (an engine `border-radius` is one length).
-        float inset = v_half_size.x - inner_half.x;
-        float inner_radius = clamp(v_radius - inset, 0.0, min(inner_half.x, inner_half.y));
-        float d = sd_round_box(v_local - inner_centre, inner_half, inner_radius);
-        float cover;
-        if (sigma > 0.0) {
-            // Inside the inner box (d < 0) the shadow is at full strength; outside it the Gaussian
-            // tail fades toward the border box.
-            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
-        } else if (pc.aa_radius <= 0.0) {
-            cover = d <= 0.0 ? 1.0 : 0.0;
-        } else {
-            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
-        }
-        // The quad is the border box, so the rounded silhouette clips the shadow: a pixel outside
-        // the border box's rounded shape paints nothing.
-        float outer = sd_round_box(v_local, v_half_size, v_radius);
-        if (pc.aa_radius <= 0.0) {
-            cover = outer <= 0.0 ? cover : 0.0;
-        } else {
-            cover *= 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer);
         }
         color.a *= cover;
     } else if (v_mode > 2.5) {

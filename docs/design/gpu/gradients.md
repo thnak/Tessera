@@ -141,3 +141,5 @@ elliptical px ones and 44 on a repeating conic.
 - Metal reports no capability; it needs a device test before enabling.
 - WGSL is validated by naga only; WebGPU has no runtime test here.
 - The inset-shadow and gradient branches share the `v_mode` ladder; the gradient test comes first.
+  (The inset branch itself used to sit behind the outer shadow's `mode > 1000` test and never ran;
+  [box-shadow-clipping.md](box-shadow-clipping.md) section 3.)

@@ -386,6 +386,39 @@ void test_gradient_records() {
            "both shaders test the gradient mode");
 }
 
+// The quad modes share one if/else ladder, and three of them are bands of one number line: the
+// outer shadow is 1024 + sigma, the inset shadow 2048 + sigma. The inset test (> 2000) has to come
+// before the outer one (> 1000) because every inset mode is also above 1000; with them reversed the
+// inset branch never ran and every inset shadow painted as an outer shadow with a sigma over a
+// thousand. The order is checked in all three fragment sources (the position of the first test in
+// the text is the position in the ladder), along with the bases the C++ emits.
+void test_mode_ladder() {
+    expect(gpu::kSoftShadowModeBase == 1024.0f && gpu::kInsetShadowModeBase == 2048.0f,
+           "the shadow mode bases are the ones the shaders subtract");
+    const std::string frag_text(kBatched2dFragGlsl);
+    const std::string lcd_text(kBatched2dLcdFragGlsl);
+    const std::string wgsl_text(wg::batched2d_wgsl_program().source);
+    const std::vector<std::pair<const char*, std::pair<const std::string*, const char*>>> sources{
+        {"batched2d.frag", {&frag_text, "v_mode"}},
+        {"batched2d_lcd.frag", {&lcd_text, "v_mode"}},
+        {"batched2d.wgsl", {&wgsl_text, "in.mode"}},
+    };
+    for (const auto& [name, source] : sources) {
+        const std::string inset = std::string("else if (") + source.second + " > 2000.0)";
+        const std::string outer = std::string("else if (") + source.second + " > 1000.0)";
+        const std::size_t inset_at = source.first->find(inset);
+        const std::size_t outer_at = source.first->find(outer);
+        expect(inset_at != std::string::npos && outer_at != std::string::npos,
+               std::string(name) + " tests both shadow modes");
+        expect(inset_at < outer_at,
+               std::string(name) +
+                   " tests the inset shadow (> 2000) before the outer one (> 1000)");
+        expect(source.first->find("- 2048.0") != std::string::npos &&
+                   source.first->find("- 1024.0") != std::string::npos,
+               std::string(name) + " subtracts the shadow mode bases");
+    }
+}
+
 void test_shader_id() {
     expect(gpu::kBatched2dShaderId == "batched2d", "batched2d id is the manifest name");
     expect(rhi::PipelineDesc{}.shader_id.empty(), "shader_id defaults to empty (SPIR-V words)");
@@ -401,6 +434,7 @@ void test_shader_id() {
 int main() {
     test_batched2d_parity();
     test_gradient_records();
+    test_mode_ladder();
     test_shader_id();
     if (g_failures != 0) {
         std::cerr << "shader_parity: " << g_failures << " failure(s)\n";
