@@ -133,8 +133,8 @@ by the target edge). Two tests iterate it:
 | dash_odd_offset_round | 21 | 191 | 3 | 27 / 288 / 6 |
 | dash_closed_polygon_butt | 52 | 18 | 2 | 65 / 28 / 4 |
 | dash_curve_square | 62 | 44 | 3 | 78 / 67 / 6 |
-| degenerate_zero_length_mid | 255 | 36 | 32 | 255 / 55 / 49 |
-| degenerate_zero_length_dot | 255 | 368 | 368 | 255 / 553 / 553 |
+| degenerate_zero_length_mid | 5 | 2 | 0 | 7 / 4 / 0 |
+| degenerate_zero_length_dot | 12 | 21 | 0 | 15 / 32 / 0 |
 | degenerate_collinear | 4 | 0 | 0 | 6 / 0 / 0 |
 | degenerate_thin | 4 | 0 | 0 | 6 / 0 / 0 |
 | degenerate_empty | 0 | 0 | 0 | 0 / 0 / 0 |
@@ -146,11 +146,13 @@ over 4). The strokes differ on edge pixels of joins, caps and dash ends (round c
 arc tessellation). `fill_rect_fractional` differs by up to 159 by design: ThorVG snaps an axis-aligned
 rectangle to whole pixels, the GPU keeps the coverage.
 
-Two rows record real GPU behavior, kept visible rather than loosened away. A zero-length segment
-inside a polyline (`A, B, B, C`) loses the miter tip at `B` (32 pixels, up to 255), and a lone
-zero-length segment with a round or square cap draws no dot (ThorVG and SVG draw one; 368 pixels).
-`gpu_scene_from_shapes` drops repeated points, so neither input reaches the GPU from the production
-path; the scenes build `GpuPathShape` directly to pin the behavior of the kernels themselves.
+Two rows first recorded real GPU defects (issue #947): a zero-length segment inside a polyline
+(`A, B, B, C`) lost the miter tip at `B` (32 pixels, up to 255) and a lone zero-length segment with a
+round or square cap drew no dot (368 pixels). The stroke encoder now drops zero-length segments and
+turns a contour that is nothing else into a 1/64 px segment (butt caps draw nothing), so both rows
+sit at the normal stroke tolerance. `gpu_scene_from_shapes` already drops repeated points, so the
+production path never produced these inputs; the scenes build `GpuPathShape` directly to pin the
+kernels' behavior.
 
 ## Production pieces (2026-11-24)
 

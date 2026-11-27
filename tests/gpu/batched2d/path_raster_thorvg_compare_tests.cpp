@@ -102,15 +102,13 @@ constexpr Tolerance kTolerances[] = {
     {"dash_curve_square", 78, 67, 6,
      "Dashes with square caps on a 48-gon: dash ends at flattened vertices differ by up to "
      "62 on a few pixels (spike measured 22-27 on dashes)."},
-    {"degenerate_zero_length_mid", 255, 55, 49,
-     "GPU DEFECT RECORDED, not hidden: a zero-length segment inside a polyline (A,B,B,C) "
-     "loses the miter tip at B on the GPU (ThorVG draws it), 32 pixels differ by up to 255. "
-     "gpu_scene_from_shapes drops repeated points, so the production path never produces "
-     "this input."},
-    {"degenerate_zero_length_dot", 255, 553, 553,
-     "GPU GAP RECORDED, not hidden: a single zero-length segment with round or square caps "
-     "draws a dot in SVG and in ThorVG, and nothing on the GPU (368 pixels = the two dots). "
-     "Production flattening drops repeated points, so it never reaches the GPU either."},
+    {"degenerate_zero_length_mid", 7, 4, 0,
+     "A zero-length segment inside a polyline (A,B,B,C): the encoder drops it, so the miter tip "
+     "at B is drawn as in ThorVG (#947; was 255 on 32 pixels)."},
+    {"degenerate_zero_length_dot", 15, 32, 0,
+     "A lone zero-length segment: a round or square cap draws a dot as in SVG, a butt cap "
+     "nothing; the encoder turns it into a 1/64 px segment (#947; was no dot, 368 pixels at "
+     "255). The dot edges differ from ThorVG's arc tessellation by up to 12."},
     {"degenerate_collinear", 6, 0, 0,
      "Collinear vertices on a fill and on a stroke: the extra points change nothing; "
      "coverage rounding only."},
