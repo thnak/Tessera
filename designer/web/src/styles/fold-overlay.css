@@ -1,0 +1,72 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The fold-hinge and safe-area overlay (issue #433; `designer-studio-v1.md` section 6's
+ * "Safe-area and cutout overlay" row and section 6.1).
+ *
+ * Split out of `preview.css` when that sheet passed the 500-line limit, along the subsystem boundary
+ * the overlay already has in code (`canvas-fold.ts` for the geometry, `canvas-fold-layer.ts` for the
+ * DOM).
+ */
+/* --- the fold/safe-area overlay (issue #433) ---------------------------------------------------- */
+
+/* A debug aid drawn over the canvas: the hinge band of a simulated fold and the shading of the
+ * safe-area, keyboard and cutout insets the tree was laid out inside. Off by default; the pane
+ * header's Overlay toggle arms it.
+ *
+ * `pointer-events: none` is the same load-bearing rule the picker's overlay follows: the layer covers
+ * the canvas exactly, so accepting events would swallow every move and press the moment it was armed.
+ * It is `aria-hidden` in the markup - a shaded band is a visual aid, not content.
+ *
+ * None of this reaches the engine's frame: the boxes are page DOM the browser composites, so the
+ * pixels a golden compares and the bytes `tessera_canvas_draw` paints are unchanged by it. */
+.fold-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.fold-overlay-box {
+  position: absolute;
+  /* A translucent wash rather than a fill: the point of the overlay is to show what is UNDER it, so
+   * the picture stays readable through every band. */
+  mix-blend-mode: multiply;
+}
+/* The hinge is the occluded band a device folds on: dark and opaque enough to read as a gap. */
+.fold-overlay-hinge {
+  background: rgba(20, 20, 30, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+/* An inset is space the content was pushed out of, not something occluding: hatch it, so it reads as
+ * "reserved" rather than "broken". */
+.fold-overlay-inset {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(214, 93, 14, 0.22),
+    rgba(214, 93, 14, 0.22) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+/* A cutout's rectangle is the notch itself. */
+.fold-overlay-cutout {
+  background: rgba(20, 20, 30, 0.8);
+}
+.fold-overlay-caption {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font: 11px/1.4 var(--mono, monospace);
+  white-space: nowrap;
+}
+/* The skin frames place their own overlays inside the screen; the fold overlay follows the picker. */
+.skin-screen .fold-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

@@ -152,6 +152,11 @@ const VIEW_IDS = {
   "inspect-toggle",
   "inspect-panel",
   "inspect-body",
+  // The fold/safe-area overlay (issue #433): the toggle that arms it and the layer the hinge band and
+  // the inset shading are drawn into. The layer is `pointer-events: none` in CSS, which is what keeps
+  // the preview's own pointer path working while it is armed; a rename would leave it nowhere to draw.
+  "fold-toggle",
+  "fold-overlay",
   // The simulated device frame (issue #171's skins slice). It is page chrome around the canvas, so
   // React renders it and its id is part of the contract; the bars and the cutout inside it are
   // `aria-hidden` decoration with classes rather than ids, because nothing looks them up.

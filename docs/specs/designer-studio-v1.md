@@ -276,7 +276,7 @@ V1 controls and their protocol mapping:
 | Reduced motion | `viewport.set` `reducedMotion` | Animation policy |
 | Locale and direction | `viewport.set` `locale`, `direction` | Text, RTL |
 | Text scale | `viewport.set` `textScale` | Font scale |
-| Safe-area and cutout overlay | page-only overlay | Debug aid; excluded from screenshots |
+| Safe-area and cutout overlay | page-only overlay; the Canvas pane's **Overlay** toggle (#433) | Debug aid; page DOM, so never engine paint and never a byte the viewer receives |
 | Fold posture (foldables) | `viewport.set` `foldPosture` (`flat`, `book`, `tabletop`) | Safe-area insets and layout, in one pass (6.1) |
 | Freeze time | fixed clock in the viewer | Deterministic screenshots and animations |
 | Input injection (hover, press, click, type, key, scroll, touch) | viewer input path, same as the real runtime | Drives hooks and events |
@@ -327,9 +327,24 @@ padding" is structural rather than a timing assumption, and a change already in 
 **Where the control appears.** Section 5.2 assigns the `foldable` skin category to #171 and this
 slice has no skin picker, so the posture control is on the toolbar for every skin: until a category
 can be selected, the posture *is* how a foldable is chosen, and the absent value is the unfolded
-desktop case. The hinge is not drawn as an overlay yet (the "Safe-area and cutout overlay" row above
-is its own slice, #433); until then it is observable through the layout it causes — the single pane
-and its inset in the Scene view's node bounds, which is what the acceptance asks for.
+desktop case.
+
+**The hinge is drawn (issue #433).** The "Safe-area and cutout overlay" row above is the Canvas
+pane's **Overlay** toggle: arming it shades the hinge band, the safe-area, keyboard and gesture
+insets, and the cutout rectangles the running tree was laid out inside. Three properties make it an
+aid rather than a second picture:
+
+- **Its geometry is the engine's.** `tessera_canvas_overlay` (a query) reports the `WindowMetrics`
+  snapshot the live tree was laid out against — the same `FoldInfo` `hal::fold_info_for()` produced
+  and `hal::resolve_safe_area()` consumed — and the page only scales those rectangles into its own
+  CSS pixels. A page that recomputed a `book` band would be a second mapping, free to disagree with
+  the layout it exists to explain.
+- **It costs no frame.** The query dispatches nothing, moves no pseudo-class and marks no dirty
+  domain, so arming it presents nothing. The boxes are page DOM the browser composites, not engine
+  paint, so they cannot reach a golden and are not in any byte the viewer receives.
+- **It is off by default**, so a visitor who never arms it sees exactly what the posture alone
+  produces; and it is refreshed from the *apply* that carries the new posture, never from the toolbar
+  callback that precedes it.
 
 Evidence: ctest `fold_posture` (the posture to `FoldInfo` mapping and the rotation rule),
 `scene_fold` (the preview's insets against a real `AppHost` on the same metrics, and one-pass

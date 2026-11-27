@@ -82,6 +82,12 @@ export interface PaneRefs {  /**
   inspectBody: React.RefObject<HTMLDivElement | null>;
   inspectToggle: React.RefObject<HTMLButtonElement | null>;
   /**
+   * The fold/safe-area overlay (issue #433): the layer the hinge band and the inset shading are drawn
+   * into, and the toggle that arms it. Page chrome, `pointer-events: none`, off by default.
+   */
+  foldOverlay: React.RefObject<HTMLDivElement | null>;
+  foldToggle: React.RefObject<HTMLButtonElement | null>;
+  /**
    * The status line's mirror cells (issue #431). The status line spans the bottom of the workspace, so
    * the two facts it reports from the engine -- the diagnostics count and the last frame -- are written
    * by the session that owns them, into a second cell, rather than routed back through React state
@@ -132,6 +138,9 @@ export function usePaneRefs(): PaneRefs {
     inspectPanel: useRef<HTMLElement>(null),
     inspectBody: useRef<HTMLDivElement>(null),
     inspectToggle: useRef<HTMLButtonElement>(null),
+    // Issue #433: the fold/safe-area overlay and the toggle that arms it.
+    foldOverlay: useRef<HTMLDivElement>(null),
+    foldToggle: useRef<HTMLButtonElement>(null),
   };
 }
 

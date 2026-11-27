@@ -740,7 +740,12 @@ owner-planned item and is not part of this milestone.
 **State on 2026-11-27:** every P0-P7 stage, the studio shell, the folder IDE's IO layer, live edit,
 device profiles, the workbench dock and the studio-side mock services have landed. What is left in
 this milestone is the IDE work listed under #584 (W5b-W9), #516, #567-#569 and #575-#583, the canvas
-viewport work (#690), the fold-hinge overlay (#433) and the remaining MCP tools (#396). The paint
+viewport work (#690) and the remaining MCP tools (#396). The fold-hinge and safe-area overlay (#433)
+has landed: the Canvas pane's **Overlay** toggle shades the hinge band, the insets and the cutouts the
+running tree was laid out inside, drawn from `tessera_canvas_overlay` - a query over the session's own
+`WindowMetrics`, so the band cannot disagree with the layout it explains (`tools/codegen/
+canvas_overlay_report.*`, `designer/web/src/views/canvas-fold*.ts`; gates `canvas_overlay` ctest,
+`preview_fold_overlay.mjs`, `preview_browser_fold_overlay.mjs`). The paint
 family is complete: #617 closed with the `-webkit-mask*` alias family, after #942's filter colour
 functions and #944's retained layers.
 
@@ -1007,10 +1012,18 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
       Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so
       `#p5=` links work. Room must be left for #171's panes and #433's overlay. Landed in #439.
-- [ ] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
-      follow-up #408 left in `designer-studio-v1.md` section 6.1). #431 landed, so the preview well
-      exists; drawn from the same `FoldInfo` the engine consumed, toggle off by default, excluded
-      from screenshots and from any byte sent to the viewer. `ready`.
+- [x] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
+      follow-up #408 left in `designer-studio-v1.md` section 6.1). Landed 2026-11-27: the Canvas
+      pane's **Overlay** toggle shades the hinge band, the safe-area/keyboard/gesture insets and the
+      cutout rectangles the running tree was laid out inside. The geometry is the engine's —
+      `tessera_canvas_overlay` is a QUERY over `CanvasSceneSession::metrics()`, so arming it presents
+      nothing and the band cannot disagree with the layout it explains; the page only scales those
+      rectangles (`designer/web/src/views/canvas-fold.ts`, DOM in `canvas-fold-layer.ts`). It is page
+      DOM, so never engine paint and never a byte the viewer receives. It refreshes from the APPLY
+      that carries a new posture, not from the toolbar callback that precedes it (a refresh there
+      reports the device the canvas is about to leave). Evidence: ctest `canvas_overlay`,
+      `scripts/ci/preview_fold_overlay.mjs` (scaling, the per-side maximum, the zero-area rules),
+      `scripts/ci/preview_browser_fold_overlay.mjs` (wired, one frame per posture, no frame to arm).
 - [ ] #690: studio: drag-resize the canvas viewport safely, plus the web-like responsive tools.
       **Slice (a), the limits, landed** (2026-11-27): one clamp holds every size path — a typed size, a
       device profile's DPR, a raw `viewport.set` — to extent 1..8192, DPR 0.01..4 and a 256 MiB

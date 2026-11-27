@@ -211,6 +211,9 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           inspectPanel: pane.inspectPanel.current,
           inspectBody: pane.inspectBody.current,
           inspectToggle: pane.inspectToggle.current,
+          // Issue #433: the fold/safe-area overlay and the toggle that arms it.
+          foldOverlay: pane.foldOverlay.current,
+          foldToggle: pane.foldToggle.current,
           statusFrame: null,
         },
         source: deps.source,

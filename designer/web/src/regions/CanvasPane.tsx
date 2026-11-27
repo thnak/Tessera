@@ -45,6 +45,8 @@ export function CanvasPane({
   statStateRef,
   pickOverlayRef,
   pickToggleRef,
+  foldOverlayRef,
+  foldToggleRef,
   inspectPanelRef,
   inspectBodyRef,
   inspectToggleRef,
@@ -76,6 +78,9 @@ export function CanvasPane({
   inspectPanelRef: RefObject<HTMLElement | null>;
   inspectBodyRef: RefObject<HTMLDivElement | null>;
   inspectToggleRef: RefObject<HTMLButtonElement | null>;
+  /** Issue #433: the fold/safe-area overlay and the toggle that arms it. */
+  foldOverlayRef: RefObject<HTMLDivElement | null>;
+  foldToggleRef: RefObject<HTMLButtonElement | null>;
   /** Issue #171's skins slice: the selected skin, or `null` for no frame. */
   skin: Skin | null;
   /** The geometry mode of `designer-studio-v1.md` section 5.1. */
@@ -167,6 +172,18 @@ export function CanvasPane({
           >
             Inspector
           </button>
+          {/* Issue #433: the fold/safe-area overlay. Off by default - a visitor who ignores it sees
+              exactly what they saw before, and the overlay is a debug aid rather than the preview. */}
+          <button
+            id="fold-toggle"
+            type="button"
+            aria-pressed="false"
+            aria-controls="fold-overlay"
+            title="Shade the hinge band and the safe-area insets the app was laid out inside"
+            ref={foldToggleRef}
+          >
+            Overlay
+          </button>
         </div>
         <div className="status" id="canvas-status" role="status" aria-live="polite" ref={statusRef}>
           not started
@@ -223,6 +240,17 @@ export function CanvasPane({
                   className="pick-overlay"
                   id="pick-overlay"
                   ref={pickOverlayRef}
+                  aria-hidden="true"
+                  hidden
+                />
+                {/* The fold/safe-area overlay (issue #433). Page-only, `pointer-events: none` in
+                    CSS, and childless here: `canvas-fold-layer.ts` builds the boxes from the
+                    `WindowMetrics` the engine laid the tree out against, so the band cannot
+                    disagree with the layout it explains. */}
+                <div
+                  className="fold-overlay"
+                  id="fold-overlay"
+                  ref={foldOverlayRef}
                   aria-hidden="true"
                   hidden
                 />

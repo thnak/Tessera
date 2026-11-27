@@ -23,6 +23,9 @@ import "./styles/workspace.css";
 import "./styles/code.css";
 import "./styles/preview.css";
 import "./styles/skin.css";
+// The fold-hinge and safe-area overlay (issue #433): its own sheet, beside `skin.css` because it
+// draws over the simulated device the same way.
+import "./styles/fold-overlay.css";
 import "./styles/platform.css";
 import "flexlayout-react/style/light.css";
 import "./styles/dock.css";

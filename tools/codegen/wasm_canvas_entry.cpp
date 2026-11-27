@@ -5,7 +5,7 @@
 // `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
 // `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_pick`,
 // `tessera_canvas_style`, `tessera_canvas_patch`, `tessera_canvas_set_fold`,
-// `tessera_canvas_set_viewport`,
+// `tessera_canvas_set_viewport`, `tessera_canvas_overlay` (the debug overlay's query, issue #433),
 // `tessera_canvas_set_safe_area`, `tessera_canvas_draw`, `tessera_canvas_reset`,
 // `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four
 // shared `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`

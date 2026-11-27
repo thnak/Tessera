@@ -337,6 +337,10 @@ if (NOT EMSCRIPTEN)
     add_library(tessera_canvas_report OBJECT
         ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        # The debug overlay document (issue #433): the hinge band and the safe areas the running tree
+        # was laid out against, serialized from `WindowMetrics`. Pure over its argument, so the host
+        # lanes type-check it without a device.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_overlay_report.cpp
         # The ABI argument parsing (issue #444) is host-buildable on purpose: it includes no
         # Emscripten and no WebGPU header, so listing it here is what makes the host lanes
         # type-check the one file a signature change lands in. `wasm_canvas_support.cpp` (issue
@@ -498,6 +502,9 @@ else ()
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        # The debug overlay document (issue #433): the hinge band and the safe areas the running tree
+        # was laid out against, which `_tessera_canvas_overlay` reports.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_overlay_report.cpp
         # The ABI argument parsing (issue #444), split out of `wasm_canvas_entry.cpp` when the live
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
@@ -557,7 +564,7 @@ else ()
         # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
         # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
         # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -1203,6 +1210,17 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(canvas_viewport_limit_tests
         PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
     add_test(NAME canvas_viewport_limit COMMAND canvas_viewport_limit_tests)
+
+    # The debug overlay document (issue #433): the hinge band and the safe areas the previewed tree
+    # was laid out against. Pure over a `WindowMetrics`, so it links the HAL metric rules and nothing
+    # else - no device, no session, no font.
+    add_executable(canvas_overlay_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/canvas_overlay_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_overlay_report.cpp)
+    target_include_directories(canvas_overlay_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(canvas_overlay_tests PRIVATE tessera_hal_metrics)
+    add_test(NAME canvas_overlay COMMAND canvas_overlay_tests)
 
     # ADR-074 in the preview: the simulated posture answers `@media (device-posture)` and the
     # viewport-segment features through the host's `with_fold`, a document built at a posture has

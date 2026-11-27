@@ -67,6 +67,7 @@ import {
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 import { createCanvasResize } from "./canvas-resize-layer";
 import { cssZoomOf } from "./canvas-zoom";
+import { createCanvasFold, type CanvasFold } from "./canvas-fold-layer";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 import type { CommitBridge } from "../lib/override-client";
 import { createCanvasOverrides } from "./canvas-overrides";
@@ -154,6 +155,12 @@ export interface CanvasSession extends ViewSession {
    * rules and box. It consumes the click it inspects, which is why it is not on by default.
    */
   readonly inspector: CanvasInspector;
+  /**
+   * The fold-hinge and safe-area overlay (issue #433). Off by default; the pane's toggle arms it, and
+   * while armed it shades the hinge band and the insets the running tree was laid out inside. It
+   * reads `_tessera_canvas_overlay` -- a query, so arming it costs no frame.
+   */
+  readonly fold: CanvasFold;
   /**
    * The computed style of one node, as `tessera_canvas_style` reports it, or `null` when no device
    * exists yet (issue #849).
@@ -252,6 +259,19 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     requestFrame: () => requestFrame(),
     setStatus: options.setStatus,
   });
+  // The fold-hinge and safe-area overlay (issue #433). Page-only chrome over the canvas, off by
+  // default; `canvas-fold-layer.ts` owns the DOM and `canvas-fold.ts` the scaling. It asks the module
+  // for the `WindowMetrics` the running tree was laid out against, so the band it shades is the one
+  // the layout used rather than a second mapping that could disagree with it.
+  const fold = createCanvasFold({
+    overlay: options.elements.foldOverlay ?? document.createElement("div"),
+    toggle: options.elements.foldToggle,
+    canvas,
+    viewport: () => requestedViewport(options.environment),
+    module: () => (gpu !== null ? gpu.module : null),
+    setStatus: options.setStatus,
+  });
+
   canvas.addEventListener(
     "pointerdown",
     (event) => {
@@ -426,6 +446,10 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       options.onReady(true);
       return;
     }
+    // The applied posture is the one the overlay must shade: re-ask after every successful apply
+    // (it does nothing while the overlay is disarmed), so arming it after a posture change is not
+    // the only way it catches up (issue #433).
+    fold.refresh();
     // The state row follows every successful apply, `changed` or not: a cell that was carried is the
     // point of the edit, and it is the one fact a developer wants to see *while* the picture is still
     // the previous one (a reused apply reports it too).
@@ -737,6 +761,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     pane,
     picker,
     inspector,
+    fold,
     /** First open of the view: decide the unsupported state and import the module (no device yet). */
     load: async () => {
       visible = true;
@@ -779,6 +804,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         picker.hide();
         // The inspector's panel belongs to the same canvas.
         inspector.hide();
+        // The fold overlay covers the canvas too (issue #433).
+        fold.hide();
       }
       if (shown && gpu !== null) {
         requestFrame();
@@ -794,6 +821,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       resizeLayer.dispose();
       picker.hide();
       inspector.hide();
+      fold.hide();
       if (gpu !== null) {
         try {
           gpu.device.destroy();
@@ -856,6 +884,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       picker.refresh();
       // The inspector's panel is re-asked for the same reason: its box is in logical pixels.
       inspector.refresh();
+      // The overlay is NOT refreshed here: `onEnvironmentChange` runs before the frame that applies
+      // the new size and posture, so asking the engine now would report the geometry of the device
+      // the canvas is about to leave. The apply that follows refreshes it instead (issue #433).
       requestFrame();
     },
     /**
