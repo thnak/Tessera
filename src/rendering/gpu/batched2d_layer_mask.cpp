@@ -23,8 +23,9 @@ bool Batched2DRenderer::begin_layer_mask() {
         ++layer_masks_unsupported_;
         return false;
     }
-    // One layer holds one pooled target and its mask a second; a pool with none left falls back
-    // before anything is recorded.
+    // The filter runs first (CSS order: filter, then mask, then opacity); a pool with no target
+    // left for the mask falls back before anything of the mask is recorded.
+    run_layer_filters(layer);
     rhi::RenderTarget* target = glass_.acquire(extent_);
     if (target == nullptr) {
         ++layer_masks_unsupported_;
@@ -32,7 +33,9 @@ bool Batched2DRenderer::begin_layer_mask() {
     }
 
     flush();
-    commands_->end_render_pass();
+    if (!pass_broken_) {
+        commands_->end_render_pass(); // a filter already closed it
+    }
     layer.mask_target = target;
 
     rhi::RenderTargetDesc desc = layer.layer_desc;
@@ -41,6 +44,7 @@ bool Batched2DRenderer::begin_layer_mask() {
     frame_target_ = target;
     frame_desc_ = desc;
     commands_->begin_render_pass(*target, desc);
+    pass_broken_ = false;
     bound_pipeline_ = nullptr;
     bind_frame_state();
     return true;

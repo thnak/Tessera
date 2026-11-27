@@ -7,6 +7,7 @@
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
+#include "tessera/ui/style/filter_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/list_style.hpp"
@@ -88,6 +89,9 @@ bool value_supported(std::string_view property, std::string_view value) {
     // stylesheet can gate its fallback on the same grammar the engine accepts.
     if (property == "backdrop-filter" || property == "-webkit-backdrop-filter") {
         return parse_backdrop_filter(normalized).ok();
+    }
+    if (property == "filter") {
+        return parse_filter(normalized).ok();
     }
     if (property == "font-style") {
         return keyword_in(normalized, {"normal", "italic", "oblique"});

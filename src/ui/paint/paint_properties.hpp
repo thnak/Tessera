@@ -7,6 +7,7 @@
 #include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/filter_value.hpp"
 
 #include <array>
 #include <optional>
@@ -100,5 +101,9 @@ int font_weight_value(const style::ComputedStyle& style);
 // resolves to none: the property registry already rejected it, and paint never guesses at a
 // half-valid list.
 std::optional<style::BackdropFilter> backdrop_filter_value(const style::ComputedStyle& style);
+
+// The computed `filter` (issue #617): nullopt for `none`, a missing value or an unparseable one
+// (the registry already dropped those declarations).
+std::optional<style::Filter> filter_value(const style::ComputedStyle& style);
 
 } // namespace tessera::ui::paint::detail

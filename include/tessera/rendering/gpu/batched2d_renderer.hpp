@@ -8,6 +8,7 @@
 #include "tessera/rendering/gpu/clip_state_table.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/gpu/glass_compositor.hpp"
+#include "tessera/rendering/gpu/layer_filter.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/gpu/vertex_arena.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
@@ -35,22 +36,17 @@ struct Batched2DConfig {
     // reuses frame k's slot.
     std::uint32_t frames_in_flight = 1;
 
-    // Bounded offscreen targets for the isolated-layer seam (break_pass() and
-    // acquire_offscreen_target(), docs/design/gpu/offscreen-layers.md). This is
-    // `glassMaxBlurTargets` from docs/specs/glass-v1.md section 5: 4 by default, 0 disables the
-    // pool. The pool never grows past it and recycles a target only after frames_in_flight frames.
+    // Bounded offscreen targets for the isolated-layer seam (offscreen-layers.md): glass-v1
+    // `glassMaxBlurTargets`, 4 by default, 0 disables the pool; recycled after frames_in_flight.
     std::uint32_t max_offscreen_targets = 4;
 
     // Glass cost limits (glass-v1 sections 5 and 8), the same runtime keys the paint pass uses:
-    // `max_blur_radius` is `glassMaxBlurRadius` (CSS px, clamped again here so a caller cannot make
-    // the renderer blur further than the paint pass's damage region) and `max_backdrop_area` is
-    // `glassMaxBackdropArea` (the half-resolution threshold).
+    // `glassMaxBlurRadius` (CSS px) and `glassMaxBackdropArea` (the half-resolution threshold).
     GlassLimits glass{};
 
     // CPU culling (issue #474): a quad whose transformed bounds cannot touch the active scissor or
     // the frame's damage regions is never staged, so its vertices are neither built nor uploaded.
-    // The pixels are identical either way (the GPU scissor would have discarded the same
-    // fragments); the switch exists to compare the two when debugging. On by default.
+    // The pixels are identical either way; the switch exists for debugging. On by default.
     bool cull_draws = true;
 };
 
@@ -61,8 +57,6 @@ struct CullStats {
     std::uint32_t quads_culled = 0;               // outside the scissor or the damage regions
     std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
 };
-
-// Why a batch ended, and the per-frame counts: see batch_split.hpp (issue #480 part 2).
 
 // The carved-out box of a box shadow in local px: centre relative to the quad centre and half size.
 // All zero subtracts nothing (every primitive other than a shadow quad). Declared at namespace
@@ -152,30 +146,28 @@ public:
 
     // --- Isolated layers (docs/design/gpu/offscreen-layers.md section 5.2, issue #227) ----------
     // Renders everything between push_layer() and the matching pop_layer() into a pooled target the
-    // size of the frame, then composites that target once with `opacity` applied to the group, so
+    // size of the frame, then composites it once with `opacity` applied to the group, so
     // overlapping children fade as a unit. `box` is the group's bounds in paint coordinates; the
-    // composite is limited to its device-space bounds under the active transform and content scale,
-    // the frame scissor and the damage regions. The layer shares the frame's coordinate system,
-    // clips and scissors, so no origin shifts and nothing else changes while it is open. Layers
-    // nest and must pair.
+    // composite is limited to its device-space bounds, the frame scissor and the damage regions.
+    // The layer shares the frame's coordinate system, clips and scissors. Layers nest and must
+    // pair.
     //
-    // A layer that cannot be isolated - no composite pipeline or pool, a multisampled frame, the
-    // bounded pool having no free target this frame, or an empty box - paints flat: its opacity is
-    // multiplied into every primitive inside it (the non-isolated rule of paint-pass.md 14.1), so
-    // the group still fades and only overlapping content differs. Nothing throws or blocks.
-    void push_layer(const rhi::Rect& box, float opacity);
+    // `filter` (issue #617) runs on the layer's pixels first (before the mask and the opacity):
+    // blur() and drop-shadow(), one to three pooled targets of scratch, counted in
+    // layer_filters_applied() / layer_filters_unsupported().
+    //
+    // A layer that cannot be isolated - no composite pipeline or pool, a multisampled frame, no
+    // free target this frame, or an empty box - paints flat: its opacity is multiplied into every
+    // primitive inside it (paint-pass.md 14.1) and its filter is skipped. Nothing throws or blocks.
+    void push_layer(const rhi::Rect& box, float opacity, const LayerFilterChain& filter = {});
     void pop_layer();
     // Masks the innermost open isolated layer (issue #617). begin_layer_mask() redirects drawing to
     // a second pooled target cleared to transparent and returns true; everything drawn until
-    // end_layer_mask() is the mask image (ordinary draws, ordinary alpha blending).
-    // end_layer_mask() then multiplies the layer by the mask's alpha (RHI 1.19 `DestinationIn`), so
-    // the group composites through the mask at the matching pop_layer(). Call it after the layer's
-    // content and before pop_layer(); layers must not be pushed inside it.
-    //
-    // Returns false, recording nothing, when the mask cannot run: the innermost layer is flat or
-    // already masked, no mask pipeline is configured, or the bounded pool has no free target. The
-    // caller then skips the mask draws, so the group paints unmasked (a documented fallback,
-    // counted in layer_masks_unsupported()), and must not call end_layer_mask().
+    // end_layer_mask() is the mask image. end_layer_mask() then multiplies the layer by the mask's
+    // alpha (RHI 1.19 `DestinationIn`). Call it after the layer's content and before pop_layer().
+    // Returns false, recording nothing, when the mask cannot run (flat or already masked layer, no
+    // mask pipeline, no free target): the caller skips the mask draws and must not call
+    // end_layer_mask(); counted in layer_masks_unsupported().
     [[nodiscard]] bool begin_layer_mask();
     void end_layer_mask();
     [[nodiscard]] std::uint32_t layer_masks_applied() const {
@@ -183,6 +175,12 @@ public:
     }
     [[nodiscard]] std::uint32_t layer_masks_unsupported() const {
         return layer_masks_unsupported_;
+    }
+    [[nodiscard]] std::uint32_t layer_filters_applied() const {
+        return layer_filters_applied_;
+    }
+    [[nodiscard]] std::uint32_t layer_filters_unsupported() const {
+        return layer_filters_unsupported_;
     }
     // True when layers can be isolated by this renderer at all (composite pipeline and pool).
     [[nodiscard]] bool layers_supported() const;
@@ -368,17 +366,15 @@ private:
     void begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
                      const rhi::RenderTargetDesc& desc,
                      const std::vector<rhi::Scissor>* damage_regions);
-    // Re-binds the pipeline, viewport, scissor and folded clip uniforms the frame pass needs. A new
-    // pass starts with no state, and a glass composite records its own pipeline/push constants in
-    // the middle of one, so both resume_pass() and draw_backdrop() restore the frame state here.
+    // Re-binds the pipeline, viewport, scissor and folded clip uniforms the frame pass needs: a new
+    // pass starts with no state, so resume_pass() and every effect restore it here.
     void bind_frame_state();
     // `reason` says why the batch ended; it is counted in split_stats_ (issue #480 part 2).
     void flush_batch(BatchSplitReason reason);
     // Records one batch split in split_stats_ (issue #480 part 2).
     void count_batch_split(BatchSplitReason reason);
-    // Applies the batch key for one quad's texture and returns the index its vertices carry: the
-    // frame-array slot on the descriptor-indexing path, 0 on the one-set-per-texture path. Ends the
-    // batch when the key changed (issue #480 part 2).
+    // Applies the batch key for one quad's texture and returns the index its vertices carry (the
+    // frame-array slot, or 0 on the one-set-per-texture path); ends the batch on a key change.
     std::uint32_t begin_quad_batch(rhi::Texture* texture);
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture, const ShadowCarveBox& carve = {});
@@ -411,7 +407,14 @@ private:
         // The mask target while begin_layer_mask() is open, and whether this layer was masked.
         rhi::RenderTarget* mask_target = nullptr;
         bool masked = false;
+        // The layer's pending `filter` and its scratch targets (see run_layer_filters()).
+        LayerFilterChain filter;
+        rhi::RenderTarget* scratch = nullptr;
+        rhi::RenderTarget* spare = nullptr;
     };
+    // Runs the layer's pending filter chain once, before the mask or the composite. When it ran,
+    // the layer pass is left closed (pass_broken_) on the layer's possibly replaced target.
+    void run_layer_filters(LayerFrame& layer);
     // The scissors a layer composites (or is masked) through: the frame clip intersected with the
     // layer's region, and with each damage region when the frame is damage-clipped.
     [[nodiscard]] std::vector<rhi::Scissor> layer_scissors(const LayerFrame& layer) const;
@@ -444,6 +447,8 @@ private:
     std::uint32_t layers_flat_ = 0;
     std::uint32_t layer_masks_applied_ = 0;
     std::uint32_t layer_masks_unsupported_ = 0;
+    std::uint32_t layer_filters_applied_ = 0;
+    std::uint32_t layer_filters_unsupported_ = 0;
     ClipStateTable clips_;
     // Scaled vertices of the shape being pushed, reused so a content-scaled push allocates nothing
     // once it has grown to the largest polygon.

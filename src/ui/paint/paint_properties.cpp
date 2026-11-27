@@ -317,4 +317,16 @@ std::optional<style::BackdropFilter> backdrop_filter_value(const style::Computed
     return std::nullopt;
 }
 
+std::optional<style::Filter> filter_value(const style::ComputedStyle& style) {
+    const std::string* text = raw(style, "filter");
+    if (text == nullptr) {
+        return std::nullopt;
+    }
+    const style::FilterParseResult parsed = style::parse_filter(*text);
+    if (!parsed.ok() || parsed.filter.none()) {
+        return std::nullopt;
+    }
+    return parsed.filter;
+}
+
 } // namespace tessera::ui::paint::detail
