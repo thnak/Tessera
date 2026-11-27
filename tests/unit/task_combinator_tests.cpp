@@ -92,23 +92,29 @@ Task<void> root_all_values(TaskContext ctx, int& first, int& second, bool& flag)
     second = b;
 }
 
+// A real call, not `x = x`: clang rejects a self-assignment under -Wself-assign (-Werror on macOS),
+// and a call is still a statement after the await for the MSVC codegen edge below.
+inline void touch(bool& flag) {
+    flag = flag ? true : false;
+}
+
 Task<void> root_all_failure(TaskContext ctx, bool& late_ran) {
     (void)co_await when_all(ctx, number(ctx, 1), failing(ctx, "mid"), number(ctx, 3),
                             marking(ctx, late_ran));
     // Not reached when a child failed: a trailing statement keeps the throwing await from being
     // the last thing in the body, which trips an MSVC coroutine codegen edge (the exception then
     // never reaches the promise's exception capture and vanishes at the frame epilogue).
-    late_ran = late_ran;
+    touch(late_ran);
 }
 
 Task<void> root_all_cancelled_first(TaskContext ctx, TaskContext cancelled_child, bool& sibling) {
     (void)co_await when_all(ctx, marking(cancelled_child, sibling), number(ctx, 5));
-    sibling = sibling; // trailing statement: see root_all_failure
+    touch(sibling); // trailing statement: see root_all_failure
 }
 
 Task<void> root_all_cancelled_last(TaskContext ctx, TaskContext cancelled_child, bool& sibling) {
     (void)co_await when_all(ctx, failing(ctx, "first"), marking(cancelled_child, sibling));
-    sibling = sibling; // trailing statement: see root_all_failure
+    touch(sibling); // trailing statement: see root_all_failure
 }
 
 Task<void> root_all_range(TaskContext ctx, std::span<Task<int>> children, std::vector<int>& out) {
