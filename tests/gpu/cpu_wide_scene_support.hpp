@@ -199,5 +199,7 @@ struct Case {
 [[nodiscard]] const std::vector<Case>& mask_cases();
 // The colour-stop-position case (issue #617), in `cpu_wide_stop_scenes.cpp`.
 [[nodiscard]] const std::vector<Case>& stop_cases();
+// The rounded-corner case (issue #617), in `cpu_wide_rounded_scenes.cpp`.
+[[nodiscard]] const std::vector<Case>& rounded_cases();
 
 } // namespace tessera::poc::batched2d::cpu_wide_support

@@ -380,7 +380,8 @@ add_executable(cpu_wide_golden_tests
     cpu_wide_golden_tests.cpp
     cpu_wide_gradient_scenes.cpp
     cpu_wide_mask_scenes.cpp
-    cpu_wide_stop_scenes.cpp)
+    cpu_wide_stop_scenes.cpp
+    cpu_wide_rounded_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE
@@ -402,6 +403,17 @@ target_link_libraries(cpu_layer_sink_tests PRIVATE
     tessera_paint
     tessera_software)
 add_test(NAME cpu_layer_sink COMMAND cpu_layer_sink_tests)
+
+# Exact rounded corners of the CPU sink (issue #617): a rounded rect, a rounded clip and a
+# gradient's rounded border box against an independent circle test, plus the anti-aliased mode.
+add_executable(cpu_rounded_sink_tests
+    cpu_rounded_sink_tests.cpp)
+target_include_directories(cpu_rounded_sink_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_link_libraries(cpu_rounded_sink_tests PRIVATE
+    tessera_paint
+    tessera_software)
+add_test(NAME cpu_rounded_sink COMMAND cpu_rounded_sink_tests)
 
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
@@ -723,6 +735,21 @@ if (TARGET tessera_rhi_vulkan)
                 FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
         endif()
     endif()
+
+    # The rounded CPU twin against the renderer, hard and anti-aliased edges (issue #617). Skips
+    # without a software Vulkan device.
+    add_executable(rounded_twin_gpu_tests
+        batched2d/rounded_twin_gpu_tests.cpp
+        cpu_wide_rounded_scenes.cpp)
+    target_include_directories(rounded_twin_gpu_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_link_libraries(rounded_twin_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_software tessera_rhi_vulkan)
+    add_test(NAME rounded_twin_gpu COMMAND rounded_twin_gpu_tests)
+    set_tests_properties(rounded_twin_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests

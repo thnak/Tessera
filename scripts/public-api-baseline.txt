@@ -1310,6 +1310,10 @@ function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_polygon
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_rounded_rect
 function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::make_ellipse
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::rounded_box_coverage
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::rounded_rect_coverage
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::signed_distance_round_box
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::smooth_step
 
 header include/tessera/rendering/gpu/clip_state_table.hpp
 class include/tessera/rendering/gpu/clip_state_table.hpp tessera::rendering::gpu::ClipStateTable

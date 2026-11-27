@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cpu_shape_clips.hpp"
 #include "tessera/rendering/image/image_decode_cache.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
@@ -30,8 +31,11 @@ namespace tessera::poc::batched2d {
 // CPU implementation of the paint sink used by `batched2d --backend cpu --cpu-text`.
 // It reuses the paint pass output (TextDraw per line from PaintData) and the same FreeType glyph
 // coverage bitmaps as the GPU text path, but composites them into the deterministic CPU canvas.
-// Rounded rects and rounded clips are approximated by their axis-aligned bounds (the CPU golden
-// scene uses plain rects); transforms are already folded into the paint rects.
+// Rounded rects, rounded clips and the rounded corners of a gradient are exact: every covered pixel
+// takes the shader's own coverage (hard pixel-centre test by default, the half-pixel blend after
+// `set_aa_radius(0.5f)`), so a rounded gradient or mask agrees with the GPU within the arithmetic
+// of the blend. Text, images and vector draws under a rounded clip are still cut by the clip's
+// bounds. Transforms are already folded into the paint rects.
 //
 // Isolated layers and layer masks (issue #617) are the CPU twin of the GPU path: while a layer is
 // open every draw goes to a black-backed and a white-backed scratch canvas, and the pop composites
@@ -70,43 +74,71 @@ public:
           clip_{0.0f, 0.0f, static_cast<float>(canvas.width()),
                 static_cast<float>(canvas.height())} {}
 
-    void fill_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color) override {
-        const rendering::rhi::Rect clipped = intersect(clip_, rect);
-        if (clipped.width > 0.0f && clipped.height > 0.0f) {
-            paint_each(
-                [&](rendering::software::CpuCanvas& canvas) { canvas.fill_rect(clipped, color); });
-        }
+    // Anti-aliasing of rounded edges: 0 (the default) is the hard pixel-centre test of the
+    // renderer's golden mode, 0.5 the half-pixel blend of an anti-aliased frame. Plain rect edges
+    // are not anti-aliased either way, as on the GPU.
+    void set_aa_radius(float aa_radius) {
+        shapes_.set_aa_radius(aa_radius);
     }
 
+    void fill_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color) override {
+        const rendering::rhi::Rect clipped = intersect(clip_, rect);
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        if (shapes_.empty()) {
+            paint_each(
+                [&](rendering::software::CpuCanvas& canvas) { canvas.fill_rect(clipped, color); });
+            return;
+        }
+        shade(clipped,
+              [&](float x, float y) { return with_coverage(color, shapes_.coverage(x, y)); });
+    }
+
+    // A rounded rect is the shader's rounded quad: the signed distance to the box at every pixel
+    // centre, hard or blended, under the open rounded clips.
     void fill_rounded_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color,
-                           float /*radius*/) override {
-        // The CPU golden scene does not use rounded rects; bounds-only approximation documented.
-        fill_rect(rect, color);
+                           float radius) override {
+        const rendering::rhi::Rect clipped = intersect(clip_, rect);
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        const float half_width = rect.width * 0.5f;
+        const float half_height = rect.height * 0.5f;
+        const float clamped = std::clamp(radius, 0.0f, std::min(half_width, half_height));
+        const float centre_x = rect.x + half_width;
+        const float centre_y = rect.y + half_height;
+        shade(clipped, [&](float x, float y) {
+            const float box = rendering::gpu::clip::rounded_box_coverage(
+                x - centre_x, y - centre_y, half_width, half_height, clamped, shapes_.aa_radius());
+            return with_coverage(color, box * shapes_.coverage(x, y));
+        });
     }
 
     // Gradients are evaluated per pixel, the CPU twin of the shader (docs/design/gpu/gradients.md,
     // ADR-076): the fill is packed into the same record the GPU reads (gradient_math.hpp) and
     // evaluated at every pixel centre with the shader's own expressions, so the two paths differ
-    // only by the shader's arithmetic. Rounded corners are approximated by the rect bounds here
-    // (the CPU golden path documents that approximation).
+    // only by the shader's arithmetic. The draw's rounded `clip` (the node's border radius) and
+    // every open rounded clip multiply the colour's alpha by their coverage, as the shader does.
     void fill_linear_gradient(const ui::paint::GradientDraw& draw) override {
         const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
-        fill_gradient(ui::paint::linear_fill(draw, stops));
+        fill_gradient(ui::paint::linear_fill(draw, stops), draw.clip);
     }
 
     void fill_radial_gradient(const ui::paint::RadialGradientDraw& draw) override {
         const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
-        fill_gradient(ui::paint::radial_fill(draw, stops));
+        fill_gradient(ui::paint::radial_fill(draw, stops), draw.clip);
     }
 
     void fill_conic_gradient(const ui::paint::ConicGradientDraw& draw) override {
         const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
-        fill_gradient(ui::paint::conic_fill(draw, stops));
+        fill_gradient(ui::paint::conic_fill(draw, stops), draw.clip);
     }
 
     void push_clip(const ui::paint::RoundedClip& clip) override {
         stack_.push_back(clip_);
         clip_ = intersect(clip_, clip.rect);
+        shapes_.push(clip);
     }
 
     void pop_clip() override {
@@ -114,6 +146,7 @@ public:
             clip_ = stack_.back();
             stack_.pop_back();
         }
+        shapes_.pop();
     }
 
     void draw_text(const ui::paint::TextDraw& run) override {
@@ -300,7 +333,8 @@ private:
     // One gradient quad: pack once, then shade every covered pixel with the shared evaluator. The
     // quad-local point is the pixel centre minus the quad's centre, which is what the shader's
     // interpolated `v_local` is.
-    void fill_gradient(const rendering::gpu::gradient::Fill& fill) {
+    void fill_gradient(const rendering::gpu::gradient::Fill& fill,
+                       const ui::paint::RoundedClip& clip) {
         rendering::gpu::gradient::Packed packed;
         if (!rendering::gpu::gradient::pack(fill, packed)) {
             return;
@@ -311,10 +345,23 @@ private:
         }
         const float centre_x = fill.rect.x + fill.rect.width * 0.5f;
         const float centre_y = fill.rect.y + fill.rect.height * 0.5f;
+        shade(clipped, [&](float x, float y) {
+            const float coverage = shapes_.coverage_of(clip, x, y) * shapes_.coverage(x, y);
+            return with_coverage(
+                rendering::gpu::gradient::evaluate(packed, x - centre_x, y - centre_y), coverage);
+        });
+    }
+
+    // `color` with its alpha scaled by `coverage`: what the shader does with its clip alpha.
+    static rendering::rhi::Color with_coverage(rendering::rhi::Color color, float coverage) {
+        color.a *= coverage;
+        return color;
+    }
+
+    // Shades `rect` on every canvas the next primitive lands on.
+    template<typename Shade> void shade(const rendering::rhi::Rect& rect, Shade&& shade_pixel) {
         paint_each([&](rendering::software::CpuCanvas& canvas) {
-            canvas.fill_rect_shaded(clipped, [&](float x, float y) {
-                return rendering::gpu::gradient::evaluate(packed, x - centre_x, y - centre_y);
-            });
+            canvas.fill_rect_shaded(rect, shade_pixel);
         });
     }
 
@@ -380,6 +427,7 @@ private:
     CpuImageConfig image_;
     rendering::rhi::Rect clip_;
     std::vector<rendering::rhi::Rect> stack_;
+    ShapeClips shapes_;
     std::vector<Layer> layers_;
     std::chrono::steady_clock::duration raster_time_{};
     std::chrono::steady_clock::duration blit_time_{};

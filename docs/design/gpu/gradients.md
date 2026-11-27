@@ -99,7 +99,12 @@ this fallback.
 
 `CpuPaintSink` evaluates the same `pack` + `evaluate` per pixel through `CpuCanvas::fill_rect_shaded`
 (pixel-centre rule, float blend), so the CPU twin and the GPU agree within 0-1/255. The CPU sink
-still approximates rounded corners by the rect bounds (unchanged).
+also cuts rounded corners exactly (issue #617): the draw's rounded `clip` and every open rounded
+`push_clip` multiply the colour's alpha by the shader's own coverage (`rounded_rect_coverage` in
+`clip_shapes.hpp`: the hard pixel-centre test of golden mode, or `1 - smoothstep(-0.5, 0.5, d)` of the
+signed distance after `set_aa_radius(0.5f)`). The `rounded` scene of the CPU corpus and
+`rounded_twin_gpu` pin it against the renderer: 0/255 in hard mode, 2/255 anti-aliased (measured on
+lavapipe). Text, images and vector draws under a rounded clip are still cut by the clip's bounds.
 
 ## 6. Measured effect
 

@@ -128,7 +128,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `cpu_wide_golden` | CPU-canvas wider paint corpus: borders, nested clips, linear gradients and carved box shadows, bit-exact (all platforms; `--update-goldens` regenerates) |
 | `cpu_canvas` | pure CPU coverage-blend math: rounding, alpha, overlap, clip, off-canvas blits, textured-quad sampling/tint/guards |
 | `cpu_canvas_corpus` | software-backend primitive corpus: solid quads, pixel-center edges, alpha order, textured quads, 0-size/off-canvas/1-pixel/negative geometry, negative control |
-| `cpu_canvas_scene_corpus` | sink-level corpus: nested/disjoint clip stacks, translate vs rotation AABB, rounded-rect bounds gap, damage-scissored replay == full redraw, negative control |
+| `cpu_canvas_scene_corpus` | sink-level corpus: nested/disjoint clip stacks, translate vs rotation AABB, rounded-rect bounds gap (text/images/vectors), damage-scissored replay == full redraw, negative control |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `codegen_cli` | CLI regeneration and `--check` drift of the generated base |
 | `automation_sha256` | FIPS 180-4 SHA-256 known-answer vectors (empty, `abc`, 448/896-bit, 1e6×`a`, binary) |
@@ -393,7 +393,7 @@ backend cannot silently change pixels:
   byte for byte, with an undersized-region negative control).
 - `cpu_wide_golden` commits the wider paint corpus as image baselines: `borders` (all four border
   sides with distinct widths and colours over a rounded background, a uniform square border, and a
-  borderless rounded card that pins the bounds approximation), `clips` (three nested clips, a clip
+  borderless rounded card whose corners are cut along the arc), `clips` (three nested clips, a clip
   that starts off-canvas, and a disjoint clip that must paint nothing), and `gradients` (vertical
   and horizontal linear ramps plus a gradient cut by nested clips). The three PNGs under
   `tests/golden/baseline/cpu_wide/` are generated on the CPU path only and compared at tolerance 0,

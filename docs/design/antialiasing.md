@@ -116,8 +116,9 @@ The CPU result is the deterministic reference: two runs are byte-identical and
 UNORM (and the shader multiplies color by atlas alpha), so GPU text pixels may differ from the CPU
 reference by 1 LSB; the existing GPU text goldens keep their 1-LSB/0.1% tolerance. The CPU path
 does not cover SDF/subpixel text, platform font shaping beyond the deterministic fixture, or
-rounded-rect clipping (the CPU sink clips with axis-aligned bounds; the golden scene uses plain
-rects). CI can now run text goldens on the CPU (and lavapipe remains the full-fidelity software
+rounded-rect clipping of text, images and vectors (the CPU sink cuts those by the clip's bounds;
+rounded fills, gradients and rounded clips of fills are exact, see
+[gpu/gradients.md](gpu/gradients.md) section 5). CI can now run text goldens on the CPU (and lavapipe remains the full-fidelity software
 renderer on Linux) with no real GPU.
 The display-dependent parts (device scale, pixel geometry, text hinting/subpixel, clip AA,
 snapping) are proposed in [`display-aware-rendering.md`](display-aware-rendering.md).

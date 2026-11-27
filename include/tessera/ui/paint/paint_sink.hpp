@@ -88,7 +88,7 @@ struct ImageDraw {
 
 // One resolved linear-gradient fill. Stops are clamped/sorted by the paint pass and each color's
 // alpha already includes node opacity. `clip` is the node's border-rounded box; sinks that cannot
-// express rounded clipping may use its rect bounds (documented CPU approximation).
+// express rounded clipping may use its rect bounds (`CpuPaintSink` is exact for fills).
 //
 // `kMaxDrawStops` is the renderer's per-gradient cap (one record holds 32 stops). A gradient never
 // arrives with more than the authored 8: a repeating one is NOT expanded any more (issue #613 did
