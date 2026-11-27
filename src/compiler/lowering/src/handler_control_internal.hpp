@@ -31,6 +31,14 @@ namespace tessera::compiler::lowering::internal {
 [[nodiscard]] std::optional<ir::Action> lower_dispatch_call(HookState& state, const jsx::Expr& call,
                                                             const jsx::Expr& callee);
 
+// ADR-067 item 4: `startTransition(() => setX(v))` as the setter's `set` action with the transition
+// mark. Null without an error when the callee is not a `startTransition`, so the caller tries the
+// other forms.
+[[nodiscard]] std::optional<ir::Action> lower_transition_call(HookState& state,
+                                                              const jsx::Expr& call,
+                                                              const jsx::Expr& callee,
+                                                              ComponentNames& names);
+
 // ADR-050 section 3.1 item 4: `nav.push(route)` on a `useService` binding, as a `callService`
 // action. Null without an error when the receiver is not a service, so the caller tries the other
 // forms.

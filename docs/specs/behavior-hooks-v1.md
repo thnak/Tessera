@@ -117,6 +117,8 @@ unchanged; additive, `irVersion` stays `1`):
   "source": { "file": "ui/Dialog.tsx", "offset": 310, "length": 96, "line": 14, "column": 3, "endLine": 14, "endColumn": 99 } }
 ```
 
+- A hook with no `ref` parameter (`useHotkeys`, `useTransition`) writes `"targets": []`; the validator does
+  not require a target.
 - `args` lists every manifest field in manifest order, including defaulted ones (written as literals), so
   a consumer needs no manifest to evaluate a behavior.
 - A callback arg holds a `handler` id (`handler::N` for an inline setter handler, or a `bind::` id for a

@@ -2416,6 +2416,17 @@ target_link_libraries(lowering_behaviors_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_behaviors COMMAND lowering_behaviors_tests)
 
+# Issue #656 (ADR-067): the front end of pending UI, <Suspense>, lazy and useTransition.
+add_executable(lowering_pending_tests
+    lowering_pending_tests.cpp)
+
+target_link_libraries(lowering_pending_tests PRIVATE tessera_lowering tessera_ir_ids)
+
+target_compile_definitions(lowering_pending_tests PRIVATE
+    TESSERA_IR_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/ir")
+
+add_test(NAME lowering_pending COMMAND lowering_pending_tests)
+
 add_executable(lowering_hooks_reject_tests
     lowering_hooks_reject_tests.cpp)
 

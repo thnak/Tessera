@@ -133,6 +133,7 @@ prop set of each is in [`jsx-intrinsics-v1`](jsx-intrinsics-v1/README.md) (the l
 | `Spacer` | `Spacer` | none | section 11.1 |
 | `VirtualList`, `VirtualGrid` | same | one item template | [`virtualization-v1.md`](virtualization-v1.md) |
 | `ErrorBoundary` | `ErrorBoundary` | exactly one child element | [`error-boundaries-v1.md`](error-boundaries-v1.md) |
+| `Suspense` | `Suspense` | exactly one child element | [`pending-ui-v1.md`](pending-ui-v1.md) |
 | `CustomElement` | `CustomElement` | none | [`custom-elements-v1.md`](custom-elements-v1.md) |
 
 Library components (for example `Form`, `Field`, `DataGrid`) are imported from `"tessera"` and are

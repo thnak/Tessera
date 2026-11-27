@@ -1,4 +1,4 @@
-# Other elements: Image, Path, Spacer, Scroll, VirtualList, VirtualGrid, ErrorBoundary, CustomElement
+# Other elements: Image, Path, Spacer, Scroll, VirtualList, VirtualGrid, ErrorBoundary, Suspense, CustomElement
 
 Part of [`jsx-intrinsics-v1`](README.md). Notation: README section 2. Common attributes apply as
 stated in [`common-and-events.md`](common-and-events.md) section 1 (its "Not on" column).
@@ -117,6 +117,20 @@ painted, no layout effect, so no `className`, `style`, `id`, `role`, `aria-*` an
   `onError={(error) => report(error)}`, call a function that is not a setter, which subset 9.2 forbids;
   in V1 that handler must be a native handler (`bind::`) or a setter of an `ErrorInfo` state [Q8].
 - Events: `onError` only. Ref: rejected.
+
+### 4.1 `Suspense`
+
+IR kind `Suspense`; semantics in [`pending-ui-v1.md`](../pending-ui-v1.md). The shape of
+`ErrorBoundary` without its error options: not painted, no layout effect, so no `className`,
+`style`, `id`, `role`, `aria-*` and no `ref`.
+
+| Prop | Type | Req | Default | Value | IR | Notes |
+|---|---|---|---|---|---|---|
+| `fallback` | one element | yes | - | N | node field `fallback` | The `fallback` rule of `ErrorBoundary` above |
+
+- Children: exactly one element, with the `ErrorBoundary` rule and code (`TESSERA_JSX_CHILDREN_COUNT`).
+- Events: none. Ref: rejected. A `lazy` component (`pending-ui-v1.md` section 7) is an ordinary
+  component element here.
 
 ## 5. `CustomElement`
 

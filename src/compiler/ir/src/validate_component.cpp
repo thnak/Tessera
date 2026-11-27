@@ -118,8 +118,9 @@ void ComponentChecker::check_declarations() {
                            env.source);
         }
     }
-    // ADR-064 item 7: a behavior is a `beh::<name>` id with at least one target ref, a registry
-    // name, and one arg per manifest field. The registry name itself is checked at generation time
+    // ADR-064 item 7: a behavior is a `beh::<name>` id, a registry name, zero or more target refs
+    // (`useHotkeys` and `useTransition` take none) and one arg per manifest field. The registry
+    // name itself is checked at generation time
     // (`TESSERA_BEHAVIOR_UNKNOWN`), because the IR validator has no registry.
     for (const auto& behavior : component.behaviors) {
         declare(behavior.id, "beh::", behavior.source);
@@ -128,10 +129,6 @@ void ComponentChecker::check_declarations() {
             context.report("TESSERA_IR_MALFORMED",
                            "behavior `" + behavior.id + "` names no engine behavior",
                            behavior.source);
-        }
-        if (behavior.targets.empty()) {
-            context.report("TESSERA_IR_MALFORMED",
-                           "behavior `" + behavior.id + "` has no target ref", behavior.source);
         }
         for (const auto& target : behavior.targets) {
             if (target.rfind("ref::", 0) != 0) {

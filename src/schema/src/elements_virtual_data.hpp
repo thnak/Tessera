@@ -175,6 +175,20 @@ inline constexpr PropRow kErrorBoundaryProps[] = {
     {"catchEvents", "bool", ValueKind::Literal, false, "true", "props.catchEvents", {}, {}, ""},
 };
 
+// ADR-067 item 2: a Suspense boundary has the ErrorBoundary shape without the error options: one
+// fallback, one child, no props or events.
+inline constexpr PropRow kSuspenseProps[] = {
+    {"fallback",
+     "one element",
+     ValueKind::Element,
+     true,
+     "",
+     "node.fallback",
+     {},
+     {},
+     "intrinsic or component element; not conditional, loop, fragment or text"},
+};
+
 inline constexpr PropRow kCustomElementProps[] = {
     {"element",
      "string",
@@ -212,6 +226,14 @@ inline constexpr ConstraintRow kVirtualGridConstraints[] = {
 };
 
 inline constexpr ConstraintRow kErrorBoundaryConstraints[] = {
+    {ConstraintKind::Custom,
+     {},
+     false,
+     "TESSERA_JSX_CHILDREN_COUNT",
+     "exactly one element child; wrap siblings in a View"},
+};
+
+inline constexpr ConstraintRow kSuspenseConstraints[] = {
     {ConstraintKind::Custom,
      {},
      false,

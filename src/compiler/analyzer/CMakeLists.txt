@@ -18,6 +18,7 @@ add_library(tessera_jsx_frontend STATIC
     src/parser_type.cpp
     src/parser_type_expand.cpp
     src/parser_type_decls.cpp
+    src/parser_lazy.cpp
     src/parser_module.cpp
     src/parser_component.cpp
     src/parser_reducer.cpp

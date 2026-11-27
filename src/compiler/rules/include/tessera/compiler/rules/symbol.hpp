@@ -29,6 +29,13 @@ enum class SymbolKind : std::uint8_t {
     // a value: the only thing a component does with it is call a manifest method, so it has no IR
     // expression and a call on it lowers to a `callService` action.
     Service,
+    // ADR-067 item 4 (issue #656): the two names of `const [isPending, startTransition] =
+    // useTransition();`. `isPending` is a read-only bool, the one output of the `transition`
+    // behavior, so it resolves to `beh::<name>.isPending`. `startTransition` is a function value
+    // whose one use is a call whose argument is a setter-call arrow, so a body made of such calls
+    // is an inline handler like one made of setter calls.
+    TransitionPending,
+    TransitionStart,
 };
 
 inline constexpr std::size_t kNoStatement = static_cast<std::size_t>(-1);

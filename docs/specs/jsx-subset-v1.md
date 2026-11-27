@@ -127,13 +127,13 @@ Rules:
 - **Imports**: named imports, with an optional `as` rename
   (`import { CardProps as Props } from "./types";`). A default import is allowed only for a
   `*.module.css` specifier, which binds that module's class map (issue #463); every other default
-  import is `TESSERA_JSX_SUBSET_IMPORT`. No namespace imports (`* as x`), no dynamic `import()`, no
+  import is `TESSERA_JSX_SUBSET_IMPORT`. No namespace imports (`* as x`), `import()` only inside `lazy`, no
   `require`. `import type { T } from "./types";` binds type names only and adds no runtime import
   edge (so type-only imports do not form an import cycle).
   - `from "tessera"` imports built-in intrinsics and hooks (for example `useState`, `View`,
     `CustomElement`). Library components such as `Field` and `Form` are not built in: importing one
-    from `"tessera"` is `TESSERA_IR_UNSUPPORTED` naming `tessera-ui`. `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
-    of `"tessera"` (other names are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
+    from `"tessera"` is `TESSERA_IR_UNSUPPORTED` naming `tessera-ui`. `from "react"` is accepted for hooks, `lazy` and `Suspense`, as an alias of `"tessera"`;
+    `const X = lazy(() => import("./X"))` is the import `{ X } from "./X"` ([`pending-ui-v1.md`](pending-ui-v1.md) section 7; other forms are `TESSERA_REACT_UNSUPPORTED_API`).
   - **`import React from "react"` and `import * as React from "react"` are accepted and ignored**
     (ADR-066 item 1): the automatic JSX runtime means the binding is never read, so a port that keeps
     the import compiles. Any other default or namespace import stays `TESSERA_JSX_SUBSET_IMPORT`.
@@ -299,9 +299,9 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 | State | `const [x, setX] = useState<T>(init);` | Exactly two names. `<T>` may be omitted when `init` is a string, boolean or `null` literal or a prop with a declared type; it is required when `init` is a number literal `init` must be pure |
 | Ref | `const r = useRef<ElementType>(null);` | `ElementType` is an intrinsic name (section 11). The initial value must be `null` |
 | Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Handlers use `v.set(expr)` and `v.set(expr, { animate, duration, easing, spring, onComplete })`; the option rules, the accepted easings and the rejected forms are in [`animation.md`](../design/animation.md) section 6 and [`ir-v1.md`](ir-v1.md) section 2.1. Reading the value (`v.value` or any other member) is `TESSERA_JSX_SUBSET_ANIMATED_READ`; an animated value is passed whole as a prop or style value. The project owner decided this |
-| Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
-| Layout effect | `useLayoutEffect(() => { ... }, [dep, ...]);` | Accepted with `useEffect` timing (ADR-066 item 1): there is no browser paint to order against, so the form and dependency rules are `useEffect`'s |
+| Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2. `useLayoutEffect` has the same form, accepted with `useEffect` timing (ADR-066 item 1): there is no browser paint to order against |
 | Id | `const id = useId();` | A stable string from the instance identity and the call ordinal (ADR-066 item 1). No arguments, one name, read-only; its purpose is an `id`/`aria-labelledby` pair |
+| Transition | `const [isPending, startTransition] = useTransition();` | ADR-067 item 4, [`pending-ui-v1.md`](pending-ui-v1.md) section 5. No arguments, two names. `isPending` is a read-only bool (a behavior output, `beh::<isPending>.isPending`). `startTransition(() => setX(v))` is a handler statement: one parameterless arrow with one state-setter call, lowered to that `set` action with `"transition": true`; any other form is `TESSERA_REACT_BIND_MISSING` or `TESSERA_IR_UNSUPPORTED` |
 | Memo | `const v = useMemo(() => <PureExpr>, [deps]);` | The safe form only (ADR-066 item 1, [`react-compat.md`](jsx-intrinsics-v1/react-compat.md) section 4.2): the wrapped expression becomes the local, because a pure inlined expression needs no memo. The dependency list is compared with the inferred set and a mismatch warns `TESSERA_REACT_MEMO_DEPS`, never errors; an absent list is accepted (section 4.2.1). A block body keeps `TESSERA_REACT_UNSUPPORTED_API` |
 | Callback | `const f = useCallback(() => <body>, [deps]);` | The safe form only: the wrapped arrow becomes the handler, because nothing here observes a function's identity. The body is classified like any declared handler (section 9). Its dependency list is checked like the memo's |
 

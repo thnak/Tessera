@@ -192,6 +192,14 @@
       "lowering": { "kind": "behavior", "behavior": "announce" }
     },
     {
+      "name": "useTransition",
+      "params": [],
+      "returns": {
+        "fields": [{ "name": "isPending", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "transition" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

@@ -157,6 +157,10 @@ struct ModuleItem {
     // ignored, because the automatic JSX runtime means the binding is never read. Recorded so the
     // lowering skips the item instead of resolving a value that does not exist.
     bool ignored_react_import = false;
+    // `const Name = lazy(() => import("./Name"));` (ADR-067 item 6, docs/specs/pending-ui-v1.md
+    // section 7): lazy is identity, so the item is the named import of `Name` from the specifier.
+    // Recorded so a dump and a diagnostic can say which spelling the author wrote.
+    bool lazy_import = false;
 
     // TypeAlias, Const, Component.
     std::string name;

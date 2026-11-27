@@ -64,6 +64,11 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
                 record_const_local(analysis.item->body[symbol.statement], symbol.name);
             }
             break;
+        case rules::SymbolKind::TransitionPending:
+            // Resolved by the behavior loop below: the value is the `transition` behavior's output,
+            // `beh::<name>.isPending`, not an entry of its own.
+            break;
+        case rules::SymbolKind::TransitionStart:
         case rules::SymbolKind::StateSetter:
         case rules::SymbolKind::Dispatch:
         case rules::SymbolKind::Service:
@@ -80,6 +85,12 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
     // unresolved while `press.pressed` resolves.
     for (const rules::BehaviorInfo& behavior : analysis.behaviors) {
         if (behavior.name.empty() || behavior.outputs.empty()) {
+            continue;
+        }
+        if (!behavior.value_name.empty()) {
+            // `useTransition`: `isPending` is the output itself, not `isPending.isPending`.
+            entries_.push_back(
+                {behavior.value_name, "beh::" + behavior.name + "." + behavior.outputs.front()});
             continue;
         }
         behavior_outputs_.push_back({behavior.name, behavior.outputs});

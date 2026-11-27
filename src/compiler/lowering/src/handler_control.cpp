@@ -36,6 +36,13 @@ std::optional<ir::Action> lower_call_action(HookState& state, const jsx::Expr& s
         return lower_animated_set(state, statement, callee, names);
     }
     if (callee.kind == jsx::ExprKind::Identifier) {
+        // ADR-067 item 4: `startTransition(() => setX(v))` is the setter call with a transition
+        // mark, so it is matched before the plain setter path.
+        std::optional<ir::Action> transition =
+            lower_transition_call(state, statement, callee, names);
+        if (transition || state.error) {
+            return transition;
+        }
         // ADR-066 item 4: a dispatch is a state update, not a value, so it is matched before the
         // setter path (which looks up a setter symbol and would not find one).
         std::optional<ir::Action> dispatch = lower_dispatch_call(state, statement, callee);
@@ -49,6 +56,42 @@ std::optional<ir::Action> lower_call_action(HookState& state, const jsx::Expr& s
         return action;
     }
     return std::nullopt;
+}
+
+// `startTransition(() => setX(v))` (ADR-067 item 4, docs/specs/pending-ui-v1.md section 5). It
+// lowers to the action the inner setter call would lower to, plus `transition: true`. The argument
+// is one parameterless arrow with one state-setter call; the analyzer checked the shape, and the
+// check is repeated here so a hand-built analysis cannot reach the validator with an unmarkable
+// action.
+std::optional<ir::Action> lower_transition_call(HookState& state, const jsx::Expr& call,
+                                                const jsx::Expr& callee, ComponentNames& names) {
+    const rules::Symbol* start = state.context.analysis.find(callee.text);
+    if (start == nullptr || start->kind != rules::SymbolKind::TransitionStart) {
+        return std::nullopt; // not a startTransition: the caller tries the other call forms
+    }
+    constexpr std::string_view kShape = "a transition is `startTransition(() => setX(value))`: one "
+                                        "arrow with one state setter call";
+    const jsx::Expr* arrow = call.operands.size() == 2 ? call.operands[1].get() : nullptr;
+    if (arrow == nullptr || arrow->kind != jsx::ExprKind::Arrow || !arrow->params.empty() ||
+        arrow->operands.size() != 1 || !arrow->operands[0]) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, call.span);
+        return std::nullopt;
+    }
+    const jsx::Expr& inner = *arrow->operands[0];
+    if (inner.kind != jsx::ExprKind::Call || inner.operands.empty() || !inner.operands[0] ||
+        inner.operands[0]->kind != jsx::ExprKind::Identifier) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, inner.span);
+        return std::nullopt;
+    }
+    std::optional<ir::Action> action = lower_setter_call(state, inner, *inner.operands[0], names);
+    if (!action) {
+        if (!state.error) {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, inner.span);
+        }
+        return std::nullopt;
+    }
+    action->transition = true;
+    return action;
 }
 
 // `dispatch({ type: "x" })` (ADR-066 item 4). The generated listener indexes the state's dispatch

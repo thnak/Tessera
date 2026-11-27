@@ -98,7 +98,8 @@ bool is_hook_symbol(SymbolKind kind) {
            kind == SymbolKind::Dispatch ||
            // ADR-050 section 3.1: the binding of a `useService<T>()`, so a statement that calls it
            // before its declaration is an order error like any other hook.
-           kind == SymbolKind::Service;
+           kind == SymbolKind::Service || kind == SymbolKind::TransitionPending ||
+           kind == SymbolKind::TransitionStart;
 }
 
 void check_nesting(Context& ctx) {

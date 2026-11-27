@@ -231,7 +231,7 @@ declares no record writes exactly the bytes it wrote before this section existed
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement`, `Component`, `Slot` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `Suspense`, `CustomElement`, `Component`, `Slot` |
 | `component` | string | for `Component` | Id of the referenced component (section 3.4) |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
@@ -441,6 +441,7 @@ Sections 4-14 live in [`ir-v1-expr.md`](ir-v1-expr.md); numbering is unchanged.
 | 4 | Expressions (including the `record` value, section 4.3) |
 | 5 | Loop |
 | 5.1 | ErrorBoundary |
+| 5.2 | Suspense |
 | 6 | Binding |
 | 7 | Stylesheet references |
 | 8 | Source spans |

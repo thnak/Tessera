@@ -175,6 +175,9 @@ private:
     // ADR-066 item 1: `const Name = (props: Props) => { ... }`, tried from parse_const_item and
     // rewound when the text is an ordinary constant instead.
     bool parse_arrow_component(ModuleItem& item);
+    // ADR-067 item 6: `const Name = lazy(() => import("./Name"));`, which is identity. It becomes
+    // the import `import { Name } from "./Name";`, so the component is used directly.
+    bool parse_lazy_import(ModuleItem& item);
     bool parse_import_names(ModuleItem& item);
     void check_module_source(ModuleItem& item, Span span);
     void recover_to_next_item(std::uint32_t item_start);

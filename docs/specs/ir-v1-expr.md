@@ -180,6 +180,29 @@ The `loop` is a field of the node it repeats; the key is that node's `key`:
 - The boundary is not painted and does not affect layout.
 - Semantics/exception policy: [`error-boundaries-v1.md`](error-boundaries-v1.md).
 
+## 5.2 Suspense
+
+```json
+{
+  "id": "node::s",
+  "kind": "Suspense",
+  "fallback": { "kind": "Text", "id": "node::fb", "text": { "kind": "literal", "value": "Loading" } },
+  "children": [
+    { "kind": "View", "id": "node::list", "children": [] }
+  ]
+}
+```
+
+- The shape of `ErrorBoundary` without `props` and `events`: `fallback` is required (one node
+  subtree, no `condition`, no `loop`), `children` is exactly one subtree, and nothing else is allowed
+  on the node (no `resetKey`, no `onError`, no timeout in V1).
+- Nested boundaries are allowed; a suspending read is covered by the nearest enclosing boundary of its
+  own component tree.
+- The boundary is not painted and does not affect layout. Semantics, the `resources` list and the
+  diagnostics: [`pending-ui-v1.md`](pending-ui-v1.md).
+- Additive: `irVersion` stays `1`. A `.tsx` `<Suspense fallback={...}>` element lowers to this node;
+  `lazy(() => import(...))` produces no IR of its own.
+
 ## 6. Binding
 
 ```json
@@ -255,13 +278,13 @@ Hard errors:
 - duplicate component/node/binding ids
 - unresolved `ref`/`binding`/node targets
 - unsupported node kind, type, operator, or callee
-- `ErrorBoundary` missing `fallback`, more/less than one child subtree, or unresolved `onError`
-  binding
+- `ErrorBoundary` or `Suspense` missing `fallback`, more/less than one child subtree, or (for
+  `ErrorBoundary`) unresolved `onError` binding
 - missing/duplicate `componentId`/`uiId`, `automationId != uiId`, or a 64-bit ID collision
 - unknown/non-literal `element`, unknown element prop/event, missing shader, or `CustomElement`
   with children
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
-- dynamic component types, context, suspense
+- dynamic component types, context
 - missing list key or a loop source that is not a list ref or a `filter`/`slice` of one; a loop
   `item`/`index` that is empty, dotted or equal (`TESSERA_IR_LOOP`); a virtual collection without an
   `itemTemplate`, an item template without its `loop`, a condition on it, or a derived item-template
@@ -339,6 +362,7 @@ note above).
 | Inline spans | the parent `Text` node gets the concatenated paint text plus one span entry per child (span node id and byte range); each span is emitted as a child scene node with its class/style/role/events so the runtime resolves its run style through the normal cascade |
 | Event binding | `on_event` dispatch to the developer-class member named by the binding id |
 | ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
+| Suspense | two subtree slots, a live pointer and the read slots of the boundary ([`pending-ui-v1.md`](pending-ui-v1.md) section 10) |
 | Conditional | `if` around node creation/update |
 | Loop | keyed list update/rebuild |
 | `VirtualList`/`VirtualGrid` | a fixed container node with generated geometry constants (`itemSize`/`estimateSize`/`overscan`/`gap`, grid row height/columns), a bounded realized-window item table, `apply_virtual_<n>(first, last)` (keyed reconciliation and changed-item repaint), and the generated `scroll_virtual_<n>(scroll_offset, viewport_extent)` entry point, which owns the runtime geometry, refines realized-item measures, re-anchors the offset and dispatches `onScroll`/`onEndReached`; the host may still compute `[first, last)` itself and call `apply_virtual_<n>` with its own geometry |

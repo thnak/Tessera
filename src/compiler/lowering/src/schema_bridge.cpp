@@ -76,6 +76,9 @@ std::optional<ir::NodeKind> ir_node_kind(std::string_view ir_kind) {
     if (ir_kind == "ErrorBoundary") {
         return ir::NodeKind::ErrorBoundary;
     }
+    if (ir_kind == "Suspense") {
+        return ir::NodeKind::Suspense;
+    }
     if (ir_kind == "CustomElement") {
         return ir::NodeKind::CustomElement;
     }
