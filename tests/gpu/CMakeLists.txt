@@ -741,6 +741,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_pool_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_pool_gpu COMMAND layer_pool_gpu_tests)
     set_tests_properties(layer_pool_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Regression for the Vulkan barrier source scope of a recycled offscreen target (#617): a target a
+    # pass sampled is cleared again in the same list, validation-clean with synchronization validation
+    # (a TOP_OF_PIPE source scope is a write-after-read hazard). Skips without the validation layer.
+    add_executable(layer_recycle_barrier_gpu_tests
+        batched2d/layer_recycle_barrier_gpu_tests.cpp)
+    target_link_libraries(layer_recycle_barrier_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME layer_recycle_barrier_gpu COMMAND layer_recycle_barrier_gpu_tests)
+    set_tests_properties(layer_recycle_barrier_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Damage-limited redraw of a filtered node equals a full redraw (the filter dependency walk).
     # Skips without a Vulkan device.

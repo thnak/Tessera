@@ -91,6 +91,47 @@ int main() {
                 "a misspelled key is still an unknown field") &&
          ok;
 
+    // The offscreen pool memory keys: defaults match the engine's old fixed values.
+    ok = expect(defaults.has_value() && defaults->offscreen_max_mb == 256 &&
+                    defaults->offscreen_idle_seconds == 2.0,
+                "offscreenMaxMb / offscreenIdleSeconds default to 256 / 2") &&
+         ok;
+    const auto pool =
+        parse_runtime_config(R"({"runtime":{"offscreenMaxMb":512,"offscreenIdleSeconds":0.5}})");
+    ok = expect(pool.has_value() && pool->offscreen_max_mb == 512 &&
+                    pool->offscreen_idle_seconds == 0.5,
+                "the offscreen pool keys are read") &&
+         ok;
+    const auto pool_edges =
+        parse_runtime_config(R"({"runtime":{"offscreenMaxMb":4096,"offscreenIdleSeconds":0}})");
+    ok = expect(pool_edges.has_value() && pool_edges->offscreen_idle_seconds == 0.0,
+                "the range edges are accepted") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenMaxMb":0}})", "offscreenMaxMb",
+                        RuntimeConfigErrorCode::OutOfRange),
+                "a zero byte cap is an error (it would mean unbounded)") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenMaxMb":4097}})", "offscreenMaxMb",
+                        RuntimeConfigErrorCode::OutOfRange),
+                "a byte cap over 4096 MiB is an error") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenMaxMb":1.5}})", "offscreenMaxMb",
+                        RuntimeConfigErrorCode::InvalidType),
+                "a fractional byte cap is an error") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenIdleSeconds":-1}})", "offscreenIdleSeconds",
+                        RuntimeConfigErrorCode::OutOfRange),
+                "a negative idle time is an error") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenIdleSeconds":3601}})", "offscreenIdleSeconds",
+                        RuntimeConfigErrorCode::OutOfRange),
+                "an idle time over an hour is an error") &&
+         ok;
+    ok = expect(rejects(R"({"runtime":{"offscreenIdleSeconds":"2"}})", "offscreenIdleSeconds",
+                        RuntimeConfigErrorCode::InvalidType),
+                "a string idle time is an error") &&
+         ok;
+
     if (!ok) {
         std::cerr << "glass_config: FAILED\n";
         return 1;

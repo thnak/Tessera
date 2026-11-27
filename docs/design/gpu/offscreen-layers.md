@@ -467,7 +467,7 @@ slice behavior + tests + docs, nothing user-visible until the last:
     peak, the targets, the bytes, and the knob to turn) through the `Logger`. `WindowOptions::logger` and
     `metrics` supply them; with no logger the window logs to its own stderr `FileLogSink`, with no
     registry the metrics are skipped. A single-window driver that has used no layer for
-    `WindowOptions::offscreen_idle_seconds` (default 2), with its in-flight frames complete, calls
+    `offscreenIdleSeconds` (runtime config, default 2), with its in-flight frames complete, calls
     `trim_offscreen_targets(true)` from its settled-scene branch (`run()` and `pump_once()`),
     so a static UI holds no layer memory; a multi-window group relies on the 120-frame trim, because
     another window's frames may still read the shared pool. Tests: `diagnostics_offscreen` (counter,

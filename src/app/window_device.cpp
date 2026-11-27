@@ -7,6 +7,7 @@
 #include "tessera/app/window.hpp"
 #include "tessera/app/window_device.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
+#include "window_config.hpp"
 #include "window_internal.hpp"
 #include "window_vector.hpp"
 
@@ -274,6 +275,7 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
     renderer_config.max_offscreen_targets = options.runtime.glass_max_blur_targets;
     renderer_config.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    renderer_config.max_offscreen_bytes = window_offscreen_max_bytes(options.runtime);
     renderer_config.cull_draws = options.runtime.cull_draws;
 
     renderer_ = std::make_unique<rendering::gpu::Batched2DRenderer>(

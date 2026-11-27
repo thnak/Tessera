@@ -39,6 +39,11 @@ struct WindowPausePolicy {
 // like the hard-coded behaviour before the key existed.
 [[nodiscard]] ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runtime);
 
+// The byte cap of the offscreen layer pool (`offscreenMaxMb`, offscreen-layers.md section 5e). The
+// parser bounds the key to 1..4096 MiB; a hand-built RuntimeConfig is clamped to the same range so
+// a 0 can never reach the pool, where it would mean "no cap".
+[[nodiscard]] std::uint64_t window_offscreen_max_bytes(const RuntimeConfig& runtime) noexcept;
+
 // The occluded/minimized pause policy for one window. Only `pauseWhenOccluded` is wired in this
 // slice; the remaining lifecycle keys stay unwired.
 [[nodiscard]] WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime);

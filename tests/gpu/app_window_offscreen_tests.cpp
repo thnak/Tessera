@@ -97,7 +97,7 @@ bool idle_trim() {
     options.font_path = TESSERA_TEST_FONT;
     options.logger = &logger;
     options.metrics = &metrics;
-    options.offscreen_idle_seconds = 0.15;
+    options.runtime.offscreen_idle_seconds = 0.15;
     tessera::app::WindowHost host(
         root,
         compile_stylesheet("Box { width: 200px; height: 40px; background-color: #ff0000; "
