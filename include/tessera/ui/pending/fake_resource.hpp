@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/ui/pending/resource_view.hpp"
+
 #include <cstdint>
 
 namespace tessera::ui::pending {
@@ -67,6 +69,11 @@ public:
     }
     [[nodiscard]] constexpr int value() const noexcept {
         return value_;
+    }
+
+    // The state a `ResourceView` reads.
+    [[nodiscard]] constexpr ResourceState state() const noexcept {
+        return ResourceState{epoch_, loading_, has_data_, failed_};
     }
 
     // A suspending read: a fetch is in flight and there is nothing to show yet.

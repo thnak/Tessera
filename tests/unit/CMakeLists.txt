@@ -3242,6 +3242,14 @@ target_include_directories(pending_model_tests PRIVATE ${PROJECT_SOURCE_DIR}/inc
 
 add_test(NAME pending_model COMMAND pending_model_tests)
 
+# #656: the ResourceView seam a Suspense boundary reads, over the fake resource and the data store.
+add_executable(pending_resource_tests
+    pending_resource_tests.cpp)
+
+target_link_libraries(pending_resource_tests PRIVATE tessera_runtime)
+
+add_test(NAME pending_resource COMMAND pending_resource_tests)
+
 # StateCell helpers behind generated snapshot_state() (issue #7).
 add_executable(state_snapshot_tests
     state_snapshot_tests.cpp)

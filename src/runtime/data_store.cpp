@@ -149,6 +149,29 @@ DataSnapshot DataStore::snapshot(const DataKey& key) const {
     return core->make_snapshot_locked(key, true);
 }
 
+bool DataStore::try_published(const DataKey& key, PublishedState& out) const noexcept {
+    const detail::DataStoreCore* core = core_.get();
+    if (core == nullptr) {
+        return false;
+    }
+    std::unique_lock<std::mutex> lock(core->mutex, std::try_to_lock);
+    if (!lock.owns_lock() || !core->alive) {
+        return false;
+    }
+    const auto it = core->entries.find(key);
+    if (it == core->entries.end()) {
+        out = PublishedState{};
+        return true;
+    }
+    const detail::DataStoreCore::Entry& entry = it->second;
+    out.status = entry.status;
+    out.has_value = entry.value != nullptr;
+    out.has_error = entry.error.has_value();
+    out.version = entry.version;
+    out.epoch = entry.epoch;
+    return true;
+}
+
 DataStore::ObserverId DataStore::observe(DataKey key, Observer observer) {
     if (!observer) {
         throw std::invalid_argument("data store observer must not be empty");
