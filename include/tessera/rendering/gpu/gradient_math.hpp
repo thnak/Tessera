@@ -133,11 +133,11 @@ struct Packed {
     }
 }
 
-// Encoded-space interpolation over sorted stops, the shader's `gradient_ramp`. The result is the
-// same as `ui::paint::sample_gradient_stops` (a sweep test pins it); it is written so a shader can
-// run it without an early return: find the last stop at or below t, then blend it with the next.
-// At a duplicate offset the later stop wins, and t below the first stop or above the last takes
-// that stop's colour.
+// Encoded-space, premultiplied interpolation over sorted stops, the shader's `gradient_color`. The
+// result is the same as `ui::paint::sample_gradient_stops` (a sweep test pins it); it is written so
+// a shader can run it without an early return: find the last stop at or below t, then blend it with
+// the next. At a duplicate offset the later stop wins, and t below the first stop or above the last
+// takes that stop's colour.
 [[nodiscard]] inline rhi::Color ramp(const float* colors, const float* offsets, std::uint32_t count,
                                      float t) {
     const auto stop = [colors](std::uint32_t index) {
@@ -167,8 +167,18 @@ struct Packed {
     const rhi::Color a = stop(k);
     const rhi::Color b = stop(k + 1);
     const float local = (t - offsets[k]) / (offsets[k + 1] - offsets[k]);
+    // Premultiplied, then un-premultiplied (the blend stage composites straight alpha): CSS Images
+    // 3.5.3 and Chromium. Opaque and same-hue ramps come out unchanged. The shader's
+    // `gradient_color` is this block expression for expression.
+    const float alpha = a.a + (b.a - a.a) * local;
+    const float pr = a.r * a.a + (b.r * b.a - a.r * a.a) * local;
+    const float pg = a.g * a.a + (b.g * b.a - a.g * a.a) * local;
+    const float pb = a.b * a.a + (b.b * b.a - a.b * a.a) * local;
+    if (alpha > 0.0f) {
+        return rhi::Color{pr / alpha, pg / alpha, pb / alpha, alpha};
+    }
     return rhi::Color{a.r + (b.r - a.r) * local, a.g + (b.g - a.g) * local,
-                      a.b + (b.b - a.b) * local, a.a + (b.a - a.a) * local};
+                      a.b + (b.b - a.b) * local, alpha};
 }
 
 // The colour at a quad-local point: the whole per-fragment computation. `colors` and `offsets`

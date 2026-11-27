@@ -331,7 +331,12 @@ vec4 gradient_color(uint record, float t) {
     vec4 a = clip_buffer.stop_colors[first + k];
     vec4 b = clip_buffer.stop_colors[first + k + 1u];
     float local_t = (t - offset_k) / (clip_buffer.stop_offsets[first + k + 1u] - offset_k);
-    return a + (b - a) * local_t;
+    // Premultiplied, then un-premultiplied (the blend stage composites straight alpha): CSS Images
+    // 3.5.3 and Chromium. gpu::gradient::ramp, expression for expression.
+    float alpha = a.a + (b.a - a.a) * local_t;
+    vec3 premultiplied = a.rgb * a.a + (b.rgb * b.a - a.rgb * a.a) * local_t;
+    vec3 rgb = alpha > 0.0 ? premultiplied / alpha : a.rgb + (b.rgb - a.rgb) * local_t;
+    return vec4(rgb, alpha);
 }
 
 void main() {

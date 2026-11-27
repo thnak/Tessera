@@ -48,6 +48,13 @@ struct Batched2DConfig {
     // the frame's damage regions is never staged, so its vertices are neither built nor uploaded.
     // The pixels are identical either way; the switch exists for debugging. On by default.
     bool cull_draws = true;
+
+    // Per-fragment gradients (ADR-076). True (the default) lets a gradient layer be one quad when
+    // the device and the frame pipeline support it; false forces the banded fallback on every
+    // device, so a test or a measurement can A/B the two paths and exercise the fallback on
+    // hardware that would never need it. The pixels differ only where the bands approximate the
+    // ramp.
+    bool analytic_gradients = true;
 };
 
 // Per-frame culling counters, reset by every begin. `quads_emitted` counts quads that reached the

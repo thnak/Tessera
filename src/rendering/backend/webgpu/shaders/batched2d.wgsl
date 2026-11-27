@@ -303,7 +303,14 @@ fn gradient_color(record: u32, t_in: f32) -> vec4<f32> {
     let a = clip_buffer.stop_colors[first + k];
     let b = clip_buffer.stop_colors[first + k + 1u];
     let local_t = (t - offset_k) / (clip_buffer.stop_offsets[first + k + 1u] - offset_k);
-    return a + (b - a) * local_t;
+    // Premultiplied, then un-premultiplied (see batched2d.frag).
+    let alpha = a.a + (b.a - a.a) * local_t;
+    let premultiplied = a.rgb * a.a + (b.rgb * b.a - a.rgb * a.a) * local_t;
+    var rgb = a.rgb + (b.rgb - a.rgb) * local_t;
+    if (alpha > 0.0) {
+        rgb = premultiplied / alpha;
+    }
+    return vec4<f32>(rgb, alpha);
 }
 
 @fragment

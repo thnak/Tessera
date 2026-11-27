@@ -137,9 +137,9 @@ struct BackdropDraw {
     float contrast = 1.0f;
 };
 
-// Encoded-space (sRGB byte) interpolation over sorted stops; at a duplicate offset the later stop
-// wins. Sinks share this so the CPU/GPU ramps agree. Both gradient shapes sample through here, so
-// the linear and radial ramps cannot drift.
+// Encoded-space (sRGB byte) interpolation over sorted stops, premultiplied by alpha (CSS Images
+// 3.5.3); at a duplicate offset the later stop wins. Sinks share this so the CPU/GPU ramps agree.
+// Both gradient shapes sample through here, so the linear and radial ramps cannot drift.
 [[nodiscard]] inline rhi::Color sample_gradient_stops(const LinearGradientStop* stops,
                                                       std::size_t stop_count, float t) {
     if (stop_count == 0) {
@@ -167,11 +167,26 @@ struct BackdropDraw {
             const LinearGradientStop& b = stops[index];
             const float span = b.offset - a.offset;
             const float local = span > 0.0f ? (t - a.offset) / span : 1.0f;
+            // Interpolated premultiplied, like CSS Images (section 3.5.3) and Chromium: a ramp from
+            // transparent red to opaque yellow keeps its colour at every alpha instead of passing
+            // through a darker, half-green mix. The result is un-premultiplied again because the
+            // blend stage composites straight alpha. Opaque and same-hue ramps are unchanged.
+            const rhi::Color& ca = a.color;
+            const rhi::Color& cb = b.color;
             rhi::Color result;
-            result.r = a.color.r + (b.color.r - a.color.r) * local;
-            result.g = a.color.g + (b.color.g - a.color.g) * local;
-            result.b = a.color.b + (b.color.b - a.color.b) * local;
-            result.a = a.color.a + (b.color.a - a.color.a) * local;
+            result.a = ca.a + (cb.a - ca.a) * local;
+            const float pr = ca.r * ca.a + (cb.r * cb.a - ca.r * ca.a) * local;
+            const float pg = ca.g * ca.a + (cb.g * cb.a - ca.g * ca.a) * local;
+            const float pb = ca.b * ca.a + (cb.b * cb.a - ca.b * ca.a) * local;
+            if (result.a > 0.0f) {
+                result.r = pr / result.a;
+                result.g = pg / result.a;
+                result.b = pb / result.a;
+            } else {
+                result.r = ca.r + (cb.r - ca.r) * local; // fully transparent: the colour is moot
+                result.g = ca.g + (cb.g - ca.g) * local;
+                result.b = ca.b + (cb.b - ca.b) * local;
+            }
             return result;
         }
     }

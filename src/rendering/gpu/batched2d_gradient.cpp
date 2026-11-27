@@ -12,7 +12,8 @@ bool Batched2DRenderer::gradients_supported() const {
     // the frame pipeline must declare the record buffer the branch reads. A fixture pipeline
     // created without `PipelineDesc::storage_buffer` has no set 1, so its shader cannot evaluate
     // one.
-    return device_ != nullptr && device_->supports_analytic_gradients() && pipeline_ != nullptr &&
+    return config_.analytic_gradients && device_ != nullptr &&
+           device_->supports_analytic_gradients() && pipeline_ != nullptr &&
            pipeline_->declares_storage_buffer();
 }
 

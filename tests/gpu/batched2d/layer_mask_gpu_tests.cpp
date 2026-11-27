@@ -248,7 +248,7 @@ bool paint_path(Harness& harness) {
     const auto left = pixel_at(pixels, 10, 32);
     const auto middle = pixel_at(pixels, 32, 32);
     const auto right = pixel_at(pixels, 54, 32);
-    // The ramp is banded, so check monotone growth and the ends rather than exact mid values.
+    // The ends and the middle of the ramp; the exact pixels are compared with Chromium below.
     ok = expect(left[1] < 40, "the left edge of the mask is nearly transparent") && ok;
     ok = expect(middle[1] > 90 && middle[1] < 170, "the middle is about half") && ok;
     ok = expect(right[1] > 215, "the right edge is nearly opaque") && ok;
@@ -263,22 +263,24 @@ bool paint_path(Harness& harness) {
 // The first version of this comparison found that alpha along a translucent gradient came out up to
 // +64 of 255 too high (+119 on a radial diagonal) because the sink grew each solid band by half a
 // pixel, so neighbouring bands overlapped and composited a translucent stop twice. The bands now
-// abut exactly (band_edge in paint_sink.hpp), and what is left is the documented banding: a linear
-// ramp is within 2, the 32x32 radial cells and 64x64 conic cells within a few steps of their ramp.
+// abut exactly (band_edge in paint_sink.hpp). Since ADR-076 a gradient layer is one quad evaluated
+// per pixel, so the banding that was left (radial 6, conic 2, linear 2 of 255 on this grid) is
+// gone: every shape is within 2 of Chromium (measured 0 to 1), and gradient_chromium_gpu_tests
+// compares fifteen more scenes on a denser grid.
 bool chromium_comparison(Harness& harness) {
     struct Scene {
         const char* name;
         const char* css;
         const char* opacity;
-        int tolerance; // either direction, out of 255; measured worst case plus a little slack
+        int tolerance; // either direction, out of 255; the measured worst case is 1
     };
     const Scene scenes[] = {
-        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1", 3},
-        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 3},
-        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 10},
-        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 6},
-        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 5},
-        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 3},
+        {"linear@1", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "1", 2},
+        {"linear@0.5", "linear-gradient(90deg, rgba(0,0,0,0), #000)", "0.5", 2},
+        {"radial@1", "radial-gradient(circle, #000, rgba(0,0,0,0))", "1", 2},
+        {"radial@0.5", "radial-gradient(circle, #000, rgba(0,0,0,0))", "0.5", 2},
+        {"conic@1", "conic-gradient(#000, rgba(0,0,0,0))", "1", 2},
+        {"conic@0.5", "conic-gradient(#000, rgba(0,0,0,0))", "0.5", 2},
     };
     bool ok = true;
     for (const Scene& scene : scenes) {
@@ -320,8 +322,9 @@ bool chromium_comparison(Harness& harness) {
 }
 
 // The overlap bug itself, without a mask: a translucent `background-image` ramp at a fractional
-// position and size, with anti-aliasing on and off. Every interior pixel must be the ideal CSS ramp
-// within the band quantisation; a doubly composited band would show as a 20+ step excess.
+// position and size, with anti-aliasing on and off. Every interior pixel must be the ideal CSS
+// ramp; a doubly composited layer would show as a 20+ step excess. One quad per ramp cannot overlap
+// itself, so the bound is the quantisation of the readback, not of any band.
 bool translucent_gradient_is_composited_once(Harness& harness) {
     bool ok = true;
     for (const bool aa : {false, true}) {
@@ -359,7 +362,7 @@ bool translucent_gradient_is_composited_once(Harness& harness) {
             const int ideal = static_cast<int>(std::lround(255.0f * alpha));
             worst = std::max(worst, std::abs(pixel_at(pixels, x, 32)[1] - ideal));
         }
-        if (worst > 6) {
+        if (worst > 2) {
             std::cerr << "layer_mask_gpu: translucent ramp (aa " << aa << ") is " << worst
                       << " off the ideal ramp\n";
             ok = false;

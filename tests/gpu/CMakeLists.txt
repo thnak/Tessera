@@ -667,6 +667,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(gradient_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME gradient_gpu COMMAND gradient_gpu_tests)
     set_tests_properties(gradient_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # The per-fragment gradients against Chromium (ADR-076): fifteen scenes through the paint path,
+    # shader and banded fallback side by side. Skips without a Vulkan device.
+    add_executable(gradient_chromium_gpu_tests
+        batched2d/gradient_chromium_gpu_tests.cpp)
+    target_include_directories(gradient_chromium_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_link_libraries(gradient_chromium_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME gradient_chromium_gpu COMMAND gradient_chromium_gpu_tests)
+    set_tests_properties(gradient_chromium_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # Layer filters (issue #617): blur() and drop-shadow() pixels against the analytic Gaussian,
     # the filter-before-mask order, the paint path, the fallbacks. Skips without a Vulkan device.
     add_executable(layer_filter_gpu_tests

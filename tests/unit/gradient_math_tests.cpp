@@ -4,7 +4,7 @@
 // the fragment shader and the CPU reference share (docs/design/gpu/gradients.md, ADR-076):
 //  - the shader-shaped ramp equals the banded path's `sample_gradient_stops` over a dense sweep, so
 //    moving from bands to the shader changes no stop semantics (duplicate offsets, held ends, one
-//    stop, the 32-stop repeating expansion);
+//    stop, the 32-stop repeating expansion), and both interpolate premultiplied like CSS;
 //  - the position of every kind at known points: the CSS magic corners of a linear gradient, the
 //    radius of a radial one, the four o'clock directions of a conic one with and without `from`;
 //  - packing refuses what cannot be drawn, and the table hands out sequential records, advances
@@ -107,6 +107,30 @@ void ramp_matches_the_banded_sampler() {
     std::cout << "gradient_math: ramp vs banded sampler over " << compared << " points, worst "
               << worst << "\n";
     expect(gradient::ramp(nullptr, nullptr, 0, 0.5f).a == 0.0f, "no stops is transparent");
+}
+
+// CSS Images 3.5.3: stops interpolate premultiplied. Transparent red to opaque yellow keeps full
+// red and green at every alpha (a straight-alpha mix would pass through a half-green, darker
+// colour), which is what Chromium paints and the gradient_chromium test measures.
+void translucent_ramp_is_premultiplied() {
+    const std::array<float, 8> colors{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    const std::array<float, 2> offsets{0.0f, 1.0f};
+    const rhi::Color half = gradient::ramp(colors.data(), offsets.data(), 2, 0.5f);
+    expect(near(half.a, 0.5f) && near(half.r, 1.0f) && near(half.g, 1.0f) && near(half.b, 0.0f),
+           "transparent red to opaque yellow is (1, 1, 0) at alpha 0.5");
+    const rhi::Color quarter = gradient::ramp(colors.data(), offsets.data(), 2, 0.25f);
+    expect(near(quarter.a, 0.25f) && near(quarter.g, 1.0f),
+           "the colour stays full at every alpha along the ramp");
+    // Two fully transparent stops have no colour to keep: the straight mix, alpha 0.
+    const std::array<float, 8> clear{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+    const rhi::Color gone = gradient::ramp(clear.data(), offsets.data(), 2, 0.5f);
+    expect(gone.a == 0.0f && near(gone.r, 0.5f) && near(gone.g, 0.5f),
+           "a ramp between two transparent stops stays transparent");
+    // The banded sampler agrees, so the fallback paints the same ramp.
+    const std::array<LinearGradientStop, 2> stops{
+        {{0.0f, rhi::Color{1.0f, 0.0f, 0.0f, 0.0f}}, {1.0f, rhi::Color{1.0f, 1.0f, 0.0f, 1.0f}}}};
+    const rhi::Color banded = tessera::ui::paint::sample_gradient_stops(stops.data(), 2, 0.5f);
+    expect(near(banded.g, 1.0f) && near(banded.a, 0.5f), "the banded sampler is premultiplied too");
 }
 
 gradient::Packed pack_of(const gradient::Fill& fill) {
@@ -277,6 +301,7 @@ void layout_matches_the_documented_bytes() {
 
 int main() {
     ramp_matches_the_banded_sampler();
+    translucent_ramp_is_premultiplied();
     linear_position();
     radial_position();
     conic_position();
