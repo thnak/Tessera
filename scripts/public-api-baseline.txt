@@ -1270,9 +1270,11 @@ enum include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::Batc
 header include/tessera/rendering/gpu/batched2d_config.hpp
 struct include/tessera/rendering/gpu/batched2d_config.hpp tessera::rendering::gpu::Batched2DConfig
 
+header include/tessera/rendering/gpu/batched2d_cull_stats.hpp
+struct include/tessera/rendering/gpu/batched2d_cull_stats.hpp tessera::rendering::gpu::CullStats
+
 header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
-struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::CullStats
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::ShadowCarveBox
 
 header include/tessera/rendering/gpu/clip.hpp
