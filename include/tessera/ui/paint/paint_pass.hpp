@@ -81,6 +81,9 @@ struct PaintStats {
     // Both are zero for an unculled paint.
     std::size_t culled_nodes = 0;
     std::size_t culled_subtrees = 0;
+    // Mask layers (issue #617) whose repeat needed more than 256 tiles, so only the first 256 were
+    // drawn. Zero for a mask that fits; a non-zero count means a mask-size that is too small.
+    std::size_t mask_layers_truncated = 0;
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation

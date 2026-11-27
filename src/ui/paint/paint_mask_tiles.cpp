@@ -19,7 +19,7 @@ struct Span {
 struct Axis {
     std::array<Span, kMaxMaskTiles + 1> spans{};
     std::size_t count = 0;
-    bool too_many = false;
+    bool too_many = false; // more spans than the array holds; the first ones are kept
 };
 
 float resolve_length(const MaskLength& length, float area) {
@@ -89,27 +89,25 @@ MaskTiling compute_mask_tiles(const rhi::Rect& box, const style::MaskSize& size,
     }
     const Axis xs = axis_spans(box.width, tile_w, position.x.fraction, position.x.px, repeat.x);
     const Axis ys = axis_spans(box.height, tile_h, position.y.fraction, position.y.px, repeat.y);
-    if (xs.too_many || ys.too_many || xs.count * ys.count > kMaxMaskTiles) {
-        out.too_many = true;
-        return out;
-    }
-    constexpr float kEpsilon = 0.001f;
-    for (std::size_t row = 0; row < ys.count; ++row) {
-        for (std::size_t column = 0; column < xs.count; ++column) {
+    out.truncated = xs.too_many || ys.too_many || xs.count * ys.count > kMaxMaskTiles;
+    for (std::size_t row = 0; row < ys.count && out.count < kMaxMaskTiles; ++row) {
+        for (std::size_t column = 0; column < xs.count && out.count < kMaxMaskTiles; ++column) {
             const Span& x = xs.spans[column];
             const Span& y = ys.spans[row];
             out.tiles[out.count++] = rhi::Rect{box.x + x.start, box.y + y.start, x.size, y.size};
-            out.overflows_box = out.overflows_box || x.start < -kEpsilon || y.start < -kEpsilon ||
-                                x.start + x.size > box.width + kEpsilon ||
-                                y.start + y.size > box.height + kEpsilon;
         }
     }
-    out.whole_box = out.count == 1 && !out.overflows_box &&
-                    std::abs(out.tiles[0].x - box.x) < kEpsilon &&
-                    std::abs(out.tiles[0].y - box.y) < kEpsilon &&
-                    std::abs(out.tiles[0].width - box.width) < kEpsilon &&
-                    std::abs(out.tiles[0].height - box.height) < kEpsilon;
     return out;
+}
+
+bool tiles_within(const MaskTiling& tiling, const rhi::Rect& area) {
+    constexpr float kEpsilon = 0.001f;
+    return std::all_of(tiling.tiles.begin(), tiling.tiles.begin() + tiling.count,
+                       [&](const rhi::Rect& tile) {
+                           return tile.x >= area.x - kEpsilon && tile.y >= area.y - kEpsilon &&
+                                  tile.x + tile.width <= area.x + area.width + kEpsilon &&
+                                  tile.y + tile.height <= area.y + area.height + kEpsilon;
+                       });
 }
 
 } // namespace tessera::ui::paint::detail

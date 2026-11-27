@@ -218,7 +218,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     // The mask geometry lists (mask_layers.hpp). An invalid list drops the declaration, so the
     // computed value keeps the initial one and the diagnostic names the form.
     if (property == "mask-size" || property == "mask-position" || property == "mask-repeat" ||
-        property == "mask-mode") {
+        property == "mask-mode" || property == "mask-origin" || property == "mask-clip") {
         const std::string_view text = trim(value);
         if (detail::has_substitution_function(text)) {
             return true;
@@ -226,14 +226,18 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
         const bool ok = property == "mask-size"       ? parse_mask_size_list(text).has_value()
                         : property == "mask-position" ? parse_mask_position_list(text).has_value()
                         : property == "mask-repeat"   ? parse_mask_repeat_list(text).has_value()
-                                                      : parse_mask_mode_list(text).has_value();
+                        : property == "mask-mode"     ? parse_mask_mode_list(text).has_value()
+                        : property == "mask-origin"   ? parse_mask_origin_list(text).has_value()
+                                                      : parse_mask_clip_list(text).has_value();
         if (!ok) {
             out.push_back(StyleDiagnostic{
                 StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
                 "mask-size takes auto, cover, contain or 1 to 2 px/% values; mask-position takes "
                 "1 to 4 keyword/px/% values; mask-repeat takes repeat-x, repeat-y or 1 to 2 of "
                 "repeat, space, round, no-repeat; mask-mode takes alpha, luminance or "
-                "match-source (per layer, comma-separated, at most 8)"});
+                "match-source; mask-origin takes border-box, padding-box or content-box and "
+                "mask-clip those "
+                "or no-clip (per layer, comma-separated, at most 8)"});
         }
         return ok;
     }

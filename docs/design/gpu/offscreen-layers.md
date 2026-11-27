@@ -263,24 +263,31 @@ slice behavior + tests + docs, nothing user-visible until the last:
    anti-aliasing on and off, within 6 of the ideal ramp), `cpu_wide_golden`; reintroducing the
    overlap fails all three. (Superseded: gradients are now one per-fragment quad, [gradients.md](gradients.md); the overlap, bands and cell errors above no longer occur on the shader path, which measures 0-1/255 against Chromium.) Still open: the lavapipe golden.
 5c. **Mask geometry and the `mask` shorthand (landed, issue #617).** `mask-size`, `mask-position`,
-   `mask-repeat` and `mask-mode` (`include/tessera/ui/style/mask_layers.hpp`) are per-layer lists that
+   `mask-repeat`, `mask-mode`, `mask-origin` and `mask-clip` (`include/tessera/ui/style/mask_layers.hpp`) are per-layer lists that
    repeat cyclically over `mask-image`. `paint_mask_image` reads them and, per layer, asks
    `compute_mask_tiles` (`src/ui/paint/paint_mask_tiles.cpp`, pure arithmetic) for the tile rects: size
-   resolves against the border box (a gradient has no intrinsic size, so `auto`/`cover`/`contain` are
-   the box), position is `(area - tile) * fraction + px`, `repeat` backs up to the first tile reaching
+   resolves against the positioning area (`mask-origin`: the border, padding or content box; a gradient has no
+   intrinsic size, so `auto`/`cover`/`contain` are that box), position is `(area - tile) * fraction + px`, `repeat` backs up to the first tile reaching
    the box, `space` spreads whole tiles with an even gap, `round` rescales to a whole count. Each tile
-   is one ordinary gradient draw resolved against the tile; if any tile reaches outside the box the
-   layer's draws sit in a `push_clip`/`pop_clip` of the box, so the mask still covers the border box
-   only. A layer whose geometry is the initial one takes the old single-draw path unchanged. More than
-   256 tiles (each tile is up to 1024 quads) or a zero-size tile paints nothing for that layer.
+   is one ordinary gradient draw resolved against the tile; if any tile reaches outside the painting
+   area (`mask-clip`: border, padding or content box, default border) the layer's draws sit in a
+   `push_clip`/`pop_clip` of that box, and `no-clip` pushes none. The padding box is the border box inside
+   the borders and the content box is the padding box inside the padding (unsnapped, unrounded);
+   `fill-box` is the content box and `stroke-box`/`view-box` the border box, as for an element with a CSS
+   layout box; `margin-box` is refused (no margins in the paint pass). An empty origin or clip box paints
+   nothing for that layer. A repeat that needs more than 256 tiles (each is up to 1024 quads) draws the
+   first 256 in row-major order and counts the layer in `PaintStats::mask_layers_truncated`, so the mask
+   degrades instead of vanishing; a zero-size tile paints nothing.
    `mask-mode: luminance` rewrites every resolved stop's alpha to luminance (sRGB 0.2126/0.7152/0.0722)
    times alpha, so it needs no shader: exact for opaque stops, and for translucent ones the encoded-space
    ramp interpolates luminance-times-alpha rather than luminance of the interpolated colour (a small
    difference, documented not measured). `match-source` is `alpha` for gradients. Not implemented:
-   `mask-origin`, `mask-clip`, `mask-composite` (the `mask` shorthand rejects them whole), em/rem/calc
-   lengths. The `mask` shorthand (`property_mask.cpp`) expands each layer into the five longhands.
+   `mask-composite` (the `mask` shorthand rejects it whole), em/rem/calc lengths. The `mask` shorthand
+   (`property_mask.cpp`) expands each layer into the seven longhands; one box sets origin and clip, two
+   are origin then clip, and `no-clip` is the clip.
    Tests: `mask_layers` (parsers, lists, registry grammar, shorthand) and `paint_mask_geometry` (tile
-   placement, repeat/space/round, clip, layer cycling, cap, luminance; mutation-checked).
+   placement, repeat/space/round, clip, layer cycling, the tile cap, luminance, and the origin/clip boxes
+   on a bordered, padded node; mutation-checked).
 5d. **`filter: blur()` / `drop-shadow()` (landed, issue #617 slice 4).** The chain rides in the layer's
    own push: `LayerDraw::filter` (`rendering::gpu::LayerFilterChain`, at most three
    `LayerFilterOp`s of 20 bytes each - the shadow colour is packed 8 bits per channel so `PaintOp` stays

@@ -302,6 +302,35 @@ std::optional<MaskMode> parse_mask_mode(std::string_view text) {
     return std::nullopt;
 }
 
+namespace {
+
+std::optional<MaskBox> parse_box(std::string_view text, bool allow_no_clip) {
+    const std::string keyword = lower(trim(text));
+    if (keyword == "border-box" || keyword == "stroke-box" || keyword == "view-box") {
+        return MaskBox::Border;
+    }
+    if (keyword == "padding-box") {
+        return MaskBox::Padding;
+    }
+    if (keyword == "content-box" || keyword == "fill-box") {
+        return MaskBox::Content;
+    }
+    if (allow_no_clip && keyword == "no-clip") {
+        return MaskBox::NoClip;
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+std::optional<MaskBox> parse_mask_origin(std::string_view text) {
+    return parse_box(text, false);
+}
+
+std::optional<MaskBox> parse_mask_clip(std::string_view text) {
+    return parse_box(text, true);
+}
+
 std::optional<MaskValueList<MaskSize>> parse_mask_size_list(std::string_view text) {
     return parse_list<MaskSize>(text,
                                 [](std::string_view entry) { return parse_mask_size(entry); });
@@ -320,6 +349,15 @@ std::optional<MaskValueList<MaskRepeat>> parse_mask_repeat_list(std::string_view
 std::optional<MaskValueList<MaskMode>> parse_mask_mode_list(std::string_view text) {
     return parse_list<MaskMode>(text,
                                 [](std::string_view entry) { return parse_mask_mode(entry); });
+}
+
+std::optional<MaskValueList<MaskBox>> parse_mask_origin_list(std::string_view text) {
+    return parse_list<MaskBox>(text,
+                               [](std::string_view entry) { return parse_mask_origin(entry); });
+}
+
+std::optional<MaskValueList<MaskBox>> parse_mask_clip_list(std::string_view text) {
+    return parse_list<MaskBox>(text, [](std::string_view entry) { return parse_mask_clip(entry); });
 }
 
 } // namespace tessera::ui::style

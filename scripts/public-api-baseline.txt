@@ -3233,10 +3233,15 @@ struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskPosition
 struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeat
 struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskSize
 struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskValueList
+enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskBox
 enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskMode
 enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeatKind
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_clip
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_clip_list
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode_list
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_origin
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_origin_list
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_position
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_position_list
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_repeat

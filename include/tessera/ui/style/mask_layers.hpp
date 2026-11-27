@@ -10,9 +10,9 @@
 #include <string_view>
 
 // The per-layer geometry of a `mask-image` layer list (issue #617): `mask-size`, `mask-position`,
-// `mask-repeat` and `mask-mode`. Each is a comma-separated list that lines up with the layers of
-// `mask-image`; a list shorter than the layer list repeats cyclically (CSS Masking 1 section 6.1),
-// and an absent list means the initial value on every layer.
+// `mask-repeat`, `mask-mode`, `mask-origin` and `mask-clip`. Each is a comma-separated list that
+// lines up with the layers of `mask-image`; a list shorter than the layer list repeats cyclically
+// (CSS Masking 1 section 6.1), and an absent list means the initial value on every layer.
 //
 // V1 takes lengths in px and percentages only (no em/rem/calc), because the paint pass has no
 // font-size at the mask. Gradients have no intrinsic size, so `auto`, `cover` and `contain` all
@@ -26,6 +26,12 @@ enum class MaskMode : unsigned char {
     // The mask value is the luminance of the image times its alpha (sRGB coefficients).
     Luminance,
 };
+
+// A box of the node: the positioning area (`mask-origin`) or the painting area (`mask-clip`).
+// `NoClip` is only a `mask-clip` value: the layer is not cut to any box. `fill-box` is the content
+// box and `stroke-box` and `view-box` are the border box for an element with a CSS layout box (CSS
+// Masking 1 section 6.2); `margin-box` is refused because the paint pass has no margins.
+enum class MaskBox : unsigned char { Border, Padding, Content, NoClip };
 
 enum class MaskRepeatKind : unsigned char { Repeat, Space, Round, NoRepeat };
 
@@ -76,10 +82,15 @@ template<typename T> struct MaskValueList {
 //             including the `right 10px bottom 20px` edge-offset form
 //   repeat:   repeat-x | repeat-y | [repeat | space | round | no-repeat]{1,2}
 //   mode:     alpha | luminance | match-source
+//   origin:   border-box | padding-box | content-box (and fill-box, stroke-box, view-box)
+//   clip:     the origin values or no-clip
 [[nodiscard]] std::optional<MaskSize> parse_mask_size(std::string_view text);
 [[nodiscard]] std::optional<MaskPosition> parse_mask_position(std::string_view text);
 [[nodiscard]] std::optional<MaskRepeat> parse_mask_repeat(std::string_view text);
 [[nodiscard]] std::optional<MaskMode> parse_mask_mode(std::string_view text);
+
+[[nodiscard]] std::optional<MaskBox> parse_mask_origin(std::string_view text);
+[[nodiscard]] std::optional<MaskBox> parse_mask_clip(std::string_view text);
 
 // The comma-separated lists. nullopt when any entry is outside the grammar, the list is empty, or
 // it has more than `kMaxBackgroundLayers` entries.
@@ -89,5 +100,7 @@ parse_mask_position_list(std::string_view text);
 [[nodiscard]] std::optional<MaskValueList<MaskRepeat>>
 parse_mask_repeat_list(std::string_view text);
 [[nodiscard]] std::optional<MaskValueList<MaskMode>> parse_mask_mode_list(std::string_view text);
+[[nodiscard]] std::optional<MaskValueList<MaskBox>> parse_mask_origin_list(std::string_view text);
+[[nodiscard]] std::optional<MaskValueList<MaskBox>> parse_mask_clip_list(std::string_view text);
 
 } // namespace tessera::ui::style
