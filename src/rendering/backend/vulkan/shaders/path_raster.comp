@@ -60,7 +60,7 @@ struct Job {
     uint stroke_count;
     uint arc_edges;    // J: arc edges per join wedge or cap (a full circle is 2 * J)
     uint out_stride;   // words between output rows: width, or the copy pitch / 4 for a texture handoff
-    uint spare;
+    uint dev_base;     // first word of the device-space segment records inside work (4 floats each)
 };
 
 // The raster this invocation works on, and where its slices of the shared buffers start (in words).
@@ -396,11 +396,19 @@ void main() {
     }
     uint path = seg_word(i, 4u);
     Xf m = path_xf(path);
-    float y0 = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 0u)), uintBitsToFloat(seg_word(i, 1u)))).y;
-    float y1 = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 2u)), uintBitsToFloat(seg_word(i, 3u)))).y;
+    vec2 da = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 0u)), uintBitsToFloat(seg_word(i, 1u))));
+    vec2 db = xf_apply(m, vec2(uintBitsToFloat(seg_word(i, 2u)), uintBitsToFloat(seg_word(i, 3u))));
+    float y0 = da.y;
+    float y1 = db.y;
     if (y0 == y1) {
         return;
     }
+    // The fine pass reads the transformed endpoints instead of transforming them again per pixel.
+    uint dev = WB + pc.dev_base + i * 4u;
+    work[dev] = floatBitsToUint(da.x);
+    work[dev + 1u] = floatBitsToUint(da.y);
+    work[dev + 2u] = floatBitsToUint(db.x);
+    work[dev + 3u] = floatBitsToUint(db.y);
     float ymin = min(y0, y1);
     float ymax = max(y0, y1);
     int row0 = max(int(floor(ymin)), 0);
@@ -525,14 +533,12 @@ void main() {
                 if (node == kNil) {
                     continue;
                 }
-                Xf m = path_xf(p);
                 float w = 0.0;
                 while (node != kNil) {
                     uint s = work[WB + pc.nodes_base + node * 2u];
-                    vec2 a = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 0u)),
-                                              uintBitsToFloat(seg_word(s, 1u))));
-                    vec2 b = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 2u)),
-                                              uintBitsToFloat(seg_word(s, 3u))));
+                    uint dev = WB + pc.dev_base + s * 4u;
+                    vec2 a = vec2(uintBitsToFloat(work[dev]), uintBitsToFloat(work[dev + 1u]));
+                    vec2 b = vec2(uintBitsToFloat(work[dev + 2u]), uintBitsToFloat(work[dev + 3u]));
                     w += segment_area(a, b, px, py);
                     node = work[WB + pc.nodes_base + node * 2u + 1u];
                 }

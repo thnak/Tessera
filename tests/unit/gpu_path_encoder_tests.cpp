@@ -215,9 +215,11 @@ void test_plan() {
                    push.path_count == 2,
                "the push block mirrors the encoding");
         expect(push.exp_base == push.nodes_base + push.node_capacity * 2 &&
-                   tight->work_words ==
-                       push.exp_base + std::size_t{encoded.stroke_edges} * path::kGpuSegWords,
-               "the work buffer holds counter, heads, nodes and expanded stroke edges");
+                   push.dev_base ==
+                       push.exp_base + std::size_t{encoded.stroke_edges} * path::kGpuSegWords &&
+                   tight->work_words == push.dev_base + std::size_t{encoded.seg_count} * 4,
+               "the work buffer holds counter, heads, nodes, expanded stroke edges and the "
+               "device-space segment records");
     }
     const auto scaled = path::plan_path_raster(encoded, 100, 40, 0, 3.0f);
     expect(scaled && tight && scaled->push.node_capacity > tight->push.node_capacity,

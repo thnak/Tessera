@@ -282,8 +282,10 @@ std::optional<PathRasterLayout> plan_path_raster(const EncodedGpuScene& encoded,
     // Word 0 is the node counter, then one list head per (path, row), then two words per node.
     const std::uint64_t nodes_base = 1 + static_cast<std::uint64_t>(encoded.path_count) * height;
     const std::uint64_t exp_base = nodes_base + node_capacity * 2;
-    const std::uint64_t work_words =
+    // After the expanded stroke edges: the device-space endpoints of every segment id.
+    const std::uint64_t dev_base =
         exp_base + static_cast<std::uint64_t>(encoded.stroke_edges) * kGpuSegWords;
+    const std::uint64_t work_words = dev_base + static_cast<std::uint64_t>(encoded.seg_count) * 4;
     const std::uint64_t output_words = static_cast<std::uint64_t>(stride) * height;
     if (node_capacity > kIndexLimit || work_words > kIndexLimit || output_words > kIndexLimit) {
         return std::nullopt;
@@ -300,7 +302,7 @@ std::optional<PathRasterLayout> plan_path_raster(const EncodedGpuScene& encoded,
                    encoded.stroke_count,
                    encoded.arc_edges,
                    stride,
-                   0};
+                   static_cast<std::uint32_t>(dev_base)};
     layout.work_words = static_cast<std::size_t>(work_words);
     layout.output_words = static_cast<std::size_t>(output_words);
     return layout;

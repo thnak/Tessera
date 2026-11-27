@@ -82,7 +82,9 @@ struct PathRasterPush {
     std::uint32_t stroke_count = 0;
     std::uint32_t arc_edges = 0;
     std::uint32_t out_stride = 0; // words between output rows (the copy's pitch / 4)
-    std::uint32_t spare = 0;
+    // First word of the device-space segment records inside work (4 floats per segment id: the
+    // endpoints after the path transform, written by the bin pass and read by the fine pass).
+    std::uint32_t dev_base = 0;
 };
 static_assert(sizeof(PathRasterPush) == 48);
 
