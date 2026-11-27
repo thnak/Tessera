@@ -65,6 +65,9 @@ import {
   type CanvasStyleReport,
 } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
+import { createCanvasResize } from "./canvas-resize-layer";
+import { cssZoomOf } from "./canvas-zoom";
+import { createCanvasFold, type CanvasFold } from "./canvas-fold-layer";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 import type { CommitBridge } from "../lib/override-client";
 import { createCanvasOverrides } from "./canvas-overrides";
@@ -119,6 +122,17 @@ export interface CanvasSessionOptions {
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
   /**
+   * Applies a viewport a drag-resize reached (issue #690 slice b), or absent when the page has no
+   * toolbar to tell.
+   *
+   * The session could apply the size itself through `_tessera_canvas_set_viewport`, but then the
+   * toolbar would be stale: an orientation swap or a profile picker afterwards would snap back to a
+   * size nobody chose, and the device chip would name a device the canvas is not showing. Going
+   * through the page's own control handler keeps one owner of "what size is the preview", and the
+   * session hears about it again through `onEnvironmentChange` like any other toolbar move.
+   */
+  onResize?: (width: number, height: number) => void;
+  /**
    * The page's half of the style commit round trip (issue #585): the file buffers, the editor and the
    * live-edit trigger. Without it a commit cannot be applied, and the inspector's commit says so.
    */
@@ -141,6 +155,12 @@ export interface CanvasSession extends ViewSession {
    * rules and box. It consumes the click it inspects, which is why it is not on by default.
    */
   readonly inspector: CanvasInspector;
+  /**
+   * The fold-hinge and safe-area overlay (issue #433). Off by default; the pane's toggle arms it, and
+   * while armed it shades the hinge band and the insets the running tree was laid out inside. It
+   * reads `_tessera_canvas_overlay` -- a query, so arming it costs no frame.
+   */
+  readonly fold: CanvasFold;
   /**
    * The computed style of one node, as `tessera_canvas_style` reports it, or `null` when no device
    * exists yet (issue #849).
@@ -239,6 +259,19 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     requestFrame: () => requestFrame(),
     setStatus: options.setStatus,
   });
+  // The fold-hinge and safe-area overlay (issue #433). Page-only chrome over the canvas, off by
+  // default; `canvas-fold-layer.ts` owns the DOM and `canvas-fold.ts` the scaling. It asks the module
+  // for the `WindowMetrics` the running tree was laid out against, so the band it shades is the one
+  // the layout used rather than a second mapping that could disagree with it.
+  const fold = createCanvasFold({
+    overlay: options.elements.foldOverlay ?? document.createElement("div"),
+    toggle: options.elements.foldToggle,
+    canvas,
+    viewport: () => requestedViewport(options.environment),
+    module: () => (gpu !== null ? gpu.module : null),
+    setStatus: options.setStatus,
+  });
+
   canvas.addEventListener(
     "pointerdown",
     (event) => {
@@ -252,8 +285,38 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     { capture: true },
   );
 
+  // The drag handles on the canvas (issue #690 slice b). A drag is a burst, so the layer records the
+  // latest pointer position and this session applies one step per animation frame through the page's
+  // control handler (`onResize`), plus one settled step on pointer-up. The arithmetic and the limits
+  // are `canvas-resize.ts` and `canvas-viewport.ts`, so a drag cannot reach a size a toolbar move could
+  // not - and the readout is computed from the same clamp the engine call uses.
+  const resizeLayer = createCanvasResize({
+    readout: document.getElementById("canvas-resize-readout"),
+    // A pointer travels in CSS pixels of the canvas' layout box; the viewport is in the same units
+    // at zoom 1, and the pane's zoom scales those CSS pixels. `cssZoomOf` is the ratio the picker
+    // and the pointer path already use, so a drag at 68% moves the right distance.
+    // The pane's zoom: the scale its CSS transform puts on the stage. It is read from the stage
+    // rather than the canvas, because a transform scales an element's rect and its layout box alike,
+    // so the canvas' own ratio is always 1. `useCanvasZoom` is the one owner of the transform; the
+    // stage, when there is none, means 1.
+    scale: () => {
+      const stage = canvas.closest<HTMLElement>(".canvas-zoom-stage");
+      if (stage === null) {
+        return 1;
+      }
+      const zoom = cssZoomOf(stage.getBoundingClientRect().width, stage.offsetWidth);
+      return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    },
+    current: () => requestedViewport(options.environment),
+    apply: (width, height) => {
+      options.onResize?.(width, height);
+    },
+    setStatus: options.setStatus,
+  });
+
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
-  function resize(): { dpr: number; width: number; height: number } {
+  // `clamped` (issue #690) says a limit reduced the request, so the caller can name the device it got.
+  function resize(): { dpr: number; width: number; height: number; clamped: boolean } {
     const sized = sizeToDevicePixels(canvas, requestedViewport(options.environment));
     lastDpr = sized.dpr;
     return sized;
@@ -328,8 +391,20 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (factory === null || gpu === null || !visible) {
       return;
     }
-    const { dpr } = resize();
+    const sized = resize();
+    // The DPR the backing store was actually sized for, not the one asked for: the limits may have
+    // reduced it (issue #690), and the layout side must be handed the same scale the paint side is.
+    const dpr = sized.dpr;
     options.elements.statDpr.textContent = String(dpr);
+    if (sized.clamped) {
+      // A clamp is named, never silent: the developer asked for a size that is not legal, and the pane
+      // says which device it got instead of showing their number over a different one.
+      pane.setStatus(
+        `viewport clamped to ${Math.round(sized.width / dpr)}x${Math.round(sized.height / dpr)} ` +
+          `at DPR ${dpr}`,
+        "warning",
+      );
+    }
     // The layout viewport is the LOGICAL rectangle, and `width`/`height` above are the device-pixel
     // backing store. Passing the backing store as the viewport would lay the tree out at
     // `logical * dpr` and then scale it into the canvas - a 390x844 phone at DPR 2 would lay out at
@@ -337,6 +412,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     const viewport = requestedViewport(options.environment);
     const foldPosture = options.foldPosture();
     const target = source();
+    // The paint extent is the backing store the page just sized, NOT the logical rectangle: the
+    // canvas texture the page presents is that size, and asking for another would draw into a
+    // mismatched target (issue #690 - the two used to differ only by a DPR rounding and were
+    // therefore interchangeable; a clamped DPR makes them differ, so the honest value is passed).
+    const extent = { width: sized.width, height: sized.height };
     let applied: CanvasApplyReport;
     try {
       // The project is staged first (the module evaluates what is staged, from its entry), then applied
@@ -366,6 +446,10 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       options.onReady(true);
       return;
     }
+    // The applied posture is the one the overlay must shade: re-ask after every successful apply
+    // (it does nothing while the overlay is disarmed), so arming it after a posture change is not
+    // the only way it catches up (issue #433).
+    fold.refresh();
     // The state row follows every successful apply, `changed` or not: a cell that was carried is the
     // point of the edit, and it is the one fact a developer wants to see *while* the picture is still
     // the previous one (a reused apply reports it too).
@@ -412,8 +496,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // `(...pointers, ...numbers)`.
       report = JSON.parse(
         callExport(gpu.module, "_tessera_canvas_draw", [], [
-          viewport.width,
-          viewport.height,
+          extent.width,
+          extent.height,
           viewPtr,
         ]),
       ) as CanvasFrameReport;
@@ -677,6 +761,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     pane,
     picker,
     inspector,
+    fold,
     /** First open of the view: decide the unsupported state and import the module (no device yet). */
     load: async () => {
       visible = true;
@@ -719,6 +804,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         picker.hide();
         // The inspector's panel belongs to the same canvas.
         inspector.hide();
+        // The fold overlay covers the canvas too (issue #433).
+        fold.hide();
       }
       if (shown && gpu !== null) {
         requestFrame();
@@ -730,8 +817,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
      */
     dispose: () => {
       visible = false;
+      // The grips detach first: a drag in flight must not call `apply` on a disposed session.
+      resizeLayer.dispose();
       picker.hide();
       inspector.hide();
+      fold.hide();
       if (gpu !== null) {
         try {
           gpu.device.destroy();
@@ -770,6 +860,15 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
           pane.setStatus("viewport not applied: " + report.error, "warning");
           return;
         }
+        if (report.clamped === true) {
+          // The engine reduced the request to fit its limits (issue #690). Name the device it applied,
+          // from the report's own numbers, rather than showing the toolbar's.
+          pane.setStatus(
+            `viewport clamped to ${Math.round(report.width)}x${Math.round(report.height)} ` +
+              `at DPR ${report.dpr}`,
+            "warning",
+          );
+        }
       } catch (error) {
         pane.showFailed(String(error));
         return;
@@ -785,6 +884,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       picker.refresh();
       // The inspector's panel is re-asked for the same reason: its box is in logical pixels.
       inspector.refresh();
+      // The overlay is NOT refreshed here: `onEnvironmentChange` runs before the frame that applies
+      // the new size and posture, so asking the engine now would report the geometry of the device
+      // the canvas is about to leave. The apply that follows refreshes it instead (issue #433).
       requestFrame();
     },
     /**

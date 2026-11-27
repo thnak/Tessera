@@ -143,6 +143,17 @@ constexpr PropertyDef kProperties[] = {
     // Pasted-web-CSS alias of `backdrop-filter` (glass-v1 section 2); one winner per node.
     {"backdrop-filter", "none", false},
     {"-webkit-backdrop-filter", "none", false},
+    // The `-webkit-mask*` longhands (issue #617), aliases of their canonical names for the same
+    // reason: one computed value per node, so the two spellings cannot fight in the cascade. The
+    // `mask` shorthand is a shorthand, not a longhand, so it is not in this table.
+    {"-webkit-mask-image", "none", false},
+    {"-webkit-mask-size", "auto", false},
+    {"-webkit-mask-position", "0% 0%", false},
+    {"-webkit-mask-repeat", "repeat", false},
+    {"-webkit-mask-mode", "match-source", false},
+    {"-webkit-mask-origin", "border-box", false},
+    {"-webkit-mask-clip", "border-box", false},
+    {"-webkit-mask-composite", "add", false},
 };
 
 } // namespace tessera::ui::style

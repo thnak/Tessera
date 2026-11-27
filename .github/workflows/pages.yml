@@ -50,6 +50,9 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_resize.mjs'
+      - 'scripts/ci/preview_viewport_limits.mjs'
+      - 'scripts/ci/preview_fold_overlay.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -73,6 +76,8 @@ on:
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/preview_browser_canvas_size.mjs'
+      - 'scripts/ci/preview_browser_fold_overlay.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -91,6 +96,9 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_resize.mjs'
+      - 'scripts/ci/preview_viewport_limits.mjs'
+      - 'scripts/ci/preview_fold_overlay.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -114,6 +122,8 @@ on:
       - 'scripts/ci/scene_frame_parity.py'
       - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
+      - 'scripts/ci/preview_browser_canvas_size.mjs'
+      - 'scripts/ci/preview_browser_fold_overlay.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -330,6 +340,15 @@ jobs:
       - name: Canvas zoom (fit, steps, anchored wheel zoom; never an input to the app)
         run: node scripts/ci/preview_canvas_zoom.mjs
 
+      - name: Canvas drag-resize arithmetic (handles, the zoom, the per-frame step rule)
+        run: node scripts/ci/preview_canvas_resize.mjs
+
+      - name: Canvas viewport limits (the clamp that keeps a size from losing the device)
+        run: node scripts/ci/preview_viewport_limits.mjs
+
+      - name: Fold overlay geometry (the hinge band and the insets, scaled from the engine's report)
+        run: node scripts/ci/preview_fold_overlay.mjs
+
       # The built half: `dist/index.html` is CSP-clean and its asset references resolve, the rendered
       # chrome carries every id the page's code looks up, the redirect stubs preserve the query and the
       # `#p5=` fragment, every manifest path exists, the two codec modules are still pure ES modules, the
@@ -528,6 +547,20 @@ jobs:
       - name: Canvas device handover (headless Chromium + SwiftShader)
         run: >-
           node scripts/ci/preview_browser_canvas_handover.mjs build/pages
+
+      # The canvas backing store and its CSS box follow the viewport through the Device menu, at DPR 1
+      # and 2 (issue #598). No device is needed for the property itself: it is `canvas.width`, which the
+      # session writes, against the frame counter the pane shows.
+      - name: Canvas size follows the viewport (headless Chromium)
+        run: >-
+          node scripts/ci/preview_browser_canvas_size.mjs build/pages
+
+      # The fold-hinge and safe-area overlay (issue #433). A browser is needed because the overlay is
+      # wired from the same refs the resize grips are: the session is created before React commits the
+      # element, so a listener or a lookup that runs too early leaves it silently empty.
+      - name: Fold overlay over the preview (headless Chromium)
+        run: >-
+          node scripts/ci/preview_browser_fold_overlay.mjs build/pages
 
       # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
       # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why

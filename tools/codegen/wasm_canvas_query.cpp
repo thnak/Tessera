@@ -14,6 +14,7 @@
 // The report serializers are still in `canvas_report.cpp`, so a host lane type-checks them without
 // Emscripten; this unit is only the C spelling of the three calls.
 
+#include "canvas_overlay_report.hpp"
 #include "canvas_report.hpp"
 #include "scene_canvas_session.hpp"
 #include "wasm_canvas_request.hpp"
@@ -133,6 +134,33 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_patch(const char* automation_id,
         result.detail = "no evaluation is running";
     }
     return canvas_duplicate_out(canvas_patch_report_json(result));
+}
+
+// The debug overlay's geometry (issue #433): the hinge band and the safe-area, IME, gesture and
+// cutout rectangles the running tree was LAID OUT against, as one document.
+//
+// **Why the engine answers it.** The page knows the posture it asked for but not the `FoldInfo`
+// that posture resolved to, and it never sees the metrics at all. A band drawn from the page's own
+// arithmetic would be a second mapping - one that can disagree with the layout it exists to
+// explain, which is the one thing an overlay must never do. This reads
+// `CanvasSceneSession::metrics()`, the snapshot the live tree was laid out with, so the overlay and
+// the boxes are the same numbers.
+//
+// **It is a query**, like `pick` and `style`: nothing is dispatched, nothing is marked dirty and no
+// frame is owed, so arming the overlay costs no paint. A session that has not started answers the
+// zero metrics it was constructed with, which draws nothing.
+//
+// **Excluded from screenshots and never sent to the viewer** (designer-studio-v1.md section 6).
+// That is structural rather than a promise: `tessera_canvas_draw` paints the engine's tree and
+// nothing else, and this document is only ever handed to the page's own DOM overlay.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_overlay() {
+    using namespace tessera::compiler::codegen::cli;
+    CanvasSceneSession* session = canvas_query_session();
+    if (session == nullptr) {
+        const tessera::hal::WindowMetrics none;
+        return canvas_duplicate_out(canvas_overlay_report_json(none));
+    }
+    return canvas_duplicate_out(canvas_overlay_report_json(session->metrics()));
 }
 
 } // extern "C"

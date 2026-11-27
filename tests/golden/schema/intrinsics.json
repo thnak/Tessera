@@ -2698,6 +2698,46 @@
     },
     {
       "kind": "keyword",
+      "name": "-webkit-mask-image",
+      "note": "alias of mask-image"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-position",
+      "note": "alias of mask-position"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-size",
+      "note": "alias of mask-size"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-repeat",
+      "note": "alias of mask-repeat"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-mode",
+      "note": "alias of mask-mode"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-origin",
+      "note": "alias of mask-origin"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-clip",
+      "note": "alias of mask-clip"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-mask-composite",
+      "note": "alias of mask-composite"
+    },
+    {
+      "kind": "keyword",
       "name": "filter",
       "note": "none | blur() | drop-shadow() | brightness() | contrast() | grayscale() | sepia() | saturate() | hue-rotate() | invert() | opacity(), applied to an isolated layer"
     },

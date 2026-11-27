@@ -542,6 +542,9 @@ An error never ends the session and never leaves the viewer without a frame.
 - File text and messages are untrusted input: limits are enforced before parsing and a failure is
   an error message, never a crash.
 - No message carries executable code. The viewer executes IR only, never text from a message.
+- The canvas viewport is a resource request as much as a size: an extent, a DPR or an edit to a
+  device profile is held to one clamp before it can reach a texture (section 15.3, issue #690), so
+  no message can ask the preview for a backing store the device cannot create.
 
 ## 14. Open questions (no decision yet)
 
@@ -585,3 +588,13 @@ speaks `postMessage`, while the viewer still never reads project files
 - `viewport.set` locale/direction/text scale: applied to text measurement and layout, omitted fields
   keep their previous value, and an invalid tag or a non-positive `textScale` is rejected with
   `TESSERA_DESIGNER_MALFORMED`.
+
+### 15.3 Canvas viewport limits (issue #690)
+
+The canvas is sized from a typed size, a device profile's DPR or a raw `viewport.set`, so every path
+is held to one rule (`tools/codegen/canvas_viewport_request.cpp`, and `canvas-viewport.ts` on the
+page): extent 1..8192 logical px, DPR 0.01..4, and a 256 MiB ceiling on extent x DPR x 4 bytes. A
+value over a limit is **clamped and reported** (`clamped: true`, and the pane names the device it
+got); a zero, negative or non-finite value is **refused** with `TESSERA_DESIGNER_LIMIT` and leaves the
+running picture alone. The byte cap reduces the DPR, never the logical extent, so a clamp cannot move
+an `@media` breakpoint. Tests: `canvas_viewport_limit`, `preview_viewport_limits.mjs` (the same table).

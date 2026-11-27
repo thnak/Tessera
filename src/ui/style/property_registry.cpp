@@ -26,6 +26,39 @@ bool is_custom_property(std::string_view property) {
     return property.size() >= 2 && property[0] == '-' && property[1] == '-';
 }
 
+// The `-webkit-mask*` alias family (issue #617's last item). Real stylesheets reach for the
+// prefixed spelling, and `mask-image` and its seven longhands are implemented once; a second
+// registered name would be a second computed value and two spellings that can disagree. So the
+// family folds to its canonical name here, at the same seam as `-webkit-backdrop-filter`.
+//
+// **A closed list, not a prefix rule.** `-webkit-mask-compostite` (a typo) must keep its
+// UnsupportedProperty diagnostic rather than being rewritten into a property that happens to exist.
+//
+// **The shorthand is in the list for a reason.** `mask` has its own parser
+// (`expand_mask_shorthand`), so mapping `-webkit-mask` to `mask` *before* the registry dispatches
+// means the prefixed shorthand goes through the same parse and the same eight longhands; an alias
+// applied after the dispatch would have sent it down the single-value path and accepted an invalid
+// layer list as an image.
+[[nodiscard]] std::string_view canonical_alias(std::string_view property) noexcept {
+    constexpr std::pair<std::string_view, std::string_view> kAliases[] = {
+        {"-webkit-mask", "mask"},
+        {"-webkit-mask-image", "mask-image"},
+        {"-webkit-mask-position", "mask-position"},
+        {"-webkit-mask-size", "mask-size"},
+        {"-webkit-mask-repeat", "mask-repeat"},
+        {"-webkit-mask-mode", "mask-mode"},
+        {"-webkit-mask-origin", "mask-origin"},
+        {"-webkit-mask-clip", "mask-clip"},
+        {"-webkit-mask-composite", "mask-composite"},
+    };
+    for (const auto& [alias, canonical] : kAliases) {
+        if (property == alias) {
+            return canonical;
+        }
+    }
+    return property;
+}
+
 std::vector<std::string_view> split_components(std::string_view value) {
     std::vector<std::string_view> components;
     std::size_t start = std::string_view::npos;
@@ -181,9 +214,14 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
         return result;
     }
     // `-webkit-backdrop-filter` is an alias of `backdrop-filter` (glass-v1 section 2): one computed
-    // value, so an author cannot have the two spellings fight in the cascade.
+    // value, so an author cannot have the two spellings fight in the cascade. The `-webkit-mask*`
+    // family folds the same way (issue #617).
     if (property == "-webkit-backdrop-filter") {
         property = "backdrop-filter";
+    }
+    const std::string_view canonical = canonical_alias(property);
+    if (canonical != property) {
+        property = std::string(canonical);
     }
     if (property == "backdrop-filter") {
         // The whole declaration is ignored when any function is unsupported, never just the

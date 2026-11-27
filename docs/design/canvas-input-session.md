@@ -116,10 +116,11 @@ this module is given.
 | `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
 | `tessera_canvas_pick(x, y)` | what is under a point, for the picker overlay ([§5.1](#51-the-picker-query-issue-171)); coordinates are logical pixels; returns `{"pickVersion":1,"found":…,"automationId":"…","elementKind":"…","box":{"x":…,"y":…,"width":…,"height":…}}`. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_style(automationId)` | the style inspector's query ([§5.2](#52-the-style-inspector-query-issue-171)): the computed style, the matched rules with their provenance, and the box of one node. A query: it dispatches nothing and owes no frame |
+| `tessera_canvas_overlay()` | the debug overlay's geometry (issue #433): the hinge band and the safe-area, keyboard, gesture and cutout rectangles the RUNNING tree was laid out against, as `{"overlayVersion":1,"width":…,"height":…,"foldState":"…","foldOrientation":"…","foldOcclusion":"…","separating":…,"hingeAngle":…,"hinge":{…},"insets":{…},"ime":{…},"gestures":{…},"cutouts":[…]}`. Serialized from the session's own `WindowMetrics` (the snapshot the layout consumed), so a page that scaled it can never place a band the layout did not use. A query: it dispatches nothing and owes no frame, which is why arming the overlay presents nothing |
 | `tessera_canvas_key(kind, key, modifiers, repeat)` | keyboard (issue #388): `kind` is `"down" \| "up" \| "blur"`; `key` is a W3C `KeyboardEvent.key`; `modifiers` a Shift 1 / Control 2 / Alt 4 / Meta 8 mask. Returns the pointer report plus `focusedId`, `focusVisible`, `focusMoved`, `handled` (the page calls `preventDefault`) and `left` (Tab walked off the end of the tab order: focus is released and the browser carries on, so the canvas is never a keyboard trap). Enter activates on key-down, Space on key-up; the `:focus-visible` ring shows only after keyboard traversal |
-| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
+| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates. `width`/`height` are the **physical** extent the page sized the backing store to, and the paint pass composes the session's own DPI scale onto every position (issue #599, [§5.5](#55-the-device-scale-issue-599)) |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
-| `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"cascadeGeneration":…,"error":""}` (issue #436) |
+| `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"clamped":…,"cascadeGeneration":…,"error":""}` (issue #436). The request is held to the viewport limits (issue #690, [§5.4](#54-the-viewport-limits-issue-690)): an over-limit value is clamped and reported by `clamped`, a non-finite or non-positive one is refused with `error` and the picture stays |
 | `tessera_canvas_platform_event(type, value, timestampNs)` | one normalized hardware button or environment event of a device profile (issue #446, [protocol §5.1](../specs/designer-protocol-v1.md#51-platformevent)); returns the reply document (`handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, ...). The event goes through `hal::SyntheticEventInjector` and `PlatformEventDriver` (`scene_platform.cpp`), the code the native scripted run executes. A `relaunch` reply ends the evaluation, so the page's next `tessera_canvas_apply` is the cold start. `timestampNs` is a double (a 64-bit integer crosses the ABI as a BigInt); negative means "now" |
 | `tessera_canvas_reset()` | release the session |
 
@@ -311,6 +312,95 @@ settles the overrides, so the section reports `committed`, a `patch rejected (ve
 the overrides, or the spec's reason, instead of the earlier "produced — not applied (no host)" edit list.
 The override rows, the colour control, the refused-value diagnostic and Undo/Redo routing are described
 in [designer-protocol-v1.md section 9.6](../specs/designer-protocol-v1.md#96-page-behavior-issue-585).
+
+### 5.4 The viewport limits (issue #690)
+
+The canvas is sized from numbers a person types, a device profile provides, or a raw `viewport.set`
+carries. Before this, `canvas_viewport_request` refused only non-positive values, so a large size at a
+high DPR could ask for a backing store beyond what a render target can be - and the failure is not a
+clamped preview but a lost device or a failed surface creation, which is the case the issue calls out.
+
+One rule, in `tools/codegen/canvas_viewport_request.cpp`, applied on **both** sides of the ABI:
+
+| Limit | Value | Why |
+|---|---|---|
+| Extent | 1..8192 | Every WebGPU implementation reports a canvas maximum of at least 8192; the page's limit, deliberately not the device's own `maxTextureDimension2D` (the module has no device when it parses a viewport, and asking one would make legality hardware-dependent) |
+| DPR | 0.01..4 | A scale, not a count; `0.01` is the smallest a zoom can ask for and `4` the largest a real device on this tree reports |
+| Backing store | 256 MiB | extent x DPR, 4 bytes a pixel. Keeps a 4096x4096 rectangle at DPR 4 (1 GiB unclamped) inside one texture's worth of memory |
+
+Two behaviours, and they are different on purpose:
+
+- **Over a limit: clamped, and reported.** `clamped: true` in the report carries the size the engine
+  applied, and the pane names it ("viewport clamped to 8192x8192 at DPR 2"). A clamp never changes the
+  *logical* extent for the byte cap - it reduces the DPR - so a clamp cannot move what `@media` sees.
+- **Not a size at all: refused.** A zero, negative, NaN or infinite extent or DPR answers `error` and
+  leaves the picture that is already there, because "the largest legal size" is an answer to a
+  question the caller did not ask.
+
+The page holds the same rule in `designer/web/src/views/canvas-viewport.ts` (`clampViewport`,
+`requestedViewport`, `sizeToDevicePixels`), because it sizes the backing store itself: a size only the
+module clamped would still reach the browser unclamped. The two copies are pinned against each other -
+`tests/unit/canvas_viewport_limit_tests.cpp` for the engine and `scripts/ci/preview_viewport_limits.mjs`
+for the page assert the same table, so a change to one side fails the other.
+
+### 5.5 The device scale (issue #599)
+
+The tree is laid out in CSS pixels; the canvas target is the device-pixel grid. Those are two different
+spaces, and the app's frame composes them every frame (`src/app/window_frame.cpp` sets
+`set_content_scale`, `PaintContext::device_scale` and the vector sink's scale together). The preview
+composed nothing, so a DPR-2 canvas laid the scene out at 320x240 and then painted it 1:1 into the
+top-left quarter of a 640x480 surface - the reported symptom was text at half size with the rest of the
+canvas left clear.
+
+`scene_frame_paint_tree()` now takes the scale: `options.dpi_scale` from the single-frame path,
+`CanvasSceneSession::dpi_scale()` from the canvas session (the value the running evaluation was laid out
+at, so the two cannot disagree). At 1.0 the renderer's `begin()` already leaves the transform at
+identity and the call is skipped, which is why every existing golden is byte-identical.
+
+`tessera_canvas_draw` also receives the **physical** extent now, not the logical rectangle: the target
+is the texture the page configured, and the two agree only when no clamp reduced the DPR (see §5.4).
+
+The parity corpus's `dpr` case is the regression: a full-bleed box at DPR 2 must show its colour at the
+far corner of the doubled target. A check for "the clear colour is absent" would pass on a frame that
+painted nothing at all, so the assertion is on the box's colour.
+
+**Why the page half is only geometry.** A presented WebGPU frame is not composited by headless
+Chromium, so `drawImage` and `screenshot()` both return zeros however correct the paint is (the same
+limitation `canvas-session.ts` records for its own screenshot path). `scripts/ci/preview_browser_canvas_size.mjs`
+therefore asserts what the page owns - the backing store, the CSS box, and their agreement with the
+reported DPR, at DPR 1 and 2 - and leaves the pixels to the lavapipe case above.
+
+### 5.6 The drag-resize handles (issue #690 slice b)
+
+The canvas' size has three authors: the toolbar's menus, a raw `viewport.set`, and now three grips on
+the canvas' own edges (right, bottom, corner). A drag is the only one that can produce a hundred
+sizes a second, so it is the only one with a rate rule.
+
+**One step per display refresh.** The grip records the pointer's travel per move, paints the size it
+would apply into a page-only readout, and asks for one coalesced step; the step is the unit that
+reaches the engine. Pointer-up runs exactly one settled step, so the size the person released on is
+the size the engine ends with even when the release falls between two animation frames. The rule is
+`shouldStep` in `canvas-resize.ts` and it is gated in Node (`preview_canvas_resize.mjs`), because a
+*browser* cannot show it: the session's own `requestFrame()` already coalesces frames, so a per-move
+`apply` measures identically in the page. The page gate checks the property a person can see instead -
+a burst of 50 moves costs at most a frame per paint, and the settled size is exact.
+
+**The divisor is the zoom, not the DPR.** The canvas' CSS box is the *logical* viewport
+(`sizeToDevicePixels` sets `style.width` from the logical width), so one CSS pixel of travel is one
+logical pixel however many device pixels it covers. Dividing by the DPR halved every drag at DPR 2.
+The zoom, by contrast, must be divided out - and it is read from the stage the pane transforms, not
+from the canvas, because a CSS transform scales an element's rect and its layout box alike.
+
+**Wiring is delegated, not bound.** The session is created from refs that exist at the first settle,
+which is before React commits the grips and the readout, so a listener looked up by id finds nothing
+and the gesture silently does nothing. The layer listens on the document in the capture phase and
+resolves the readout on first write; capture is also what makes the grip win the press before the
+engine's pointer path sees it, so a grip never moves `:hover` and never activates the control under it.
+
+**The result is a toolbar value.** A drag calls the page's own `setCustomSize`, so the profile chip
+reads `custom` afterwards, the size is remembered like any other control change, and skins, zoom and
+the DPR stay consistent with it. The reached size goes through `clampViewport`, so a drag cannot reach
+a size a menu could not, and a clamped one says so on the readout.
 
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,

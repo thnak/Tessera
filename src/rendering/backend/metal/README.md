@@ -101,6 +101,11 @@ everywhere else, rather than a silently wrong pixel format at run time.
 - `supports_dual_source_blend()` reports **false** until the pipeline path proves the second
   fragment output per device. The documented fallback is grayscale coverage, so a caller is correct
   either way; reporting true without the proof would produce an undefined blend.
+- `supports_storage_buffers()` reports **true** (RHI 1.12, ADR-068): `bind_storage_buffer` sets the
+  buffer at the program's fragment `[[buffer(n)]]` slot, recorded per program in the MSL registry and
+  checked against the generated MSL by `metal_shader_registry_tests` (design note section 4.2).
+  `supports_analytic_gradients()` stays **false**: no Metal test renders a gradient quad yet, so the
+  banded fallback remains.
 - `recover()` is not implemented: a lost device reports `NotSupported` and the caller recreates it.
 - No `MTLHeap` and no untracked resources (ADR-053 decision 3).
 - Mip-chain generation is not implemented: `supports_texture_mipmaps()` reports **false**, so a
@@ -121,7 +126,9 @@ everywhere else, rather than a silently wrong pixel format at run time.
 - `tests/unit/retire_queue_tests.cpp` — the shared retire rule the backend uses, with a fake
   completion source.
 - `gpu_conformance --backend metal` — the backend conformance suite (ADR-049). Registered on every
-  lane; it skips with a named reason where no Metal device exists, and a skip is not a pass.
+  lane; it skips with a named reason where no Metal device exists, and a skip is not a pass. Its
+  `storage_buffer_bind` check renders the `storage_probe` program (a fullscreen triangle whose
+  fragment stage reads one storage buffer) and reads the colour back.
 
 ## CI
 

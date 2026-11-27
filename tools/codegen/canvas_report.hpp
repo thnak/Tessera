@@ -144,6 +144,13 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
                                                       float dpi, std::uint64_t cascade_generation,
                                                       std::string_view error);
 
+// The same report with `clamped` (issue #690) set when the request was reduced to fit the viewport
+// limits. The six-argument form above is kept for callers that cannot clamp (a report built from a
+// refused request), and it answers `clamped: false`.
+[[nodiscard]] std::string canvas_viewport_report_json(bool changed, float width, float height,
+                                                      float dpi, std::uint64_t cascade_generation,
+                                                      bool clamped, std::string_view error);
+
 // What one *apply* did (issue #444: the editor's live edit), as one JSON object on one line:
 //
 //   {"applyVersion":1,"changed":true,"reused":false,"carried":1,"droppedComponent":0,

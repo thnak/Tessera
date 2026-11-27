@@ -52,11 +52,15 @@ if (TESSERA_SHADER_CROSS)
     tessera_embed_msl(batched2d frag TESSERA_MSL_BATCHED2D_FRAG)
     tessera_embed_msl(glass_blur vert TESSERA_MSL_GLASS_BLUR_VERT)
     tessera_embed_msl(glass_blur frag TESSERA_MSL_GLASS_BLUR_FRAG)
+    tessera_embed_msl(storage_probe vert TESSERA_MSL_STORAGE_PROBE_VERT)
+    tessera_embed_msl(storage_probe frag TESSERA_MSL_STORAGE_PROBE_FRAG)
     set(TESSERA_METAL_MSL_SOURCES
         ${TESSERA_MSL_BATCHED2D_VERT}
         ${TESSERA_MSL_BATCHED2D_FRAG}
         ${TESSERA_MSL_GLASS_BLUR_VERT}
-        ${TESSERA_MSL_GLASS_BLUR_FRAG})
+        ${TESSERA_MSL_GLASS_BLUR_FRAG}
+        ${TESSERA_MSL_STORAGE_PROBE_VERT}
+        ${TESSERA_MSL_STORAGE_PROBE_FRAG})
     set(TESSERA_METAL_HAS_MSL TRUE)
     message(STATUS "Metal: MSL shader table embedded from ${TESSERA_METAL_MSL_DIR}")
 else()
@@ -82,7 +86,8 @@ if (TESSERA_METAL_HAS_MSL)
     # they exist.
     add_dependencies(tessera_metal_mapping
         tessera_shader_cross_batched2d
-        tessera_shader_cross_glass_blur)
+        tessera_shader_cross_glass_blur
+        tessera_shader_cross_storage_probe)
 endif()
 
 if (TESSERA_BUILD_METAL)

@@ -78,6 +78,23 @@ constexpr StyleProperty kStyleProperties[] = {
     {"mask-origin", StyleKind::Keyword, "per-layer border-box | padding-box | content-box"},
     {"mask-clip", StyleKind::Keyword, "per-layer border-box | padding-box | content-box | no-clip"},
     {"mask-composite", StyleKind::Keyword, "per-layer add | subtract | intersect | exclude"},
+    // The `-webkit-mask*` longhands (issue #617): the prefixed spelling a real stylesheet reaches
+    // for.
+    // Each folds to its canonical name at the registry's expand step, so there is one computed
+    // value
+    // and the two spellings cannot fight in the cascade (the `-webkit-backdrop-filter` pattern).
+    // The
+    // `mask` shorthand is not listed for either spelling: this table is the TSX `style` surface,
+    // which
+    // carries longhands only.
+    {"-webkit-mask-image", StyleKind::Keyword, "alias of mask-image"},
+    {"-webkit-mask-position", StyleKind::Keyword, "alias of mask-position"},
+    {"-webkit-mask-size", StyleKind::Keyword, "alias of mask-size"},
+    {"-webkit-mask-repeat", StyleKind::Keyword, "alias of mask-repeat"},
+    {"-webkit-mask-mode", StyleKind::Keyword, "alias of mask-mode"},
+    {"-webkit-mask-origin", StyleKind::Keyword, "alias of mask-origin"},
+    {"-webkit-mask-clip", StyleKind::Keyword, "alias of mask-clip"},
+    {"-webkit-mask-composite", StyleKind::Keyword, "alias of mask-composite"},
     {"filter", StyleKind::Keyword,
      "none | blur() | drop-shadow() | brightness() | contrast() | grayscale() | sepia() | "
      "saturate() | hue-rotate() | invert() | opacity(), applied to an isolated layer"},
@@ -212,7 +229,7 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
 // The registry of src/ui/style/property_registry.cpp (the physical table, `logical_properties.cpp`
 // and `property_registry_extra.cpp`) lists 133 longhands; the `schema_style_registry` test in that
 // module checks that this table and the registry agree name for name and kind for grammar.
-static_assert(std::size(kStyleProperties) == 139, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 147, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace

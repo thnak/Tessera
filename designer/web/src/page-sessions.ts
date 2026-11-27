@@ -46,6 +46,11 @@ export interface SessionDeps {
   component: () => string;
   onComponents: (names: string[], chosen: string) => void;
   /**
+   * A drag-resize reached a size (issue #690 slice b): hand it to the page's own control handler, so
+   * the toolbar, the profile chip and every other view agree with the canvas.
+   */
+  onResize: (width: number, height: number) => void;
+  /**
    * The workspace's compile target plus the author stylesheet it is styled with, read at Run time.
    *
    * The stylesheet travels in the snapshot (issue #390, through #431's `ProjectReader`), so a session asks
@@ -206,6 +211,9 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           inspectPanel: pane.inspectPanel.current,
           inspectBody: pane.inspectBody.current,
           inspectToggle: pane.inspectToggle.current,
+          // Issue #433: the fold/safe-area overlay and the toggle that arms it.
+          foldOverlay: pane.foldOverlay.current,
+          foldToggle: pane.foldToggle.current,
           statusFrame: null,
         },
         source: deps.source,
@@ -215,6 +223,7 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
         safeArea: () => latest.current.safeArea(),
         component: () => latest.current.component(),
         onComponents: (names, chosen) => latest.current.onComponents(names, chosen),
+        onResize: (width, height) => latest.current.onResize(width, height),
         commit: deps.commit,
         editing: deps.editing,
         onReady: (ready) => {

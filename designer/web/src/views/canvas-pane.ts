@@ -70,6 +70,14 @@ export interface CanvasPaneElements {
   inspectBody: HTMLElement | null;
   /** The inspector's toggle in the pane header; null when the pane has no header. */
   inspectToggle: HTMLButtonElement | null;
+  /**
+   * The fold/safe-area overlay (issue #433) and its toggle. The overlay is a page element drawn over
+   * the canvas, `pointer-events: none` like the picker's, so it never intercepts a move or a press.
+   * Optional for the same reason `pickOverlay` is: a pane rendered without one is a valid pane, and
+   * the overlay then simply has nowhere to draw.
+   */
+  foldOverlay: HTMLElement | null;
+  foldToggle: HTMLButtonElement | null;
 }
 
 /**

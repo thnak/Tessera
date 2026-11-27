@@ -65,6 +65,15 @@ export default defineConfig({
         "canvas-pane": "src/views/canvas-pane.ts",
         // The pane's zoom arithmetic, so `scripts/ci/preview_canvas_zoom.mjs` tests what the page ships.
         "canvas-zoom": "src/views/canvas-zoom.ts",
+        // The viewport limits and the clamp every canvas request goes through (issue #690), so
+        // `scripts/ci/preview_viewport_limits.mjs` tests the shipped rule against the engine's.
+        "canvas-viewport": "src/views/canvas-viewport.ts",
+        // The drag-resize arithmetic (issue #690 slice b): one step per animation frame, and the same
+        // clamp. `scripts/ci/preview_canvas_resize.mjs`.
+        "canvas-resize": "src/views/canvas-resize.ts",
+        // The fold-hinge and safe-area overlay's geometry (issue #433): the band and the inset boxes
+        // scaled from the `WindowMetrics` the engine reported. `scripts/ci/preview_fold_overlay.mjs`.
+        "canvas-fold": "src/views/canvas-fold.ts",
       },
       output: {
         format: "es",

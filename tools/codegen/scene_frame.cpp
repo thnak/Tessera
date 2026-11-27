@@ -8,6 +8,7 @@
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scale/render_target_extent.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <algorithm>
@@ -141,8 +142,14 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
                                         const ui::style::CompiledStyleSheet& sheet,
                                         rhi::Device& device, rhi::RenderTarget& target,
                                         const rhi::RenderTargetDesc& desc,
-                                        const rhi::PipelineDesc& pipeline, PreviewTextStack* text) {
+                                        const rhi::PipelineDesc& pipeline, PreviewTextStack* text,
+                                        float device_scale) {
     SceneFrameResult result;
+    // The device scale is the frame's, not the layout's (issue #599): the tree is laid out in CSS
+    // px and the target is the device-pixel grid, so a DPR-2 canvas needs every position doubled or
+    // the scene paints into the top-left quarter of its surface. `content_scale_for` is what the
+    // app's frame uses, so a bad scale degrades to 1 instead of collapsing or mirroring the frame.
+    const ui::scale::ContentScale scale = ui::scale::content_scale_for(device_scale);
     // A pipeline is created for the target's format and sample count: a mismatch is a pipeline the
     // renderer refuses anyway, so it is settled here while the description is in hand.
     rhi::PipelineDesc effective = pipeline;
@@ -183,6 +190,18 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
 
     try {
         renderer.begin(*commands, target, desc);
+        // **The device scale is the frame's, not the layout's** (issue #599): the tree is laid out
+        // in CSS px and the target is the device-pixel grid, so the paint side has to compose the
+        // two, exactly as the app's frame does (`apply_frame_transform`, src/app/window_aa.cpp).
+        // The preview used to skip this, so a DPR-2 canvas painted the scene 1:1 into the top-left
+        // quarter of its surface. At 1.0 the renderer's begin() already left the transform at
+        // identity, so the ordinary path records the same commands it always did.
+        // At 1.0 the renderer's begin() already left the transform at identity, and setting it
+        // would record no different commands; skipping the call keeps the ordinary path byte-
+        // identical to every frame recorded before this was applied.
+        if (!scale.is_identity()) {
+            renderer.set_content_scale(scale.x, scale.y);
+        }
         if (text != nullptr) {
             // Once per frame, before any draw: the atlas pins the pages this frame references so a
             // genuine overflow is reported as a drop instead of silently evicting ink mid-frame.
@@ -195,6 +214,11 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
         if (text != nullptr) {
             context.text_metrics_source = &text->paint_metrics();
         }
+        // Border snapping and the vector raster extent follow the same scale the geometry does, so
+        // the three cannot disagree about the device (src/app/window_frame.cpp sets the pair
+        // together for the same reason).
+        context.device_scale = scale.x;
+        batched.set_vector_device_scale(scale.x);
         // The app's page colour fills the whole frame, as a browser's root background fills the
         // canvas.
         context.canvas = paint::canvas_background(root, styles);
@@ -227,13 +251,15 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
 
 SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
                                    rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc,
-                                   const rhi::PipelineDesc& pipeline, PreviewTextStack* text) {
+                                   const rhi::PipelineDesc& pipeline, PreviewTextStack* text,
+                                   float device_scale) {
     if (scene.error.empty() == false || scene.root == nullptr || !scene.sheet.has_value()) {
         SceneFrameResult result;
         result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
         return result;
     }
-    return scene_frame_paint_tree(*scene.root, *scene.sheet, device, target, desc, pipeline, text);
+    return scene_frame_paint_tree(*scene.root, *scene.sheet, device, target, desc, pipeline, text,
+                                  device_scale);
 }
 
 SceneFrameResult scene_frame_render(std::string_view text, const ScenePreviewOptions& options,
@@ -271,7 +297,7 @@ SceneFrameResult scene_frame_render(std::string_view text, const ScenePreviewOpt
 
     // Paint through the shared path, then read back.
     SceneFrameResult painted =
-        scene_frame_paint(scene, device, *target, target_desc, pipeline, font);
+        scene_frame_paint(scene, device, *target, target_desc, pipeline, font, options.dpi_scale);
     if (!painted.error.empty()) {
         return painted;
     }

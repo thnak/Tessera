@@ -53,6 +53,9 @@ export type PreviewRefs = Pick<
   | "inspectPanel"
   | "inspectBody"
   | "inspectToggle"
+  // Issue #433: the fold/safe-area overlay and the toggle that arms it.
+  | "foldOverlay"
+  | "foldToggle"
 >;
 
 
@@ -115,6 +118,8 @@ export function CanvasPanel({
         inspectPanelRef={refs.inspectPanel}
         inspectBodyRef={refs.inspectBody}
         inspectToggleRef={refs.inspectToggle}
+        foldOverlayRef={refs.foldOverlay}
+        foldToggleRef={refs.foldToggle}
         skin={skin}
         mode={mode}
         appOverlay={overlay}

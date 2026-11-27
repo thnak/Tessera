@@ -251,9 +251,23 @@ bool fill_storage_probe_pipeline(rhi::Backend backend, rhi::PipelineDesc& desc) 
     // under /WX, and this file builds in lanes that have no Vulkan backend).
     static_cast<void>(desc);
 #endif
-    // Metal and WebGPU report no storage buffers yet (ADR-068 slice 2), so the capability gate in
-    // the check already skipped them; this is the honest answer if one ever reports true without a
-    // probe program.
+#if defined(TESSERA_TEST_HAS_METAL)
+    if (backend == rhi::Backend::Metal) {
+        // Metal consumes MSL, so the probe is a registry program named by id (the same fullscreen
+        // vertex stage as glass_blur, no attributes, no push constants). A build without the
+        // cross-compiled table has no probe: the check then skips rather than failing on a missing
+        // program.
+        if (metal::find_msl_program(metal::kStorageProbeShaderId) == nullptr) {
+            return false;
+        }
+        desc.shader_id = metal::kStorageProbeShaderId;
+        desc.vertex_layout = rhi::VertexBufferLayout{};
+        desc.push_constant_size = 0;
+        return true;
+    }
+#endif
+    // WebGPU has its own conformance lane (Dawn) and no probe here; this is the honest answer for a
+    // backend that reports the capability without a probe program.
     return false;
 }
 

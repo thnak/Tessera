@@ -55,19 +55,6 @@ std::string canvas_session_source(std::string_view component, std::string_view p
     return {};
 }
 
-CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi) {
-    CanvasViewportRequest request;
-    request.width = width > 0 ? static_cast<float>(width) : 0.0f;
-    request.height = height > 0 ? static_cast<float>(height) : 0.0f;
-    request.dpi = dpi > 0.0f ? dpi : 1.0f;
-    if (request.width <= 0.0f || request.height <= 0.0f) {
-        // Refused, not defaulted: a toolbar that sent 0 would otherwise lay the tree out at the
-        // module's 320x240 default while the page believed it had asked for something else.
-        request.error = "the viewport must be positive in both dimensions";
-    }
-    return request;
-}
-
 PatchRequest canvas_patch_request(std::string_view automation_id, std::string_view destination,
                                   std::string_view class_name, std::string_view file,
                                   std::string_view token, std::string_view token_value) {

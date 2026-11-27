@@ -539,3 +539,10 @@ Corpus effect: `react/expressions/object-destructure-local.tsx` moved from
 `pipeline=TESSERA_IR_UNRESOLVED` to `pipeline=ok`, so `tests/golden/corpus/react-front-end.txt`
 moved from 10 to 11 pipeline-accepted files (20.0% to 22.0%) and `TESSERA_IR_UNRESOLVED` dropped
 from 4 to 3. The front-end numbers are unchanged.
+
+## 2026-11-27: the Studio canvas viewport
+
+Four issues on one path — the viewport clamp (#690 slice a), the device scale (#599), the page-side
+size gate (#598) and the drag-resize handles (#690 slice b), plus the `-webkit-mask*` aliases that
+closed #617. Split out for size:
+[implementation-log/canvas-viewport-2026-11-27.md](implementation-log/canvas-viewport-2026-11-27.md).

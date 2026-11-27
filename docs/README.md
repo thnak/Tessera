@@ -213,7 +213,10 @@ This page is the map and reading order for the framework.
 - [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits; [`design/paint-cull-measurement.md`](design/paint-cull-measurement.md) — why the cull needs no cache (#789)
 - [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list: parse, bottom-to-top order, interpolation, baselines (#614)
 - [`design/theme-scoping.md`](design/theme-scoping.md) — nested theme regions: the `:has()`/`@scope` decision, matching cost, `@layer`/source-order interaction (#622)
+- [`architecture/implementation-log/README.md`](architecture/implementation-log/README.md) — implementation-log parts split by theme (the Studio canvas day: #690, #599, #598, #617)
 - [`design/dials-and-gauges.md`](design/dials-and-gauges.md) — dials and gauges: the conic-gradient-then-mask-then-filter decision, and what a live `Path` would need (#617)
+- [`design/activity-and-idle.md`](design/activity-and-idle.md) — user inactivity as one shared seam: a per-window activity tracker plus an idle deadline the runtime loop parks against (proposed; no code yet)
+- [`design/decorative-animation.md`](design/decorative-animation.md) — ambient/decorative animation: optionality declared not inferred, the ambient gate, and the wake bound (proposed; `non_essential` classification implemented)
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
 - [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache, measurements, Go decision
@@ -275,10 +278,7 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline; hooks as engine behaviors: [`design/behavior-hooks.md`](design/behavior-hooks.md)
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
-- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
-  React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the
-  canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and
-  the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431): React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
 - [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
@@ -389,7 +389,7 @@ This page is the map and reading order for the framework.
 
 ## 6. Reference
 
-- [`reference/glossary.md`](reference/glossary.md) — terms and abbreviations; React core coverage: [`reference/react-core-coverage.md`](reference/react-core-coverage.md)
+- [`reference/glossary.md`](reference/glossary.md) — terms and abbreviations; React core coverage: [`reference/react-core-coverage.md`](reference/react-core-coverage.md) (measured on a 43-file port corpus: [`design/react-port-corpus-measurement.md`](design/react-port-corpus-measurement.md))
 - [`reference/open-questions.md`](reference/open-questions.md) — register of every `Open questions` section in the specs and design notes: link to the source, the recorded decision or an explicit deferral with its trigger, and the items that unblock the next implementation round; [`reference/ua-audit.md`](reference/ua-audit.md) — the user-agent audit (ADR-063, #606): every element against Chromium, fixed, open and named exceptions; [`reference/samples.md`](reference/samples.md) — what each sample shows, mapped to a React + Vite checklist (#607)
 
 ## 7. Reading orders

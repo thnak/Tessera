@@ -152,6 +152,10 @@ export function App() {
 
   const isCurrent = useCallback((id: ViewDefinition["id"]): boolean => viewRef.current === id, []);
   // Undo/Redo routing and the style commit's buffer host (issue #585); `live` is created below, read lazily.
+  // The drag-resize target (issue #690 slice b): `useToolbarControls` is built after the sessions
+  // (it is handed them), so the session reads this ref rather than the callback directly.
+  const resizeRef = useRef<((width: number, height: number) => void) | null>(null);
+
   const editing = useEditRouting();
   const commit = useCommitBridge(workspace, () => live.current);
 
@@ -167,6 +171,11 @@ export function App() {
       safeArea: currentSafeArea,
       component: currentComponent,
       onComponents,
+      // A drag-resize is an ordinary "custom size" toolbar move (issue #690 slice b), so the profile
+      // chip reads `custom` afterwards and the size is remembered like any other control change.
+      // It is read through a ref because `useToolbarControls` needs the sessions it is built beside:
+      // the session is created once, so the ref is filled by the time a drag can happen.
+      onResize: (width, height) => resizeRef.current?.(width, height),
       // With no project open the compiler's answer is "the project names no entry file": not a problem to list.
       onDiagnostics: (diagnostics) =>
         filesRef.current.length === 0 ? problemsStore.reset() : problemsStore.publish(diagnostics),
@@ -358,6 +367,7 @@ export function App() {
     sessions,
     restart: restartActiveView,
   });
+  resizeRef.current = onCustomSize;
 
   // The sandbox worker starts only while a panel that shows its output is visible *and* the project has a mock
   // file (spec section 2.4), so a project without mocks, or a collapsed panel area, pays nothing.
