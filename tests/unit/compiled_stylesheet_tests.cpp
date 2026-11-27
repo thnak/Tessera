@@ -388,5 +388,31 @@ button { padding: 1px; }
     }
 
     std::cout << "compiled_stylesheet: ok\n";
+    // The `border-radius` shorthand reaches the computed style as its four corner longhands, which
+    // is what the paint pass reads (paint_properties.cpp). The registry test covers the expansion
+    // on its own; this one goes through compile -> cascade -> compute, the path a stylesheet takes.
+    const CompiledStyleSheet radius = compile_stylesheet(
+        ".card { border-radius: 8px; } #save { border-radius: 1px 2px 3px 4px; }", Origin::Author);
+    const ComputedStyle uniform_radius = radius.compute(title, nullptr);
+    StyleNode plain_card;
+    plain_card.tag = "div";
+    plain_card.classes = {"card"};
+    const ComputedStyle card_radius = radius.compute(plain_card, nullptr);
+    const ComputedStyle button_radius = radius.compute(button, nullptr);
+    if (!expect(value_is(card_radius, "border-top-left-radius", "8px") &&
+                    value_is(card_radius, "border-top-right-radius", "8px") &&
+                    value_is(card_radius, "border-bottom-right-radius", "8px") &&
+                    value_is(card_radius, "border-bottom-left-radius", "8px"),
+                "border-radius: 8px sets all four corners") ||
+        !expect(value_is(button_radius, "border-top-left-radius", "1px") &&
+                    value_is(button_radius, "border-top-right-radius", "2px") &&
+                    value_is(button_radius, "border-bottom-right-radius", "3px") &&
+                    value_is(button_radius, "border-bottom-left-radius", "4px"),
+                "border-radius with four values keeps the corner order") ||
+        !expect(value_is(uniform_radius, "border-top-left-radius", "0"),
+                "an unmatched node keeps the initial radius")) {
+        return 20;
+    }
+
     return 0;
 }
