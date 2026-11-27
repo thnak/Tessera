@@ -22,7 +22,8 @@ namespace tessera::rendering::gpu::clip {
 // Layout, `std430`-compatible and 16-byte aligned so the same bytes work as a Vulkan storage buffer
 // and a WGSL `read-only-storage` binding:
 //
-//   Header      { u32 record_count; u32 vertex_count; u32 reserved[2]; }    16 bytes
+//   Header      { u32 record_count; u32 vertex_count;                       16 bytes
+//                 u32 gradient_count; u32 gradient_stop_count; }
 //   Record[i]   { u32 kind; u32 flags; u32 first_vertex; u32 vertex_count;  64 bytes
 //                 f32 x, y, width, height;
 //                 f32 radii[8]; }
@@ -83,7 +84,11 @@ struct ClipBufferHeader {
     std::uint32_t record_count = 0;
     // Vertices written to the pool this frame; the shader reads ranges, so this is for readback.
     std::uint32_t vertex_count = 0;
-    std::uint32_t reserved[2] = {};
+    // The gradient area that follows the clip area (gradient_records.hpp, ADR-076): records and
+    // stops written this frame. Readback only, like `vertex_count`; they took the two words that
+    // were reserved, so the header is still 16 bytes.
+    std::uint32_t gradient_count = 0;
+    std::uint32_t gradient_stop_count = 0;
 };
 
 // One interned clip set: a range into the record list. `count == 0` is the empty set, which is what

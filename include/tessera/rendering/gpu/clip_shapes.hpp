@@ -5,6 +5,7 @@
 #include "tessera/rendering/gpu/clip_records.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <span>
@@ -116,6 +117,59 @@ struct Ellipse {
         return dx * dx + dy * dy <= 1.0f;
     }
     return true;
+}
+
+// The signed distance from `(px, py)` (relative to the box centre) to a rounded box of half size
+// `(half_width, half_height)` and corner radius `radius`: negative inside, positive outside. This
+// is the fragment shader's `sd_round_box`, expression for expression.
+[[nodiscard]] inline float signed_distance_round_box(float px, float py, float half_width,
+                                                     float half_height, float radius) {
+    const float qx = std::abs(px) - half_width + radius;
+    const float qy = std::abs(py) - half_height + radius;
+    const float outside_x = std::max(qx, 0.0f);
+    const float outside_y = std::max(qy, 0.0f);
+    return std::min(std::max(qx, qy), 0.0f) +
+           std::sqrt(outside_x * outside_x + outside_y * outside_y) - radius;
+}
+
+// GLSL `smoothstep(edge0, edge1, x)`.
+[[nodiscard]] inline float smooth_step(float edge0, float edge1, float x) {
+    const float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+// The coverage of a solid rounded box at a point relative to its centre, as the shader's rounded
+// quad (vertex mode 1) computes it: the hard pixel-centre test (`d <= 0`) when `aa_radius` is 0,
+// otherwise `1 - smoothstep(-aa_radius, aa_radius, d)` over the signed distance. `aa_radius` is the
+// half-width of the blend in pixels (the renderer uses 0.5 with anti-aliasing on, 0 in golden
+// mode).
+[[nodiscard]] inline float rounded_box_coverage(float px, float py, float half_width,
+                                                float half_height, float radius, float aa_radius) {
+    const float distance = signed_distance_round_box(px, py, half_width, half_height, radius);
+    if (aa_radius <= 0.0f) {
+        return distance <= 0.0f ? 1.0f : 0.0f;
+    }
+    return 1.0f - smooth_step(-aa_radius, aa_radius, distance);
+}
+
+// The coverage one `RoundedRect` clip record gives the point (x, y) in target pixels: the shader's
+// `inside_clip` hard test (exact per-corner elliptical radii, `inside_rounded_rect`) when
+// `aa_radius` is 0, and its `clip_coverage` otherwise - the rounded-box distance with the radius of
+// the pixel's quadrant, blended over +/- `aa_radius` pixels. A pixel-aligned clip edge is fully
+// covered on its inside pixels either way.
+[[nodiscard]] inline float rounded_rect_coverage(const ClipRecord& record, float x, float y,
+                                                 float aa_radius) {
+    if (aa_radius <= 0.0f) {
+        return inside_rounded_rect(record, x, y) ? 1.0f : 0.0f;
+    }
+    const float half_width = record.width * 0.5f;
+    const float half_height = record.height * 0.5f;
+    const float qx = x - (record.x + half_width);
+    const float qy = y - (record.y + half_height);
+    const float radius_for_quadrant = qx < 0.0f ? (qy < 0.0f ? record.radii[0] : record.radii[3])
+                                                : (qy < 0.0f ? record.radii[1] : record.radii[2]);
+    const float radius = std::min(radius_for_quadrant, std::min(half_width, half_height));
+    return rounded_box_coverage(qx, qy, half_width, half_height, radius, aa_radius);
 }
 
 // True when the point is inside the polygon `record` names in `pool` (ADR-068 slice 5).

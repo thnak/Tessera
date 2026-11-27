@@ -12,15 +12,20 @@
 
 // The `background-image` gradient value (issues #457 and #613).
 //
-// One gradient layer: `linear-gradient()` or `radial-gradient()`, each optionally prefixed with
-// `repeating-`, with 2 to 8 colour stops. Anything else (conic, several layers, `url()`, a length
-// stop position, a colour hint, an `at` position this grammar cannot resolve) is not a value of
-// this grammar and `parse_gradient` returns nullopt, so the caller can report it instead of
-// painting a guess.
+// One gradient layer: `linear-gradient()`, `radial-gradient()` or `conic-gradient()`, each
+// optionally prefixed with `repeating-`, with 2 to 8 colour stops (a stop with two positions counts
+// as two). Anything else (several layers, `url()`, a colour hint, a relative length such as `em`,
+// an `at` position this grammar cannot resolve) is not a value of this grammar and `parse_gradient`
+// returns nullopt, so the caller can report it instead of painting a guess.
 //
-// The repeating forms are a stop-list transform, not a second paint path: `expand_repeating_stops`
-// turns a repeating ramp into an ordinary stop list that already spans the whole gradient
-// line/radius, so every consumer downstream sees one kind of gradient.
+// A stop position is a percentage or a length (CSS Images 4 section 3.5): `red 0 50%` is two stops
+// of one colour, `red 10px` sits 10px along the gradient line (linear), along the gradient ray
+// (radial, whose length is the horizontal radius), and a conic stop takes an angle or a percentage
+// of the turn instead. A px position cannot become a fraction until the box is known, so the value
+// keeps it as authored (`StopPositions`) and `resolve_stop_positions` finishes the fix-up at paint
+// time. A repeating gradient's period is its last resolved stop minus its first; paint hands that
+// ramp to the renderer unexpanded and the fragment shader wraps it, so a 2px period on a 4000px
+// line is as cheap as a 200px one.
 namespace tessera::ui::style {
 
 // The authored stop count of one gradient (CSS allows any number; this grammar caps it at 8).
@@ -30,14 +35,33 @@ inline constexpr std::size_t kMaxGradientStops = 8;
 inline constexpr std::size_t kMaxRepeatingStops = 32;
 
 struct GradientStopValue {
-    float offset = 0.0f; // 0..1 along the gradient line, already fixed up
+    // A fraction of the gradient line (linear), ray (radial) or turn (conic), already fixed up,
+    // and not confined to 0..1 (`red -20%, blue 120%` is a ramp wider than the line). While the
+    // owning shape's `StopPositions` marks this stop as a length it is px instead.
+    float offset = 0.0f;
     ColorRgba color;
+};
+
+// Which stops of a shape still wait for the box. Empty (the common case) means every offset is a
+// resolved fraction. Otherwise bit i of `length_mask` says stop i was authored in px (its offset is
+// px) and bit i of `auto_mask` says it had no position (its offset is meaningless), because the
+// fix-up spreads and clamps positions in one unit and px cannot meet a fraction before the gradient
+// line's length is known. Two bytes, so the shapes keep their size (issue #731).
+struct StopPositions {
+    std::uint8_t length_mask = 0;
+    std::uint8_t auto_mask = 0;
+
+    [[nodiscard]] bool pending() const {
+        return length_mask != 0;
+    }
+    friend bool operator==(const StopPositions&, const StopPositions&) = default;
 };
 
 // CSS convention: 0 points up, 90 right, 180 down (the default).
 struct LinearGradientValue {
     float angle_degrees = 180.0f;
     std::array<GradientStopValue, kMaxGradientStops> stops{};
+    StopPositions positions;
     std::size_t stop_count = 0;
 };
 
@@ -69,17 +93,20 @@ struct RadialGradientValue {
     float radius_y = 0.0f;
     RadialPosition position;
     std::array<GradientStopValue, kMaxGradientStops> stops{};
+    StopPositions positions;
     std::size_t stop_count = 0;
 };
 
 // `conic-gradient()` (issue #617). The ramp sweeps clockwise from `from_angle_degrees` around
 // `position`, which is a fraction of the node's border box like a radial gradient's centre. CSS
 // measures the angle from 12 o'clock (0deg = up, 90deg = right), which is the same convention the
-// linear form uses. A stop's offset is a fraction of the full turn.
+// linear form uses. A stop's offset is a fraction of the full turn, written as an angle
+// (`red 90deg`) or a percentage.
 struct ConicGradientValue {
     float from_angle_degrees = 0.0f;
     RadialPosition position;
     std::array<GradientStopValue, kMaxGradientStops> stops{};
+    StopPositions positions;
     std::size_t stop_count = 0;
 };
 
@@ -108,8 +135,10 @@ struct GradientValue {
 
 // Offsets follow CSS Images 3 section 3.4.3: a missing first/last position is 0/100 %, a missing
 // middle one is spread evenly between its neighbours, and a position behind an earlier one is
-// raised to it. A corner direction (`to top right`) resolves to the diagonal angle of a square box;
-// CSS bends it with the box's aspect ratio, which this does not.
+// raised to it. A list with a px stop keeps its authored positions until
+// `resolve_stop_positions` runs the same fix-up in fractions. A corner direction (`to top right`)
+// resolves to the diagonal angle of a square box; CSS bends it with the box's aspect ratio, which
+// this does not.
 //
 // `parse_gradient` accepts both shapes and both repeating forms. `parse_linear_gradient` is the
 // linear-only entry point kept for callers that only ever want a linear ramp; it returns nullopt
@@ -122,8 +151,18 @@ struct GradientValue {
 // shorthand uses it to tell a gradient layer from a colour without parsing twice.
 [[nodiscard]] bool is_gradient_function(std::string_view text);
 
+// Finishes the stop fix-up for a list that has px or missing positions (`positions.pending()`):
+// every px offset becomes `px / line_length_px`, then the CSS Images 4 rules run over the
+// fractions (a missing first/last is 0/100 %, a missing middle one is spread evenly, a position
+// behind an earlier one is raised to it). Clears `positions`. A no-op for a resolved list. `count`
+// is capped at `kMaxGradientStops`; a non-positive length is treated as one pixel.
+void resolve_stop_positions(GradientStopValue* stops, std::size_t count, StopPositions& positions,
+                            float line_length_px);
+
 // Expands a repeating ramp so it covers the whole [0,1] gradient line/radius: the authored cycle is
-// repeated forwards and backwards until it spans 0..1, capped at `kMaxRepeatingStops` entries.
+// repeated forwards and backwards until it spans 0..1, capped at `kMaxRepeatingStops` entries. The
+// paint path no longer uses it (the fragment shader wraps the authored ramp, so there is no cap);
+// it stays as the reference for what a repeating ramp means.
 // `stops` must have room for `kMaxRepeatingStops` entries and `count` is the authored stop count.
 // Returns the expanded count; a ramp with no positive period is returned unchanged. A non-repeating
 // gradient never calls this.

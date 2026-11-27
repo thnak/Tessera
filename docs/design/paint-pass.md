@@ -560,13 +560,14 @@ caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferr
 ### 13. Gradients (task-76, issues #457 and #613)
 
 `PaintData::gradient`, or else the stylesheet's `background-image` (#457/#613/#614, grammar in
-`style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted,
-later duplicate wins; CSS angle 0=top, 90=right, 180=bottom) paints after `background-color`, before
+`style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; positions are percentages or lengths, or angles on conic, and a stop may carry two;
+offsets sorted but not clamped, later duplicate wins; CSS angle 0=top, 90=right, 180=bottom) paints after `background-color`, before
 borders/content, inside border radius; opacity folds into stop alphas. Interpolation is encoded-space
-sRGB (V1); linear emission is 64 dominant-axis solid bands that abut (`band_edge`, #617), shared
-by CPU/GPU within 2/255 per channel. Radial has no dominant axis, so a 32x32 grid (`kRadialBands`) of
-solid cells from the shared `tessellate_radial_gradient` (`paint_sink.hpp`), so CPU/GPU emit identical
-geometry (no new shader; conic uses a finer 64x64 `kConicBands`); `repeating-*` is a stop-list transform (`expand_repeating_stops`).`background-image` is a **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
+sRGB (V1); stops are interpolated premultiplied. A gradient layer is one quad evaluated per fragment (RHI 1.20,
+[gpu/gradients.md](gpu/gradients.md), ADR-076), the CPU sink evaluates the same math per pixel; the 64-band
+linear and 32x32/64x64 radial/conic tessellations (`paint_sink.hpp`) remain only as the capability
+fallback. `repeating-*` keeps its authored stops: paint resolves px positions against the line/ray and
+the shader wraps the ramp over its period (gradients.md 3.1).`background-image` is a **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
 
 ## 14. Isolated-layer seam (issue #242)The renderer can break its render pass without finishing the frame and copy one region of the frame
 target into an offscreen target: `Batched2DRenderer::break_pass()`/`resume_pass()` plus the RHI

@@ -63,7 +63,9 @@ and rendered by `tests/gpu/cpu_wide_golden_tests.cpp` (ctest `cpu_wide_golden`) 
 
 - `borders`: one rounded card with four border sides of distinct widths and colours (the top,
   right, bottom and left edge quads), a second card with a uniform square border, and a borderless
-  rounded card that pins the sink's documented bounds approximation (corners stay square);
+  rounded card whose corners the sink cuts along the arc (issue #617);
+- `rounded`: a rounded linear gradient, a stadium radial gradient and a rounded solid fill, cut
+  along their arcs (the CPU twin of the renderer's rounded quad, `rounded_twin_gpu`);
 - `clips`: three nested `overflow: hidden` scopes whose intersection cuts the fills, an outermost
   clip whose rect starts off-canvas, and a disjoint clip whose child must paint nothing even where
   the child would fall on the canvas;
@@ -96,11 +98,12 @@ The deterministic corpus is also pinned without baseline PNGs, on exact RGBA8 by
 Documented gaps of the software backend (deliberate, never faked; pinned by the corpus or kept on
 the lavapipe side):
 
-- no rounded/SDF rasterizer: `fill_rounded_rect` paints the axis-aligned bounds, so corners stay
-  square;
+- rounded corners are exact for fills, gradients and rounded clips of fills (the shader's signed
+  distance per pixel centre); text, images and vector draws under a rounded clip are cut by the
+  clip's bounds only;
 - no rotation/scale/skew rasterizer: `PaintSink::supports_transform()` is false for the CPU sinks,
   so a transformed node paints its world-bounds AABB (translate is exact);
-- no gradient rasterizer: gradients are approximated by 64 dominant-axis bands in the CPU sink;
+- gradients are evaluated per pixel in the CPU sink with the shared ramp math (RHI 1.20), within 1-2/255 of the GPU;
 - box shadows are stacked rect layers (3-8 per blurred shadow), not a Gaussian blur;
 - `CpuCanvas` has no clip stack of its own: clipping is a per-call rect applied by the sink;
 - nearest-sample only: vector/image draws are exact when the raster extent equals the destination

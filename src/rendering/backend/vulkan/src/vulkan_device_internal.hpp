@@ -98,6 +98,12 @@ public:
     [[nodiscard]] bool supports_storage_buffers() const override {
         return storage_buffer_capacity_ > 0;
     }
+    // RHI 1.20 (ADR-076): every batched2d fragment variant (default, texture array) carries the
+    // gradient branch and reads it from the record buffer, so the answer is the storage answer. The
+    // LCD variant never draws a gradient quad.
+    [[nodiscard]] bool supports_analytic_gradients() const override {
+        return storage_buffer_capacity_ > 0;
+    }
     // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's
     // graphics capability, and the device's timestampPeriod (docs/design/performance.md 6.1).
     [[nodiscard]] rhi::GpuTimestampCapability timestamp_capability() const override {

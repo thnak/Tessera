@@ -25,6 +25,7 @@ or asset decoding. Those have their own docs.
 | [`resources.md`](resources.md) | Buffers/textures/targets/samplers/memory |
 | [`pipelines.md`](pipelines.md) | Pipeline cache, descriptors, vertex layout, shaders |
 | [`box-shadow-clipping.md`](box-shadow-clipping.md) | An outer `box-shadow` is painted only outside the rounded border box: the vertex carve, the strip fallback, corner triangles, tests (#461) |
+| [`gradients.md`](gradients.md) | One quad per gradient layer evaluated per fragment: record layout, fallback, CPU twin, measurements (#617) |
 | [`backends.md`](backends.md) | Vulkan/WebGPU/null/software parity and capabilities |
 | [`compute.md`](compute.md) | RHI compute: pipelines, dispatch and indirect dispatch, capabilities, barriers, conformance kernels (#683, #684) |
 | [`offscreen-layers.md`](offscreen-layers.md) | Render-pass break, `copy_target_region`, bounded offscreen pool (#242) |

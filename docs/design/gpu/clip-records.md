@@ -42,7 +42,11 @@ Vertex[v]   { f32 x, y; }                                                8 bytes
 ```
 
 The header's second word is the vertex count (slice 5; it was reserved). The vertex pool is the last
-area, so the record and set offsets slice 3 fixed did not move.
+area of the clip data, so the record and set offsets slice 3 fixed did not move.
+
+**Gradient area (RHI 1.20, #617).** Header words 2 and 3 are the gradient count and gradient stop
+count. After the clip vertex pool (byte 53264) the buffer holds gradient records, stop colours and stop
+offsets; see [gradients.md](gradients.md).
 
 - `kind` is `RoundedRect` (0), `Ellipse` (1) or `Polygon` (2). Slice 3 emits `RoundedRect` only;
   slices 4 and 5 add the other two, and the format already has room so they add a kind, not a layout.

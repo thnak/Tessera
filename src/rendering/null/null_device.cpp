@@ -129,6 +129,13 @@ public:
         return true;
     }
 
+    // RHI 1.20 (ADR-076): the null device has no shader, so "supports" means it records the one
+    // gradient quad a real backend would draw, which is what the draw-count tests observe. Paired
+    // with the storage-buffer record above for the same reason: the claim is observable.
+    [[nodiscard]] bool supports_analytic_gradients() const override {
+        return true;
+    }
+
     // Null parity for the buffer-to-texture copy (RHI 1.17, ADR-072). The null buffers and textures
     // keep real bytes, so the copy moves them (and validates exactly what Vulkan validates); it is
     // paired with a record (NullBufferTextureCopy) so "supported" is never an unobserved claim.

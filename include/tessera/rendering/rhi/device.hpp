@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/rhi/device_status.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/rendering/rhi/texture_region.hpp"
 #include "tessera/rendering/rhi/timestamp.hpp"
@@ -325,27 +326,6 @@ public:
     }
 };
 
-// Device health for the D7 production policy. A loss is recoverable backend state, not an
-// exception: operations that can report it (swapchain acquire/present, command `wait()`) return an
-// error/false and the caller polls `status()`. After a loss every RHI object created before it is
-// invalid and must be destroyed and recreated (the backend generation-guards destructors so a late
-// destruction is safe); the device itself can be recreated with `recover()`.
-enum class DeviceStatus : std::uint8_t { Ready, Lost };
-
-enum class DeviceRecoveryError : std::uint8_t {
-    // The backend has no recovery path (null/software backends).
-    NotSupported,
-    // `recover()` was called while the device is healthy.
-    NotLost,
-    // This loss was already recovered once and failed; a new loss is needed (one-shot policy).
-    AlreadyAttempted,
-    // RHI objects from the lost generation are still alive. Destroy them, then retry; this attempt
-    // does not consume the one-shot budget.
-    ResourcesOutstanding,
-    // Device recreation failed (driver/device unavailable). The device stays Lost.
-    DeviceCreationFailed,
-};
-
 // GPU memory the device's allocator holds (issue #13). `block_bytes` is what was requested from the
 // driver; `allocation_bytes` is the part handed to live buffers and images, so the gap is allocator
 // slack. `buffer_bytes` and `image_bytes` split the live resources by kind: buffers are exact,
@@ -473,6 +453,19 @@ public:
     // answer false indefinitely (ADR-068, owner decision 2026-11-22); it is a capability, not a
     // deadline.
     [[nodiscard]] virtual bool supports_storage_buffers() const = 0;
+
+    // RHI 1.20 (ADR-076): true when this device's batched2d fragment program evaluates a gradient
+    // per pixel from the frame record buffer - a quad whose `Vertex2D::mode` is
+    // `gpu::gradient::kGradientMode` - so the renderer may draw one gradient layer as one quad.
+    // It implies a fragment-readable storage buffer (`supports_storage_buffers()`), but it is its
+    // own bit because it is a statement about the *shader program the backend ships*: a backend
+    // whose program lacks the branch (an older cross-compiled table, a Tier-2 backend) must answer
+    // false and keep the banded fallback, whatever its storage support. The only authority on the
+    // capability; consumers must not infer it from the backend name. The default is false, so a
+    // backend or test double written before 1.20 keeps painting banded gradients unchanged.
+    [[nodiscard]] virtual bool supports_analytic_gradients() const {
+        return false;
+    }
 
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the

@@ -5,7 +5,7 @@
 // ordinary scene graph painted by the shared paint pass
 // (`ui::paint::paint_scene`) into `CpuPaintSink` (`tools/poc/batched2d/cpu_paint_sink.hpp`), which
 // maps the commands onto the deterministic `CpuCanvas`: axis-aligned fills, an intersecting clip
-// stack, the documented rounded-bounds approximation, 64-band linear gradients sampled through
+// stack, exact rounded corners, 64-band linear gradients sampled through
 // `ui::paint::sample_linear_gradient`, and radial gradients tessellated by the shared
 // `ui::paint::tessellate_radial_gradient`. `ui::paint::Batched2DSink` is the GPU twin of that sink
 // (see `paint_gradient_tests.cpp`); it needs a device, so the committed CPU baselines use the CPU
@@ -51,7 +51,7 @@ bool update_goldens = false;
 
 // -------------------------------------------------------------------------------------------------
 // borders: a rounded card with four distinct border sides, a square card with a uniform border, and
-// a borderless rounded card that pins the documented bounds approximation for corners.
+// a borderless rounded card whose corners the sink cuts along the arc.
 // -------------------------------------------------------------------------------------------------
 void build_borders_scene(Node& root, StubStyles& styles) {
     root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
@@ -116,10 +116,10 @@ bool check_borders(const PaintStats& stats, const CpuCanvas& canvas) {
     ok = expect(is_pixel(canvas, 250, 90, kCardAlt), "borders: uniform card interior") && ok;
     ok = expect(is_pixel(canvas, 295, 90, kBorderUniform), "borders: uniform right edge") && ok;
     ok = expect(is_pixel(canvas, 208, 90, kBorderUniform), "borders: uniform left edge") && ok;
-    // The CPU sink paints a rounded rect as its axis-aligned bounds, so the corner outside the arc
-    // is filled. Pinning it keeps the documented approximation visible.
-    ok = expect(is_pixel(canvas, 24, 152, kAccent),
-                "borders: rounded corner falls back to the bounds (documented CPU gap)") &&
+    // The CPU sink cuts a rounded rect along its arc (issue #617), so the pixel in the corner
+    // outside the arc is not the accent fill.
+    ok = expect(!is_pixel(canvas, 24, 152, kAccent),
+                "borders: the rounded corner is cut by its arc") &&
          ok;
     return ok;
 }
@@ -339,6 +339,12 @@ int main(int argc, char** argv) {
         ok = run_case(mask_case.name, mask_case.build, mask_case.check) && ok;
     }
     ok = run_case("shadows", build_shadows_scene, check_shadows) && ok;
+    for (const Case& stop_case : stop_cases()) {
+        ok = run_case(stop_case.name, stop_case.build, stop_case.check) && ok;
+    }
+    for (const Case& rounded_case : rounded_cases()) {
+        ok = run_case(rounded_case.name, rounded_case.build, rounded_case.check) && ok;
+    }
     if (!ok) {
         std::cerr << "cpu-wide-golden: FAILED\n";
         return 1;

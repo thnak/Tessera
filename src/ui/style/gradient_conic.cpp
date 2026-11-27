@@ -4,7 +4,8 @@
 //
 // The prelude is `[from <angle>]? [at <position>]?`, both optional and in that order, which is the
 // CSS Images 3 section 3.3.1 grammar. Everything after it is the ordinary stop list the linear and
-// radial halves share, so a conic gradient reads its stops exactly as they do.
+// radial halves share, so a conic gradient reads its stops the way they do; its positions are
+// angles or percentages of the turn (`StopDomain::Turn`).
 
 #include "gradient_bodies.hpp"
 #include "gradient_internal.hpp"
@@ -88,20 +89,6 @@ bool parse_prelude(const std::vector<std::string_view>& tokens, ConicGradientVal
     return index == tokens.size();
 }
 
-// True when `text` is the start of a colour stop rather than a prelude token. A stop is a colour,
-// and every colour spelling either starts with `#` or is a function/identifier; the prelude's own
-// keywords are all handled before this is consulted.
-bool looks_like_stop(std::string_view text) {
-    const std::string token = lower(trim(text));
-    if (token.empty()) {
-        return false;
-    }
-    if (token.front() == '#') {
-        return true;
-    }
-    return parse_color(token).ok;
-}
-
 } // namespace
 
 bool parse_conic_body(std::string_view inner, ConicGradientValue& out) {
@@ -121,22 +108,8 @@ bool parse_conic_body(std::string_view inner, ConicGradientValue& out) {
         first_stop = 1;
     }
 
-    const std::size_t count = parts.size() - first_stop;
-    if (count < 2 || count > kMaxGradientStops) {
-        return false;
-    }
-    std::array<std::optional<float>, kMaxGradientStops> positions;
-    for (std::size_t index = 0; index < count; ++index) {
-        if (!parse_stop(parts[first_stop + index], out.stops[index].color, positions[index])) {
-            return false;
-        }
-    }
-    out.stop_count = count;
-    fix_up_stop_offsets(positions, count);
-    for (std::size_t index = 0; index < count; ++index) {
-        out.stops[index].offset = positions[index].value();
-    }
-    return true;
+    return parse_stop_list(parts, first_stop, StopDomain::Turn, out.stops, out.positions,
+                           out.stop_count);
 }
 
 } // namespace tessera::ui::style::detail

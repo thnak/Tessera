@@ -28,18 +28,35 @@ struct ClipSetRange {
     reserved1: u32,
 };
 
+// The gradient area (ADR-076) follows the clip vertex pool. A gradient quad is one quad: mode 8192 and
+// the record index in carve.x; see gpu::gradient::GradientRecord (gradient_records.hpp).
+const TESSERA_GRADIENT_MAX_RECORDS: u32 = 512u;
+const TESSERA_GRADIENT_MAX_STOPS: u32 = 2048u;
+const TESSERA_GRADIENT_MAX_STOPS_PER_RECORD: u32 = 32u;
+
+struct GradientRecord {
+    kind: u32,       // 0 linear, 1 radial, 2 conic
+    stop_count: u32,
+    first_stop: u32,
+    flags: u32,
+    params: vec4<f32>, // quad-local geometry
+};
+
 // The header is four u32s (16 bytes, ClipBufferHeader), so the records start at offset 16 as in the
 // Vulkan std430 layout. A `vec3<u32>` here would align to 16 and push every record to offset 32,
 // so the shader would read the wrong bytes and the struct would be 16 bytes larger than the buffer.
 struct ClipBuffer {
     record_count: u32,
-    header_reserved0: u32,
-    header_reserved1: u32,
-    header_reserved2: u32,
+    vertex_count: u32,
+    gradient_count: u32,
+    gradient_stop_count: u32,
     records: array<ClipRecord, TESSERA_CLIP_MAX_RECORDS>,
     sets: array<ClipSetRange, TESSERA_CLIP_MAX_SETS>,
     // The polygon vertex pool (ADR-068 slice 5), after the sets; `vec2<f32>` is an 8-byte stride.
     vertices: array<vec2<f32>, TESSERA_CLIP_MAX_VERTICES>,
+    gradients: array<GradientRecord, TESSERA_GRADIENT_MAX_RECORDS>,
+    stop_colors: array<vec4<f32>, TESSERA_GRADIENT_MAX_STOPS>,
+    stop_offsets: array<f32, TESSERA_GRADIENT_MAX_STOPS>,
 };
 
 struct Params {
@@ -211,6 +228,31 @@ fn erf_approx(x: f32) -> f32 {
     return select(y, -y, x < 0.0);
 }
 
+// The blurred coverage of a rounded box (see blurred_box in batched2d.frag).
+fn blurred_box_x(x: f32, y: f32, sigma: f32, corner: f32, half_size: vec2<f32>) -> f32 {
+    let delta = min(half_size.y - corner - abs(y), 0.0);
+    let curved = half_size.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+    let k = 0.70710678 / sigma;
+    return 0.5 * (erf_approx((x + curved) * k) - erf_approx((x - curved) * k));
+}
+
+fn blurred_box(p: vec2<f32>, half_size: vec2<f32>, corner: f32, sigma: f32) -> f32 {
+    let low = p.y - half_size.y;
+    let high = p.y + half_size.y;
+    let start = clamp(-3.0 * sigma, low, high);
+    let end = clamp(3.0 * sigma, low, high);
+    let step_y = (end - start) / 8.0;
+    var y = start + step_y * 0.5;
+    let norm = 0.39894228 / sigma;
+    var value = 0.0;
+    for (var i = 0; i < 8; i = i + 1) {
+        let weight = norm * exp(-0.5 * y * y / (sigma * sigma));
+        value = value + blurred_box_x(p.x, p.y - y, sigma, corner, half_size) * weight * step_y;
+        y = y + step_y;
+    }
+    return clamp(value, 0.0, 1.0);
+}
+
 fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     let clip = clip_buffer.records[index];
     if (clip.kind == 2u) {
@@ -233,6 +275,76 @@ fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     r = min(r, min(half_size.x, half_size.y));
     let d = sd_round_box(q, half_size, r);
     return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+}
+
+// The ramp position of a gradient record at a quad-local point: gpu::gradient::position, and
+// gradient_position in batched2d.frag, expression for expression.
+fn gradient_position(record: u32, local: vec2<f32>) -> f32 {
+    let kind = clip_buffer.gradients[record].kind;
+    let params = clip_buffer.gradients[record].params;
+    if (kind == 1u) {
+        let n = (local - params.xy) / params.zw;
+        return sqrt(n.x * n.x + n.y * n.y);
+    }
+    if (kind == 2u) {
+        let d = local - params.xy;
+        // The exact centre has no angle and takes 0; atan2(0, 0) is not specified.
+        var angle = 0.0;
+        if (d.x != 0.0 || d.y != 0.0) {
+            angle = atan2(d.x, -d.y);
+        }
+        let turn = angle / 6.28318530717958647692 - params.z;
+        return turn - floor(turn);
+    }
+    return local.x * params.x + local.y * params.y + params.z;
+}
+
+// Encoded-space interpolation over the record's sorted stops (gpu::gradient::ramp): the last stop at
+// or below t blended with the next; a duplicate offset lets the later stop win. A repeating record
+// (flags bit 0) first wraps t into [first offset, last offset).
+fn gradient_color(record: u32, t_in: f32) -> vec4<f32> {
+    let count = min(clip_buffer.gradients[record].stop_count, TESSERA_GRADIENT_MAX_STOPS_PER_RECORD);
+    let first = clip_buffer.gradients[record].first_stop;
+    if (count == 0u) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+    if (count == 1u) {
+        return clip_buffer.stop_colors[first];
+    }
+    var t = t_in;
+    if ((clip_buffer.gradients[record].flags & 1u) != 0u) {
+        let first_offset = clip_buffer.stop_offsets[first];
+        let period = clip_buffer.stop_offsets[first + count - 1u] - first_offset;
+        if (period > 0.0) {
+            let cycles = (t - first_offset) / period;
+            t = first_offset + (cycles - floor(cycles)) * period;
+        }
+    }
+    var below = -1;
+    for (var i = 0u; i < count; i = i + 1u) {
+        if (clip_buffer.stop_offsets[first + i] <= t) {
+            below = i32(i);
+        }
+    }
+    if (below < 0) {
+        return clip_buffer.stop_colors[first];
+    }
+    let k = u32(below);
+    let offset_k = clip_buffer.stop_offsets[first + k];
+    if (offset_k == t || k + 1u == count) {
+        return clip_buffer.stop_colors[first + k];
+    }
+    let a = clip_buffer.stop_colors[first + k];
+    let b = clip_buffer.stop_colors[first + k + 1u];
+    let local_t = (t - offset_k) / (clip_buffer.stop_offsets[first + k + 1u] - offset_k);
+    // Premultiplied, then un-premultiplied (see batched2d.frag).
+    let alpha = a.a + (b.a - a.a) * local_t;
+    let premultiplied = a.rgb * a.a + (b.rgb * b.a - a.rgb * a.a) * local_t;
+    var rgb = a.rgb + (b.rgb - a.rgb) * local_t;
+    if (alpha > 0.0) {
+        rgb = premultiplied / alpha;
+    }
+    return vec4<f32>(rgb, alpha);
 }
 
 @fragment
@@ -265,7 +377,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = in.color;
     // textureSample needs uniform control flow, so sample unconditionally and select.
     let sampled = textureSample(u_texture, u_sampler, in.uv);
-    if (in.mode > 4000.0) {
+    if (in.mode > 8000.0) {
+        // Gradient quad (ADR-076, see batched2d.frag): the record index rides in carve.x, and the ramp
+        // is evaluated at the pixel centre in the quad's local space.
+        let record = min(u32(round(in.carve.x)), TESSERA_GRADIENT_MAX_RECORDS - 1u);
+        color = color * gradient_color(record, gradient_position(record, in.local));
+    } else if (in.mode > 4000.0) {
         // Exact nearest texture (#682, kExactNearestMode; see batched2d.frag): integer math on the
         // fragment's device pixel, so every GPU agrees with the CPU rule. `carve` is the integer
         // device rectangle (xy origin, zw size). textureLoad has no derivative, so it may sit here.
@@ -290,6 +407,37 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         var texel = sampled;
         texel.a = min(texel.a * (1.0 + (in.mode - 2.0) * 4.0), 1.0);
         color = color * texel;
+    } else if (in.mode > 2000.0) {
+        // This test comes BEFORE the outer shadow's (mode > 1000): an inset mode (2048 + sigma) is
+        // also above 1000, so the other order sent every inset shadow down the outer-shadow path.
+        // Inset box shadow (issue #612): mode is 2048 + sigma (see batched2d.frag). The quad is the
+        // border box and `carve` is the inner box, so the shadow fills the ring between them: its blurred
+        // coverage is the Gaussian edge profile on the inner box's signed distance d (1 outside it).
+        let sigma = in.mode - 2048.0;
+        var inner_half = in.half_size;
+        var inner_centre = vec2<f32>(0.0, 0.0);
+        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
+            inner_half = in.carve.zw;
+            inner_centre = in.carve.xy;
+        }
+        let inset = in.half_size.x - inner_half.x;
+        let inner_radius = clamp(in.radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        let d = sd_round_box(in.local - inner_centre, inner_half, inner_radius);
+        var cover = 0.0;
+        if (sigma > 0.0) {
+            cover = 1.0 - blurred_box(in.local - inner_centre, inner_half, inner_radius, sigma);
+        } else if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, 1.0, d > 0.0);
+        } else {
+            cover = smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        let outer = sd_round_box(in.local, in.half_size, in.radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, cover, outer <= 0.0);
+        } else {
+            cover = cover * (1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer));
+        }
+        color.a = color.a * cover;
     } else if (in.mode > 1000.0) {
         // Box shadow: mode is 1024 + sigma (see batched2d.frag); sigma 0 is the hard-edged shadow.
         let sigma = in.mode - 1024.0;
@@ -312,34 +460,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             if (sd_round_box(in.local - in.carve.xy, hole_half, hole_radius) <= 0.0) {
                 cover = 0.0;
             }
-        }
-        color.a = color.a * cover;
-    } else if (in.mode > 2000.0) {
-        // Inset box shadow (issue #612): mode is 2048 + sigma (see batched2d.frag). The quad is the
-        // border box and `carve` is the inner box, so the shadow fills the ring between them.
-        let sigma = in.mode - 2048.0;
-        var inner_half = in.half_size;
-        var inner_centre = vec2<f32>(0.0, 0.0);
-        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
-            inner_half = in.carve.zw;
-            inner_centre = in.carve.xy;
-        }
-        let inset = in.half_size.x - inner_half.x;
-        let inner_radius = clamp(in.radius - inset, 0.0, min(inner_half.x, inner_half.y));
-        let d = sd_round_box(in.local - inner_centre, inner_half, inner_radius);
-        var cover = 0.0;
-        if (sigma > 0.0) {
-            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
-        } else if (pc.aa_radius <= 0.0) {
-            cover = select(0.0, 1.0, d <= 0.0);
-        } else {
-            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
-        }
-        let outer = sd_round_box(in.local, in.half_size, in.radius);
-        if (pc.aa_radius <= 0.0) {
-            cover = select(0.0, cover, outer <= 0.0);
-        } else {
-            cover = cover * (1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer));
         }
         color.a = color.a * cover;
     } else if (in.mode > 2.5) {

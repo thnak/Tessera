@@ -2073,6 +2073,13 @@ target_link_libraries(paint_gradient_tests PRIVATE tessera_paint tessera_text)
 
 add_test(NAME paint_gradient COMMAND paint_gradient_tests)
 
+# Gradient colour-stop positions (#617, CSS Images 4 section 3.5): two positions, px lengths, conic
+# angles, out-of-range fractions and what paint hands the renderer for a repeating ramp.
+add_executable(gradient_stop_positions_tests
+    gradient_stop_positions_tests.cpp)
+target_link_libraries(gradient_stop_positions_tests PRIVATE tessera_paint tessera_text tessera_style)
+add_test(NAME gradient_stop_positions COMMAND gradient_stop_positions_tests)
+
 add_executable(background_image_tests
     background_image_tests.cpp)
 

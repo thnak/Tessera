@@ -74,12 +74,35 @@ struct ClipSetRange {
     uint reserved1;
 };
 
+// The gradient area (ADR-076) follows the clip vertex pool, so no offset above moved. A gradient quad
+// is one quad: its vertices carry mode 8192 and the record index in carve.x, and the shader below
+// evaluates the ramp at the pixel centre. Layout must match gpu::gradient::GradientRecord
+// (gradient_records.hpp):
+//   GradientRecord { uint kind; uint stop_count; uint first_stop; uint flags; vec4 params; } // 32 bytes
+//   stop_colors[s] (vec4) and stop_offsets[s] (float), both indexed by first_stop.
+#define TESSERA_GRADIENT_MAX_RECORDS 512
+#define TESSERA_GRADIENT_MAX_STOPS 2048
+#define TESSERA_GRADIENT_MAX_STOPS_PER_RECORD 32u
+
+struct GradientRecord {
+    uint kind;       // 0 linear, 1 radial, 2 conic
+    uint stop_count;
+    uint first_stop;
+    uint flags;
+    vec4 params;     // quad-local geometry, see gradient_records.hpp
+};
+
 layout(set = 1, binding = 0, std430) readonly buffer ClipBuffer {
     uint record_count;
-    uint header_reserved[3];
+    uint vertex_count;
+    uint gradient_count;
+    uint gradient_stop_count;
     ClipRecord records[TESSERA_CLIP_MAX_RECORDS];
     ClipSetRange sets[TESSERA_CLIP_MAX_SETS];
     vec2 vertices[TESSERA_CLIP_MAX_VERTICES]; // polygon vertex pool (ADR-068 slice 5)
+    GradientRecord gradients[TESSERA_GRADIENT_MAX_RECORDS];
+    vec4 stop_colors[TESSERA_GRADIENT_MAX_STOPS];
+    float stop_offsets[TESSERA_GRADIENT_MAX_STOPS];
 } clip_buffer;
 
 // Must match Batched2DPushConstants (16 bytes: 2 floats + 1 float + 1 uint).
@@ -108,6 +131,37 @@ float erf_approx(float x) {
     float poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     float y = 1.0 - poly * exp(-a * a);
     return x < 0.0 ? -y : y;
+}
+
+// The blurred coverage of a rounded box at a point (inset shadows, issue #612): the box's own
+// indicator convolved with a Gaussian of standard deviation `sigma`. The box is separable, so the
+// x extent is two erf terms; the rounded corners shorten that extent where the row is within the
+// corner radius of the top or bottom, and the y integral is taken numerically over +/- 3 sigma in
+// eight midpoint steps (the method of Evan Wallace's "Fast Rounded Rectangle Shadows"). `p` is
+// relative to the box centre. A signed-distance edge profile is exact for a straight edge only: at
+// the corner of a box that is not much wider than the blur it is 35/255 off Chromium.
+float blurred_box_x(float x, float y, float sigma, float corner, vec2 half_size) {
+    float delta = min(half_size.y - corner - abs(y), 0.0);
+    float curved = half_size.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+    float k = 0.70710678 / sigma;
+    return 0.5 * (erf_approx((x + curved) * k) - erf_approx((x - curved) * k));
+}
+
+float blurred_box(vec2 p, vec2 half_size, float corner, float sigma) {
+    float low = p.y - half_size.y;
+    float high = p.y + half_size.y;
+    float start = clamp(-3.0 * sigma, low, high);
+    float end = clamp(3.0 * sigma, low, high);
+    float step_y = (end - start) / 8.0;
+    float y = start + step_y * 0.5;
+    float norm = 0.39894228 / sigma;
+    float value = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float weight = norm * exp(-0.5 * y * y / (sigma * sigma));
+        value += blurred_box_x(p.x, p.y - y, sigma, corner, half_size) * weight * step_y;
+        y += step_y;
+    }
+    return clamp(value, 0.0, 1.0);
 }
 
 // Hard-edged clip test, used when AA is off (golden mode, aa_radius 0): the pixel-center rule keeps
@@ -255,6 +309,75 @@ float clip_coverage(vec2 p, uint index) {
     return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
 }
 
+// The ramp position of a gradient record at a quad-local point (pixels from the quad's centre):
+// gpu::gradient::position (gradient_math.hpp), expression for expression, so the CPU reference and
+// this shader cannot drift. The record is read by index, field by field, for the same naga reason as
+// the clip helpers above.
+float gradient_position(uint record, vec2 local) {
+    uint kind = clip_buffer.gradients[record].kind;
+    vec4 params = clip_buffer.gradients[record].params;
+    if (kind == 1u) {
+        vec2 n = (local - params.xy) / params.zw;
+        return sqrt(n.x * n.x + n.y * n.y);
+    }
+    if (kind == 2u) {
+        vec2 d = local - params.xy;
+        // CSS angles run clockwise from 12 o'clock; the exact centre has no angle and takes 0
+        // (atan(0, 0) is undefined in GLSL).
+        float angle = (d.x == 0.0 && d.y == 0.0) ? 0.0 : atan(d.x, -d.y);
+        float turn = angle / 6.28318530717958647692 - params.z;
+        return turn - floor(turn);
+    }
+    return local.x * params.x + local.y * params.y + params.z;
+}
+
+// Encoded-space interpolation over the record's sorted stops: gpu::gradient::ramp. Find the last stop
+// at or below t, then blend it with the next one; a duplicate offset lets the later stop win, and t
+// outside the ramp takes the end stop, or, for a repeating record (flags bit 0), t first wraps into
+// [first offset, last offset). The loop runs only for a gradient fragment, bounded by the record's
+// own count (never more than 32).
+vec4 gradient_color(uint record, float t) {
+    uint count = min(clip_buffer.gradients[record].stop_count, TESSERA_GRADIENT_MAX_STOPS_PER_RECORD);
+    uint first = clip_buffer.gradients[record].first_stop;
+    if (count == 0u) {
+        return vec4(0.0);
+    }
+    if (count == 1u) {
+        return clip_buffer.stop_colors[first];
+    }
+    if ((clip_buffer.gradients[record].flags & 1u) != 0u) {
+        float first_offset = clip_buffer.stop_offsets[first];
+        float period = clip_buffer.stop_offsets[first + count - 1u] - first_offset;
+        if (period > 0.0) {
+            float cycles = (t - first_offset) / period;
+            t = first_offset + (cycles - floor(cycles)) * period;
+        }
+    }
+    int below = -1;
+    for (uint i = 0u; i < count; ++i) {
+        if (clip_buffer.stop_offsets[first + i] <= t) {
+            below = int(i);
+        }
+    }
+    if (below < 0) {
+        return clip_buffer.stop_colors[first];
+    }
+    uint k = uint(below);
+    float offset_k = clip_buffer.stop_offsets[first + k];
+    if (offset_k == t || k + 1u == count) {
+        return clip_buffer.stop_colors[first + k];
+    }
+    vec4 a = clip_buffer.stop_colors[first + k];
+    vec4 b = clip_buffer.stop_colors[first + k + 1u];
+    float local_t = (t - offset_k) / (clip_buffer.stop_offsets[first + k + 1u] - offset_k);
+    // Premultiplied, then un-premultiplied (the blend stage composites straight alpha): CSS Images
+    // 3.5.3 and Chromium. gpu::gradient::ramp, expression for expression.
+    float alpha = a.a + (b.a - a.a) * local_t;
+    vec3 premultiplied = a.rgb * a.a + (b.rgb * b.a - a.rgb * a.a) * local_t;
+    vec3 rgb = alpha > 0.0 ? premultiplied / alpha : a.rgb + (b.rgb - a.rgb) * local_t;
+    return vec4(rgb, alpha);
+}
+
 void main() {
     // Local units per device pixel, measured from the interpolated local coordinate (linear, so
     // the derivative is exact). It is 1.0 for an untransformed quad and 1/scale under a scale or
@@ -303,7 +426,15 @@ void main() {
 #define TESSERA_TEXEL TESSERA_SAMPLE(v_uv)
 #endif
 
-    if (v_mode > 4000.0) {
+    if (v_mode > 8000.0) {
+        // Gradient quad (ADR-076, kGradientMode): the record index rides in carve.x, rounded because
+        // interpolating a constant can leave a ulp of error. Evaluated at the pixel centre in the
+        // quad's local space, so a gradient under a transform rotates with its box. The ramp is the
+        // straight-alpha colour, like a solid quad's vertex colour, and v_color (white, carrying only
+        // the flat-layer opacity) multiplies it; the rounded-clip coverage applies below as ever.
+        uint record = min(uint(round(v_carve.x)), uint(TESSERA_GRADIENT_MAX_RECORDS) - 1u);
+        color *= gradient_color(record, gradient_position(record, v_local));
+    } else if (v_mode > 4000.0) {
         // Exact nearest texture (#682, kExactNearestMode): the texel comes from integer math on the
         // fragment's device pixel, so every GPU agrees with the CPU rule
         // `min(floor((2p + 1) * src / (2 * dst)), src - 1)`. The hardware nearest sampler is not
@@ -331,6 +462,40 @@ void main() {
         vec4 texel_color = TESSERA_TEXEL;
         texel_color.a = min(texel_color.a * (1.0 + (v_mode - 2.0) * 4.0), 1.0);
         color *= texel_color;
+    } else if (v_mode > 2000.0) {
+        // This test comes BEFORE the outer shadow's (mode > 1000): an inset mode (2048 + sigma) is
+        // also above 1000, so the other order sent every inset shadow down the outer-shadow path.
+        // Inset box shadow (issue #612): mode is 2048 + sigma. The quad is the element's border box
+        // and `v_carve` is the inner box (the border box moved by the offset and shrunk by the
+        // spread), so the shadow fills the ring between them and fades inward. The shadow's shape is
+        // everything OUTSIDE the inner box, so its blurred coverage is the Gaussian edge profile on
+        // the inner box's signed distance d (negative inside): 1 well outside it, 0.5 on its edge
+        // and falling to 0 inside it.
+        float sigma = v_mode - 2048.0;
+        vec2 inner_half = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.zw : v_half_size;
+        vec2 inner_centre = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.xy : vec2(0.0);
+        // The inner radius is the border radius minus the spread, which is the inset between the
+        // two boxes on the x axis (an engine `border-radius` is one length).
+        float inset = v_half_size.x - inner_half.x;
+        float inner_radius = clamp(v_radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        float d = sd_round_box(v_local - inner_centre, inner_half, inner_radius);
+        float cover;
+        if (sigma > 0.0) {
+            cover = 1.0 - blurred_box(v_local - inner_centre, inner_half, inner_radius, sigma);
+        } else if (pc.aa_radius <= 0.0) {
+            cover = d > 0.0 ? 1.0 : 0.0;
+        } else {
+            cover = smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        // The quad is the border box, so the rounded silhouette clips the shadow: a pixel outside
+        // the border box's rounded shape paints nothing.
+        float outer = sd_round_box(v_local, v_half_size, v_radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = outer <= 0.0 ? cover : 0.0;
+        } else {
+            cover *= 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer);
+        }
+        color.a *= cover;
     } else if (v_mode > 1000.0) {
         // Box shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma. sigma 0 is the
         // hard-edged shadow (`box-shadow: 4px 4px 0`): the same shape with a coverage step, so the
@@ -357,39 +522,6 @@ void main() {
             if (sd_round_box(v_local - v_carve.xy, hole_half, hole_radius) <= 0.0) {
                 cover = 0.0;
             }
-        }
-        color.a *= cover;
-    } else if (v_mode > 2000.0) {
-        // Inset box shadow (issue #612): mode is 2048 + sigma. The quad is the element's border box
-        // and `v_carve` is the inner box (the border box moved by the offset and shrunk by the
-        // spread), so the shadow fills the ring between them and fades inward. The Gaussian is
-        // evaluated on the inner box's signed distance, which is the same edge profile an outer
-        // shadow has, mirrored: coverage is 1 at the inner box and falls off outward from it.
-        float sigma = v_mode - 2048.0;
-        vec2 inner_half = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.zw : v_half_size;
-        vec2 inner_centre = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.xy : vec2(0.0);
-        // The inner radius is the border radius minus the spread, which is the inset between the
-        // two boxes on the x axis (an engine `border-radius` is one length).
-        float inset = v_half_size.x - inner_half.x;
-        float inner_radius = clamp(v_radius - inset, 0.0, min(inner_half.x, inner_half.y));
-        float d = sd_round_box(v_local - inner_centre, inner_half, inner_radius);
-        float cover;
-        if (sigma > 0.0) {
-            // Inside the inner box (d < 0) the shadow is at full strength; outside it the Gaussian
-            // tail fades toward the border box.
-            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
-        } else if (pc.aa_radius <= 0.0) {
-            cover = d <= 0.0 ? 1.0 : 0.0;
-        } else {
-            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
-        }
-        // The quad is the border box, so the rounded silhouette clips the shadow: a pixel outside
-        // the border box's rounded shape paints nothing.
-        float outer = sd_round_box(v_local, v_half_size, v_radius);
-        if (pc.aa_radius <= 0.0) {
-            cover = outer <= 0.0 ? cover : 0.0;
-        } else {
-            cover *= 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer);
         }
         color.a *= cover;
     } else if (v_mode > 2.5) {

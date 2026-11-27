@@ -54,11 +54,20 @@ calls it twice: outer shadows before the background, inset shadows after the bac
 and before the content, which is the CSS paint order.
 
 For an inset shadow the draw's `box` is the element's **border box** (the quad, so the shadow can
-never paint outside it) and `carve` is the **inner box**. The fragment stage evaluates the inner
-box's signed distance and takes `0.5 * (1 + erf(-d / (sigma * sqrt 2)))`, so coverage is 1 at the
-inner box and falls off outward toward the border box; the border box's own rounded distance then
-clips the result to the silhouette. The mode is `kInsetShadowModeBase + sigma` (2048 + sigma), so
-the two shadow kinds share one vertex layout and one fragment branch.
+never paint outside it) and `carve` is the **inner box**. The shadow's shape is everything
+outside the inner box, and the fragment stage computes its blurred coverage as one minus the
+Gaussian-blurred inner box (`blurred_box`: two erf terms for the x extent, the corner radius
+shortening it near the top and bottom, and the y integral in eight midpoint steps over +/- 3 sigma, after
+Evan Wallace's "Fast Rounded Rectangle Shadows"), so coverage is 0.5 on the inner box's edge, 1 well
+outside it and 0 deep inside it. A signed-distance edge profile is exact for a straight edge only: at
+the corner of a box not much wider than the blur it was 35/255 from Chromium. The sharp case (sigma
+0) is the hard or anti-aliased test on the inner box's distance. The border box's own rounded
+distance then clips the result to the silhouette. The mode is `kInsetShadowModeBase + sigma` (2048 + sigma), so
+the two shadow kinds share one vertex layout and one fragment branch. **The shader tests mode > 2000
+before mode > 1000** (the outer shadow, 1024 + sigma): with the order reversed, every inset shadow took
+the outer-shadow path with a sigma over a thousand and painted a flat half-strength ring, and the
+inset branch's own formula (the shadow of the inner box, not of its complement) was never exercised.
+Both were found by `inset_shadow_gpu`.
 
 The flattening sinks get the inverse of the outer strips: `fill_inside` emits up to four bands
 between the border box and the inner box, and a blurred inset shadow is a stack of those bands whose
@@ -85,6 +94,7 @@ the border box" more strongly than the GPU path, and the GPU path pins the corne
 |---|---|
 | `paint_shadow` | unit: every outer layer is carved (no emitted rect touches the border box), the one-shape draw carries the carve box, the radius and `sigma`; the blurred stack keeps its Gaussian profile and its reduced-effects cap; an inset shadow fills the ring inside the border box and never leaves it, and the one-shape draw is flagged `inset` with the inner box in the carve slot |
 | `paint_shadow_cpu` | pixels on the deterministic CPU canvas: the centre and the inside edges of a transparent box are the page colour, the shadow below and beside it is not, round or square; an inset shadow paints the ring and nothing outside the border box |
+| `inset_shadow_gpu` | real Vulkan/lavapipe readback of six inset scenes (zero and offset blur, spread, a sharp ring, rounded, wide blur) against Chromium 159 (`inset_shadow_chromium_reference.hpp`), 6/255 at worst; failed at 255/255 before the shader fix (skips without a device) |
 | `shadow_clip_gpu` | real Vulkan/lavapipe readback through the renderer *and* the paint pass: transparent centres are page colour, the corner triangle keeps a light shadow, the shadow band still paints (skips without a device) |
 | `cpu_wide_golden` `shadows` | the committed CPU baseline `tests/golden/baseline/cpu_wide/shadows.png`: transparent square, transparent rounded, opaque card |
 | `batched2d_shadow_golden` | the lavapipe baseline `tests/golden/baseline/batched2d/shadow_clip.png` for `batched2d_poc --shadow-clip --width 320 --height 200` |

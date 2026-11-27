@@ -35,7 +35,7 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.19**
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.20**
   (`0x00010013`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
@@ -95,6 +95,9 @@ RHI versioning and capabilities (ADR-049):
   throwing calls) until their slices land.
   1.19 adds `BlendMode::DestinationIn` (`dst * src.a` on all four channels), the mask step of an isolated
   layer (issue #617, section 4.1); every backend expresses it with fixed blend factors.
+  1.20 adds `Device::supports_analytic_gradients()` (non-pure, default false; true on Vulkan with storage
+  buffers, null and WebGPU): the renderer draws a gradient as one quad evaluated per fragment, else bands
+  ([gradients.md](gradients.md), ADR-076).
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

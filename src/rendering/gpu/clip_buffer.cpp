@@ -8,8 +8,7 @@
 namespace tessera::rendering::gpu {
 namespace {
 
-constexpr std::size_t kBufferBytes =
-    clip::buffer_bytes(clip::kMaxClipRecords, clip::kMaxClipSets, clip::kMaxClipVertices);
+constexpr std::size_t kBufferBytes = gradient::total_buffer_bytes();
 
 } // namespace
 
@@ -33,6 +32,8 @@ void ClipBuffer::begin_frame() {
     current_->uploaded_records = 0;
     current_->uploaded_sets = 0;
     current_->uploaded_vertices = 0;
+    current_->uploaded_gradients = 0;
+    current_->uploaded_stops = 0;
 }
 
 void ClipBuffer::ensure_capacity(Slot& slot) {
@@ -46,7 +47,8 @@ void ClipBuffer::ensure_capacity(Slot& slot) {
 
 rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
                                 const std::vector<clip::ClipSetRange>& sets,
-                                const std::vector<clip::ClipVertex>& vertices) {
+                                const std::vector<clip::ClipVertex>& vertices,
+                                const GradientTable* gradients) {
     if (current_ == nullptr || !supported()) {
         return nullptr;
     }
@@ -101,11 +103,43 @@ rhi::Buffer* ClipBuffer::upload(const std::vector<clip::ClipRecord>& records,
         current_->uploaded_vertices = total_vertices;
     }
 
+    // The gradient area is append-only like the records: a record's `first_stop` points at stops
+    // already written, so the stops go in first. Only what was added since the last upload is
+    // written, and a frame with no gradients writes nothing here.
+    if (gradients != nullptr) {
+        const std::uint32_t total_stops =
+            std::min<std::uint32_t>(gradients->stop_count(), gradient::kMaxGradientStops);
+        if (total_stops > current_->uploaded_stops) {
+            const std::uint32_t first = current_->uploaded_stops;
+            const std::uint32_t added = total_stops - first;
+            current_->buffer->write(
+                gradients->stop_colors().data() + static_cast<std::size_t>(first) * 4,
+                added * gradient::kStopColorBytes,
+                gradient::stop_colors_offset() + first * gradient::kStopColorBytes);
+            current_->buffer->write(
+                gradients->stop_offsets().data() + first, added * gradient::kStopOffsetBytes,
+                gradient::stop_offsets_offset() + first * gradient::kStopOffsetBytes);
+            current_->uploaded_stops = total_stops;
+        }
+        const std::uint32_t total_gradients = std::min<std::uint32_t>(
+            static_cast<std::uint32_t>(gradients->records().size()), gradient::kMaxGradientRecords);
+        if (total_gradients > current_->uploaded_gradients) {
+            const std::uint32_t first = current_->uploaded_gradients;
+            current_->buffer->write(gradients->records().data() + first,
+                                    (total_gradients - first) * sizeof(gradient::GradientRecord),
+                                    gradient::records_offset() +
+                                        first * sizeof(gradient::GradientRecord));
+            current_->uploaded_gradients = total_gradients;
+        }
+    }
+
     // The header carries the record and vertex counts, which the shader does not need (it reads a
     // set's range) but a debug readback does.
     clip::ClipBufferHeader header;
     header.record_count = current_->uploaded_records;
     header.vertex_count = current_->uploaded_vertices;
+    header.gradient_count = current_->uploaded_gradients;
+    header.gradient_stop_count = current_->uploaded_stops;
     current_->buffer->write(&header, sizeof(header), 0);
 
     return current_->buffer.get();

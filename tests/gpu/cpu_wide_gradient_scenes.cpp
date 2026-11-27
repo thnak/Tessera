@@ -148,8 +148,8 @@ bool check_layers(const PaintStats& stats, const CpuCanvas& canvas) {
 }
 
 // radials (issue #613): a centred circle, an off-centre ellipse, a repeating radial ramp and a
-// radial cut by an overflow clip. The tessellation is the shared one both sinks call, so this
-// baseline pins the geometry the GPU path emits as well.
+// radial cut by an overflow clip. The CPU sink evaluates the same record the GPU shader reads
+// (gradient_math.hpp), so this baseline pins the ramp the GPU path draws as well.
 // -------------------------------------------------------------------------------------------------
 void build_radials_scene(Node& root, StubStyles& styles) {
     root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
@@ -195,10 +195,12 @@ bool check_radials(const PaintStats& stats, const CpuCanvas& canvas) {
     ok = expect(channel(canvas, 76, 20, 2) > channel(canvas, 76, 20, 0),
                 "radials: the circle edge is the last stop") &&
          ok;
-    // Outside the ellipse the node's own background shows through: the payload paints no fill
-    // there.
-    ok = expect(is_pixel(canvas, 20, 20, kRoot),
-                "radials: the ellipse leaves the box corner unpainted") &&
+    // Past the last stop the ramp holds its last colour (CSS Images 3 section 3.6), so the box
+    // corner - beyond the circle's radius - is the last stop, not the page behind it. The banded
+    // grid used to leave it unpainted; the per-fragment shader (ADR-076) fills the whole box.
+    ok = expect(channel(canvas, 20, 20, 2) > channel(canvas, 20, 20, 0) &&
+                    !is_pixel(canvas, 20, 20, kRoot),
+                "radials: the box corner holds the last stop") &&
          ok;
     // The off-centre ellipse is green at its centre (25 % of the width) and amber at its far edge.
     ok = expect(channel(canvas, 152 + 37, 51, 1) > channel(canvas, 152 + 37, 51, 0),

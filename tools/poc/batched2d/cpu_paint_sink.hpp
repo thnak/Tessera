@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cpu_shape_clips.hpp"
 #include "tessera/rendering/image/image_decode_cache.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
@@ -11,6 +12,7 @@
 #include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/assets/asset_image.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
+#include "tessera/ui/paint/gradient_fill.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
@@ -29,8 +31,11 @@ namespace tessera::poc::batched2d {
 // CPU implementation of the paint sink used by `batched2d --backend cpu --cpu-text`.
 // It reuses the paint pass output (TextDraw per line from PaintData) and the same FreeType glyph
 // coverage bitmaps as the GPU text path, but composites them into the deterministic CPU canvas.
-// Rounded rects and rounded clips are approximated by their axis-aligned bounds (the CPU golden
-// scene uses plain rects); transforms are already folded into the paint rects.
+// Rounded rects, rounded clips and the rounded corners of a gradient are exact: every covered pixel
+// takes the shader's own coverage (hard pixel-centre test by default, the half-pixel blend after
+// `set_aa_radius(0.5f)`), so a rounded gradient or mask agrees with the GPU within the arithmetic
+// of the blend. Text, images and vector draws under a rounded clip are still cut by the clip's
+// bounds. Transforms are already folded into the paint rects.
 //
 // Isolated layers and layer masks (issue #617) are the CPU twin of the GPU path: while a layer is
 // open every draw goes to a black-backed and a white-backed scratch canvas, and the pop composites
@@ -69,84 +74,71 @@ public:
           clip_{0.0f, 0.0f, static_cast<float>(canvas.width()),
                 static_cast<float>(canvas.height())} {}
 
+    // Anti-aliasing of rounded edges: 0 (the default) is the hard pixel-centre test of the
+    // renderer's golden mode, 0.5 the half-pixel blend of an anti-aliased frame. Plain rect edges
+    // are not anti-aliased either way, as on the GPU.
+    void set_aa_radius(float aa_radius) {
+        shapes_.set_aa_radius(aa_radius);
+    }
+
     void fill_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color) override {
         const rendering::rhi::Rect clipped = intersect(clip_, rect);
-        if (clipped.width > 0.0f && clipped.height > 0.0f) {
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        if (shapes_.empty()) {
             paint_each(
                 [&](rendering::software::CpuCanvas& canvas) { canvas.fill_rect(clipped, color); });
+            return;
         }
+        shade(clipped,
+              [&](float x, float y) { return with_coverage(color, shapes_.coverage(x, y)); });
     }
 
+    // A rounded rect is the shader's rounded quad: the signed distance to the box at every pixel
+    // centre, hard or blended, under the open rounded clips.
     void fill_rounded_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color,
-                           float /*radius*/) override {
-        // The CPU golden scene does not use rounded rects; bounds-only approximation documented.
-        fill_rect(rect, color);
+                           float radius) override {
+        const rendering::rhi::Rect clipped = intersect(clip_, rect);
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        const float half_width = rect.width * 0.5f;
+        const float half_height = rect.height * 0.5f;
+        const float clamped = std::clamp(radius, 0.0f, std::min(half_width, half_height));
+        const float centre_x = rect.x + half_width;
+        const float centre_y = rect.y + half_height;
+        shade(clipped, [&](float x, float y) {
+            const float box = rendering::gpu::clip::rounded_box_coverage(
+                x - centre_x, y - centre_y, half_width, half_height, clamped, shapes_.aa_radius());
+            return with_coverage(color, box * shapes_.coverage(x, y));
+        });
     }
 
-    // V1 gradient parity: the same 64 dominant-axis bands the GPU sink emits, sampled with the
-    // shared encoded-space ramp. Rounded corners are approximated by rect bounds here (the CPU
-    // golden path documents that approximation), so parity is exact for unrounded gradients.
+    // Gradients are evaluated per pixel, the CPU twin of the shader (docs/design/gpu/gradients.md,
+    // ADR-076): the fill is packed into the same record the GPU reads (gradient_math.hpp) and
+    // evaluated at every pixel centre with the shader's own expressions, so the two paths differ
+    // only by the shader's arithmetic. The draw's rounded `clip` (the node's border radius) and
+    // every open rounded clip multiply the colour's alpha by their coverage, as the shader does.
     void fill_linear_gradient(const ui::paint::GradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        const float radians = draw.angle_degrees * 3.14159265358979323846f / 180.0f;
-        const float dx = std::sin(radians);
-        const float dy = -std::cos(radians);
-        const float span_x = draw.rect.width * std::abs(dx);
-        const float span_y = draw.rect.height * std::abs(dy);
-        const float span = std::max(span_x + span_y, 1.0f);
-        constexpr int kBands = 64;
-        if (std::abs(dx) >= std::abs(dy)) {
-            const float band = draw.rect.width / static_cast<float>(kBands);
-            for (int index = 0; index < kBands; ++index) {
-                const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
-                const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
-                const float left =
-                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index, kBands);
-                const float right =
-                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index + 1, kBands);
-                fill_rect({left, draw.rect.y, right - left, draw.rect.height},
-                          ui::paint::sample_linear_gradient(draw, t));
-            }
-        } else {
-            const float band = draw.rect.height / static_cast<float>(kBands);
-            for (int index = 0; index < kBands; ++index) {
-                const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
-                const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
-                const float top =
-                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index, kBands);
-                const float bottom =
-                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index + 1, kBands);
-                fill_rect({draw.rect.x, top, draw.rect.width, bottom - top},
-                          ui::paint::sample_linear_gradient(draw, t));
-            }
-        }
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::linear_fill(draw, stops), draw.clip);
     }
 
-    // Radial parity: the same shared tessellation the GPU sink uses (paint_sink.hpp), drawn through
-    // this sink's solid-quad path. Because both sinks consume the identical band list, the CPU and
-    // GPU results differ only by how a solid quad is rasterized, which is what makes the golden
-    // meaningful. Rounded corners fall back to the rect bounds here, like the linear path.
     void fill_radial_gradient(const ui::paint::RadialGradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        ui::paint::tessellate_radial_gradient(
-            draw, [this](const ui::paint::RadialBand& band) { fill_rect(band.rect, band.color); });
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::radial_fill(draw, stops), draw.clip);
     }
 
     void fill_conic_gradient(const ui::paint::ConicGradientDraw& draw) override {
-        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
-            return;
-        }
-        ui::paint::tessellate_conic_gradient(
-            draw, [this](const ui::paint::ConicBand& band) { fill_rect(band.rect, band.color); });
+        const ui::paint::FillStops stops(draw.stops.data(), draw.stop_count);
+        fill_gradient(ui::paint::conic_fill(draw, stops), draw.clip);
     }
 
     void push_clip(const ui::paint::RoundedClip& clip) override {
         stack_.push_back(clip_);
         clip_ = intersect(clip_, clip.rect);
+        shapes_.push(clip);
     }
 
     void pop_clip() override {
@@ -154,6 +146,7 @@ public:
             clip_ = stack_.back();
             stack_.pop_back();
         }
+        shapes_.pop();
     }
 
     void draw_text(const ui::paint::TextDraw& run) override {
@@ -337,6 +330,41 @@ public:
     }
 
 private:
+    // One gradient quad: pack once, then shade every covered pixel with the shared evaluator. The
+    // quad-local point is the pixel centre minus the quad's centre, which is what the shader's
+    // interpolated `v_local` is.
+    void fill_gradient(const rendering::gpu::gradient::Fill& fill,
+                       const ui::paint::RoundedClip& clip) {
+        rendering::gpu::gradient::Packed packed;
+        if (!rendering::gpu::gradient::pack(fill, packed)) {
+            return;
+        }
+        const rendering::rhi::Rect clipped = intersect(clip_, fill.rect);
+        if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+            return;
+        }
+        const float centre_x = fill.rect.x + fill.rect.width * 0.5f;
+        const float centre_y = fill.rect.y + fill.rect.height * 0.5f;
+        shade(clipped, [&](float x, float y) {
+            const float coverage = shapes_.coverage_of(clip, x, y) * shapes_.coverage(x, y);
+            return with_coverage(
+                rendering::gpu::gradient::evaluate(packed, x - centre_x, y - centre_y), coverage);
+        });
+    }
+
+    // `color` with its alpha scaled by `coverage`: what the shader does with its clip alpha.
+    static rendering::rhi::Color with_coverage(rendering::rhi::Color color, float coverage) {
+        color.a *= coverage;
+        return color;
+    }
+
+    // Shades `rect` on every canvas the next primitive lands on.
+    template<typename Shade> void shade(const rendering::rhi::Rect& rect, Shade&& shade_pixel) {
+        paint_each([&](rendering::software::CpuCanvas& canvas) {
+            canvas.fill_rect_shaded(rect, shade_pixel);
+        });
+    }
+
     // One open isolated layer: the content pair and, while a mask image is being drawn, the mask
     // pair. Frame-sized like the GPU's pooled target, so no coordinates shift.
     struct Layer {
@@ -399,6 +427,7 @@ private:
     CpuImageConfig image_;
     rendering::rhi::Rect clip_;
     std::vector<rendering::rhi::Rect> stack_;
+    ShapeClips shapes_;
     std::vector<Layer> layers_;
     std::chrono::steady_clock::duration raster_time_{};
     std::chrono::steady_clock::duration blit_time_{};

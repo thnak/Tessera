@@ -37,12 +37,29 @@ std::optional<float> parse_angle(std::string_view text);
 // A `<percentage>` token as a 0..1 fraction. False for any other unit.
 std::optional<float> parse_percentage(std::string_view text);
 
-// A `<length>` token in px, or a bare `0`. False for any other unit (the grammar has no box to
-// resolve `em`/`%` against).
+// A `<length>` token in px, or a bare `0`. The absolute units (`px`, `cm`, `mm`, `q`, `in`, `pt`,
+// `pc`) convert at 96 dpi; false for any other unit (the grammar has no font or box to resolve
+// `em`/`%` against).
 std::optional<float> parse_px_length(std::string_view text);
 
-// `<color> <percentage>?`; the colour may itself contain spaces inside its parentheses.
-bool parse_stop(std::string_view text, ColorRgba& color, std::optional<float>& position);
+// True when `text` is the start of a colour stop rather than a prelude token: its first
+// space-separated token is a colour (so `red 20%` and `#fff 0 10px` count, `circle` and `from
+// 30deg` do not).
+bool looks_like_stop(std::string_view text);
+
+// What a stop's position tokens mean. A linear or radial stop takes a percentage or a length (a
+// fraction or px along the gradient line); a conic stop takes an angle or a percentage of the turn.
+enum class StopDomain : std::uint8_t { Line, Turn };
+
+// Parses `parts[first..]` (the comma-separated stops of a gradient body) into `stops`, the shape's
+// `StopPositions` and `count`. Each part is `<color> <position>{0,2}`; two positions make two
+// stops of one colour (CSS Images 4 section 3.5.2). The offsets come back fixed up when every
+// position is a fraction; a px or missing position in a list with a px stop is left for
+// `resolve_stop_positions`. False when a part is a colour hint or otherwise outside the grammar, or
+// when the stops number fewer than 2 or more than `kMaxGradientStops`.
+bool parse_stop_list(const std::vector<std::string_view>& parts, std::size_t first,
+                     StopDomain domain, std::array<GradientStopValue, kMaxGradientStops>& stops,
+                     StopPositions& positions, std::size_t& count);
 
 // CSS Images 3 section 3.4.3 colour-stop fix-up over `count` authored positions: a missing
 // first/last position is 0/100 %, a missing middle one is spread evenly between its neighbours, and

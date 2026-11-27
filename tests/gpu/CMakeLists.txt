@@ -100,6 +100,13 @@ add_test(NAME layer_null COMMAND layer_null_tests)
 
 # Layer masks (issue #617 slice 2) on the null backend: the pass and draw skeleton of a masked
 # layer and every fallback. Runs everywhere.
+# Per-fragment gradients (ADR-076) on the null backend: one quad per layer against the banded
+# fallback (counted), the capability fallback, culling, the table limit and batching.
+add_executable(gradient_null_tests
+    batched2d/gradient_null_tests.cpp)
+target_link_libraries(gradient_null_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_null)
+add_test(NAME gradient_null COMMAND gradient_null_tests)
+
 add_executable(layer_mask_null_tests
     batched2d/layer_mask_null_tests.cpp)
 target_link_libraries(layer_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
@@ -372,7 +379,9 @@ endif()
 add_executable(cpu_wide_golden_tests
     cpu_wide_golden_tests.cpp
     cpu_wide_gradient_scenes.cpp
-    cpu_wide_mask_scenes.cpp)
+    cpu_wide_mask_scenes.cpp
+    cpu_wide_stop_scenes.cpp
+    cpu_wide_rounded_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE
@@ -394,6 +403,17 @@ target_link_libraries(cpu_layer_sink_tests PRIVATE
     tessera_paint
     tessera_software)
 add_test(NAME cpu_layer_sink COMMAND cpu_layer_sink_tests)
+
+# Exact rounded corners of the CPU sink (issue #617): a rounded rect, a rounded clip and a
+# gradient's rounded border box against an independent circle test, plus the anti-aliased mode.
+add_executable(cpu_rounded_sink_tests
+    cpu_rounded_sink_tests.cpp)
+target_include_directories(cpu_rounded_sink_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_link_libraries(cpu_rounded_sink_tests PRIVATE
+    tessera_paint
+    tessera_software)
+add_test(NAME cpu_rounded_sink COMMAND cpu_rounded_sink_tests)
 
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
@@ -514,6 +534,18 @@ if (TARGET tessera_rhi_vulkan)
         tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME shadow_clip_gpu COMMAND shadow_clip_gpu_tests)
     set_tests_properties(shadow_clip_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # The inset box-shadow branch of the fragment shader against Chromium (issue #612): six scenes
+    # through the paint pass. The branch was unreachable behind the outer-shadow test (mode > 1000
+    # ahead of mode > 2000) until this test caught it. Skips without a Vulkan device.
+    add_executable(inset_shadow_gpu_tests
+        batched2d/inset_shadow_gpu_tests.cpp)
+    target_include_directories(inset_shadow_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_link_libraries(inset_shadow_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME inset_shadow_gpu COMMAND inset_shadow_gpu_tests)
+    set_tests_properties(inset_shadow_gpu PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
@@ -652,6 +684,22 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_mask_gpu COMMAND layer_mask_gpu_tests)
     set_tests_properties(layer_mask_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Per-fragment gradients (ADR-076) on a real device: every kind against the CPU twin, the ramp
+    # rules, transforms, clips, one-draw batching, the table limit and frames in flight. Skips
+    # without a Vulkan device.
+    add_executable(gradient_gpu_tests
+        batched2d/gradient_gpu_tests.cpp)
+    target_link_libraries(gradient_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME gradient_gpu COMMAND gradient_gpu_tests)
+    set_tests_properties(gradient_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # The per-fragment gradients against Chromium (ADR-076): fifteen scenes through the paint path,
+    # shader and banded fallback side by side. Skips without a Vulkan device.
+    add_executable(gradient_chromium_gpu_tests
+        batched2d/gradient_chromium_gpu_tests.cpp)
+    target_include_directories(gradient_chromium_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/batched2d)
+    target_link_libraries(gradient_chromium_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME gradient_chromium_gpu COMMAND gradient_chromium_gpu_tests)
+    set_tests_properties(gradient_chromium_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # Layer filters (issue #617): blur() and drop-shadow() pixels against the analytic Gaussian,
     # the filter-before-mask order, the paint path, the fallbacks. Skips without a Vulkan device.
     add_executable(layer_filter_gpu_tests
@@ -687,6 +735,21 @@ if (TARGET tessera_rhi_vulkan)
                 FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
         endif()
     endif()
+
+    # The rounded CPU twin against the renderer, hard and anti-aliased edges (issue #617). Skips
+    # without a software Vulkan device.
+    add_executable(rounded_twin_gpu_tests
+        batched2d/rounded_twin_gpu_tests.cpp
+        cpu_wide_rounded_scenes.cpp)
+    target_include_directories(rounded_twin_gpu_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_link_libraries(rounded_twin_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_software tessera_rhi_vulkan)
+    add_test(NAME rounded_twin_gpu COMMAND rounded_twin_gpu_tests)
+    set_tests_properties(rounded_twin_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests

@@ -168,6 +168,12 @@ public:
         return true;
     }
 
+    // RHI 1.20 (ADR-076): batched2d.wgsl carries the gradient branch, read from the same storage
+    // binding as the clip records.
+    [[nodiscard]] bool supports_analytic_gradients() const override {
+        return true;
+    }
+
     [[nodiscard]] rhi::DeviceStatus status() const override {
         return context_->lost ? rhi::DeviceStatus::Lost : rhi::DeviceStatus::Ready;
     }
