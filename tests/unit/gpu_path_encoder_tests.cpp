@@ -224,6 +224,31 @@ void test_plan() {
            "a larger scale bound reserves more bin nodes");
 }
 
+void test_zero_length_strokes() {
+    const auto stroke = [](std::vector<float> contours, path::GpuCap cap) {
+        path::GpuPathScene scene;
+        path::GpuPathShape shape;
+        shape.contours = std::move(contours);
+        shape.half_width = 3.0f;
+        shape.open = true;
+        shape.cap = cap;
+        scene.shapes.push_back(std::move(shape));
+        return path::encode_gpu_scene(scene, 64, 64);
+    };
+    // A,B,B,C: the zero-length B->B segment is dropped, leaving two records that join at B.
+    const auto mid = stroke({10, 10, 30, 30, 30, 30, 30, 30, 30, 30, 50, 10}, path::GpuCap::butt);
+    expect(mid.stroke_count == 2, "a zero-length segment inside a polyline is dropped");
+    // A contour of nothing else is a dot: round and square caps draw one, a butt cap nothing.
+    const auto round_dot = stroke({20, 20, 20, 20}, path::GpuCap::round);
+    expect(round_dot.stroke_count == 1 &&
+               as_float(round_dot.strokes[2]) - as_float(round_dot.strokes[0]) == 1.0f / 64.0f,
+           "a lone zero-length segment with a round cap becomes a 1/64 px segment");
+    expect(stroke({20, 20, 20, 20}, path::GpuCap::square).stroke_count == 1,
+           "and with a square cap");
+    expect(stroke({20, 20, 20, 20}, path::GpuCap::butt).stroke_count == 0,
+           "a butt cap draws nothing for it");
+}
+
 void test_document() {
     path::PathShape shape;
     shape.path.segments.push_back({path::SegmentKind::move_to, {0, 0}, {}, {}});
@@ -296,6 +321,7 @@ int main() {
     test_encode_strokes();
     test_encode_dashes();
     test_plan();
+    test_zero_length_strokes();
     test_document();
     if (!g_ok) {
         return 1;
