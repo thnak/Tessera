@@ -432,6 +432,14 @@ float segment_area(vec2 a, vec2 b, float px, float py) {
     if (y1 <= y0) {
         return 0.0;
     }
+    // Entirely left or right of the pixel by the endpoints' x range, which bounds the clipped
+    // piece: the same answers as the checks below, without the division.
+    if (max(a.x, b.x) <= px) {
+        return sign_v * (y1 - y0);
+    }
+    if (min(a.x, b.x) >= px + 1.0) {
+        return 0.0;
+    }
     float inv_slope = (b.x - a.x) / (b.y - a.y);
     float xa = a.x + (y0 - a.y) * inv_slope;
     float xb = a.x + (y1 - a.y) * inv_slope;
@@ -467,48 +475,89 @@ float segment_area(vec2 a, vec2 b, float px, float py) {
     return sign_v * area;
 }
 
+// The paths whose device box overlaps this 16 x 16 tile, as a bitmask over one chunk of 256 paths
+// (one bit per invocation of the workgroup). A pixel then visits only those paths instead of every
+// path of the raster, and walking the bits in ascending order keeps the compositing order exactly
+// the path order, so the result does not depend on which thread set its bit first.
+shared uint tile_mask[8];
+
 void main() {
     load_job(gl_WorkGroupID.z);
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
-    if (x >= pc.width || y >= pc.height) {
-        return;
-    }
+    // No early return: every invocation must reach the barriers.
+    bool inside = x < pc.width && y < pc.height;
+    int tx0 = int(gl_WorkGroupID.x * 16u);
+    int ty0 = int(gl_WorkGroupID.y * 16u);
+    uint lane = gl_LocalInvocationIndex;
     float px = float(x);
     float py = float(y);
     vec4 dst = vec4(0.0);
-    for (uint p = 0u; p < pc.path_count; ++p) {
-        uint base = p * 16u;
-        if (int(x) < int(paths[PB + base + 8u]) || int(x) >= int(paths[PB + base + 10u]) ||
-            int(y) < int(paths[PB + base + 9u]) || int(y) >= int(paths[PB + base + 11u])) {
-            continue;
+    for (uint chunk = 0u; chunk < pc.path_count; chunk += 256u) {
+        if (lane < 8u) {
+            tile_mask[lane] = 0u;
         }
-        Xf m = path_xf(p);
-        float w = 0.0;
-        uint node = work[WB + 1u + p * pc.height + y];
-        while (node != kNil) {
-            uint s = work[WB + pc.nodes_base + node * 2u];
-            vec2 a = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 0u)), uintBitsToFloat(seg_word(s, 1u))));
-            vec2 b = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 2u)), uintBitsToFloat(seg_word(s, 3u))));
-            w += segment_area(a, b, px, py);
-            node = work[WB + pc.nodes_base + node * 2u + 1u];
+        barrier();
+        uint tp = chunk + lane;
+        if (tp < pc.path_count) {
+            uint tb = tp * 16u;
+            if (int(paths[PB + tb + 8u]) < tx0 + 16 && int(paths[PB + tb + 10u]) > tx0 &&
+                int(paths[PB + tb + 9u]) < ty0 + 16 && int(paths[PB + tb + 11u]) > ty0) {
+                atomicOr(tile_mask[lane >> 5], 1u << (lane & 31u));
+            }
         }
-        float t = abs(w);
-        float cov;
-        if (paths[PB + base + 6u] == 0u) {
-            cov = min(t, 1.0);
-        } else {
-            float f = mod(t, 2.0);
-            cov = f > 1.0 ? 2.0 - f : f;
+        barrier();
+        for (uint word = 0u; word < 8u; ++word) {
+            uint bits = tile_mask[word];
+            while (bits != 0u) {
+                uint p = chunk + word * 32u + uint(findLSB(bits));
+                bits &= bits - 1u;
+                if (!inside) {
+                    continue;
+                }
+                uint base = p * 16u;
+                if (int(x) < int(paths[PB + base + 8u]) || int(x) >= int(paths[PB + base + 10u]) ||
+                    int(y) < int(paths[PB + base + 9u]) || int(y) >= int(paths[PB + base + 11u])) {
+                    continue;
+                }
+                // No segment on this row: the path does not touch it, whatever its box says.
+                uint node = work[WB + 1u + p * pc.height + y];
+                if (node == kNil) {
+                    continue;
+                }
+                Xf m = path_xf(p);
+                float w = 0.0;
+                while (node != kNil) {
+                    uint s = work[WB + pc.nodes_base + node * 2u];
+                    vec2 a = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 0u)),
+                                              uintBitsToFloat(seg_word(s, 1u))));
+                    vec2 b = xf_apply(m, vec2(uintBitsToFloat(seg_word(s, 2u)),
+                                              uintBitsToFloat(seg_word(s, 3u))));
+                    w += segment_area(a, b, px, py);
+                    node = work[WB + pc.nodes_base + node * 2u + 1u];
+                }
+                float t = abs(w);
+                float cov;
+                if (paths[PB + base + 6u] == 0u) {
+                    cov = min(t, 1.0);
+                } else {
+                    float f = mod(t, 2.0);
+                    cov = f > 1.0 ? 2.0 - f : f;
+                }
+                if (cov <= 0.0) {
+                    continue;
+                }
+                uint packed = paths[PB + base + 7u];
+                vec4 c = vec4(float(packed & 255u), float((packed >> 8) & 255u),
+                              float((packed >> 16) & 255u), float(packed >> 24)) / 255.0;
+                vec4 src = vec4(c.rgb * c.a, c.a) * cov;
+                dst = src + dst * (1.0 - src.a);
+            }
         }
-        if (cov <= 0.0) {
-            continue;
-        }
-        uint packed = paths[PB + base + 7u];
-        vec4 c = vec4(float(packed & 255u), float((packed >> 8) & 255u),
-                      float((packed >> 16) & 255u), float(packed >> 24)) / 255.0;
-        vec4 src = vec4(c.rgb * c.a, c.a) * cov;
-        dst = src + dst * (1.0 - src.a);
+        barrier();
+    }
+    if (!inside) {
+        return;
     }
     vec3 rgb = dst.a > 0.0 ? dst.rgb / dst.a : vec3(0.0);
     uvec4 q = uvec4(clamp(vec4(rgb, dst.a) * 255.0 + 0.5, 0.0, 255.0));
