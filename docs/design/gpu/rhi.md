@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.18**
-  (`0x00010012`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.19**
+  (`0x00010013`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -93,6 +93,8 @@ RHI versioning and capabilities (ADR-049):
   ([`compute.md`](compute.md), issue #684); Vulkan implements them, and the null backend records compute
   only when made with `create_null_compute_device`. WebGPU and Metal keep the defaults (zeroed capabilities,
   throwing calls) until their slices land.
+  1.19 adds `BlendMode::DestinationIn` (`dst * src.a` on all four channels), the mask step of an isolated
+  layer (issue #617, section 4.1); every backend expresses it with fixed blend factors.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -190,6 +192,7 @@ Rules:
 | `None` | no blending: the fragment output replaces the destination |
 | `Alpha` | `src.rgb * src.a + dst.rgb * (1 - src.a)`, alpha `src.a + dst.a * (1 - src.a)` |
 | `DualSource` | per channel: `src0 * src1 + dst * (1 - src1)` |
+| `DestinationIn` | `dst * src.a` on all four channels (RHI 1.19): the fragment colour is ignored; the mask step of an isolated layer, whose target holds premultiplied colour, so this is `mask-mode: alpha` compositing. Vulkan `ZERO`/`SRC_ALPHA`, the same factors on WebGPU and Metal, so no capability gates it |
 
 `DualSource` (issue #471, [`display-aware-rendering.md`](../display-aware-rendering.md) section 3.4)
 exists for LCD subpixel text, where the three coverage channels differ per pixel and one alpha

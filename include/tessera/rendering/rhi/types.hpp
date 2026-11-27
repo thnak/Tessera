@@ -247,7 +247,13 @@ enum class AddressMode : std::uint8_t { ClampToEdge, Repeat };
 // reports false from `Device::supports_dual_source_blend()` and a pipeline request for it must fail
 // at creation, because the documented fallback is grayscale coverage (one alpha), not a silently
 // different blend. `None` and `Alpha` are unchanged.
-enum class BlendMode : std::uint8_t { None, Alpha, DualSource };
+//
+// `DestinationIn` keeps the destination scaled by the fragment's alpha (RHI 1.19, issue #617): all
+// four channels become `dst * src.a` and the fragment's colour is ignored. It is the mask step of
+// an isolated layer: the layer target holds premultiplied colour, so scaling every channel by a
+// mask's alpha is exactly `mask-mode: alpha` compositing. Every backend can express it with fixed
+// blend factors, so it needs no capability query.
+enum class BlendMode : std::uint8_t { None, Alpha, DualSource, DestinationIn };
 
 enum class LoadOp : std::uint8_t { Clear, Load, DontCare };
 

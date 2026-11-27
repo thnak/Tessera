@@ -150,6 +150,14 @@ WgpuBlendState blend_state(rhi::BlendMode mode) {
         throw std::invalid_argument("blend_state: dual-source blending is not supported by WebGPU; "
                                     "the caller must fall back to grayscale coverage");
     }
+    if (mode == rhi::BlendMode::DestinationIn) {
+        // Mask step (RHI 1.19), the same factors as the Vulkan backend: `dst * src.a` on all four
+        // channels.
+        state.enabled = true;
+        state.color = {WgpuBlendFactor::Zero, WgpuBlendFactor::SrcAlpha, WgpuBlendOp::Add};
+        state.alpha = {WgpuBlendFactor::Zero, WgpuBlendFactor::SrcAlpha, WgpuBlendOp::Add};
+        return state;
+    }
     if (mode != rhi::BlendMode::Alpha) {
         return state;
     }

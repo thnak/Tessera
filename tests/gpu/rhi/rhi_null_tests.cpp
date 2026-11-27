@@ -34,9 +34,10 @@ int main() {
     // the `CommandList` compute commands (ADR-071 spike, issue #683); 1.17 added
     // `CommandList::copy_buffer_to_texture` and its capability (ADR-072); 1.18 added
     // `ComputeCapabilities`, `Device::compute_capabilities()` and `CommandList::dispatch_indirect`
-    // (issue #684). All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 18 ||
-        rhi::kRhiVersion != ((1u << 16) | 18u)) {
+    // (issue #684); 1.19 added `BlendMode::DestinationIn`, the layer mask step (issue #617). All
+    // are additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 19 ||
+        rhi::kRhiVersion != ((1u << 16) | 19u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

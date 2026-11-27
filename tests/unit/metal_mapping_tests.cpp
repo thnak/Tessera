@@ -150,6 +150,20 @@ bool check_blend_alpha_matches_vulkan() {
                   "OneMinusSourceAlpha is 5");
 }
 
+bool check_blend_destination_in_matches_vulkan() {
+    // Vulkan records ZERO / SRC_ALPHA for both colour and alpha (RHI 1.19, the layer mask step).
+    const BlendState state = blend_state(rhi::BlendMode::DestinationIn);
+    return expect(state.enabled, "DestinationIn enables blending") &&
+           expect(state.source_color == BlendFactor::Zero, "colour source is zero") &&
+           expect(state.destination_color == BlendFactor::SourceAlpha,
+                  "colour destination is srcA") &&
+           expect(state.source_alpha == BlendFactor::Zero, "alpha source is zero") &&
+           expect(state.destination_alpha == BlendFactor::SourceAlpha,
+                  "alpha destination is srcA") &&
+           expect(!needs_dual_source(rhi::BlendMode::DestinationIn),
+                  "DestinationIn does not need src1");
+}
+
 bool check_blend_dual_source_matches_vulkan() {
     // Vulkan records SRC1_COLOR / ONE_MINUS_SRC1_COLOR for both colour and alpha.
     const BlendState state = blend_state(rhi::BlendMode::DualSource);
@@ -179,7 +193,8 @@ int main() {
     if (!check_pixel_formats() || !check_vertex_formats() || !check_bytes_per_pixel() ||
         !check_storage_modes() || !check_load_store_actions() || !check_sampler_state() ||
         !check_blend_none() || !check_blend_alpha_matches_vulkan() ||
-        !check_blend_dual_source_matches_vulkan() || !check_backend_name()) {
+        !check_blend_destination_in_matches_vulkan() || !check_blend_dual_source_matches_vulkan() ||
+        !check_backend_name()) {
         return 1;
     }
     return 0;
