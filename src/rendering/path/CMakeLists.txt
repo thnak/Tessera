@@ -10,6 +10,7 @@ add_library(tessera_path STATIC
     gpu_path_document.cpp
     gpu_path_flatten.cpp
     gpu_path_rasterizer.cpp
+    gpu_path_rasterizer_pack.cpp
     raster_route.cpp
     svg_document_cache.cpp
     svg_loader.cpp
