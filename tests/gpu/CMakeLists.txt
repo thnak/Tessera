@@ -1056,6 +1056,19 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_capture PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # A filtered card (issue #617) presented through a real swapchain: the direct path reopens the
+    # swapchain image with a Load pass for its layer passes. Prints `skipped` without a presentation
+    # surface, which the property below turns into a skip.
+    add_executable(app_window_filter_tests
+        app_window_filter_tests.cpp)
+    target_compile_definitions(app_window_filter_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_filter_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_filter COMMAND app_window_filter_tests)
+    set_tests_properties(app_window_filter PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(app_window_smoke_tests
         app_window_smoke_tests.cpp)
     target_compile_definitions(app_window_smoke_tests PRIVATE
