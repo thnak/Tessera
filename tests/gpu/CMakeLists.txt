@@ -371,7 +371,8 @@ endif()
 # `cpu_wide_golden_tests --update-goldens` on the CPU path.
 add_executable(cpu_wide_golden_tests
     cpu_wide_golden_tests.cpp
-    cpu_wide_gradient_scenes.cpp)
+    cpu_wide_gradient_scenes.cpp
+    cpu_wide_mask_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE
@@ -382,6 +383,17 @@ target_link_libraries(cpu_wide_golden_tests PRIVATE
     tessera_golden
     tessera_stb)
 add_test(NAME cpu_wide_golden COMMAND cpu_wide_golden_tests)
+
+# The CPU twin of isolated layers and layer masks through `CpuPaintSink` (issue #617): the sink calls,
+# the mask's refusals and the paint pass's group opacity. Vulkan-free.
+add_executable(cpu_layer_sink_tests
+    cpu_layer_sink_tests.cpp)
+target_include_directories(cpu_layer_sink_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_link_libraries(cpu_layer_sink_tests PRIVATE
+    tessera_paint
+    tessera_software)
+add_test(NAME cpu_layer_sink COMMAND cpu_layer_sink_tests)
 
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
@@ -647,6 +659,34 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # The mask-image lavapipe golden (issue #617): the CPU corpus's `masks` scene through the paint
+    # path and the renderer's mask step on a software device, against tests/golden/gpu/mask_image.png
+    # and against the CPU twin. The binary builds wherever the Vulkan backend does; the ctest entry is
+    # registered on the lavapipe lane only (UNIX, a lavapipe manifest present), and the test itself
+    # skips on a hardware device.
+    add_executable(layer_mask_golden_tests
+        batched2d/layer_mask_golden_tests.cpp
+        cpu_wide_mask_scenes.cpp)
+    target_include_directories(layer_mask_golden_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_compile_definitions(layer_mask_golden_tests PRIVATE
+        TESSERA_MASK_GOLDEN_PATH="${PROJECT_SOURCE_DIR}/tests/golden/gpu/mask_image.png")
+    target_link_libraries(layer_mask_golden_tests PRIVATE
+        tessera_gpu tessera_paint tessera_software tessera_harness_image tessera_rhi_vulkan)
+    if (UNIX)
+        find_file(TESSERA_MASK_LAVAPIPE_ICD
+            NAMES lvp_icd.x86_64.json lvp_icd.json
+            PATHS /usr/share/vulkan/icd.d /etc/vulkan/icd.d)
+        if (TESSERA_MASK_LAVAPIPE_ICD)
+            add_test(NAME layer_mask_golden COMMAND layer_mask_golden_tests)
+            set_tests_properties(layer_mask_golden PROPERTIES
+                ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_MASK_LAVAPIPE_ICD}"
+                SKIP_REGULAR_EXPRESSION "skipped"
+                FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+        endif()
+    endif()
 
     # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
     add_executable(aa_edge_tests

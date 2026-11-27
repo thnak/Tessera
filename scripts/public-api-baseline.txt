@@ -1611,6 +1611,10 @@ header include/tessera/rendering/software/cpu_canvas.hpp
 class include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::CpuCanvas
 struct include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::ShapedClip
 
+header include/tessera/rendering/software/cpu_layer.hpp
+function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::apply_layer_mask
+function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::composite_layer
+
 header include/tessera/rendering/vulkan/batched2d_pipeline.hpp
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_array_pipeline_desc
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_lcd_pipeline_desc

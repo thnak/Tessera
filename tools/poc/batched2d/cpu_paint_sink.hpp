@@ -7,6 +7,7 @@
 #include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
+#include "tessera/rendering/software/cpu_layer.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/assets/asset_image.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
@@ -19,6 +20,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -29,6 +31,10 @@ namespace tessera::poc::batched2d {
 // coverage bitmaps as the GPU text path, but composites them into the deterministic CPU canvas.
 // Rounded rects and rounded clips are approximated by their axis-aligned bounds (the CPU golden
 // scene uses plain rects); transforms are already folded into the paint rects.
+//
+// Isolated layers and layer masks (issue #617) are the CPU twin of the GPU path: while a layer is
+// open every draw goes to a black-backed and a white-backed scratch canvas, and the pop composites
+// the pair once (software/cpu_layer.hpp explains the recovery of alpha from the pair).
 // Vector resources for the CPU sink. Borrowed; the caller owns the embedded bundle, the decoded
 // document cache and the (CPU) path rasterizer for the lifetime of the sink. With any pointer null
 // vector draws are a no-op, so CPU text-only scenes keep working unchanged.
@@ -66,7 +72,8 @@ public:
     void fill_rect(const rendering::rhi::Rect& rect, const rendering::rhi::Color& color) override {
         const rendering::rhi::Rect clipped = intersect(clip_, rect);
         if (clipped.width > 0.0f && clipped.height > 0.0f) {
-            canvas_->fill_rect(clipped, color);
+            paint_each(
+                [&](rendering::software::CpuCanvas& canvas) { canvas.fill_rect(clipped, color); });
         }
     }
 
@@ -95,7 +102,11 @@ public:
             for (int index = 0; index < kBands; ++index) {
                 const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
                 const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
-                fill_rect({x - band * 0.5f, draw.rect.y, band + 0.5f, draw.rect.height},
+                const float left =
+                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index, kBands);
+                const float right =
+                    ui::paint::band_edge(draw.rect.x, draw.rect.width, index + 1, kBands);
+                fill_rect({left, draw.rect.y, right - left, draw.rect.height},
                           ui::paint::sample_linear_gradient(draw, t));
             }
         } else {
@@ -103,7 +114,11 @@ public:
             for (int index = 0; index < kBands; ++index) {
                 const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
                 const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
-                fill_rect({draw.rect.x, y - band * 0.5f, draw.rect.width, band + 0.5f},
+                const float top =
+                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index, kBands);
+                const float bottom =
+                    ui::paint::band_edge(draw.rect.y, draw.rect.height, index + 1, kBands);
+                fill_rect({draw.rect.x, top, draw.rect.width, bottom - top},
                           ui::paint::sample_linear_gradient(draw, t));
             }
         }
@@ -163,8 +178,10 @@ public:
                     std::lround(pen_x + glyph.x_offset + static_cast<float>(bitmap.bearing_x)));
                 const auto top = static_cast<std::int32_t>(
                     std::lround(baseline - glyph.y_offset - static_cast<float>(bitmap.bearing_y)));
-                canvas_->blend_coverage(left, top, bitmap.width, bitmap.height, bitmap.coverage,
-                                        run.color, &clip_);
+                paint_each([&](rendering::software::CpuCanvas& canvas) {
+                    canvas.blend_coverage(left, top, bitmap.width, bitmap.height, bitmap.coverage,
+                                          run.color, &clip_);
+                });
             }
             pen_x += glyph.advance;
         }
@@ -221,9 +238,11 @@ public:
             return;
         }
         const auto blit_start = std::chrono::steady_clock::now();
-        canvas_->blit_texture(left, top, static_cast<std::uint32_t>(right - left),
-                              static_cast<std::uint32_t>(bottom - top), pixels,
-                              request->raster_width, request->raster_height, draw.tint, &clip_);
+        paint_each([&](rendering::software::CpuCanvas& canvas) {
+            canvas.blit_texture(left, top, static_cast<std::uint32_t>(right - left),
+                                static_cast<std::uint32_t>(bottom - top), pixels,
+                                request->raster_width, request->raster_height, draw.tint, &clip_);
+        });
         blit_time_ += std::chrono::steady_clock::now() - blit_start;
         ++vector_draws_;
     }
@@ -255,9 +274,11 @@ public:
         if (right <= left || bottom <= top) {
             return;
         }
-        canvas_->blit_texture(left, top, static_cast<std::uint32_t>(right - left),
-                              static_cast<std::uint32_t>(bottom - top), (*decoded)->rgba,
-                              (*decoded)->width, (*decoded)->height, draw.tint, &clip_);
+        paint_each([&](rendering::software::CpuCanvas& canvas) {
+            canvas.blit_texture(left, top, static_cast<std::uint32_t>(right - left),
+                                static_cast<std::uint32_t>(bottom - top), (*decoded)->rgba,
+                                (*decoded)->width, (*decoded)->height, draw.tint, &clip_);
+        });
     }
 
     // Glass backdrop: explicitly unsupported on the CPU reference sink (docs/specs/glass-v1.md
@@ -269,7 +290,96 @@ public:
         ++glass_unsupported_;
     }
 
+    [[nodiscard]] bool supports_layers() const override {
+        return true;
+    }
+
+    void push_layer(const ui::paint::LayerDraw& layer) override {
+        layers_.emplace_back(layer, canvas_->width(), canvas_->height());
+    }
+
+    // The group composites once, inside the layer's box and the clip that is active again by now
+    // (the paint pass pops the node's clip before the layer), into whatever is open below it: the
+    // frame, or an outer layer's pair, which stays consistent because the composite is linear.
+    void pop_layer() override {
+        if (layers_.empty()) {
+            return;
+        }
+        Layer layer = std::move(layers_.back());
+        layers_.pop_back();
+        const rendering::rhi::Rect region = intersect(clip_, layer.box);
+        paint_each([&](rendering::software::CpuCanvas& canvas) {
+            rendering::software::composite_layer(canvas, layer.black, layer.white, region,
+                                                 layer.opacity);
+        });
+    }
+
+    // A layer takes one mask. The mask image is drawn into its own transparent pair, so seams and
+    // overlaps are the ordinary blend's, and end_layer_mask() scales the layer by its alpha. No
+    // open layer, or one that already took a mask, refuses like the GPU renderer does.
+    [[nodiscard]] bool begin_layer_mask() override {
+        if (layers_.empty() || layers_.back().masked) {
+            return false;
+        }
+        layers_.back().begin_mask();
+        return true;
+    }
+
+    void end_layer_mask() override {
+        if (layers_.empty() || !layers_.back().mask_black.has_value()) {
+            return;
+        }
+        Layer& layer = layers_.back();
+        rendering::software::apply_layer_mask(layer.black, layer.white, *layer.mask_black,
+                                              *layer.mask_white);
+        layer.mask_black.reset();
+        layer.mask_white.reset();
+    }
+
 private:
+    // One open isolated layer: the content pair and, while a mask image is being drawn, the mask
+    // pair. Frame-sized like the GPU's pooled target, so no coordinates shift.
+    struct Layer {
+        Layer(const ui::paint::LayerDraw& draw, std::uint32_t width, std::uint32_t height)
+            : box(draw.box),
+              opacity(draw.opacity),
+              black(width, height),
+              white(width, height) {
+            black.clear(rendering::rhi::Color{0.0f, 0.0f, 0.0f, 1.0f});
+            white.clear(rendering::rhi::Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        void begin_mask() {
+            masked = true;
+            mask_black.emplace(black.width(), black.height());
+            mask_white.emplace(black.width(), black.height());
+            mask_black->clear(rendering::rhi::Color{0.0f, 0.0f, 0.0f, 1.0f});
+            mask_white->clear(rendering::rhi::Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        rendering::rhi::Rect box;
+        float opacity = 1.0f;
+        rendering::software::CpuCanvas black;
+        rendering::software::CpuCanvas white;
+        std::optional<rendering::software::CpuCanvas> mask_black;
+        std::optional<rendering::software::CpuCanvas> mask_white;
+        bool masked = false;
+    };
+
+    // Runs `draw` on every canvas the next primitive lands on: the frame canvas, or the pair of the
+    // innermost open layer (its mask pair while a mask image is being drawn).
+    template<typename Draw> void paint_each(Draw&& draw) {
+        if (layers_.empty()) {
+            draw(*canvas_);
+        } else if (Layer& layer = layers_.back(); layer.mask_black.has_value()) {
+            draw(*layer.mask_black);
+            draw(*layer.mask_white);
+        } else {
+            draw(layer.black);
+            draw(layer.white);
+        }
+    }
+
     static rendering::rhi::Rect intersect(const rendering::rhi::Rect& lhs,
                                           const rendering::rhi::Rect& rhs) {
         const float left = std::max(lhs.x, rhs.x);
@@ -289,6 +399,7 @@ private:
     CpuImageConfig image_;
     rendering::rhi::Rect clip_;
     std::vector<rendering::rhi::Rect> stack_;
+    std::vector<Layer> layers_;
     std::chrono::steady_clock::duration raster_time_{};
     std::chrono::steady_clock::duration blit_time_{};
     std::uint32_t vector_draws_ = 0;

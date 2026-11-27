@@ -2822,6 +2822,13 @@ target_link_libraries(cpu_canvas_tests PRIVATE tessera_software)
 
 add_test(NAME cpu_canvas COMMAND cpu_canvas_tests)
 
+# The CPU twin of isolated layers and layer masks (issue #617): alpha from the black/white pair, the
+# composite, nesting and the mask step on exact bytes.
+add_executable(cpu_layer_tests
+    cpu_layer_tests.cpp)
+target_link_libraries(cpu_layer_tests PRIVATE tessera_software)
+add_test(NAME cpu_layer COMMAND cpu_layer_tests)
+
 # Deterministic CPU-canvas golden corpus: every primitive the software backend implements (solid
 # quads, coverage blend, textured quads) plus boundary geometry, asserted on exact RGBA8 bytes. The
 # second executable covers the sink-level primitives (clip stacks, translate/rotation, rounded
