@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Retained layers in the paint pass (issue #617, docs/design/gpu/offscreen-layers.md section 5.6).
+// Retained layers in the paint pass (issue #617, docs/design/gpu/offscreen-layers-retention.md).
 // A masked, filtered or isolated-opacity node asks its sink whether it holds the node's pixels
 // right before the layer opens; a "yes" skips the box, the children and the mask:
 //  - a clean node is kept on its first clean frame and skipped on the next;
@@ -11,6 +11,7 @@
 //  - a subtree draw list records the question, replays it, skips the content on a yes and replays
 //    everything on a no, and a recording pass paints the whole layer even when the sink says yes.
 
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/subtree_paint_cache.hpp"
@@ -122,6 +123,14 @@ public:
     void end_layer_mask() override {
         log.push_back("}");
     }
+    [[nodiscard]] bool begin_mask_layer(tessera::rendering::gpu::MaskCompositeOp) override {
+        log.push_back("part{");
+        return parts;
+    }
+    void end_mask_layer() override {
+        log.push_back("}p");
+    }
+    bool parts = true; // false: a sink that declines non-add mask layers
     Log log;
     std::map<std::uint64_t, std::uint64_t> held;
 
@@ -137,7 +146,8 @@ struct Scene {
     Node root{1};
     StubStyles styles;
 
-    explicit Scene(const char* mask = kMask, const char* opacity = "1") {
+    explicit Scene(const char* mask = kMask, const char* opacity = "1",
+                   const char* composite = "add") {
         root.set_bounds({0.0f, 0.0f, 100.0f, 100.0f});
         auto node = std::make_unique<Node>(2);
         node->set_bounds({10.0f, 10.0f, 60.0f, 60.0f});
@@ -146,9 +156,10 @@ struct Scene {
         node->add_child(std::move(child));
         root.add_child(std::move(node));
         styles.set(1, styled({{"background-color", "#ffffff"}}));
-        styles.set(
-            2,
-            styled({{"background-color", "#00ff00"}, {"opacity", opacity}, {"mask-image", mask}}));
+        styles.set(2, styled({{"background-color", "#00ff00"},
+                              {"opacity", opacity},
+                              {"mask-image", mask},
+                              {"mask-composite", composite}}));
         styles.set(3, styled({{"background-color", "#ff0000"}}));
         clear_tree(root);
     }
@@ -376,12 +387,102 @@ bool subtree_list_asks_again() {
            ok;
 }
 
+// A mask with a non-add layer: the part bracket rides inside the mask bracket inside the layer.
+constexpr const char* kTwoLayers = "linear-gradient(#000, #fff), linear-gradient(#fff, #000)";
+const Log kSubtractFull{"fill(100)", "retain(miss)", "push(100)", "fill(100)", "fill(100)", "mask{",
+                        "grad",      "part{",        "grad",      "}p",        "}",         "pop"};
+
+bool brackets_balanced(const Log& log) {
+    int parts = 0;
+    int masks = 0;
+    for (const auto& entry : log) {
+        parts += entry == "part{" ? 1 : entry == "}p" ? -1 : 0;
+        masks += entry == "mask{" ? 1 : entry == "}" ? -1 : 0;
+    }
+    return parts == 0 && masks == 0;
+}
+
+bool retained_layer_skips_its_mask_parts() {
+    Scene scene(kTwoLayers, "1", "subtract");
+    PaintCache cache;
+    const PaintContext context = retaining(cache);
+    RetainSink sink;
+    paint(scene, sink, context);
+    const Log first = sink.log;
+    sink.log.clear();
+    paint(scene, sink, context);
+    return (first == kSubtractFull ||
+            (expect(false, "a clean subtract mask paints its part inside the mask"),
+             dump(first))) &&
+           (sink.log == kHit ||
+            (expect(false, "a kept layer skips the mask and its parts"), dump(sink.log)));
+}
+
+bool subtree_list_keeps_part_brackets_balanced() {
+    Scene scene(kTwoLayers, "1", "subtract");
+    PaintCache cache;
+    SubtreePaintCache lists;
+    PaintContext context = retaining(cache);
+    context.subtree_cache = &lists;
+    context.retain_draw_list = true;
+
+    RetainSink sink;
+    paint(scene, sink, context); // records the list; the sink records the layer
+    bool ok = expect(sink.log == kSubtractFull, "recording forwards the whole layer");
+    sink.log.clear();
+    paint(scene, sink, context); // replay: the sink says yes
+    ok = (sink.log == kHit || (expect(false, "a replayed yes skips every part"), dump(sink.log))) &&
+         ok;
+
+    RetainSink forgot; // the sink let go: the same list replays the layer, parts included
+    paint(scene, forgot, context);
+    ok = (forgot.log == kSubtractFull ||
+          (expect(false, "a replay on a sink that lost it paints the parts"), dump(forgot.log))) &&
+         ok;
+
+    RetainSink no_parts; // a sink that declines the part: its content and end are skipped
+    no_parts.parts = false;
+    paint(scene, no_parts, context);
+    const Log declined{"fill(100)", "retain(miss)", "push(100)", "fill(100)", "fill(100)",
+                       "mask{",     "grad",         "part{",     "}",         "pop"};
+    ok = (no_parts.log == declined ||
+          (expect(false, "a declined part is skipped with its end"), dump(no_parts.log))) &&
+         ok;
+
+    // A recording pass over a sink that already says yes forwards only the composite, and the list
+    // it recorded still carries balanced brackets for a sink that lets go.
+    Scene fresh(kTwoLayers, "1", "intersect");
+    SubtreePaintCache other_lists;
+    PaintCache other_cache;
+    PaintContext other = retaining(other_cache);
+    other.subtree_cache = &other_lists;
+    other.retain_draw_list = true;
+    RetainSink knows;
+    paint(fresh, knows, other);
+    fresh.root.mark_dirty(Dirty::Paint);
+    clear_tree(fresh.root);
+    other_lists.clear();
+    knows.log.clear();
+    paint(fresh, knows, other);
+    ok = (knows.log == kHit ||
+          (expect(false, "recording over a yes forwards no part"), dump(knows.log))) &&
+         ok;
+    RetainSink empty;
+    paint(fresh, empty, other);
+    return expect(empty.log == kSubtractFull ||
+                      (empty.log.size() == kSubtractFull.size() && brackets_balanced(empty.log)),
+                  "the recorded list replays balanced part brackets") &&
+           ok;
+}
+
 } // namespace
 
 int main() {
     const bool ok = clean_then_hit() && dirty_descendant_misses() && inputs_that_move_the_key() &&
                     off_means_unchanged() && culling_never_hides_a_dirty_node() &&
-                    opacity_group_is_retainable() && subtree_list_asks_again();
+                    opacity_group_is_retainable() && subtree_list_asks_again() &&
+                    retained_layer_skips_its_mask_parts() &&
+                    subtree_list_keeps_part_brackets_balanced();
     if (!ok) {
         return 1;
     }

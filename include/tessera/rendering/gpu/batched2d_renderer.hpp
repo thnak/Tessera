@@ -148,7 +148,7 @@ public:
     }
     // True when layers can be isolated at all (composite pipeline and pool).
     [[nodiscard]] bool layers_supported() const;
-    // Retained layers (offscreen-layers.md section 5.6). Call right before push_layer() with the
+    // Retained layers (offscreen-layers-retention.md). Call right before push_layer() with the
     // node's `owner` id, the `key` every input of its pixels is folded into, and whether the node
     // and subtree are `clean`. True: the cache holds the finished pixels, push_layer()/pop_layer()
     // composite them and nothing between may be drawn. False: draw as usual; a clean node is cached

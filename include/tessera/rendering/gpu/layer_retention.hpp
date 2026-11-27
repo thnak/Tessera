@@ -11,7 +11,7 @@
 
 namespace tessera::rendering::gpu {
 
-// Retained layers (issue #617, docs/design/gpu/offscreen-layers.md section 5.6): the finished
+// Retained layers (issue #617, docs/design/gpu/offscreen-layers-retention.md): the finished
 // pixels of a static masked, filtered or faded group, kept between frames so a frame that repaints
 // the group's area composites them instead of rendering the subtree, its mask and its filter again.
 //

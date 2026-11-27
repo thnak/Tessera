@@ -2771,7 +2771,7 @@ add_test(NAME mask_layers COMMAND mask_layers_tests)
 
 # Where each mask layer's gradient is drawn: size, position, repeat/space/round, the box clip, layer
 # cycling, the tile cap and luminance stops, checked against the paint stream.
-# Retained layers in the paint pass (issue #617, offscreen-layers.md section 5.6): the question before
+# Retained layers in the paint pass (issue #617, offscreen-layers-retention.md): the question before
 # the layer, the skip on yes, the keys, the dirty contract, culling, and the subtree list.
 add_executable(paint_layer_retain_tests
     paint_layer_retain_tests.cpp)

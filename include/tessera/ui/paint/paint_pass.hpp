@@ -171,7 +171,7 @@ struct PaintContext {
     // other sink, and a culled node, keeps the non-isolated rule of paint-pass.md 14.1. False (the
     // default) is every golden and every pre-layer behaviour.
     bool isolate_group_opacity = false;
-    // Retained layers (issue #617, docs/design/gpu/offscreen-layers.md section 5.6): a masked,
+    // Retained layers (issue #617, docs/design/gpu/offscreen-layers-retention.md): a masked,
     // filtered or isolated-opacity node asks the sink whether it holds the node's pixels before it
     // paints, and skips its whole subtree when it does. Needs the per-node cache and no PaintView
     // (both fingerprint what the key covers). Off by default: only a sink that retains layers

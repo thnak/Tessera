@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// The identity of a retainable layer (issue #617, docs/design/gpu/offscreen-layers.md section 5.6).
+// The identity of a retainable layer (issue #617, docs/design/gpu/offscreen-layers-retention.md).
 // A retained layer is reused only when everything that decides its pixels is the same as when it
 // was rendered. The key folds what the pass can see without resolving style: the node's whole
 // PaintCacheSignature (geometry, sink-space mapping, clip stack, inherited opacity, context

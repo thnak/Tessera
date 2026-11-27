@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// The retained-layer cache (issue #617, docs/design/gpu/offscreen-layers.md section 5.6). Entries
+// The retained-layer cache (issue #617, docs/design/gpu/offscreen-layers-retention.md). Entries
 // are few (the cap is tens at most) and looked up by owner, so a reserved vector scanned linearly
 // beats a map: nothing allocates on the frame path once the slots exist, and a lookup touches one
 // cache line per entry.

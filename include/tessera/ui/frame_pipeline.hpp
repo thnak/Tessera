@@ -49,7 +49,7 @@ struct FramePipelineConfig {
     // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
     // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
     bool paint_cache = true;
-    // Retained layers (issue #617, docs/design/gpu/offscreen-layers.md section 5.6): a masked,
+    // Retained layers (issue #617, docs/design/gpu/offscreen-layers-retention.md): a masked,
     // filtered or isolated-opacity node whose subtree is unchanged is composited from pixels the
     // sink kept instead of being painted again. Only full repaints use it (a partial one goes
     // through a sink that cannot layer); needs `paint_cache`. False paints every layer fresh.

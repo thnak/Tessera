@@ -59,6 +59,14 @@ a sink that has let go), and the recorder forwards none of it
 (`PaintCache::Recorder::retained_depth_`). `Batched2DSink` answers through
 `Batched2DRenderer::retain_layer`.
 
+**Masks with `mask-composite`.** A retained layer's mask, and the part brackets of its non-`add`
+mask layers (`BeginMaskSubtract/Intersect/Exclude` ... `EndMaskLayer`, issue #617), sit inside the
+layer's push/pop, so a yes skips them with the layer and the renderer's retained pixels already hold
+the composed mask. The recorder keeps the brackets balanced the same way: `mask_live_` is false while
+`retained_depth_ > 0`, so `part_live_` is false, the recorded part ops are not forwarded and
+`end_mask_layer` forwards nothing; a replay skips the whole span. A sink that declines a part
+(`begin_mask_layer` false) skips it to its `EndMaskLayer`. A hit layer takes no mask at all.
+
 ## 4. Invalidation
 
 An entry is used only if **every** input of its pixels is the same as when it was rendered. Three
@@ -151,7 +159,11 @@ retained layer extends that to the GPU. The integration is:
 - `paint_layer_retain` (unit): the question and the skip on yes; a dirty descendant, a moved node, a new
   epoch and a new opacity miss; retention off paints as before; culling never hides a dirty node;
   an isolated opacity group; the subtree draw list (recorded, replayed on yes and on no, recorded
-  over a yes).
+  over a yes), plus a subtract/intersect mask: parts are skipped with a kept layer, replayed in
+  balance on a sink that let go, skipped on a sink that declines them.
+- `layer_retain_mask_null` runs a masked card with a subtract part: it records once, hits draw only
+  the composite, a dirty neighbour next to a hit renders mask and part with balanced passes, and a
+  kept layer refuses a mask.
 - `layer_retain_gpu` (Vulkan or lavapipe): four scenes (gradient mask under opacity with overlapping
   children, blur, drop-shadow with a mask, isolated opacity group) over nine frames each - record,
   hit, two damage-clipped hits, a full frame, a descendant change, a re-record, a damaged hit - are

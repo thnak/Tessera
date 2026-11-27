@@ -447,58 +447,50 @@ public:
 
     // Optional one-shape box shadow (default: unsupported). A sink that returns true draws an outer
     // shadow - sharp or blurred - as the shape in BoxShadowDraw minus the node's border box, so a
-    // transparent node shows nothing inside its own box and the Gaussian edge is continuous instead
-    // of stepped. The paint pass emits one call per shadow for such a sink and the stack of
-    // concentric fills (four strips per layer, so the border box is subtracted there too) for the
-    // rest, which is what the CPU reference sinks use.
+    // transparent node shows nothing inside its own box and the Gaussian edge is continuous. The
+    // pass emits one call per shadow for such a sink and concentric strip fills for the rest.
     [[nodiscard]] virtual bool supports_box_shadow() const {
         return false;
     }
     virtual void fill_box_shadow(const BoxShadowDraw& /*draw*/) {}
 
     // Optional glass hook (default no-op), emitted before the node's own box visuals. A sink that
-    // returns false from supports_backdrop() paints the node without the effect, which is the
-    // documented CPU-reference behavior (glass-v1 section 9): the stylesheet's opaque fallback
-    // stays visible instead of a blurred approximation that no golden could pin.
+    // returns false from supports_backdrop() paints without the effect (glass-v1 section 9): the
+    // opaque fallback stays visible instead of a blurred approximation no golden could pin.
     [[nodiscard]] virtual bool supports_backdrop() const {
         return false;
     }
     virtual void draw_backdrop(const BackdropDraw& /*draw*/) {}
 
-    // Optional isolated-layer hooks (issue #227, docs/design/gpu/offscreen-layers.md section 5.2).
-    // A sink that returns true from supports_layers() renders everything between push_layer and
-    // the matching pop_layer into an offscreen target and composites it once, so a group fades,
-    // masks or filters as a unit. A sink that returns false (the default) never sees the calls and
-    // paints the group flat, which is today's non-isolated behaviour. push/pop are balanced in
-    // paint order and nest with push_clip/push_transform.
+    // Optional isolated-layer hooks (issue #227, offscreen-layers.md section 5.2). A sink that
+    // returns true from supports_layers() renders everything between push_layer and the matching
+    // pop_layer into an offscreen target and composites it once, so a group fades, masks or filters
+    // as a unit. False (the default): the group paints flat. push/pop are balanced in paint order
+    // and nest with push_clip/push_transform.
     [[nodiscard]] virtual bool supports_layers() const {
         return false;
     }
     virtual void push_layer(const LayerDraw& /*layer*/) {}
     virtual void pop_layer() {}
 
-    // Retained layers (issue #617, offscreen-layers.md section 5.6), asked right before the
-    // push_layer() of a node that may keep its pixels. True: the sink holds the finished layer, so
-    // push_layer()/pop_layer() composite it and nothing may be emitted between them. False (the
-    // default): draw it; a clean node may be kept, a dirty one is dropped.
+    // Retained layers (#617), asked right before push_layer(). True: the sink holds the finished
+    // layer, so push/pop only composite it and nothing is emitted between. False: draw it.
     [[nodiscard]] virtual bool retain_layer(const LayerRetention& /*retention*/) {
         return false;
     }
 
-    // Layer mask (issue #617, offscreen-layers.md section 5.2). After a layer's content and before
-    // its pop_layer(), the paint pass calls begin_layer_mask(); a true return means every draw
-    // until end_layer_mask() is the mask image (alpha is the mask), so the group composites through
-    // it. False (the default) means the sink cannot mask this layer: the pass then skips the mask
-    // draws and the group paints unmasked, so a false return must leave the sink exactly as it was
-    // and end_layer_mask() must not follow. Only gradient fills are emitted between the two calls.
+    // Layer mask (issue #617). After a layer's content and before its pop_layer(), the pass calls
+    // begin_layer_mask(); true means every draw until end_layer_mask() is the mask image (alpha is
+    // the mask). False (the default): the pass skips the mask draws and the group paints unmasked;
+    // the sink must be left as it was and end_layer_mask() must not follow. Only gradient fills are
+    // emitted between the two calls.
     [[nodiscard]] virtual bool begin_layer_mask() {
         return false;
     }
     virtual void end_layer_mask() {}
-    // Between begin_layer_mask() and end_layer_mask(), a mask layer whose `mask-composite` is not
-    // `add` (the bottom layer's is ignored) is bracketed by these: the draws in between are one
-    // layer, combined once with everything drawn before it. False (the default) drops that layer
-    // and its draws; end_mask_layer() must not follow a false.
+    // Inside a mask, a layer whose `mask-composite` is not `add` (the bottom layer's is ignored) is
+    // bracketed by these: its draws are combined once with everything drawn before. False (the
+    // default) drops that layer and its draws; end_mask_layer() must not follow a false.
     [[nodiscard]] virtual bool begin_mask_layer(rendering::gpu::MaskCompositeOp /*op*/) {
         return false;
     }

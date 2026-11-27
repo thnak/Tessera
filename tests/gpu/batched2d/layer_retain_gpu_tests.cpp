@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Retained layers (issue #617, docs/design/gpu/offscreen-layers.md section 5.6) on a real device:
+// Retained layers (issue #617, docs/design/gpu/offscreen-layers-retention.md) on a real device:
 // a retained frame must be pixel-identical to the same frame painted without retention.
 //
 // Each scene is painted through the real paint path (paint_scene -> Batched2DSink -> renderer) as
@@ -81,6 +81,8 @@ struct Harness {
     std::unique_ptr<rhi::Pipeline> blur;
     std::unique_ptr<rhi::Pipeline> composite;
     std::unique_ptr<rhi::Pipeline> mask;
+    std::unique_ptr<rhi::Pipeline> mask_out;
+    std::unique_ptr<rhi::Pipeline> mask_xor;
     std::unique_ptr<rhi::Texture> white;
 };
 
@@ -201,9 +203,10 @@ Run run_sequence(Harness& harness, const SceneSpec& spec, bool retain) {
     Batched2DConfig config;
     config.enable_aa = false;
     config.golden_mode = true;
-    Batched2DRenderer renderer(
-        *harness.device, *harness.pipeline, *harness.white, config,
-        GlassPipelines{harness.blur.get(), harness.composite.get(), harness.mask.get()});
+    Batched2DRenderer renderer(*harness.device, *harness.pipeline, *harness.white, config,
+                               GlassPipelines{harness.blur.get(), harness.composite.get(),
+                                              harness.mask.get(), harness.mask_out.get(),
+                                              harness.mask_xor.get()});
     auto target = harness.device->create_render_target(target_desc(rhi::LoadOp::Clear));
     Run run;
     const rhi::Scissor cut_node =
@@ -267,6 +270,10 @@ bool same_pixels(Harness& harness, const SceneSpec& spec) {
 
 } // namespace
 
+// Two alpha ramps, so every operator leaves part of the children visible.
+constexpr const char* kParts = "linear-gradient(90deg, rgba(0,0,0,0.2), rgba(0,0,0,0.7)), "
+                               "linear-gradient(0deg, #000, rgba(0,0,0,0.4))";
+
 int main() {
     rhi::DeviceDesc device_desc;
     device_desc.backend = rhi::Backend::Vulkan;
@@ -289,6 +296,10 @@ int main() {
     harness.mask =
         harness.device->create_pipeline(tessera::rendering::vulkan::glass_blur_pipeline_desc(
             format, rhi::BlendMode::DestinationIn));
+    harness.mask_out = harness.device->create_pipeline(
+        tessera::rendering::vulkan::glass_blur_pipeline_desc(format, rhi::BlendMode::SourceOut));
+    harness.mask_xor = harness.device->create_pipeline(
+        tessera::rendering::vulkan::glass_blur_pipeline_desc(format, rhi::BlendMode::Xor));
     const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
     rhi::TextureDesc white_desc;
     white_desc.extent = {1, 1};
@@ -308,6 +319,20 @@ int main() {
          false,
          true},
         {"isolated opacity group", {{"opacity", "0.5"}}, true, false},
+        // A mask whose top layer subtracts, intersects or excludes: the parts are retained with the
+        // layer and skipped with it.
+        {"mask-composite subtract",
+         {{"mask-image", kParts}, {"mask-composite", "subtract"}},
+         false,
+         false},
+        {"mask-composite intersect + opacity",
+         {{"mask-image", kParts}, {"mask-composite", "intersect"}, {"opacity", "0.8"}},
+         false,
+         false},
+        {"mask-composite exclude",
+         {{"mask-image", kParts}, {"mask-composite", "exclude"}},
+         false,
+         false},
     };
     bool ok = true;
     for (const SceneSpec& spec : scenes) {

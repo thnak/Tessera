@@ -121,12 +121,17 @@ add_executable(layer_pool_null_tests
     batched2d/layer_pool_null_tests.cpp)
 target_link_libraries(layer_pool_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_pool_null COMMAND layer_pool_null_tests)
-# Retained layers (issue #617, offscreen-layers.md section 5.6): record once, composite while
+# Retained layers (issue #617, offscreen-layers-retention.md): record once, composite while
 # unchanged, invalidate, damage, budgets and trim, on the null backend. Runs everywhere.
 add_executable(layer_retain_null_tests
     batched2d/layer_retain_null_tests.cpp)
 target_link_libraries(layer_retain_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_retain_null COMMAND layer_retain_null_tests)
+# A mask with a `mask-composite` part inside a retained layer: recorded once, skipped on a hit.
+add_executable(layer_retain_mask_null_tests
+    batched2d/layer_retain_mask_null_tests.cpp)
+target_link_libraries(layer_retain_mask_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_retain_mask_null COMMAND layer_retain_mask_null_tests)
 add_executable(layer_filter_null_tests
     batched2d/layer_filter_null_tests.cpp)
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)
@@ -716,7 +721,7 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_mask_composite_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME layer_mask_composite_gpu COMMAND layer_mask_composite_gpu_tests)
     set_tests_properties(layer_mask_composite_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
-    # Retained layers (issue #617, offscreen-layers.md section 5.6) on a real device: a retained frame
+    # Retained layers (issue #617, offscreen-layers-retention.md) on a real device: a retained frame
     # is byte-identical to the uncached paint across full, damage-clipped and changed frames. Skips
     # without a Vulkan device.
     add_executable(layer_retain_gpu_tests

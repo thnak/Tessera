@@ -38,7 +38,7 @@ struct Batched2DConfig {
     // A pooled target unused for this many frames is destroyed (never sooner than
     // frames_in_flight), so a scene that stops using layers gives the memory back. 0 never trims.
     std::uint32_t offscreen_idle_trim_frames = 120;
-    // Retained layers (offscreen-layers.md section 5.6): the finished pixels of an unchanged
+    // Retained layers (offscreen-layers-retention.md): the finished pixels of an unchanged
     // masked, filtered or faded group are kept so a later frame composites them instead of drawing
     // the subtree again. At most this many entries (0 disables), within this many bytes, which are
     // charged to `max_offscreen_bytes` too. A retained layer never takes a live layer's share.
