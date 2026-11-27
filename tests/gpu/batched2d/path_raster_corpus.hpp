@@ -108,6 +108,7 @@ inline void append_edges(std::vector<float>& out, const Pts& points, bool closed
 }
 
 struct Line {
+    explicit Line(path::Rgba8 c) : color(c) {}
     path::Rgba8 color;
     float width = 8.0f;
     path::GpuJoin join = path::GpuJoin::round;
