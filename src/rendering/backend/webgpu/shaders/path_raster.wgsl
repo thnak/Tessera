@@ -27,6 +27,9 @@
 @group(0) @binding(0) var<storage, read_write> segs: array<u32>;
 @group(0) @binding(1) var<storage, read_write> paths: array<u32>;
 @group(0) @binding(2) var<storage, read_write> work: array<atomic<u32>>;
+// The fine pass only reads work, and an atomicLoad is an interlocked operation on some drivers (D3D12:
+// slow on the node walk), so it sees the same binding as a plain array. No entry point uses both views.
+@group(0) @binding(2) var<storage, read_write> work_plain: array<u32>;
 @group(0) @binding(3) var<storage, read_write> pixels: array<u32>;
 @group(0) @binding(4) var<storage, read_write> strokes: array<u32>;
 @group(0) @binding(5) var<storage, read_write> dashes: array<u32>;
@@ -49,7 +52,7 @@ struct Job {
     stroke_count: u32,
     arc_edges: u32,
     out_stride: u32,
-    spare: u32,
+    dev_base: u32, // first word of the device-space segment records inside work (4 floats each)
 }
 
 // The raster this invocation works on, and where its slices of the shared buffers start (words).
@@ -78,6 +81,10 @@ fn load_job(index: u32) {
 
 fn wload(i: u32) -> u32 {
     return atomicLoad(&work[wb + i]);
+}
+
+fn wread(i: u32) -> u32 {
+    return work_plain[wb + i];
 }
 
 fn wstore(i: u32, v: u32) {
@@ -408,11 +415,19 @@ fn bin_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_id
     }
     let path = seg_word(i, 4u);
     let m = path_xf(path);
-    let y0 = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 0u)), bitcast<f32>(seg_word(i, 1u)))).y;
-    let y1 = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 2u)), bitcast<f32>(seg_word(i, 3u)))).y;
+    let da = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 0u)), bitcast<f32>(seg_word(i, 1u))));
+    let db = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(i, 2u)), bitcast<f32>(seg_word(i, 3u))));
+    let y0 = da.y;
+    let y1 = db.y;
     if (y0 == y1) {
         return;
     }
+    // The fine pass reads the transformed endpoints instead of transforming them again per pixel.
+    let dev = pc.dev_base + i * 4u;
+    wstore(dev, bitcast<u32>(da.x));
+    wstore(dev + 1u, bitcast<u32>(da.y));
+    wstore(dev + 2u, bitcast<u32>(db.x));
+    wstore(dev + 3u, bitcast<u32>(db.y));
     let ymin = min(y0, y1);
     let ymax = max(y0, y1);
     let row0 = max(i32(floor(ymin)), 0);
@@ -547,18 +562,18 @@ fn fine_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(global_invocation_i
                     continue;
                 }
                 // No segment on this row: the path does not touch it, whatever its box says.
-                var node = wload(1u + p * pc.height + y);
+                var node = wread(1u + p * pc.height + y);
                 if (node == kNil) {
                     continue;
                 }
-                let m = path_xf(p);
                 var w = 0.0;
                 while (node != kNil) {
-                    let s = wload(pc.nodes_base + node * 2u);
-                    let a = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 0u)), bitcast<f32>(seg_word(s, 1u))));
-                    let b = xf_apply(m, vec2<f32>(bitcast<f32>(seg_word(s, 2u)), bitcast<f32>(seg_word(s, 3u))));
+                    let s = wread(pc.nodes_base + node * 2u);
+                    let dev = pc.dev_base + s * 4u;
+                    let a = vec2<f32>(bitcast<f32>(wread(dev)), bitcast<f32>(wread(dev + 1u)));
+                    let b = vec2<f32>(bitcast<f32>(wread(dev + 2u)), bitcast<f32>(wread(dev + 3u)));
                     w += segment_area(a, b, px, py);
-                    node = wload(pc.nodes_base + node * 2u + 1u);
+                    node = wread(pc.nodes_base + node * 2u + 1u);
                 }
                 let t = abs(w);
                 var cov: f32;
