@@ -121,6 +121,12 @@ add_executable(layer_pool_null_tests
     batched2d/layer_pool_null_tests.cpp)
 target_link_libraries(layer_pool_null_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME layer_pool_null COMMAND layer_pool_null_tests)
+# Retained layers (issue #617, offscreen-layers.md section 5.6): record once, composite while
+# unchanged, invalidate, damage, budgets and trim, on the null backend. Runs everywhere.
+add_executable(layer_retain_null_tests
+    batched2d/layer_retain_null_tests.cpp)
+target_link_libraries(layer_retain_null_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME layer_retain_null COMMAND layer_retain_null_tests)
 add_executable(layer_filter_null_tests
     batched2d/layer_filter_null_tests.cpp)
 target_link_libraries(layer_filter_null_tests PRIVATE tessera_gpu tessera_rhi_null)

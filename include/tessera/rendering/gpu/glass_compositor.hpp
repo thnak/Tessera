@@ -94,8 +94,11 @@ public:
     // damage-clipped), with `opacity` applied once to the group. Requires the frame pass to be
     // broken; the pass is reopened through the seam. Returns false, recording nothing, when
     // layers_supported() is false.
+    // `origin` places the layer's pixels in the frame (zero for a frame-sized layer); a retained
+    // layer is an exact-size target holding the region that starts there.
     [[nodiscard]] bool composite_layer(const FrameContext& frame, rhi::RenderTarget& layer,
-                                       const std::vector<rhi::Scissor>& scissors, float opacity);
+                                       const std::vector<rhi::Scissor>& scissors, float opacity,
+                                       rhi::Offset2D origin = {});
 
     // True when a layer can be masked: layers are supported and the `DestinationIn` pipeline exists
     // with a single-sample layout (issue #617).
@@ -158,6 +161,10 @@ public:
     [[nodiscard]] std::uint32_t target_count() const {
         return pool_ != nullptr ? pool_->target_count() : 0;
     }
+    // The pool the retained-layer cache charges its bytes to; null when layers are disabled.
+    [[nodiscard]] OffscreenTargetPool* pool() const {
+        return pool_.get();
+    }
     [[nodiscard]] OffscreenPoolStats pool_stats() const {
         return pool_ != nullptr ? pool_->stats() : OffscreenPoolStats{};
     }
@@ -187,7 +194,7 @@ private:
     // Samples `source` 1:1 into the frame target with `pipeline` (glass_blur.frag mode 2).
     void composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,
                         rhi::RenderTarget& source, const std::vector<rhi::Scissor>& scissors,
-                        float opacity);
+                        float opacity, rhi::Offset2D origin = {});
 
     rhi::Device* device_ = nullptr;
     GlassPipelines glass_;

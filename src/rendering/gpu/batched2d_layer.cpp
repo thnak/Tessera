@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 
 namespace tessera::rendering::gpu {
 
@@ -80,6 +81,12 @@ rhi::Scissor grow(const rhi::Scissor& region, float by) {
 
 void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity,
                                    const LayerFilterChain& filter) {
+    // A retain_layer() call arms exactly one push; whatever it armed is spent here.
+    const LayerRetainPending pending = std::exchange(retain_.pending, LayerRetainPending{});
+    if (pending.hit) {
+        push_retained_layer(pending, opacity);
+        return;
+    }
     LayerFrame layer;
     layer.opacity = std::isfinite(opacity) ? std::clamp(opacity, 0.0f, 1.0f) : 1.0f;
     layer.previous_alpha_scale = alpha_scale_;
@@ -91,11 +98,21 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity,
         // The layer only ever needs the part of its box the frame can show: inside the frame
         // scissor and the damage bounds. An empty intersection has nothing to composite.
         const float scale = (content_scale_x_ + content_scale_y_) * 0.5f;
-        region = rhi::intersect(
-            rhi::intersect(grow(device_region(box), filter_reach(filter, scale)), scissor_),
-            damage_bounds_);
+        region = rhi::intersect(grow(device_region(box), filter_reach(filter, scale)), scissor_);
+        // A layer that will be kept renders its whole box so the pixels serve any later damage;
+        // every other layer only what this frame's damage can show.
+        if (pending.record && region.width > 0 && region.height > 0) {
+            layer.retain.target = begin_retain_record(pending, region);
+        }
+        if (layer.retain.target == nullptr) {
+            region = rhi::intersect(region, damage_bounds_);
+        }
         if (region.width > 0 && region.height > 0) {
             target = glass_.acquire(extent_);
+        }
+        if (target == nullptr && layer.retain.target != nullptr) {
+            retain_.cache->abandon(pending.owner);
+            layer.retain.target = nullptr;
         }
     }
 
@@ -119,6 +136,20 @@ void Batched2DRenderer::push_layer(const rhi::Rect& box, float opacity,
     layer.layer_target = target;
     layer.region = region;
     layer.filter = filter;
+    if (layer.retain.target != nullptr) {
+        layer.retain.recording = true;
+        layer.retain.owner = pending.owner;
+        layer.retain.degraded_mark = degradations();
+        if (!retain_.damage_suspended) {
+            // The frame's damage must not cut the pixels that will be kept: draw the whole region
+            // now, and let the composite (after finish_retain_record) apply the damage again.
+            retain_.saved_regions.swap(damage_regions_);
+            retain_.saved_bounds = damage_bounds_;
+            damage_bounds_ = base_scissor_;
+            retain_.damage_suspended = true;
+            layer.retain.suspended_damage = true;
+        }
+    }
 
     rhi::RenderTargetDesc desc = frame_desc_;
     desc.extent = extent_;
@@ -160,6 +191,10 @@ void Batched2DRenderer::pop_layer() {
     }
     const LayerFrame layer = layers_.back();
     layers_.pop_back();
+    if (layer.retain.retained) {
+        pop_retained_layer(layer);
+        return;
+    }
     if (!layer.isolated) {
         alpha_scale_ = layer.previous_alpha_scale;
         return;
@@ -178,6 +213,9 @@ void Batched2DRenderer::pop_layer() {
     frame_desc_ = layer.parent_desc;
     pass_broken_ = true;
     bound_pipeline_ = nullptr;
+    if (layer.retain.recording) {
+        finish_retain_record(layer);
+    }
 
     const std::vector<rhi::Scissor> scissors = layer_scissors(layer);
 

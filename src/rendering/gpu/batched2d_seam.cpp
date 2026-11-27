@@ -75,6 +75,9 @@ OffscreenPoolStats Batched2DRenderer::offscreen_stats() const {
 
 void Batched2DRenderer::trim_offscreen_targets(bool all_complete) {
     if (!in_frame_) {
+        if (retain_.cache != nullptr) {
+            retain_.cache->trim(all_complete);
+        }
         glass_.trim(all_complete);
     }
 }

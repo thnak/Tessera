@@ -107,11 +107,12 @@ bool GlassCompositor::layers_supported(const rhi::RenderTarget& frame_target) co
 }
 
 bool GlassCompositor::composite_layer(const FrameContext& frame, rhi::RenderTarget& layer,
-                                      const std::vector<rhi::Scissor>& scissors, float opacity) {
+                                      const std::vector<rhi::Scissor>& scissors, float opacity,
+                                      rhi::Offset2D origin) {
     if (frame.commands == nullptr || frame.target == nullptr || !layers_supported(*frame.target)) {
         return false;
     }
-    composite_with(*glass_.composite, frame, layer, scissors, opacity);
+    composite_with(*glass_.composite, frame, layer, scissors, opacity, origin);
     return true;
 }
 
@@ -141,14 +142,18 @@ bool GlassCompositor::combine_mask_part(const FrameContext& frame, rhi::RenderTa
 
 void GlassCompositor::composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,
                                      rhi::RenderTarget& source,
-                                     const std::vector<rhi::Scissor>& scissors, float opacity) {
+                                     const std::vector<rhi::Scissor>& scissors, float opacity,
+                                     rhi::Offset2D origin) {
     rhi::CommandList& commands = *frame.commands;
     const rhi::Extent2D layer_extent = source.extent();
-    // Mode 2 samples the source at uv = (fragcoord - region_origin) / region_size. The source
+    // Mode 2 samples the source at uv = (fragcoord - region_origin) / region_size. A live layer
     // shares the frame's coordinate system (it is drawn with the same transform, clips and
-    // scissors), so the origin is zero and the size is the target's own, which maps a fragment onto
-    // its own texel even when the pooled target is larger than the frame.
+    // scissors), so its origin is zero and the size is the target's own, which maps a fragment onto
+    // its own texel even when the pooled target is larger than the frame. A retained layer is an
+    // exact-size copy of the region that starts at `origin`, which maps it back onto the frame.
     GlassPushConstants layer_constants;
+    layer_constants.region_origin_x = static_cast<float>(origin.x);
+    layer_constants.region_origin_y = static_cast<float>(origin.y);
     layer_constants.region_size_x = static_cast<float>(layer_extent.width);
     layer_constants.region_size_y = static_cast<float>(layer_extent.height);
     layer_constants.mode = 2.0f;

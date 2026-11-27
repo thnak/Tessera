@@ -21,7 +21,8 @@ OffscreenTargetPool::OffscreenTargetPool(rhi::Device& device, OffscreenTargetPoo
     // The cap is small and fixed, so reserving it once keeps entries_ from ever allocating on the
     // frame path (alloc_per_frame): a target is created lazily, its slot is not.
     entries_.reserve(std::min(config_.max_targets, kReserveLimit));
-    retired_.reserve(std::min(config_.max_targets, kReserveLimit));
+    // Regrown targets and evicted retained layers both wait here for their frames to rotate.
+    retired_.reserve(kReserveLimit);
 }
 
 OffscreenTargetPool::~OffscreenTargetPool() = default;
@@ -204,6 +205,32 @@ void OffscreenTargetPool::trim(bool all_complete) {
             erase_entry(index);
         }
     }
+}
+
+bool OffscreenTargetPool::charge(std::uint64_t bytes) {
+    if (config_.max_bytes != 0 && bytes_ + bytes > config_.max_bytes) {
+        return false;
+    }
+    bytes_ += bytes;
+    stats_.peak_bytes = std::max(stats_.peak_bytes, bytes_);
+    return true;
+}
+
+void OffscreenTargetPool::refund(std::uint64_t bytes) {
+    bytes_ -= std::min(bytes_, bytes);
+}
+
+void OffscreenTargetPool::retire(std::unique_ptr<rhi::RenderTarget> target,
+                                 std::uint64_t last_used_frame, std::uint64_t bytes) {
+    if (target == nullptr) {
+        return;
+    }
+    // A target no frame ever used has no reader to wait for.
+    if (last_used_frame == 0 || rotated(last_used_frame)) {
+        refund(bytes);
+        return;
+    }
+    retired_.push_back(Retired{std::move(target), last_used_frame, bytes});
 }
 
 OffscreenPoolStats OffscreenTargetPool::stats() const {

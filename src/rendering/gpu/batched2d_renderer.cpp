@@ -49,6 +49,13 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
     damage_regions_.reserve(8);
     transform_stack_.reserve(16);
     scissor_stack_.reserve(16);
+    if (glass_.pool() != nullptr) {
+        retain_.cache = std::make_unique<RetainedLayerCache>(
+            glass_.pool(),
+            RetainedLayerConfig{config.max_retained_layers, config.max_retained_bytes,
+                                config.offscreen_idle_trim_frames});
+        retain_.saved_regions.reserve(8);
+    }
 }
 
 Batched2DRenderer::~Batched2DRenderer() = default;
@@ -100,6 +107,13 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     // handed out again once the slot rotation proves frame k complete.
     ++frame_index_;
     glass_.begin_frame(frame_index_, config_.frames_in_flight, desc.format);
+    if (retain_.cache != nullptr) {
+        retain_.cache->begin_frame(frame_index_, desc.extent);
+    }
+    retain_.pending = LayerRetainPending{};
+    retain_.damage_suspended = false;
+    retain_.saved_regions.clear();
+    retain_.degraded = 0;
     extent_ = desc.extent;
     base_scissor_ = rhi::Scissor{0, 0, static_cast<std::uint32_t>(desc.extent.width),
                                  static_cast<std::uint32_t>(desc.extent.height)};
