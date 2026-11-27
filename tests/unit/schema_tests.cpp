@@ -70,8 +70,8 @@ void test_schema_version_and_counts() {
     check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     // 128 since ADR-068 slice 4 added `clip-path` (issue #672); 130 with `list-style-type` and
-    // `list-style-position` (issue #541).
-    check(schema::style_properties().size() == 139, "139 style longhands");
+    // `list-style-position` (issue #541); 147 with the `-webkit-mask*` longhand aliases (#617).
+    check(schema::style_properties().size() == 147, "147 style longhands");
     check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
     // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
     // id-reference attributes `useId` exists to fill.
