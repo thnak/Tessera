@@ -223,6 +223,36 @@ int main() {
                 "a consumed burst of wakes leaves nothing pending: the next park blocks")) {
         return 15;
     }
+    // Measured wake-to-return latency (issue #842): the point is "milliseconds, not the 250 ms
+    // clamp", so the bound is generous and a loaded runner cannot make it flaky.
+    constexpr int kTrials = 20;
+    std::array<double, kTrials> latency{};
+    for (int trial = 0; trial < kTrials; ++trial) {
+        double woke_at = 0.0;
+        std::thread trial_waker([&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            woke_at = tessera::hal::steady_now_seconds();
+            wake->wake();
+            wake->wake();
+            wake->wake();
+        });
+        has_event = wake_window->wait_for_events(5.0);
+        const double returned_at = tessera::hal::steady_now_seconds();
+        trial_waker.join();
+        if (!expect(has_event, "a worker wake ends the park in every trial")) {
+            return 16;
+        }
+        latency[static_cast<std::size_t>(trial)] = returned_at - woke_at;
+        // Consume what is left of the burst so the next trial starts from a blocking park.
+        while (wake_window->wait_for_events(0.02)) {
+        }
+    }
+    std::sort(latency.begin(), latency.end());
+    std::cout << "window_wait: wake-to-return latency median " << latency[kTrials / 2] * 1000.0
+              << " ms, max " << latency.back() * 1000.0 << " ms over " << kTrials << " trials\n";
+    if (!expect(latency.back() < 0.1, "every wake lands within 100 ms")) {
+        return 17;
+    }
     wake_window->set_wake_source(nullptr);
     wake_window.reset();
 

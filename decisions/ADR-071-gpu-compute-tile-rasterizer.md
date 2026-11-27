@@ -1,7 +1,9 @@
 # ADR-071: A GPU compute tile rasterizer for vector paths
 
-- Status: **Proposed** (2026-11-24). Only the owner moves it to Accepted. No spike code has landed, so
-  the evidence table below is incomplete on purpose: see "Evidence required before Accepted".
+- Status: **Proposed** (2026-11-24). Only the owner moves it to Accepted. The spike
+  (`tools/poc/compute_raster`, #683) and the production pieces have landed; the evidence table below
+  holds the measurements and lists what is still open (browser WebGPU, the alternatives, the
+  tolerance against ThorVG).
 - Date: 2026-11-24
 - Amends: [ADR-057](ADR-057-vector-paths-thorvg-default-and-exit.md) (its section 3 **Cost** trigger
   fires for the large-raster use case) and [ADR-004](ADR-004-buy-vector-path-rasterization.md).
@@ -246,8 +248,10 @@ Dashes are cut on the GPU too. The CPU splits each centerline segment into chunk
 
 **Measured on 2026-11-25 on a Ryzen 5 4600H laptop (MSVC Release, 4K, 30 runs) with the same tool, on the RX 5300M and the Radeon iGPU (`VK_LOADER_DEVICE_ID_FILTER=0x1636`):** against ThorVG on that CPU (sparse 11.4 ms, dense 24.8 ms), the RX 5300M wins every scene (sparse 2.9 / 3.1 ms, dense 5.7 / 8.8 ms for ring / GPU strokes; dashes 3.6 ms against 12.6; polylines 1.5 against 8.6; animated dense 9.9 ms, sparse 4.1 ms) but misses the 4.7 ms dense line, and with GPU strokes the 8.3 ms (120 Hz) budget too, so on mid-range hardware the dense scene fits 60 Hz, not 120 Hz. The iGPU is break-even at best: sparse 8.5 / 10.1 ms against 10.8 ms, dense 18.6 ms with ring strokes against 24.8 ms, and **slower than ThorVG on dense GPU strokes (34.0 against 23.4 ms)**; dashes 13.1 against 12.6 ms. The per-frame animation cost is the same as on the RTX 4060 (0.002 to 0.012 ms CPU, 336 to 1920 bytes). Pixels are identical to the RTX 4060 (same diffs against ThorVG). SVG route over the 4 loadable fixtures in `tests/fixtures/svg` (not the 6-icon golden set), GPU / ThorVG: RX 5300M 0.027 / 0.036 ms at 32 px, 0.040 / 0.036 at 64, 0.114 / 0.173 at 256, 0.328 / 2.32 at 1024; iGPU 0.018 / 0.031, 0.023 / 0.028, 0.067 / 0.178, 0.376 / 2.26. With the CPU encode and the wait (~0.09 to 0.13 ms wall) the GPU is slower than ThorVG up to about 64 px and wins from 256 px, so the crossover is lower on these GPUs than the ~1000 px seen on the RTX 4060 (those icons were simpler, so read it as a trend, not a threshold). Both GPUs are 2019 to 2020 parts, a lower bound for what the policy has to handle. The compute pipeline fallback to the CPU raster (the cache policy) is therefore needed for the dense, stroke-heavy case on weak GPUs. AMD discrete and iGPU are now measured; browser WebGPU stays open. The ThorVG diff is dominated by stroke edge geometry. Status stays Proposed: the owner decides.
 
-The proof that a compute rasterizer beats the CPU raster at 4K at all is the spike's own deliverable
-and is unproven today. If the spike contradicts the proxy, this ADR is rejected with the numbers.
+The spike answered the question the proxy left open: the compute rasterizer beats the CPU raster at 4K
+on all three GPUs measured, with the two exceptions recorded above (the dense scene misses the 4.7 ms
+line on the RX 5300M, and the iGPU loses to ThorVG on dense GPU strokes). The remaining measurements
+are browser WebGPU, the alternatives table and the ThorVG tolerance.
 
 ## Consequences
 
