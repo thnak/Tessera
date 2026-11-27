@@ -7,6 +7,7 @@
 #include "paint_gradient.hpp"
 #include "paint_mask_tiles.hpp"
 #include "paint_properties.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/background_layers.hpp"
@@ -318,6 +319,7 @@ struct MaskGeometry {
     style::MaskValueList<style::MaskMode> modes;
     style::MaskValueList<style::MaskBox> origins;
     style::MaskValueList<style::MaskBox> clips;
+    style::MaskValueList<style::MaskComposite> composites;
     // The three boxes of the node, indexed by MaskBox (NoClip uses the border box).
     std::array<rhi::Rect, 4> boxes{};
 };
@@ -340,6 +342,55 @@ void resolve_mask_boxes(const style::ComputedStyle& style, const rhi::Rect& bord
     geometry.boxes = {border, padding, content, border};
 }
 
+rendering::gpu::MaskCompositeOp composite_op(style::MaskComposite value) {
+    switch (value) {
+    case style::MaskComposite::Subtract:
+        return rendering::gpu::MaskCompositeOp::Subtract;
+    case style::MaskComposite::Intersect:
+        return rendering::gpu::MaskCompositeOp::Intersect;
+    case style::MaskComposite::Exclude:
+        return rendering::gpu::MaskCompositeOp::Exclude;
+    case style::MaskComposite::Add:
+    default:
+        return rendering::gpu::MaskCompositeOp::Add;
+    }
+}
+
+// One mask layer's tiles, inside the `mask-origin` box and cut to the `mask-clip` box.
+void emit_mask_layer(const style::BackgroundLayer& layer, std::size_t index,
+                     const RoundedClip& clip, float opacity, PaintSink& sink, PaintStats& stats,
+                     const MaskGeometry& geometry) {
+    const bool luminance = geometry.modes.at_layer(index) == style::MaskMode::Luminance;
+    const style::MaskBox origin = geometry.origins.at_layer(index);
+    const MaskTiling tiling = compute_mask_tiles(
+        geometry.boxes[static_cast<std::size_t>(origin)], geometry.sizes.at_layer(index),
+        geometry.positions.at_layer(index), geometry.repeats.at_layer(index));
+    // A zero-size tile or area paints nothing for this layer.
+    if (tiling.count == 0) {
+        return;
+    }
+    if (tiling.truncated) {
+        ++stats.mask_layers_truncated;
+    }
+    // `mask-clip` is the painting area: a tile outside it is cut away, and `no-clip` keeps it.
+    const style::MaskBox clip_box = geometry.clips.at_layer(index);
+    const rhi::Rect& clip_rect = geometry.boxes[static_cast<std::size_t>(clip_box)];
+    const bool clipped = clip_box != style::MaskBox::NoClip;
+    if (clipped && (clip_rect.width <= 0.0f || clip_rect.height <= 0.0f)) {
+        return;
+    }
+    const bool cut = clipped && !tiles_within(tiling, clip_rect);
+    if (cut) {
+        sink.push_clip(RoundedClip{clip_rect, 0.0f, 0.0f, 0.0f, 0.0f});
+    }
+    for (std::size_t tile = 0; tile < tiling.count; ++tile) {
+        emit_gradient(layer, tiling.tiles[tile], clip, opacity, luminance, sink, stats);
+    }
+    if (cut) {
+        sink.pop_clip();
+    }
+}
+
 // Walks a resolved layer list bottom to top and emits each gradient. Shared by the
 // `background-image` paint and the `mask-image` paint (issue #617): the same grammar and the same
 // draws, only the property read and the destination (the node's background, or a layer's mask
@@ -353,42 +404,32 @@ void emit_layers(const style::BackgroundLayerList& list, const rhi::Rect& rect,
     // visible where the layers above it are translucent.
     for (std::size_t index = list.count; index-- > 0;) {
         const style::BackgroundLayer& layer = list.layers[index];
-        if (layer.kind == style::BackgroundLayerKind::None) {
-            continue; // a transparent layer paints nothing
-        }
+        const bool transparent = layer.kind == style::BackgroundLayerKind::None;
         if (geometry == nullptr) {
-            emit_gradient(layer, rect, clip, opacity, false, sink, stats);
+            if (!transparent) {
+                emit_gradient(layer, rect, clip, opacity, false, sink, stats);
+            }
             continue;
         }
-        const bool luminance = geometry->modes.at_layer(index) == style::MaskMode::Luminance;
-        // `mask-origin` is the positioning area the tiles are laid out in.
-        const style::MaskBox origin = geometry->origins.at_layer(index);
-        const MaskTiling tiling = compute_mask_tiles(
-            geometry->boxes[static_cast<std::size_t>(origin)], geometry->sizes.at_layer(index),
-            geometry->positions.at_layer(index), geometry->repeats.at_layer(index));
-        // A zero-size tile or area paints nothing for this layer.
-        if (tiling.count == 0) {
+        // The bottom layer has nothing below it, so its operator is ignored (Chromium does the
+        // same). A sink that cannot combine this layer drops it, so the mask only ever loses what
+        // it could not express; a transparent layer still counts, because intersecting or
+        // subtracting nothing empties what is below.
+        const rendering::gpu::MaskCompositeOp op =
+            index + 1 == list.count ? rendering::gpu::MaskCompositeOp::Add
+                                    : composite_op(geometry->composites.at_layer(index));
+        const bool adds = op == rendering::gpu::MaskCompositeOp::Add;
+        if (transparent && (adds || op == rendering::gpu::MaskCompositeOp::Exclude)) {
+            continue; // nothing is added and nothing is removed
+        }
+        if (!adds && !sink.begin_mask_layer(op)) {
             continue;
         }
-        if (tiling.truncated) {
-            ++stats.mask_layers_truncated;
+        if (!transparent) {
+            emit_mask_layer(layer, index, clip, opacity, sink, stats, *geometry);
         }
-        // `mask-clip` is the painting area: a tile outside it is cut away, and `no-clip` keeps it.
-        const style::MaskBox clip_box = geometry->clips.at_layer(index);
-        const rhi::Rect& clip_rect = geometry->boxes[static_cast<std::size_t>(clip_box)];
-        const bool clipped = clip_box != style::MaskBox::NoClip;
-        if (clipped && (clip_rect.width <= 0.0f || clip_rect.height <= 0.0f)) {
-            continue;
-        }
-        const bool cut = clipped && !tiles_within(tiling, clip_rect);
-        if (cut) {
-            sink.push_clip(RoundedClip{clip_rect, 0.0f, 0.0f, 0.0f, 0.0f});
-        }
-        for (std::size_t tile = 0; tile < tiling.count; ++tile) {
-            emit_gradient(layer, tiling.tiles[tile], clip, opacity, luminance, sink, stats);
-        }
-        if (cut) {
-            sink.pop_clip();
+        if (!adds) {
+            sink.end_mask_layer();
         }
     }
 }
@@ -445,6 +486,7 @@ void paint_mask_image(const style::ComputedStyle& style, const rhi::Rect& rect, 
     read("mask-mode", geometry.modes, style::parse_mask_mode_list);
     read("mask-origin", geometry.origins, style::parse_mask_origin_list);
     read("mask-clip", geometry.clips, style::parse_mask_clip_list);
+    read("mask-composite", geometry.composites, style::parse_mask_composite_list);
     resolve_mask_boxes(style, rect, geometry);
     // The mask areas are never rounded by border-radius, and the mask's own alpha is the whole
     // value, so there is no node opacity to fold in.

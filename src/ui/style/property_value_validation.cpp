@@ -218,7 +218,8 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     // The mask geometry lists (mask_layers.hpp). An invalid list drops the declaration, so the
     // computed value keeps the initial one and the diagnostic names the form.
     if (property == "mask-size" || property == "mask-position" || property == "mask-repeat" ||
-        property == "mask-mode" || property == "mask-origin" || property == "mask-clip") {
+        property == "mask-mode" || property == "mask-origin" || property == "mask-clip" ||
+        property == "mask-composite") {
         const std::string_view text = trim(value);
         if (detail::has_substitution_function(text)) {
             return true;
@@ -228,7 +229,8 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                         : property == "mask-repeat"   ? parse_mask_repeat_list(text).has_value()
                         : property == "mask-mode"     ? parse_mask_mode_list(text).has_value()
                         : property == "mask-origin"   ? parse_mask_origin_list(text).has_value()
-                                                      : parse_mask_clip_list(text).has_value();
+                        : property == "mask-clip"     ? parse_mask_clip_list(text).has_value()
+                                                      : parse_mask_composite_list(text).has_value();
         if (!ok) {
             out.push_back(StyleDiagnostic{
                 StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
@@ -237,7 +239,8 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                 "repeat, space, round, no-repeat; mask-mode takes alpha, luminance or "
                 "match-source; mask-origin takes border-box, padding-box or content-box and "
                 "mask-clip those "
-                "or no-clip (per layer, comma-separated, at most 8)"});
+                "or no-clip; mask-composite takes add, subtract, intersect or exclude (per layer, "
+                "comma-separated, at most 8)"});
         }
         return ok;
     }

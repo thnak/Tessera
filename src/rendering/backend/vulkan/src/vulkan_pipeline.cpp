@@ -167,6 +167,19 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    } else if (desc.blend == rhi::BlendMode::SourceOut || desc.blend == rhi::BlendMode::Xor) {
+        // Mask combine (RHI 1.21): `src * (1 - dst.a)`, plus `dst * (1 - src.a)` for xor, on every
+        // channel.
+        const bool exclusive = desc.blend == rhi::BlendMode::Xor;
+        const VkBlendFactor keep =
+            exclusive ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ZERO;
+        blend_attachment.blendEnable = VK_TRUE;
+        blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+        blend_attachment.dstColorBlendFactor = keep;
+        blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+        blend_attachment.dstAlphaBlendFactor = keep;
+        blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
     } else if (desc.blend == rhi::BlendMode::Alpha) {
         blend_attachment.blendEnable = VK_TRUE;
         blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;

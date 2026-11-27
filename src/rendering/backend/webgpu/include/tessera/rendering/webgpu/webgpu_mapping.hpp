@@ -36,7 +36,13 @@ enum class WgpuVertexFormat : std::uint8_t {
     Unorm8x4,
     Uint32
 };
-enum class WgpuBlendFactor : std::uint8_t { Zero, One, SrcAlpha, OneMinusSrcAlpha };
+enum class WgpuBlendFactor : std::uint8_t {
+    Zero,
+    One,
+    SrcAlpha,
+    OneMinusSrcAlpha,
+    OneMinusDstAlpha
+};
 enum class WgpuBlendOp : std::uint8_t { Add };
 enum class WgpuPrimitiveTopology : std::uint8_t { TriangleList };
 

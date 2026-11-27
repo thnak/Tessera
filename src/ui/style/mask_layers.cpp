@@ -323,6 +323,23 @@ std::optional<MaskBox> parse_box(std::string_view text, bool allow_no_clip) {
 
 } // namespace
 
+std::optional<MaskComposite> parse_mask_composite(std::string_view text) {
+    const std::string keyword = lower(trim(text));
+    if (keyword == "add") {
+        return MaskComposite::Add;
+    }
+    if (keyword == "subtract") {
+        return MaskComposite::Subtract;
+    }
+    if (keyword == "intersect") {
+        return MaskComposite::Intersect;
+    }
+    if (keyword == "exclude") {
+        return MaskComposite::Exclude;
+    }
+    return std::nullopt;
+}
+
 std::optional<MaskBox> parse_mask_origin(std::string_view text) {
     return parse_box(text, false);
 }
@@ -349,6 +366,11 @@ std::optional<MaskValueList<MaskRepeat>> parse_mask_repeat_list(std::string_view
 std::optional<MaskValueList<MaskMode>> parse_mask_mode_list(std::string_view text) {
     return parse_list<MaskMode>(text,
                                 [](std::string_view entry) { return parse_mask_mode(entry); });
+}
+
+std::optional<MaskValueList<MaskComposite>> parse_mask_composite_list(std::string_view text) {
+    return parse_list<MaskComposite>(
+        text, [](std::string_view entry) { return parse_mask_composite(entry); });
 }
 
 std::optional<MaskValueList<MaskBox>> parse_mask_origin_list(std::string_view text) {

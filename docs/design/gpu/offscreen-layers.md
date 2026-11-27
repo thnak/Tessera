@@ -295,12 +295,36 @@ slice behavior + tests + docs, nothing user-visible until the last:
    times alpha, so it needs no shader: exact for opaque stops, and for translucent ones the encoded-space
    ramp interpolates luminance-times-alpha rather than luminance of the interpolated colour (a small
    difference, documented not measured). `match-source` is `alpha` for gradients. Not implemented:
-   `mask-composite` (the `mask` shorthand rejects it whole), em/rem/calc lengths. The `mask` shorthand
-   (`property_mask.cpp`) expands each layer into the seven longhands; one box sets origin and clip, two
-   are origin then clip, and `no-clip` is the clip.
+   em/rem/calc lengths. The `mask` shorthand (`property_mask.cpp`) expands each layer into the eight
+   longhands; one box sets origin and clip, two are origin then clip, and `no-clip` is the clip.
    Tests: `mask_layers` (parsers, lists, registry grammar, shorthand) and `paint_mask_geometry` (tile
    placement, repeat/space/round, clip, layer cycling, the tile cap, luminance, and the origin/clip boxes
    on a bordered, padded node; mutation-checked).
+5f. **`mask-composite` (landed, issue #617; RHI 1.21).** A mask layer's operator says how it combines with
+   the layers below it: `add` is source-over, `subtract` source-out (`src * (1 - below)`), `intersect`
+   source-in (`src * below`) and `exclude` xor. Only `add` can be drawn quad by quad; the others drop
+   the layers below wherever the layer does not cover them, and a layer is many quads (tiles, bands),
+   so it is drawn into its own pooled target cleared to transparent and combined once. The paint pass
+   (`emit_layers`) brackets such a layer in `PaintSink::begin_mask_layer(op)` / `end_mask_layer()`
+   inside the mask bracket; `add` layers emit no call, so existing streams are unchanged. The bottom
+   layer's operator is ignored (measured in Chromium: with the operators on the top of two layers
+   the three regions came out A-only / both / B-only as add: all, subtract: A only, intersect: both
+   only, exclude: A and B only; an operator on the bottom layer changed nothing), and a `none` layer
+   that intersects or subtracts still combines, emptying what is below. `Batched2DRenderer`
+   (`batched2d_mask_part.cpp`) acquires the part target, redirects drawing to it, and at
+   `end_mask_layer()` samples it into the mask target through `GlassCompositor::combine_mask_part`:
+   `DestinationIn` for intersect (`dst * src.a` equals `src.a * dst.a` on alpha, the only channel a
+   mask reads), and the new `BlendMode::SourceOut` / `Xor` (fixed factors on Vulkan, WebGPU and
+   Metal, so no capability) for subtract and exclude; `GlassPipelines::mask_out` / `mask_xor` are
+   optional like `mask`. A part that cannot run (no pipeline, no free pooled target) returns false:
+   the layer and its draws are dropped and `layer_masks_unsupported()` counts it. The part target is
+   released right after its combine, so a mask of any depth needs the mask target plus one part
+   target. The paint cache records a part as `BeginMask{Subtract,Intersect,Exclude}` / `EndMaskLayer`
+   and replays it only while the sink accepts it. The CPU twin draws a part into its own transparent
+   pair and `combine_mask_part` (`cpu_layer.cpp`) combines alpha with the same formulas.
+   Tests: `mask_layers`, `paint_mask_geometry` (the bracket, ignored bottom operator, transparent
+   layers, a declining sink), `cpu_layer`, `layer_mask_null` (the command order) and
+   `layer_mask_composite_gpu` (lavapipe pixel values for the three operators and a three-layer mask).
 5d. **`filter: blur()` / `drop-shadow()` (landed, issue #617 slice 4).** The chain rides in the layer's
    own push: `LayerDraw::filter` (`rendering::gpu::LayerFilterChain`, at most three
    `LayerFilterOp`s of 20 bytes each - the shadow colour is packed 8 bits per channel so `PaintOp` stays

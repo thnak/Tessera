@@ -109,13 +109,33 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
     // A recorded mask replays only while the sink agrees to mask: when it does not, everything up
     // to the matching EndLayerMask is skipped and the group paints unmasked, as it would live.
     bool skipping_mask = false;
+    bool skipping_part = false; // a non-add mask layer the sink declined
+    using Op = rendering::gpu::MaskCompositeOp;
     for (const PaintOp& op : ops) {
         if (skipping_mask && op.kind != PaintOp::Kind::EndLayerMask) {
+            continue;
+        }
+        if (skipping_part && op.kind != PaintOp::Kind::EndMaskLayer) {
             continue;
         }
         switch (op.kind) {
         case PaintOp::Kind::BeginLayerMask:
             skipping_mask = !sink.begin_layer_mask();
+            break;
+        case PaintOp::Kind::BeginMaskSubtract:
+            skipping_part = !sink.begin_mask_layer(Op::Subtract);
+            break;
+        case PaintOp::Kind::BeginMaskIntersect:
+            skipping_part = !sink.begin_mask_layer(Op::Intersect);
+            break;
+        case PaintOp::Kind::BeginMaskExclude:
+            skipping_part = !sink.begin_mask_layer(Op::Exclude);
+            break;
+        case PaintOp::Kind::EndMaskLayer:
+            if (!skipping_part) {
+                sink.end_mask_layer();
+            }
+            skipping_part = false;
             break;
         case PaintOp::Kind::EndLayerMask:
             if (!skipping_mask) {

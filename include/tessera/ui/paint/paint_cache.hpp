@@ -214,6 +214,11 @@ struct PaintOp {
         // lives in the subtree draw list as Begin, the mask's gradient fills, End (issue #617).
         BeginLayerMask,
         EndLayerMask,
+        // A non-add mask layer inside a recorded mask (the operator is the kind, so no payload).
+        BeginMaskSubtract,
+        BeginMaskIntersect,
+        BeginMaskExclude,
+        EndMaskLayer,
     };
 
     using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
@@ -400,6 +405,8 @@ public:
         void pop_layer() override;
         [[nodiscard]] bool begin_layer_mask() override;
         void end_layer_mask() override;
+        [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override;
+        void end_mask_layer() override;
         void draw_text(const TextDraw& run) override;
         void draw_vector(const VectorDraw& draw) override;
         void draw_image(const ImageDraw& draw) override;
@@ -425,6 +432,9 @@ public:
         // gradient fills are always recorded, and forwarded only while the target agreed to mask.
         bool in_mask_ = false;
         bool mask_live_ = false;
+        // False while a non-add mask layer the target declined is open: its draws are not
+        // forwarded.
+        bool part_live_ = true;
     };
 
 private:

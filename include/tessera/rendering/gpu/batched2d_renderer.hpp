@@ -114,36 +114,34 @@ public:
     // vertical pass upsamples bilinearly.
     //
     // Returns false, recording nothing, when the effect cannot run (no glass pipelines or pool, a
-    // pass-through sigma, an unreadable frame target, no free pooled target); the caller then
-    // paints the node without it. Never blocks or throws on the frame path.
+    // pass-through sigma, an unreadable frame target, no free pooled target): the caller paints the
+    // node without it. Never blocks or throws on the frame path.
     [[nodiscard]] bool draw_backdrop(const GlassBackdropDraw& draw);
 
     // --- Isolated layers (docs/design/gpu/offscreen-layers.md section 5.2, issue #227) ----------
-    // Renders everything between push_layer() and the matching pop_layer() into a pooled target the
-    // size of the frame, then composites it once with `opacity` applied to the group, so
-    // overlapping children fade as a unit. `box` is the group's bounds in paint coordinates; the
-    // composite is limited to its device-space bounds, the frame scissor and the damage regions.
-    // The layer shares the frame's coordinate system, clips and scissors. Layers nest and must
-    // pair.
-    //
-    // `filter` (issue #617) runs on the layer's pixels first (before the mask and the opacity):
-    // blur() and drop-shadow(), one to three pooled targets of scratch, counted in
-    // layer_filters_applied() / layer_filters_unsupported().
-    //
-    // A layer that cannot be isolated - no composite pipeline or pool, a multisampled frame, no
-    // free target this frame, or an empty box - paints flat: its opacity is multiplied into every
-    // primitive inside it (paint-pass.md 14.1) and its filter is skipped. Nothing throws or blocks.
+    // Renders everything between push_layer() and pop_layer() into a pooled target the size of the
+    // frame, then composites it once with `opacity` applied to the group, so overlapping children
+    // fade as a unit. `box` is the group's bounds in paint coordinates; the composite is limited to
+    // its device-space bounds, the frame scissor and the damage regions. The layer shares the
+    // frame's coordinate system, clips and scissors; layers nest and must pair. `filter` (issue
+    // #617) runs on the layer's pixels first (before the mask and the opacity), on one to three
+    // pooled scratch targets (layer_filters_applied() / layer_filters_unsupported()). A layer that
+    // cannot be isolated - no composite pipeline or pool, a multisampled frame, no free target, or
+    // an empty box - paints flat: its opacity is multiplied into every primitive inside it
+    // (paint-pass.md 14.1) and its filter is skipped. Nothing throws or blocks.
     void push_layer(const rhi::Rect& box, float opacity, const LayerFilterChain& filter = {});
     void pop_layer();
-    // Masks the innermost open isolated layer (issue #617). begin_layer_mask() redirects drawing to
-    // a second pooled target cleared to transparent and returns true; everything drawn until
-    // end_layer_mask() is the mask image. end_layer_mask() then multiplies the layer by the mask's
-    // alpha (RHI 1.19 `DestinationIn`). Call it after the layer's content and before pop_layer().
-    // Returns false, recording nothing, when the mask cannot run (flat or already masked layer, no
-    // mask pipeline, no free target): the caller skips the mask draws and must not call
-    // end_layer_mask(); counted in layer_masks_unsupported().
+    // Masks the innermost open isolated layer (issue #617): begin_layer_mask() redirects drawing to
+    // a pooled target cleared to transparent, and end_layer_mask() multiplies the layer by its
+    // alpha (RHI 1.19 `DestinationIn`). Call both after the layer's content, before pop_layer().
+    // False records nothing (flat or masked layer, no pipeline or free target): skip the mask draws
+    // and end_layer_mask(); counted in layer_masks_unsupported().
     [[nodiscard]] bool begin_layer_mask();
     void end_layer_mask();
+    // A non-`add` `mask-composite` layer inside an open mask: drawn into its own target, then
+    // combined with the mask so far. False records nothing; drop it and skip end_mask_layer().
+    [[nodiscard]] bool begin_mask_layer(MaskCompositeOp op);
+    void end_mask_layer();
     [[nodiscard]] std::uint32_t layer_masks_applied() const {
         return layer_masks_applied_;
     }
@@ -156,7 +154,7 @@ public:
     [[nodiscard]] std::uint32_t layer_filters_unsupported() const {
         return layer_filters_unsupported_;
     }
-    // True when layers can be isolated by this renderer at all (composite pipeline and pool).
+    // True when layers can be isolated at all (composite pipeline and pool).
     [[nodiscard]] bool layers_supported() const;
     // Layers of this frame that opened an offscreen target / painted flat.
     [[nodiscard]] std::uint32_t layers_isolated() const {
@@ -401,8 +399,10 @@ private:
         rhi::RenderTarget* layer_target = nullptr;
         rhi::RenderTargetDesc layer_desc;
         rhi::Scissor region;
-        // The mask target while begin_layer_mask() is open, and whether this layer was masked.
+        // The open mask's target, the open mask layer's target, and whether the layer was masked.
         rhi::RenderTarget* mask_target = nullptr;
+        rhi::RenderTarget* part_target = nullptr;
+        MaskCompositeOp part_op = MaskCompositeOp::Add;
         bool masked = false;
         // The layer's pending `filter` and its scratch targets (see run_layer_filters()).
         LayerFilterChain filter;

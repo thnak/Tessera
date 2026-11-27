@@ -27,8 +27,11 @@ bool is_repeat(const std::string& word) {
 }
 
 bool is_unsupported_part(const std::string& word) {
-    return word == "margin-box" || word == "add" || word == "subtract" || word == "intersect" ||
-           word == "exclude";
+    return word == "margin-box";
+}
+
+bool is_composite(const std::string& word) {
+    return word == "add" || word == "subtract" || word == "intersect" || word == "exclude";
 }
 
 bool is_box(const std::string& word) {
@@ -64,6 +67,7 @@ struct Layer {
     std::string mode;
     std::string origin;
     std::string clip;
+    std::string composite;
 };
 
 void append(std::string& list, const std::string& value, std::size_t index) {
@@ -104,6 +108,7 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
         int repeat_words = 0;
         int box_words = 0;
         bool no_clip = false;
+        bool have_composite = false;
         // The components view into this string, so it must outlive the loop.
         const std::string spaced = space_slashes(text);
         for (const std::string_view component : split_layer_components(spaced)) {
@@ -149,9 +154,14 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
                     return reject("a mask layer carries at most one no-clip");
                 }
                 no_clip = true;
+            } else if (is_composite(word)) {
+                if (have_composite) {
+                    return reject("a mask layer carries at most one compositing operator");
+                }
+                have_composite = true;
+                layer.composite = word;
             } else if (is_unsupported_part(word)) {
-                return reject("mask-composite and margin-box are not supported; '" + word +
-                              "' is ignored with the whole declaration");
+                return reject("margin-box is not supported; the whole declaration is ignored");
             } else if (after_slash) {
                 join(layer.size, word);
             } else {
@@ -187,6 +197,7 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
     std::string mode;
     std::string origin;
     std::string clip;
+    std::string composite;
     for (std::size_t index = 0; index < layers.size(); ++index) {
         const Layer& layer = layers[index];
         append(image, layer.image, index);
@@ -196,6 +207,7 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
         append(mode, layer.mode.empty() ? "match-source" : layer.mode, index);
         append(origin, layer.origin.empty() ? "border-box" : layer.origin, index);
         append(clip, layer.clip.empty() ? "border-box" : layer.clip, index);
+        append(composite, layer.composite.empty() ? "add" : layer.composite, index);
     }
     const auto emit = [&](const char* property, std::string value) {
         result.declarations.push_back(
@@ -208,6 +220,7 @@ PropertyExpansionResult expand_mask_shorthand(const Declaration& declaration) {
     emit("mask-mode", std::move(mode));
     emit("mask-origin", std::move(origin));
     emit("mask-clip", std::move(clip));
+    emit("mask-composite", std::move(composite));
     return result;
 }
 

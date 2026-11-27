@@ -151,6 +151,18 @@ BlendState blend_state(rhi::BlendMode mode) {
         state.destination_alpha = BlendFactor::SourceAlpha;
         state.alpha_operation = BlendOperation::Add;
         return state;
+    case rhi::BlendMode::SourceOut:
+    case rhi::BlendMode::Xor:
+        // Mask combine (RHI 1.21), the same factors as the Vulkan backend.
+        state.enabled = true;
+        state.source_color = BlendFactor::OneMinusDestinationAlpha;
+        state.destination_color =
+            mode == rhi::BlendMode::Xor ? BlendFactor::OneMinusSourceAlpha : BlendFactor::Zero;
+        state.color_operation = BlendOperation::Add;
+        state.source_alpha = BlendFactor::OneMinusDestinationAlpha;
+        state.destination_alpha = state.destination_color;
+        state.alpha_operation = BlendOperation::Add;
+        return state;
     case rhi::BlendMode::DualSource:
         // Per-channel coverage (RHI 1.5): `src0 * src1 + dst * (1 - src1)`, with the SRC1 colour
         // factors used for alpha too so one coverage value drives all four channels, exactly as

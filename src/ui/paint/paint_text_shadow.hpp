@@ -161,6 +161,12 @@ public:
     void end_layer_mask() override {
         target_->end_layer_mask();
     }
+    [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override {
+        return target_->begin_mask_layer(op);
+    }
+    void end_mask_layer() override {
+        target_->end_mask_layer();
+    }
 
 private:
     PaintSink* target_;

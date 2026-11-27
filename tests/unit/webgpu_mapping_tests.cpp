@@ -137,6 +137,24 @@ void test_blend() {
                mask.alpha.src == wg::WgpuBlendFactor::Zero &&
                mask.alpha.dst == wg::WgpuBlendFactor::SrcAlpha,
            "destination-in factors match the Vulkan backend");
+    // RHI 1.21: the mask combine steps, Vulkan's ONE_MINUS_DST_ALPHA with ZERO (source-out) or
+    // ONE_MINUS_SRC_ALPHA (xor) on every channel.
+    const wg::WgpuBlendState out = wg::blend_state(rhi::BlendMode::SourceOut);
+    const wg::WgpuBlendState exclusive = wg::blend_state(rhi::BlendMode::Xor);
+    expect(out.enabled && exclusive.enabled &&
+               wg::blend_mode_supported(rhi::BlendMode::SourceOut) &&
+               wg::blend_mode_supported(rhi::BlendMode::Xor),
+           "source-out and xor are expressible and enabled");
+    expect(out.color.src == wg::WgpuBlendFactor::OneMinusDstAlpha &&
+               out.color.dst == wg::WgpuBlendFactor::Zero &&
+               out.alpha.src == wg::WgpuBlendFactor::OneMinusDstAlpha &&
+               out.alpha.dst == wg::WgpuBlendFactor::Zero,
+           "source-out factors match the Vulkan backend");
+    expect(exclusive.color.src == wg::WgpuBlendFactor::OneMinusDstAlpha &&
+               exclusive.color.dst == wg::WgpuBlendFactor::OneMinusSrcAlpha &&
+               exclusive.alpha.src == wg::WgpuBlendFactor::OneMinusDstAlpha &&
+               exclusive.alpha.dst == wg::WgpuBlendFactor::OneMinusSrcAlpha,
+           "xor factors match the Vulkan backend");
 }
 
 // RHI 1.5 (issue #471): WebGPU has one fragment output per target and no SRC1 blend factor, so

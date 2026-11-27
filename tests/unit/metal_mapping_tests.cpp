@@ -164,6 +164,27 @@ bool check_blend_destination_in_matches_vulkan() {
                   "DestinationIn does not need src1");
 }
 
+bool check_blend_mask_combine_matches_vulkan() {
+    // RHI 1.21: ONE_MINUS_DST_ALPHA with ZERO (source-out) or ONE_MINUS_SRC_ALPHA (xor), for both
+    // colour and alpha, as the Vulkan backend records them.
+    const BlendState out = blend_state(rhi::BlendMode::SourceOut);
+    const BlendState exclusive = blend_state(rhi::BlendMode::Xor);
+    return expect(out.enabled && exclusive.enabled, "the combine steps enable blending") &&
+           expect(out.source_color == BlendFactor::OneMinusDestinationAlpha &&
+                      out.source_alpha == BlendFactor::OneMinusDestinationAlpha,
+                  "source-out keeps the source where the destination is empty") &&
+           expect(out.destination_color == BlendFactor::Zero &&
+                      out.destination_alpha == BlendFactor::Zero,
+                  "source-out drops the destination") &&
+           expect(exclusive.source_color == BlendFactor::OneMinusDestinationAlpha &&
+                      exclusive.destination_color == BlendFactor::OneMinusSourceAlpha &&
+                      exclusive.destination_alpha == BlendFactor::OneMinusSourceAlpha,
+                  "xor keeps what the other does not cover") &&
+           expect(!needs_dual_source(rhi::BlendMode::SourceOut) &&
+                      !needs_dual_source(rhi::BlendMode::Xor),
+                  "neither needs src1");
+}
+
 bool check_blend_dual_source_matches_vulkan() {
     // Vulkan records SRC1_COLOR / ONE_MINUS_SRC1_COLOR for both colour and alpha.
     const BlendState state = blend_state(rhi::BlendMode::DualSource);
@@ -193,7 +214,8 @@ int main() {
     if (!check_pixel_formats() || !check_vertex_formats() || !check_bytes_per_pixel() ||
         !check_storage_modes() || !check_load_store_actions() || !check_sampler_state() ||
         !check_blend_none() || !check_blend_alpha_matches_vulkan() ||
-        !check_blend_destination_in_matches_vulkan() || !check_blend_dual_source_matches_vulkan() ||
+        !check_blend_destination_in_matches_vulkan() ||
+        !check_blend_mask_combine_matches_vulkan() || !check_blend_dual_source_matches_vulkan() ||
         !check_backend_name()) {
         return 1;
     }

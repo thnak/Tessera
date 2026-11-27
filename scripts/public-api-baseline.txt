@@ -1374,6 +1374,9 @@ struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::L
 struct include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::LayerFilterOp
 constant include/tessera/rendering/gpu/layer_filter.hpp tessera::rendering::gpu::kMaxLayerFilterOps
 
+header include/tessera/rendering/gpu/mask_composite.hpp
+enum include/tessera/rendering/gpu/mask_composite.hpp tessera::rendering::gpu::MaskCompositeOp
+
 header include/tessera/rendering/gpu/offscreen_target_pool.hpp
 class include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenTargetPool
 struct include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenPoolStats
@@ -1654,6 +1657,7 @@ struct include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::sof
 
 header include/tessera/rendering/software/cpu_layer.hpp
 function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::apply_layer_mask
+function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::combine_mask_part
 function include/tessera/rendering/software/cpu_layer.hpp tessera::rendering::software::composite_layer
 
 header include/tessera/rendering/vulkan/batched2d_pipeline.hpp
@@ -3241,10 +3245,13 @@ struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeat
 struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskSize
 struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskValueList
 enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskBox
+enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskComposite
 enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskMode
 enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeatKind
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_clip
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_clip_list
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_composite
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_composite_list
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode_list
 function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_origin

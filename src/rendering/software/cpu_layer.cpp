@@ -82,4 +82,44 @@ void apply_layer_mask(CpuCanvas& black, CpuCanvas& white, const CpuCanvas& mask_
     }
 }
 
+void combine_mask_part(CpuCanvas& mask_black, CpuCanvas& mask_white, const CpuCanvas& part_black,
+                       const CpuCanvas& part_white, gpu::MaskCompositeOp op) {
+    if (!same_size(mask_black, mask_white) || !same_size(mask_black, part_black) ||
+        !same_size(mask_black, part_white)) {
+        return;
+    }
+    const std::size_t pixel_count =
+        static_cast<std::size_t>(mask_black.width()) * mask_black.height();
+    for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
+        const std::size_t index = pixel * 4;
+        const float below = static_cast<float>(layer_alpha(&mask_black.pixels()[index],
+                                                           &mask_white.pixels()[index])) /
+                            255.0f;
+        const float layer = static_cast<float>(layer_alpha(&part_black.pixels()[index],
+                                                           &part_white.pixels()[index])) /
+                            255.0f;
+        float result = 0.0f;
+        switch (op) {
+        case gpu::MaskCompositeOp::Subtract:
+            result = layer * (1.0f - below);
+            break;
+        case gpu::MaskCompositeOp::Intersect:
+            result = layer * below;
+            break;
+        case gpu::MaskCompositeOp::Exclude:
+            result = layer * (1.0f - below) + below * (1.0f - layer);
+            break;
+        case gpu::MaskCompositeOp::Add:
+        default:
+            result = layer + below * (1.0f - layer);
+            break;
+        }
+        const float alpha = std::round(result * 255.0f);
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            mask_black.pixels()[index + channel] = 0;
+            mask_white.pixels()[index + channel] = to_byte(255.0f - alpha);
+        }
+    }
+}
+
 } // namespace tessera::rendering::software

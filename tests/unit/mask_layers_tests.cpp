@@ -150,8 +150,8 @@ const std::string* find(const PropertyExpansionResult& result, const char* prope
 bool registry_longhands() {
     const PropertyRegistry registry;
     bool ok = true;
-    for (const char* name :
-         {"mask-size", "mask-position", "mask-repeat", "mask-mode", "mask-origin", "mask-clip"}) {
+    for (const char* name : {"mask-size", "mask-position", "mask-repeat", "mask-mode",
+                             "mask-origin", "mask-clip", "mask-composite"}) {
         ok = expect(registry.find(name) != nullptr, "the longhand is registered") && ok;
     }
     ok = expect(registry.find("mask-position")->initial == "0% 0%" &&
@@ -162,8 +162,8 @@ bool registry_longhands() {
     ok =
         expect(good.declarations.size() == 1 && good.diagnostics.empty(), "a valid list is kept") &&
         ok;
-    for (const char* name :
-         {"mask-size", "mask-position", "mask-repeat", "mask-mode", "mask-origin", "mask-clip"}) {
+    for (const char* name : {"mask-size", "mask-position", "mask-repeat", "mask-mode",
+                             "mask-origin", "mask-clip", "mask-composite"}) {
         const auto bad = registry.expand(Declaration{name, "wat wat wat wat wat", false, 0});
         ok = expect(bad.declarations.empty() && bad.diagnostics.size() == 1,
                     "an invalid list drops the declaration with one diagnostic") &&
@@ -202,6 +202,42 @@ bool boxes() {
                 "a list, repeating cyclically") &&
          ok;
     ok = expect(!parse_mask_origin_list("padding-box, no-clip"), "no-clip is not an origin") && ok;
+    return ok;
+}
+
+bool composites() {
+    bool ok = expect(parse_mask_composite("add") == MaskComposite::Add &&
+                         parse_mask_composite(" Subtract ") == MaskComposite::Subtract &&
+                         parse_mask_composite("INTERSECT") == MaskComposite::Intersect &&
+                         parse_mask_composite("exclude") == MaskComposite::Exclude,
+                     "the four operators, case-insensitive");
+    for (const char* bad : {"", "source-over", "add subtract", "xor", "10px"}) {
+        ok = expect(!parse_mask_composite(bad), "an operator outside the grammar") && ok;
+    }
+    const auto list = parse_mask_composite_list("subtract, intersect");
+    ok = expect(list && list->count == 2 && list->at_layer(0) == MaskComposite::Subtract &&
+                    list->at_layer(1) == MaskComposite::Intersect &&
+                    list->at_layer(2) == MaskComposite::Subtract,
+                "a list, repeating cyclically") &&
+         ok;
+    const PropertyRegistry registry;
+    const auto expand = [&](const char* value) {
+        return registry.expand(Declaration{"mask", value, false, 0});
+    };
+    const auto composite = [](const auto& result) {
+        const std::string* value = find(result, "mask-composite");
+        return value == nullptr ? std::string("(none)") : *value;
+    };
+    ok = expect(
+             composite(expand("linear-gradient(red, blue) subtract, linear-gradient(red, blue)")) ==
+                 "subtract, add",
+             "the shorthand names a layer's operator, and the other layer resets") &&
+         ok;
+    ok = expect(composite(expand("none")) == "add", "an unnamed operator resets") && ok;
+    ok = expect(composite(expand("linear-gradient(red, blue) exclude padding-box luminance")) ==
+                    "exclude",
+                "in any component order") &&
+         ok;
     return ok;
 }
 
@@ -248,7 +284,7 @@ bool shorthand() {
     };
     const auto full = expand(
         "linear-gradient(red, blue) right 10px bottom 5px / 30px 40px no-repeat luminance, none");
-    bool ok = expect(full.diagnostics.empty() && full.declarations.size() == 7, "seven longhands");
+    bool ok = expect(full.diagnostics.empty() && full.declarations.size() == 8, "eight longhands");
     ok = expect(find(full, "mask-image") &&
                     *find(full, "mask-image") == "linear-gradient(red, blue), none",
                 "the images keep their order") &&
@@ -287,7 +323,7 @@ bool shorthand() {
 
     for (const char* bad :
          {"", "url(a.png)", "linear-gradient(red, blue) margin-box",
-          "linear-gradient(red, blue) add", "linear-gradient(red, blue) subtract",
+          "linear-gradient(red, blue) add subtract",
           "linear-gradient(red, blue) border-box padding-box content-box",
           "linear-gradient(red, blue) no-clip no-clip",
           "linear-gradient(red, blue) border-box padding-box no-clip",
@@ -315,5 +351,6 @@ int main() {
     ok = shorthand() && ok;
     ok = boxes() && ok;
     ok = shorthand_boxes() && ok;
+    ok = composites() && ok;
     return ok ? 0 : 1;
 }

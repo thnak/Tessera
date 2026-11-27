@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 
@@ -36,5 +37,13 @@ void composite_layer(CpuCanvas& destination, const CpuCanvas& black, const CpuCa
 // All four canvases must have the same size, otherwise nothing happens.
 void apply_layer_mask(CpuCanvas& black, CpuCanvas& white, const CpuCanvas& mask_black,
                       const CpuCanvas& mask_white);
+
+// `mask-composite`: combines one mask layer (`part_black`, `part_white`, the same two-canvas pair)
+// into the mask so far (`mask_black`, `mask_white`) with `op`, on alpha only, exactly as the GPU's
+// SourceOut / DestinationIn / Xor blend steps do (src = the layer, dst = the mask so far). The mask
+// pair is rewritten with zero colour and the combined alpha, since a mask's colour is never read.
+// All four canvases must have the same size, otherwise nothing happens.
+void combine_mask_part(CpuCanvas& mask_black, CpuCanvas& mask_white, const CpuCanvas& part_black,
+                       const CpuCanvas& part_white, gpu::MaskCompositeOp op);
 
 } // namespace tessera::rendering::software

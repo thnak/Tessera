@@ -26,6 +26,7 @@ namespace rhi = tessera::rendering::rhi;
 using tessera::rendering::gpu::Batched2DConfig;
 using tessera::rendering::gpu::Batched2DRenderer;
 using tessera::rendering::gpu::GlassPipelines;
+using tessera::rendering::gpu::MaskCompositeOp;
 using tessera::rendering::null::NullCommandKind;
 using tessera::rendering::null::NullCommandStats;
 
@@ -47,6 +48,8 @@ struct Fixture {
     std::unique_ptr<rhi::Pipeline> blur = device->create_pipeline(rhi::PipelineDesc{});
     std::unique_ptr<rhi::Pipeline> composite = device->create_pipeline(rhi::PipelineDesc{});
     std::unique_ptr<rhi::Pipeline> mask = make_mask();
+    std::unique_ptr<rhi::Pipeline> mask_out = make_blend(rhi::BlendMode::SourceOut);
+    std::unique_ptr<rhi::Pipeline> mask_xor = make_blend(rhi::BlendMode::Xor);
     std::unique_ptr<rhi::CommandList> commands = device->create_command_list();
 
     std::unique_ptr<rhi::Pipeline> make_mask() {
@@ -54,12 +57,18 @@ struct Fixture {
         desc.blend = rhi::BlendMode::DestinationIn;
         return device->create_pipeline(desc);
     }
+    std::unique_ptr<rhi::Pipeline> make_blend(rhi::BlendMode blend) {
+        rhi::PipelineDesc desc;
+        desc.blend = blend;
+        return device->create_pipeline(desc);
+    }
     const NullCommandStats& stats() const {
         return static_cast<const tessera::rendering::null::NullCommandList*>(commands.get())
             ->stats();
     }
     GlassPipelines pipelines(bool with_mask = true) const {
-        return GlassPipelines{blur.get(), composite.get(), with_mask ? mask.get() : nullptr};
+        return GlassPipelines{blur.get(), composite.get(), with_mask ? mask.get() : nullptr,
+                              mask_out.get(), mask_xor.get()};
     }
 };
 
@@ -124,6 +133,112 @@ bool masked_layer_order() {
         Kind::Draw,              // layer composite
         Kind::EndRenderPass};
     return expect(skeleton == want, "pass and draw skeleton of one masked layer") && ok;
+}
+
+// One subtract layer inside the mask: it is drawn into its own target and combined once, between
+// the mask's first draw and the mask's multiply into the layer.
+bool mask_part_order() {
+    Fixture fixture;
+    Batched2DRenderer renderer(*fixture.device, *fixture.pipeline, *fixture.white, {},
+                               fixture.pipelines());
+    renderer.begin(*fixture.commands, *fixture.target, target_desc());
+    renderer.push_layer(kBox, 1.0f);
+    renderer.push_rect(kBox, kRed);
+    if (!expect(renderer.begin_layer_mask(), "the mask opens")) {
+        return false;
+    }
+    renderer.push_rect({10.0f, 10.0f, 20.0f, 40.0f}, kRed); // the bottom mask layer
+    const bool part = renderer.begin_mask_layer(MaskCompositeOp::Subtract);
+    renderer.push_rect({20.0f, 10.0f, 20.0f, 40.0f}, kRed); // the subtract layer
+    renderer.end_mask_layer();
+    renderer.end_layer_mask();
+    renderer.pop_layer();
+    renderer.end();
+    fixture.commands->submit();
+
+    std::vector<Kind> skeleton;
+    for (const Kind kind : fixture.stats().command_order) {
+        if (kind == Kind::BeginRenderPass || kind == Kind::EndRenderPass || kind == Kind::Draw ||
+            kind == Kind::BindSampledTarget) {
+            skeleton.push_back(kind);
+        }
+    }
+    const std::vector<Kind> want{Kind::BeginRenderPass,   // frame
+                                 Kind::EndRenderPass,     // closes at push_layer
+                                 Kind::BeginRenderPass,   // layer
+                                 Kind::Draw,              // the content
+                                 Kind::EndRenderPass,     // closes at begin_layer_mask
+                                 Kind::BeginRenderPass,   // mask
+                                 Kind::Draw,              // the bottom mask layer
+                                 Kind::EndRenderPass,     // closes at begin_mask_layer
+                                 Kind::BeginRenderPass,   // the part (cleared)
+                                 Kind::Draw,              // the subtract layer
+                                 Kind::EndRenderPass,     // closes at end_mask_layer
+                                 Kind::BindSampledTarget, // the part
+                                 Kind::BeginRenderPass,   // the mask reopened (Load)
+                                 Kind::Draw,              // combine (SourceOut)
+                                 Kind::EndRenderPass,     // closes at end_layer_mask
+                                 Kind::BindSampledTarget, // the mask
+                                 Kind::BeginRenderPass,   // the layer reopened
+                                 Kind::Draw,              // mask composite
+                                 Kind::EndRenderPass,     // closes at pop_layer
+                                 Kind::BindSampledTarget, // the layer
+                                 Kind::BeginRenderPass,   // the frame reopened
+                                 Kind::Draw,              // layer composite
+                                 Kind::EndRenderPass};
+    bool ok = expect(part, "the part opens") &&
+              expect(renderer.layer_masks_applied() == 1 && renderer.layer_masks_unsupported() == 0,
+                     "one applied mask, nothing refused") &&
+              expect(renderer.offscreen_target_count() == 3, "the layer, its mask and one part");
+    return expect(skeleton == want, "pass and draw skeleton of a mask with one subtract layer") &&
+           ok;
+}
+
+bool mask_part_fallbacks() {
+    bool ok = true;
+    {
+        // Intersect rides the existing mask pipeline; subtract needs SourceOut.
+        Fixture fixture;
+        Batched2DRenderer renderer(
+            *fixture.device, *fixture.pipeline, *fixture.white, {},
+            GlassPipelines{fixture.blur.get(), fixture.composite.get(), fixture.mask.get()});
+        renderer.begin(*fixture.commands, *fixture.target, target_desc());
+        renderer.push_layer(kBox, 1.0f);
+        ok = expect(renderer.begin_layer_mask(), "the mask opens") && ok;
+        ok = expect(!renderer.begin_mask_layer(MaskCompositeOp::Subtract),
+                    "no SourceOut pipeline: the part is refused") &&
+             ok;
+        ok = expect(!renderer.begin_mask_layer(MaskCompositeOp::Exclude),
+                    "no Xor pipeline: the part is refused") &&
+             ok;
+        ok = expect(renderer.begin_mask_layer(MaskCompositeOp::Intersect),
+                    "intersect needs no new pipeline") &&
+             ok;
+        renderer.end_mask_layer();
+        renderer.end_layer_mask();
+        renderer.pop_layer();
+        renderer.end();
+        ok = expect(renderer.layer_masks_unsupported() == 2, "both refusals are counted") && ok;
+    }
+    {
+        // The layer and its mask use two targets; with a pool of two there is none for the part.
+        Fixture fixture;
+        Batched2DConfig config;
+        config.max_offscreen_targets = 2;
+        Batched2DRenderer renderer(*fixture.device, *fixture.pipeline, *fixture.white, config,
+                                   fixture.pipelines());
+        renderer.begin(*fixture.commands, *fixture.target, target_desc());
+        renderer.push_layer(kBox, 1.0f);
+        ok = expect(renderer.begin_layer_mask(), "the mask opens") && ok;
+        ok = expect(!renderer.begin_mask_layer(MaskCompositeOp::Subtract),
+                    "no pooled target for the part: refused") &&
+             ok;
+        renderer.end_layer_mask();
+        renderer.pop_layer();
+        renderer.end();
+        ok = expect(renderer.layer_masks_unsupported() == 1, "the refusal is counted") && ok;
+    }
+    return ok;
 }
 
 bool mask_pipeline_records_the_blend() {
@@ -207,9 +322,10 @@ bool already_masked() {
 
 int main() {
     try {
-        const bool ok = masked_layer_order() && mask_pipeline_records_the_blend() &&
-                        without_the_mask_pipeline() && without_a_layer() && flat_layer() &&
-                        pool_out_of_targets() && already_masked();
+        const bool ok = masked_layer_order() && mask_part_order() && mask_part_fallbacks() &&
+                        mask_pipeline_records_the_blend() && without_the_mask_pipeline() &&
+                        without_a_layer() && flat_layer() && pool_out_of_targets() &&
+                        already_masked();
         if (!ok) {
             return 1;
         }

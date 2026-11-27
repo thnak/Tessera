@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/glass_blur.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/gpu/offscreen_target_pool.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
@@ -108,6 +109,19 @@ public:
     [[nodiscard]] bool mask_layer(const FrameContext& frame, rhi::RenderTarget& mask,
                                   const std::vector<rhi::Scissor>& scissors);
 
+    // True when a mask layer using `op` can be combined (`Add` needs nothing).
+    [[nodiscard]] bool mask_part_supported(MaskCompositeOp op) const {
+        const rhi::Pipeline* pipeline = mask_part_pipeline(op);
+        return op == MaskCompositeOp::Add ||
+               (layers_configured() && pipeline != nullptr && pipeline->sample_count() == 1);
+    }
+    // Combines `part` (a layer of the mask drawn over a transparent clear) into `frame.target`, the
+    // mask so far, with `op`, once per scissor. Returns false, recording nothing, when
+    // mask_part_supported(op) is false or the frame target is multisampled.
+    [[nodiscard]] bool combine_mask_part(const FrameContext& frame, rhi::RenderTarget& part,
+                                         MaskCompositeOp op,
+                                         const std::vector<rhi::Scissor>& scissors);
+
     // Layer filters (issue #617): a separable Gaussian over a layer target, reusing the glass blur
     // program. One blur is two passes, horizontal `source` -> `scratch`, then vertical
     // `scratch` -> `dest` (which may be `source` itself: the horizontal pass has finished reading
@@ -156,6 +170,19 @@ public:
     }
 
 private:
+    [[nodiscard]] rhi::Pipeline* mask_part_pipeline(MaskCompositeOp op) const {
+        switch (op) {
+        case MaskCompositeOp::Subtract:
+            return glass_.mask_out;
+        case MaskCompositeOp::Intersect:
+            return glass_.mask;
+        case MaskCompositeOp::Exclude:
+            return glass_.mask_xor;
+        case MaskCompositeOp::Add:
+        default:
+            return nullptr;
+        }
+    }
     [[nodiscard]] bool can_read_target(const rhi::RenderTarget& target) const;
     // Samples `source` 1:1 into the frame target with `pipeline` (glass_blur.frag mode 2).
     void composite_with(rhi::Pipeline& pipeline, const FrameContext& frame,

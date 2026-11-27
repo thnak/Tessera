@@ -35,9 +35,11 @@ int main() {
     // `CommandList::copy_buffer_to_texture` and its capability (ADR-072); 1.18 added
     // `ComputeCapabilities`, `Device::compute_capabilities()` and `CommandList::dispatch_indirect`
     // (issue #684); 1.19 added `BlendMode::DestinationIn`, the layer mask step (issue #617); 1.20
-    // added `Device::supports_analytic_gradients()` (ADR-076). All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 20 ||
-        rhi::kRhiVersion != ((1u << 16) | 20u)) {
+    // added `Device::supports_analytic_gradients()` (ADR-076); 1.21 added `BlendMode::SourceOut`
+    // and `BlendMode::Xor`, the `mask-composite` combine steps (issue #617). All are additive
+    // compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 21 ||
+        rhi::kRhiVersion != ((1u << 16) | 21u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

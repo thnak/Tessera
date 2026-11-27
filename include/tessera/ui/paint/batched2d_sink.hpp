@@ -155,6 +155,9 @@ public:
     // Masks the innermost layer (issue #617): true when the renderer opened the mask target.
     [[nodiscard]] bool begin_layer_mask() override;
     void end_layer_mask() override;
+    // One non-`add` mask layer, drawn into its own target and combined once (section 5.2e).
+    [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override;
+    void end_mask_layer() override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.
