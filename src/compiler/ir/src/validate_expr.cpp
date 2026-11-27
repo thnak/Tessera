@@ -71,7 +71,7 @@ bool reference_resolves(const ComponentScope& scope, const LocalNames& locals,
         return scope.props.count(base.substr(6)) != 0;
     }
     if (starts_with(base, "state::") || starts_with(base, "ref::") || starts_with(base, "anim::") ||
-        starts_with(base, "env::") || starts_with(base, "beh::")) {
+        starts_with(base, "env::") || starts_with(base, "beh::") || starts_with(base, "res::")) {
         return scope.ids.count(base) != 0;
     }
     return is_local(locals, base);

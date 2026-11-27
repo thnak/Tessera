@@ -175,6 +175,13 @@ void ComponentChecker::check_declarations() {
                            service.source);
         }
     }
+    // ADR-067 item 1: a resource is a `res::<name>` id; its status/data/error are the dotted refs.
+    // The entry's own checks (service, key, coverage) run after the node tree, in
+    // `validate_resources`.
+    for (const auto& resource : component.resources) {
+        declare(resource.id, "res::", resource.source);
+        scope.declared_types.emplace(resource.id + ".status", "string");
+    }
     for (const auto& ref : component.refs) {
         declare(ref.id, "ref::", where);
     }
@@ -283,6 +290,10 @@ ComponentScope make_scope(const Component& component) {
     for (const auto& ref : component.refs) {
         scope.ids.insert(ref.id);
     }
+    for (const auto& resource : component.resources) {
+        scope.ids.insert(resource.id);
+        scope.declared_types.emplace(resource.id + ".status", "string");
+    }
     for (const auto& handler : component.handlers) {
         scope.handlers.insert(handler.id);
     }
@@ -324,6 +335,7 @@ void validate_component(ValidationContext& context, const Component& component) 
     }
     validate_node_tree(context, checker.scope, component.root, provider_types);
     checker.check_effects_and_refs();
+    validate_resources(context, checker.scope, component);
 }
 
 } // namespace tessera::compiler::ir

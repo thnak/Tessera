@@ -113,6 +113,7 @@ add_test(NAME ir_json_value COMMAND ir_json_value_tests)
 add_executable(ir_json_tests
     ir_json_tests.cpp
     ir_samples.cpp
+    ir_samples_resource.cpp
     ir_samples_rich.cpp)
 
 target_link_libraries(ir_json_tests PRIVATE tessera_ir)
@@ -151,6 +152,17 @@ add_executable(ir_validate_expr_tests
 target_link_libraries(ir_validate_expr_tests PRIVATE tessera_ir)
 
 add_test(NAME ir_validate_expr COMMAND ir_validate_expr_tests)
+
+add_executable(ir_validate_resource_tests
+    ir_validate_resource_tests.cpp
+    ir_samples.cpp
+    ir_samples_resource.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_validate_resource_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_validate_resource COMMAND ir_validate_resource_tests)
 
 add_executable(ir_construct_tests
     ir_construct_tests.cpp
