@@ -272,20 +272,20 @@ public:
     bool set_posture(tessera::hal::FoldPosture posture);
 
     // Resizes the RUNNING evaluation in place (issue #436): the device preset or an orientation
-    // swap re-lays the tree out and re-resolves `@media` for the new rectangle - it never evaluates
-    // the source again. That is the whole point: `start()` keeps its identity rule for SOURCE
-    // changes only (width/height left `reused_ok`), so a viewport change keeps the state cells, the
-    // hover and the focus the router holds, exactly like `set_posture()`.
+    // swap re-lays the tree out and re-resolves `@media` - it never evaluates the source again.
+    // `start()` keeps its identity rule for SOURCE changes only (width/height left `reused_ok`), so
+    // a viewport change keeps the state cells, the hover and the focus, like `set_posture()`.
     //
     // **One layout pass inside the call, and the cascade only when a breakpoint is crossed.** The
-    // session asks the prepared sheet whether a `@media` answer can move
-    // (`PreparedStyleSheet::media_answer_can_change`); if none can, the sheet and its paint cache
-    // are untouched and this is a layout pass. If one can, the SAME prepared data is resolved
-    // against the new context (ADR-048's resolve step) before the pass, and
-    // `cascade_generation()` counts it. Safe-area padding is re-applied in the same pass.
-    //
-    // Returns false when nothing moved (no pass ran) or there is no running evaluation.
+    // sheet is asked whether a `@media` answer can move
+    // (`PreparedStyleSheet::media_answer_can_change`); if none can, it and its paint cache are
+    // untouched and this is a layout pass. If one can, the SAME prepared data is resolved against
+    // the new context (ADR-048's resolve step) before the pass, and `cascade_generation()` counts
+    // it. False when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
+
+    // The scale the tree was laid out at; `paint()` scales the frame by it (issue #599).
+    [[nodiscard]] float dpi_scale() const noexcept;
 
     // The same call for a skin (issue #171's skins slice): the size, the DPI scale, the safe-area
     // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
@@ -472,7 +472,7 @@ private:
     std::vector<PreviewCssDiagnostic> css_diagnostics_;
     float width_ = 320.0f;
     float height_ = 240.0f;
-    float dpi_scale_ = 1.0f;
+    float dpi_scale_ = 1.0f; // the layout viewport's device-pixel scale; `paint()` reads it (#599)
     // The simulated fold posture the running tree was laid out at, so `set_viewport()` can re-lay
     // it out without changing it (issue #436).
     tessera::hal::FoldPosture posture_ = tessera::hal::FoldPosture::None;

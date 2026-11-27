@@ -1009,7 +1009,18 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       `canvas_viewport_limit` and `scripts/ci/preview_viewport_limits.mjs`; the slice also fixed
       `tessera_canvas_draw` being handed the logical rectangle instead of the physical extent the page
       sized. Evidence: `docs/design/canvas-input-session.md` §5.4, `designer-protocol-v1.md` §15.3.
-      **Open:** slice (b), the drag handles and the coalescing, blocked on #598 and #599.
+      **Open:** slice (b), the drag handles and the coalescing, blocked on #598 only (#599 is fixed
+      below).
+- [x] #599: studio/engine: at device pixel ratio 2 the app painted at half size in the top-left of
+      the canvas — the paint side never applied the device scale, though the layout side was given
+      it. `scene_frame_paint_tree()` now composes it onto every position, the border snapping and
+      the vector raster extent, exactly as the app's frame does (`src/app/window_frame.cpp`); the
+      scale comes from `options.dpi_scale` on the single-frame path and
+      `CanvasSceneSession::dpi_scale()` on the canvas path. At 1.0 the transform is skipped, so every
+      existing golden is byte-identical. Regression: the parity corpus's `dpr` case (a full-bleed box
+      at DPR 2 must show its colour at the far corner of the doubled target — mutation-checked by
+      reverting the `set_content_scale` call, which turns it red). Evidence:
+      `scripts/ci/scene_frame_parity.py`, `docs/design/canvas-input-session.md` §5.5.
 - [x] #436: engine: a window or emulator resize re-resolves `@media` and re-lays out the running
       preview in place — `AppHost::resize` now updates the media context, and `set_viewport` re-lays
       out the live session without re-evaluating the source (state cells, hover and focus survive;

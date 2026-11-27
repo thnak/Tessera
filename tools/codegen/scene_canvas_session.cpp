@@ -417,8 +417,8 @@ SceneFrameResult CanvasSceneSession::paint(rhi::Device& device, rhi::RenderTarge
         result.error = error_.empty() ? "the session has no scene to paint" : error_;
         return result;
     }
-    result =
-        scene_frame_paint_tree(session_->root(), sheet(), device, target, desc, pipeline, text);
+    result = scene_frame_paint_tree(session_->root(), sheet(), device, target, desc, pipeline, text,
+                                    dpi_scale_);
     if (!result.error.empty()) {
         return result;
     }
@@ -428,6 +428,10 @@ SceneFrameResult CanvasSceneSession::paint(rhi::Device& device, rhi::RenderTarge
     fresh_ = false;
     ++frames_painted_;
     return result;
+}
+
+float CanvasSceneSession::dpi_scale() const noexcept {
+    return dpi_scale_;
 }
 
 const ui::Node* CanvasSceneSession::root() const noexcept {

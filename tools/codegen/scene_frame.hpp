@@ -105,11 +105,10 @@ scene_frame_pipeline_desc(rhi::TextureFormat format = rhi::TextureFormat::R8G8B8
 // used as given when it carries a vertex layout; otherwise `scene_frame_pipeline_desc()` supplies
 // one for `desc.format`. `text` may be null, which paints the boxes only and counts every run in
 // `text_skipped` (the font-free preview, unchanged from before issue #387).
-[[nodiscard]] SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
-                                                 rhi::RenderTarget& target,
-                                                 const rhi::RenderTargetDesc& desc,
-                                                 const rhi::PipelineDesc& pipeline = {},
-                                                 PreviewTextStack* text = nullptr);
+[[nodiscard]] SceneFrameResult
+scene_frame_paint(const PreparedScene& scene, rhi::Device& device, rhi::RenderTarget& target,
+                  const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {},
+                  PreviewTextStack* text = nullptr, float device_scale = 1.0f);
 
 // The same paint pass for a tree the caller owns rather than one `prepare_scene()` just built. It
 // exists for the persistent canvas session (#388): a session keeps its tree alive across pointer
@@ -126,15 +125,16 @@ scene_frame_pipeline_desc(rhi::TextureFormat format = rhi::TextureFormat::R8G8B8
 scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
                        rhi::Device& device, rhi::RenderTarget& target,
                        const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {},
-                       PreviewTextStack* text = nullptr);
+                       PreviewTextStack* text = nullptr, float device_scale = 1.0f);
 
 // Evaluates `text` exactly as `scene_preview_document()` does (same stages, same options, same
 // salt) and then paints the resulting tree with `ui::paint::paint_scene()` through the batched 2D
 // renderer onto an offscreen target of `extent`, reading the pixels back through the RHI.
 //
-// `device` must outlive the call. `extent` is the *physical* target size; pass the layout viewport
-// multiplied by the page's device-pixel ratio, because a preview that laid out at one size and
-// rendered at another would disagree with the native window.
+// `device` must outlive the call. `extent` is the *physical* target size; `options.dpi_scale` is
+// the ratio that size was derived with, and the paint pass composes it onto every position (issue
+// #599). A preview that laid out at one size and rendered at another would disagree with the native
+// window, and a scene painted 1:1 into a larger target shows up in its top-left corner.
 //
 // `pipeline` defaults to `scene_frame_pipeline_desc()` - the shader-id description that WebGPU (and
 // the null backend) accept. A backend that builds from SPIR-V must pass its own description, which
@@ -144,6 +144,12 @@ scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet
 // bytes, see `preview_text.hpp`), and when it is null this function lays the scene out with the
 // font-free stub measurer and counts every run in `text_skipped` - the exact behaviour of every
 // caller before issue #387, so a page that could not fetch its font degrades instead of breaking.
+//
+// `device_scale` is the device-pixel ratio the frame paints into (issue #599): the tree is laid out
+// in CSS px and the target is the physical pixel grid, so the paint side composes the two exactly
+// as the app's frame does (`src/app/window_frame.cpp`). It defaults to 1.0, which is the path every
+// frame recorded before this took; a caller that lays out at a logical size and renders into
+// `logical * scale` passes the scale. A non-finite or non-positive value is treated as 1.
 //
 // Deterministic for a given (source, options, component, extent, pipeline, font bytes) on a
 // deterministic device: the null backend records the same command stream every run, and a software

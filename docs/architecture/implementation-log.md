@@ -570,3 +570,31 @@ sized and configured on the canvas. At every DPR the two differ, and they happen
 only because the page and the module derived the same scale; once a clamp can reduce the DPR they stop
 agreeing, and the honest value is the one the texture actually has. The draw call now receives
 `sizeToDevicePixels`'s result.
+
+## 2026-11-27: the preview applies the device scale (#599)
+
+The last commit fixed the canvas viewport clamp; the issue it partially unblocked sat next to a
+long-reported bug that turned out to be the same path. #599 said that at DPR 2 the preview painted
+the app at half size in the top-left of the canvas. The report was right, and the cause was that the
+layout side was told the DPR while the paint side was not: `scene_frame_paint_tree()` recorded
+positions in CSS pixels straight into a target of `logical * dpi` device pixels, with no transform.
+
+This is not a preview-only concept. The app's frame composes exactly that ratio every frame
+(`apply_frame_transform` in `src/app/window_aa.cpp`), and it sets three things together because they
+must agree: the renderer's content scale (geometry), `PaintContext::device_scale` (border snapping,
+and the vector raster extent through the sink's `set_vector_device_scale`). The preview set none of
+them. All three are now set from one `content_scale_for(device_scale)`, on both entry points: the
+single-frame path takes `options.dpi_scale`, and `CanvasSceneSession` exposes the scale it laid out
+at so the session's `paint()` cannot disagree with its own layout.
+
+The guard matters as much as the fix. At 1.0 the transform is skipped and the commands are
+byte-identical, which the lavapipe goldens confirmed (DPR 1 re-rendered and compared byte for byte
+against the pre-change image). The `dpr` corpus case renders a full-bleed coloured box at DPR 2 and
+asserts the far corner of the doubled target is the box's colour. The first version of that check
+looked for *absence of the clear colour*, which a frame that painted nothing would also satisfy - the
+case had no fill at all until that was noticed. The final check is on the box's own colour, reads the
+PNG back with the standard library (the CLI writes non-interlaced 8-bit RGBA), and was verified by
+reverting the `set_content_scale` call: the gate went red with the far corner named.
+
+`tessera_canvas_draw` also took the **logical** rectangle rather than the physical extent the page
+sized; the two agreed only while both derived the same scale (#690).

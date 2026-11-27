@@ -117,7 +117,7 @@ this module is given.
 | `tessera_canvas_pick(x, y)` | what is under a point, for the picker overlay ([§5.1](#51-the-picker-query-issue-171)); coordinates are logical pixels; returns `{"pickVersion":1,"found":…,"automationId":"…","elementKind":"…","box":{"x":…,"y":…,"width":…,"height":…}}`. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_style(automationId)` | the style inspector's query ([§5.2](#52-the-style-inspector-query-issue-171)): the computed style, the matched rules with their provenance, and the box of one node. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_key(kind, key, modifiers, repeat)` | keyboard (issue #388): `kind` is `"down" \| "up" \| "blur"`; `key` is a W3C `KeyboardEvent.key`; `modifiers` a Shift 1 / Control 2 / Alt 4 / Meta 8 mask. Returns the pointer report plus `focusedId`, `focusVisible`, `focusMoved`, `handled` (the page calls `preventDefault`) and `left` (Tab walked off the end of the tab order: focus is released and the browser carries on, so the canvas is never a keyboard trap). Enter activates on key-down, Space on key-up; the `:focus-visible` ring shows only after keyboard traversal |
-| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
+| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates. `width`/`height` are the **physical** extent the page sized the backing store to, and the paint pass composes the session's own DPI scale onto every position (issue #599, [§5.5](#55-the-device-scale-issue-599)) |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
 | `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"clamped":…,"cascadeGeneration":…,"error":""}` (issue #436). The request is held to the viewport limits (issue #690, [§5.4](#54-the-viewport-limits-issue-690)): an over-limit value is clamped and reported by `clamped`, a non-finite or non-positive one is refused with `error` and the picture stays |
 | `tessera_canvas_platform_event(type, value, timestampNs)` | one normalized hardware button or environment event of a device profile (issue #446, [protocol §5.1](../specs/designer-protocol-v1.md#51-platformevent)); returns the reply document (`handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, ...). The event goes through `hal::SyntheticEventInjector` and `PlatformEventDriver` (`scene_platform.cpp`), the code the native scripted run executes. A `relaunch` reply ends the evaluation, so the page's next `tessera_canvas_apply` is the cold start. `timestampNs` is a double (a 64-bit integer crosses the ABI as a BigInt); negative means "now" |
@@ -341,6 +341,27 @@ The page holds the same rule in `designer/web/src/views/canvas-viewport.ts` (`cl
 module clamped would still reach the browser unclamped. The two copies are pinned against each other -
 `tests/unit/canvas_viewport_limit_tests.cpp` for the engine and `scripts/ci/preview_viewport_limits.mjs`
 for the page assert the same table, so a change to one side fails the other.
+
+### 5.5 The device scale (issue #599)
+
+The tree is laid out in CSS pixels; the canvas target is the device-pixel grid. Those are two different
+spaces, and the app's frame composes them every frame (`src/app/window_frame.cpp` sets
+`set_content_scale`, `PaintContext::device_scale` and the vector sink's scale together). The preview
+composed nothing, so a DPR-2 canvas laid the scene out at 320x240 and then painted it 1:1 into the
+top-left quarter of a 640x480 surface - the reported symptom was text at half size with the rest of the
+canvas left clear.
+
+`scene_frame_paint_tree()` now takes the scale: `options.dpi_scale` from the single-frame path,
+`CanvasSceneSession::dpi_scale()` from the canvas session (the value the running evaluation was laid out
+at, so the two cannot disagree). At 1.0 the renderer's `begin()` already leaves the transform at
+identity and the call is skipped, which is why every existing golden is byte-identical.
+
+`tessera_canvas_draw` also receives the **physical** extent now, not the logical rectangle: the target
+is the texture the page configured, and the two agree only when no clamp reduced the DPR (see §5.4).
+
+The parity corpus's `dpr` case is the regression: a full-bleed box at DPR 2 must show its colour at the
+far corner of the doubled target. A check for "the clear colour is absent" would pass on a frame that
+painted nothing at all, so the assertion is on the box's colour.
 
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,

@@ -83,6 +83,9 @@ SALT = "preview"
 #   rounded    a border-radius box, which takes the SDF path through the shader
 #   nested     a clipping parent with a child: the scissor + clip stack
 #   row        a flex row of three boxes: a layout change that moves every quad
+#   dpr        a full-bleed box rendered at DPR 2: the paint side applies the device scale (#599).
+#              Without it the scene paints 1:1 into the top-left quarter of the doubled target, so
+#              the corner assertion below (not just "something drew") is what this case adds.
 CORPUS: Tuple[Tuple[str, str, str, int], ...] = (
     (
         "column",
@@ -122,6 +125,15 @@ CORPUS: Tuple[Tuple[str, str, str, int], ...] = (
       <Spacer />
     </View>
   );
+}
+""",
+        1,
+    ),
+    (
+        "dpr",
+        "ui/Dpr.tsx",
+        """export function Dpr(): Node {
+  return <View style={{ width: 320, height: 240, backgroundColor: "#ff0000" }} />;
 }
 """,
         1,
@@ -246,7 +258,8 @@ def native_reference(args: argparse.Namespace, repo_root: Path) -> int:
         case = write_case(work, name, file, source)
         first = out_dir / "{}.png".format(name)
         second = out_dir / "{}_repeat.png".format(name)
-        outcome = run_native(native, case, first, file, args.size, work)
+        size = case_size(name, args.size)
+        outcome = run_native(native, case, first, file, size, work)
         if outcome.returncode != 0:
             # A missing Vulkan device is a skip, not a failure: the lane has no evidence either way.
             if "no Vulkan device" in (outcome.stderr + outcome.stdout):
@@ -256,7 +269,7 @@ def native_reference(args: argparse.Namespace, repo_root: Path) -> int:
             failures.append("{}: native render exited {}: {}".format(
                 name, outcome.returncode, (outcome.stderr + outcome.stdout).strip()))
             continue
-        again = run_native(native, case, second, file, args.size, work)
+        again = run_native(native, case, second, file, size, work)
         if again.returncode != 0:
             failures.append("{}: repeat render exited {}: {}".format(
                 name, again.returncode, (again.stderr + again.stdout).strip()))
@@ -275,6 +288,10 @@ def native_reference(args: argparse.Namespace, repo_root: Path) -> int:
                 "{}: the frame recorded {} draw call(s), the case needs at least {} (a frame that "
                 "painted nothing is the clear colour and would compare equal to any other clear "
                 "frame)".format(name, draws, minimum_draws))
+            continue
+        scaled = scale_failure(name, first)
+        if scaled is not None:
+            failures.append(scaled)
             continue
         rendered += 1
         print("NATIVE OK {} bytes={} draws={} device={}".format(
@@ -333,6 +350,110 @@ def _draws_from_report(text: str) -> Optional[int]:
                 digits += character
             if digits:
                 return int(digits)
+    return None
+
+
+# Cases whose pixels prove the paint side applied the device scale (issue #599): a full-bleed box
+# at DPR 2 must cover the doubled target, so a sample near the far corner is the box's colour and not
+# the clear colour. Without the scale the scene paints 1:1 and that corner is clear - the frame this
+# guards against looked "fine" in its top-left quarter and blank everywhere else.
+SCALED_CASES = {
+    "dpr": {
+        "size": "320x240@2",
+        # The case's own fill (`backgroundColor: #ff0000` in the source below), which a full-bleed
+        # box must show at the far corner of the doubled target.
+        "box_rgb": (0xFF, 0x00, 0x00),
+        "tolerance": 16,
+    }
+}
+
+
+def case_size(name: str, default: str) -> str:
+    """The `WxH[@DPI]` a case renders at: its own for a scaled case, the command line's otherwise."""
+    entry = SCALED_CASES.get(name)
+    return entry["size"] if entry else default
+
+
+def _read_png_rgb(path: Path):
+    """Decode an 8-bit RGB/RGBA PNG into `(width, height, rows, channels)` with the standard library only.
+
+    The gate needs one pixel, and adding Pillow for it would be a dependency
+    (`docs/specs/dependencies.md`) for a decode the format makes trivial: the CLI writes a non-
+    interlaced RGBA8 image, so the IDAT stream is filter-byte-per-row of packed samples.
+    """
+    import struct
+    import zlib
+
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    at = 8
+    width = height = depth = color = 0
+    compressed = b""
+    while at < len(data):
+        length = struct.unpack(">I", data[at:at + 4])[0]
+        kind = data[at + 4:at + 8]
+        body = data[at + 8:at + 8 + length]
+        at += 12 + length
+        if kind == b"IHDR":
+            width, height, depth, color = struct.unpack(">IIBB", body[:10])
+            if depth != 8 or color not in (2, 6):
+                raise ValueError("expected 8-bit RGB/RGBA")
+        elif kind == b"IDAT":
+            compressed += body
+        elif kind == b"IEND":
+            break
+    channels = 3 if color == 2 else 4
+    stride = width * channels
+    raw = zlib.decompress(compressed)
+    rows = []
+    previous = bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        filter_byte = raw[start]
+        row = bytearray(raw[start + 1:start + 1 + stride])
+        # The five PNG row filters; only "none" and "up" are cheap to state, so all are handled.
+        for x in range(stride):
+            left = row[x - channels] if x >= channels else 0
+            up = previous[x]
+            up_left = previous[x - channels] if x >= channels else 0
+            if filter_byte == 1:
+                row[x] = (row[x] + left) & 0xFF
+            elif filter_byte == 2:
+                row[x] = (row[x] + up) & 0xFF
+            elif filter_byte == 3:
+                row[x] = (row[x] + ((left + up) >> 1)) & 0xFF
+            elif filter_byte == 4:
+                estimate = left + up - up_left
+                pa, pb, pc = abs(estimate - left), abs(estimate - up), abs(estimate - up_left)
+                row[x] = (row[x] + (left if pa <= pb and pa <= pc else up if pb <= pc else up_left)) & 0xFF
+        rows.append(bytes(row))
+        previous = row
+    return width, height, rows, channels
+
+
+def scale_failure(name: str, png: Path) -> Optional[str]:
+    """Why a scaled case failed to apply its device scale, or None when it did."""
+    entry = SCALED_CASES.get(name)
+    if entry is None:
+        return None
+    try:
+        width, height, rows, channels = _read_png_rgb(png)
+    except Exception as error:  # noqa: BLE001 - any decode problem is the failure being reported
+        return "{}: could not read the frame back: {}".format(name, error)
+    # The CLI's own banner already reported the extent, so the assertion here is about PIXELS: the
+    # far corner must be the box's colour, not the clear colour. A frame that painted 1:1 leaves the
+    # far corner clear, which is exactly the bug (#599); a check for "the clear colour" instead of
+    # "the box colour" would pass on a frame that painted nothing at all.
+    wanted = entry["box_rgb"]
+    x = max(0, (width * 7) // 8)
+    y = max(0, (height * 7) // 8)
+    start = x * channels
+    pixel = rows[y][start:start + 3]
+    if not all(abs(pixel[channel] - wanted[channel]) <= entry["tolerance"] for channel in range(3)):
+        return ("{}: the far corner of a {}x{} frame is {}, not the box's colour {}: the scene did "
+                "not cover the whole device-pixel target (#599)".format(
+                    name, width, height, tuple(pixel), tuple(wanted)))
     return None
 
 
