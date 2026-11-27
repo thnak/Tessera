@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT
+     Harness page for webgpu_path_raster_web (issue #685): hands Chrome's WebGPU device to the Wasm
+     program, runs it with the arguments in ?args=a,b,c and POSTs everything it printed to /result.
+     Dev tooling only; nothing here ships. -->
+<meta charset="utf-8"><title>webgpu_path_raster_web</title>
+<script>
+const lines = [];
+const params = new URLSearchParams(location.search);
+const args = (params.get('args') || '').split(',').filter(Boolean);
+const log = (s) => lines.push(String(s));
+async function finish(code) {
+  await fetch('/result', { method: 'POST', body: JSON.stringify({ code, lines, ua: navigator.userAgent }) });
+  document.title = 'done ' + code;
+}
+(async () => {
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) { log('no WebGPU adapter'); return finish(2); }
+    const info = adapter.info;
+    log('adapter: ' + JSON.stringify({ vendor: info.vendor, architecture: info.architecture,
+        device: info.device, description: info.description, fallback: info.isFallbackAdapter ?? adapter.isFallbackAdapter }));
+    log('jspi: ' + (typeof WebAssembly.Suspending !== 'undefined'));
+    const requiredLimits = {};
+    if (!params.has('defaultlimits')) {
+      for (const n of ['maxStorageBufferBindingSize', 'maxBufferSize']) requiredLimits[n] = adapter.limits[n];
+    }
+    log('limits: ' + JSON.stringify(requiredLimits));
+    const device = await adapter.requestDevice({ requiredLimits });
+    device.addEventListener('uncapturederror', (e) => log('WebGPU error: ' + (e.error?.message ?? e.error)));
+    device.lost.then((i) => log('device lost: ' + i.reason + ' ' + i.message));
+    window.Module = {
+      preinitializedWebGPUDevice: device,
+      arguments: args,
+      print: log,
+      printErr: (s) => log('stderr: ' + s),
+      onExit: (code) => finish(code),
+      onAbort: (w) => { log('abort: ' + w); finish(99); },
+    };
+    const s = document.createElement('script');
+    s.src = 'webgpu_path_raster_web.js';
+    s.onerror = () => { log('script load failed'); finish(98); };
+    document.body.appendChild(s);
+  } catch (e) { log('harness exception: ' + e + ' ' + (e.stack || '')); finish(97); }
+})();
+</script>
