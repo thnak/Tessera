@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
-// CI browser acceptance for #598, the canvas backing store that never followed the viewport:
+// CI browser acceptance for the canvas' size: #598's backing store, and the drag-resize handles
+// (issue #690 slice b).
 //
 //   node scripts/ci/preview_browser_canvas_size.mjs [site-dir] [--shot out.png]
 //
@@ -290,6 +291,83 @@ try {
       Math.abs(doubled.width - Number.parseFloat(doubled.cssWidth) * doubledDpr) <= 1,
     `css ${doubled.cssWidth} x DPR ${doubledDpr} vs canvas.width ${doubled.width}`,
   );
+  // --- the drag-resize handles (issue #690 slice b) ------------------------------------------------
+  //
+  // The arithmetic is gated in Node (`preview_canvas_resize.mjs`); what only a browser can show is
+  // that the grips are wired at all - the session is created before React commits them, so a listener
+  // looked up by id finds nothing - and that a burst of pointer events costs one frame.
+  await chooseFromDeviceMenu(scaledPage, "Viewport", "320x240");
+  await settles(() => true, scaledPage, 500);
+
+  const beforeDrag = await frameCount(scaledPage);
+  const grip = await scaledPage.$("#canvas-resize-corner");
+  check("the corner grip is rendered (#690)", grip !== null);
+
+  if (grip !== null) {
+    // 50 moves dispatched in ONE task: the case Playwright's mouse API cannot produce (each of its
+    // moves round-trips and lands in its own frame) and the case the coalescing exists for.
+    const drag = await scaledPage.evaluate(async () => {
+      const element = document.getElementById("canvas-resize-corner");
+      const box = element.getBoundingClientRect();
+      const x = box.x + 6;
+      const y = box.y + 6;
+      const send = (type, cx, cy) =>
+        element.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            clientX: cx,
+            clientY: cy,
+            pointerId: 7,
+            isPrimary: true,
+            button: 0,
+            buttons: 1,
+          }),
+        );
+      const readFrame = () =>
+        document.getElementById("stat-frame").textContent ?? "";
+      send("pointerdown", x, y);
+      const during = document.getElementById("canvas-resize-readout").textContent ?? "";
+      for (let i = 1; i <= 50; i += 1) {
+        send("pointermove", x + i * 4, y + i * 3);
+      }
+      const readout = document.getElementById("canvas-resize-readout").textContent ?? "";
+      // The chain is React commit -> effect -> `requestFrame` -> rAF -> draw, so a few frames are
+      // needed before a mid-drag paint is observable at all. A single frame reads the state before
+      // the drag, which is how an earlier version of this check passed while proving nothing.
+      for (let frame = 0; frame < 6; frame += 1) {
+        await new Promise((done) => requestAnimationFrame(done));
+      }
+      const mid = readFrame();
+      send("pointerup", x + 200, y + 150);
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      return { during, readout, mid, after: readFrame() };
+    });
+    const settled = await readCanvas(scaledPage);
+    const afterDrag = await frameCount(scaledPage);
+    check(
+      "the readout tracks the pending size while dragging (#690)",
+      drag.readout !== "" && drag.readout !== drag.during,
+      `readout went from "${drag.during}" to "${drag.readout}"`,
+    );
+    // **What this number can and cannot show.** It bounds the frames a drag costs, which is the user
+    // -visible property. It does NOT prove the per-frame step in `canvas-resize-layer.ts` is doing
+    // anything: the session's own `requestFrame()` already coalesces frames, so a per-move `apply`
+    // measures exactly the same here (mutation-checked: replacing `schedule()` with `step(false)`
+    // leaves this check green). The timing rule itself is gated in Node, where it can be observed
+    // (`preview_canvas_resize.mjs`: five moves in one frame cost one step).
+    check(
+      "a drag of 50 moves in one task costs at most a frame per paint (#690)",
+      afterDrag - beforeDrag <= 3,
+      `frame ${beforeDrag} -> ${afterDrag} for 50 moves`,
+    );
+    check(
+      "the released size is exact, not the last animation frame's (#690)",
+      settled.cssWidth === "520px" && settled.cssHeight === "390px",
+      `320x240 + 200x150 = 520x390, got ${settled.cssWidth} x ${settled.cssHeight}`,
+    );
+  }
+
   if (shot) {
     await scaledPage.screenshot({ path: shot, fullPage: false });
     process.stdout.write(`shot: ${shot}\n`);

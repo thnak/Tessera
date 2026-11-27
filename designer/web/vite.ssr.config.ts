@@ -68,6 +68,9 @@ export default defineConfig({
         // The viewport limits and the clamp every canvas request goes through (issue #690), so
         // `scripts/ci/preview_viewport_limits.mjs` tests the shipped rule against the engine's.
         "canvas-viewport": "src/views/canvas-viewport.ts",
+        // The drag-resize arithmetic (issue #690 slice b): one step per animation frame, and the same
+        // clamp. `scripts/ci/preview_canvas_resize.mjs`.
+        "canvas-resize": "src/views/canvas-resize.ts",
       },
       output: {
         format: "es",

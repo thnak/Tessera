@@ -1022,8 +1022,22 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       `canvas_viewport_limit` and `scripts/ci/preview_viewport_limits.mjs`; the slice also fixed
       `tessera_canvas_draw` being handed the logical rectangle instead of the physical extent the page
       sized. Evidence: `docs/design/canvas-input-session.md` §5.4, `designer-protocol-v1.md` §15.3.
-      **Open:** slice (b), the drag handles and the coalescing. Both bugs it was waiting on are
-      resolved: #599 fixed below, and #598 re-checked and not reproducible (also below).
+      **Slice (b), the drag handles and the coalescing, also landed** (2026-11-27): three grips (right,
+      bottom, corner) in the canvas' own positioned box, a live readout, and — the rule the gesture
+      exists to keep — **one step per display refresh**, not one per pointer event, plus exactly one
+      settled step on pointer-up so the released size is exact even when it lands between two frames.
+      The arithmetic is pure and gated in Node (`canvas-resize.ts`, `preview_canvas_resize.mjs`: five
+      moves inside one frame cost one step); the DOM half is `canvas-resize-layer.ts`, which **delegates
+      from the document in the capture phase** because the session is created before React commits the
+      grips, and resolves the readout on first write for the same reason. A drag goes through the
+      page's own `setCustomSize`, so the profile chip reads `custom` and every other view reads the
+      size the canvas is showing. Two bugs the browser gate caught and the Node gate could not: the
+      travel was divided by the **DPR**, which halved every drag at DPR 2 (the canvas' CSS box is the
+      *logical* viewport, so the divisor is the pane's zoom and nothing else), and the zoom was read
+      from the canvas rather than its zooming stage, where a CSS transform scales the rect and the
+      layout box alike and the ratio is always 1. Evidence: `preview_browser_canvas_size.mjs` (the
+      grips, the readout, the frame bound, the exact released size — mutation-checked by removing the
+      `apply` call), `docs/design/canvas-input-session.md` §5.6.
 - [ ] #598: studio: "the canvas stays 320x240 after a viewport change". **Re-checked 2026-11-27 and it
       does not reproduce** against `main`: with the suspected React-owned `width={320} height={240}`
       restored on the element, `canvas.width` still follows the viewport, because the session writes

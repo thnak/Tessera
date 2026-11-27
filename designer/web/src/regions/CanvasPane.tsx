@@ -22,6 +22,7 @@ import type { ReactNode, RefObject } from "react";
 import { zoomLabel } from "../views/canvas-zoom";
 import type { GeometryMode } from "../views/skin-geometry";
 import type { Skin } from "../views/skins";
+import { RESIZE_HANDLES } from "../views/canvas-resize-layer";
 import { SkinFrame } from "./SkinFrame";
 import { useCanvasZoom } from "./use-canvas-zoom";
 
@@ -225,6 +226,21 @@ export function CanvasPane({
                   aria-hidden="true"
                   hidden
                 />
+                {/* The drag grips (issue #690 slice b). Page-only: they are never sent to the viewer,
+                    never in a screenshot, and a press on one is consumed before the engine's pointer
+                    path sees it. `canvas-resize-layer.ts` owns the gesture and the readout. */}
+                {RESIZE_HANDLES.map((handle) => (
+                  <div
+                    key={handle.id}
+                    id={handle.id}
+                    className={`canvas-resize canvas-resize-${handle.handle}`}
+                    style={{ cursor: handle.cursor }}
+                    role="separator"
+                    aria-label={handle.label}
+                    aria-orientation={handle.handle === "bottom" ? "horizontal" : "vertical"}
+                  />
+                ))}
+                <output id="canvas-resize-readout" className="canvas-resize-readout" aria-live="polite" />
                 {appOverlay}
               </div>
             </SkinFrame>

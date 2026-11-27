@@ -50,6 +50,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
@@ -93,6 +94,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
@@ -333,6 +335,9 @@ jobs:
 
       - name: Canvas zoom (fit, steps, anchored wheel zoom; never an input to the app)
         run: node scripts/ci/preview_canvas_zoom.mjs
+
+      - name: Canvas drag-resize arithmetic (handles, the zoom, the per-frame step rule)
+        run: node scripts/ci/preview_canvas_resize.mjs
 
       - name: Canvas viewport limits (the clamp that keeps a size from losing the device)
         run: node scripts/ci/preview_viewport_limits.mjs

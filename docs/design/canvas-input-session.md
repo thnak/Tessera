@@ -369,6 +369,38 @@ limitation `canvas-session.ts` records for its own screenshot path). `scripts/ci
 therefore asserts what the page owns - the backing store, the CSS box, and their agreement with the
 reported DPR, at DPR 1 and 2 - and leaves the pixels to the lavapipe case above.
 
+### 5.6 The drag-resize handles (issue #690 slice b)
+
+The canvas' size has three authors: the toolbar's menus, a raw `viewport.set`, and now three grips on
+the canvas' own edges (right, bottom, corner). A drag is the only one that can produce a hundred
+sizes a second, so it is the only one with a rate rule.
+
+**One step per display refresh.** The grip records the pointer's travel per move, paints the size it
+would apply into a page-only readout, and asks for one coalesced step; the step is the unit that
+reaches the engine. Pointer-up runs exactly one settled step, so the size the person released on is
+the size the engine ends with even when the release falls between two animation frames. The rule is
+`shouldStep` in `canvas-resize.ts` and it is gated in Node (`preview_canvas_resize.mjs`), because a
+*browser* cannot show it: the session's own `requestFrame()` already coalesces frames, so a per-move
+`apply` measures identically in the page. The page gate checks the property a person can see instead -
+a burst of 50 moves costs at most a frame per paint, and the settled size is exact.
+
+**The divisor is the zoom, not the DPR.** The canvas' CSS box is the *logical* viewport
+(`sizeToDevicePixels` sets `style.width` from the logical width), so one CSS pixel of travel is one
+logical pixel however many device pixels it covers. Dividing by the DPR halved every drag at DPR 2.
+The zoom, by contrast, must be divided out - and it is read from the stage the pane transforms, not
+from the canvas, because a CSS transform scales an element's rect and its layout box alike.
+
+**Wiring is delegated, not bound.** The session is created from refs that exist at the first settle,
+which is before React commits the grips and the readout, so a listener looked up by id finds nothing
+and the gesture silently does nothing. The layer listens on the document in the capture phase and
+resolves the readout on first write; capture is also what makes the grip win the press before the
+engine's pointer path sees it, so a grip never moves `:hover` and never activates the control under it.
+
+**The result is a toolbar value.** A drag calls the page's own `setCustomSize`, so the profile chip
+reads `custom` afterwards, the size is remembered like any other control change, and skins, zoom and
+the DPR stay consistent with it. The reached size goes through `clampViewport`, so a drag cannot reach
+a size a menu could not, and a clamped one says so on the readout.
+
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,
 attached by `canvas-session.ts`; `scripts/ci/preview_browser_canvas_pointer.mjs` is its browser acceptance

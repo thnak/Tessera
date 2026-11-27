@@ -213,6 +213,7 @@ This page is the map and reading order for the framework.
 - [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits; [`design/paint-cull-measurement.md`](design/paint-cull-measurement.md) — why the cull needs no cache (#789)
 - [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list: parse, bottom-to-top order, interpolation, baselines (#614)
 - [`design/theme-scoping.md`](design/theme-scoping.md) — nested theme regions: the `:has()`/`@scope` decision, matching cost, `@layer`/source-order interaction (#622)
+- [`architecture/implementation-log/README.md`](architecture/implementation-log/README.md) — implementation-log parts split by theme (the Studio canvas day: #690, #599, #598, #617)
 - [`design/dials-and-gauges.md`](design/dials-and-gauges.md) — dials and gauges: the conic-gradient-then-mask-then-filter decision, and what a live `Path` would need (#617)
 - [`design/activity-and-idle.md`](design/activity-and-idle.md) — user inactivity as one shared seam: a per-window activity tracker plus an idle deadline the runtime loop parks against (proposed; no code yet)
 - [`design/decorative-animation.md`](design/decorative-animation.md) — ambient/decorative animation: optionality declared not inferred, the ambient gate, and the wake bound (proposed; `non_essential` classification implemented)

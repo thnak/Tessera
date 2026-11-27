@@ -65,6 +65,8 @@ import {
   type CanvasStyleReport,
 } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
+import { createCanvasResize } from "./canvas-resize-layer";
+import { cssZoomOf } from "./canvas-zoom";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 import type { CommitBridge } from "../lib/override-client";
 import { createCanvasOverrides } from "./canvas-overrides";
@@ -118,6 +120,17 @@ export interface CanvasSessionOptions {
   onComponents: (names: string[], chosen: string) => void;
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
+  /**
+   * Applies a viewport a drag-resize reached (issue #690 slice b), or absent when the page has no
+   * toolbar to tell.
+   *
+   * The session could apply the size itself through `_tessera_canvas_set_viewport`, but then the
+   * toolbar would be stale: an orientation swap or a profile picker afterwards would snap back to a
+   * size nobody chose, and the device chip would name a device the canvas is not showing. Going
+   * through the page's own control handler keeps one owner of "what size is the preview", and the
+   * session hears about it again through `onEnvironmentChange` like any other toolbar move.
+   */
+  onResize?: (width: number, height: number) => void;
   /**
    * The page's half of the style commit round trip (issue #585): the file buffers, the editor and the
    * live-edit trigger. Without it a commit cannot be applied, and the inspector's commit says so.
@@ -251,6 +264,35 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     },
     { capture: true },
   );
+
+  // The drag handles on the canvas (issue #690 slice b). A drag is a burst, so the layer records the
+  // latest pointer position and this session applies one step per animation frame through the page's
+  // control handler (`onResize`), plus one settled step on pointer-up. The arithmetic and the limits
+  // are `canvas-resize.ts` and `canvas-viewport.ts`, so a drag cannot reach a size a toolbar move could
+  // not - and the readout is computed from the same clamp the engine call uses.
+  const resizeLayer = createCanvasResize({
+    readout: document.getElementById("canvas-resize-readout"),
+    // A pointer travels in CSS pixels of the canvas' layout box; the viewport is in the same units
+    // at zoom 1, and the pane's zoom scales those CSS pixels. `cssZoomOf` is the ratio the picker
+    // and the pointer path already use, so a drag at 68% moves the right distance.
+    // The pane's zoom: the scale its CSS transform puts on the stage. It is read from the stage
+    // rather than the canvas, because a transform scales an element's rect and its layout box alike,
+    // so the canvas' own ratio is always 1. `useCanvasZoom` is the one owner of the transform; the
+    // stage, when there is none, means 1.
+    scale: () => {
+      const stage = canvas.closest<HTMLElement>(".canvas-zoom-stage");
+      if (stage === null) {
+        return 1;
+      }
+      const zoom = cssZoomOf(stage.getBoundingClientRect().width, stage.offsetWidth);
+      return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    },
+    current: () => requestedViewport(options.environment),
+    apply: (width, height) => {
+      options.onResize?.(width, height);
+    },
+    setStatus: options.setStatus,
+  });
 
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
   // `clamped` (issue #690) says a limit reduced the request, so the caller can name the device it got.
@@ -748,6 +790,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
      */
     dispose: () => {
       visible = false;
+      // The grips detach first: a drag in flight must not call `apply` on a disposed session.
+      resizeLayer.dispose();
       picker.hide();
       inspector.hide();
       if (gpu !== null) {
