@@ -156,7 +156,6 @@ struct WindowOptions {
     // Borrowed sinks for the offscreen pool's warning and counters; null: stderr, none.
     diagnostics::Logger* logger = nullptr;
     diagnostics::MetricsRegistry* metrics = nullptr;
-    double offscreen_idle_seconds = 2.0; // idle time before a lone window trims its layer pool
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for

@@ -254,6 +254,8 @@ field	tessera.json	runtime-config-v1::3. Fields::maxFrameDeltaMs	number	-	250
 field	tessera.json	runtime-config-v1::3. Fields::maxPendingResizes	integer	-	1
 field	tessera.json	runtime-config-v1::3. Fields::maxUpdatesPerFrame	integer	-	5
 field	tessera.json	runtime-config-v1::3. Fields::minRenderScale	number	-	0.6
+field	tessera.json	runtime-config-v1::3. Fields::offscreenIdleSeconds	number	-	2
+field	tessera.json	runtime-config-v1::3. Fields::offscreenMaxMb	integer	-	256
 field	tessera.json	runtime-config-v1::3. Fields::pauseWhenOccluded	boolean	-	true
 field	tessera.json	runtime-config-v1::3. Fields::pauseWhenUnfocused	boolean	-	false
 field	tessera.json	runtime-config-v1::3. Fields::powerPolicy	string	-	adaptive

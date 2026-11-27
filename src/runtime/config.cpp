@@ -30,7 +30,7 @@ namespace json = runtime::internal;
 // stack for a config file.
 constexpr std::size_t kMaxDocumentDepth = 16;
 
-constexpr std::array<std::string_view, 44> kKnownKeys = {
+constexpr std::array<std::string_view, 46> kKnownKeys = {
     "fixedTimestepHz",
     "maxFps",
     "vsync",
@@ -72,6 +72,8 @@ constexpr std::array<std::string_view, 44> kKnownKeys = {
     "glassMaxBlurRadius",
     "glassMaxBlurTargets",
     "glassMaxBackdropArea",
+    "offscreenMaxMb",
+    "offscreenIdleSeconds",
     "animationInterpolation",
     "interpolationEpsilonPx",
     "deterministic",
@@ -398,6 +400,11 @@ validate_runtime_object(const json::JsonValue& runtime) {
     reader.number("glassMaxBlurRadius", config.glass_max_blur_radius, 0.0, 256.0);
     reader.integer("glassMaxBlurTargets", config.glass_max_blur_targets, 0, 16);
     reader.integer("glassMaxBackdropArea", config.glass_max_backdrop_area, 0, 268435456);
+    // Offscreen pool memory (offscreen-layers.md section 5e). The byte cap is at least 1 MiB: a
+    // cap of 0 would mean "unbounded" to the pool, and disabling the pool is `glassMaxBlurTargets`
+    // = 0. The idle release is seconds of a settled window; 0 releases at the first idle pass.
+    reader.integer("offscreenMaxMb", config.offscreen_max_mb, 1, 4096);
+    reader.number("offscreenIdleSeconds", config.offscreen_idle_seconds, 0.0, 3600.0);
     reader.boolean("animationInterpolation", config.animation_interpolation);
     reader.number("interpolationEpsilonPx", config.interpolation_epsilon_px, 0.0, 4.0);
     reader.boolean("deterministic", config.deterministic);
