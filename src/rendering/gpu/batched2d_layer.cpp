@@ -64,6 +64,9 @@ float filter_reach(const LayerFilterChain& filter, float scale) {
     float reach = 0.0f;
     for (std::size_t index = 0; index < filter.count; ++index) {
         const LayerFilterOp& op = filter.ops[index];
+        if (op.kind == LayerFilterOp::Kind::ColorFunctions) {
+            continue; // its fields hold amounts, and a colour function moves no pixel
+        }
         reach += (3.0f * op.sigma + std::hypot(op.offset_x, op.offset_y)) * scale;
     }
     return reach;

@@ -5,8 +5,10 @@
 // begin_layer_mask() or pop_layer(), whichever comes first - so it sees the complete content and
 // precedes the mask and the group opacity, as CSS orders them. A blur works in place through one
 // scratch target; a drop-shadow builds the shadow into a third target, composites the layer over
-// it and continues with that target as the layer. A function that cannot run (no blur or mask
-// pipeline, no free pooled target) is skipped and counted; nothing throws or blocks.
+// it and continues with that target as the layer. A run of colour functions (brightness() ...
+// opacity()) is one 1:1 pass into the scratch target, which then becomes the layer. A function that
+// cannot run (no blur or mask pipeline, no free pooled target) is skipped and counted; nothing
+// throws or blocks.
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 
@@ -82,6 +84,28 @@ void Batched2DRenderer::run_layer_filters(LayerFrame& layer) {
         if (layer.scratch == nullptr) {
             layer.scratch = glass_.acquire(extent_);
         }
+        GlassCompositor::FrameContext frame;
+        frame.commands = commands_;
+        frame.target = layer.layer_target;
+        frame.desc = layer.layer_desc;
+        frame.extent = extent_;
+        frame.scissor = scissor_;
+        frame.content_scale_x = content_scale_x_;
+        frame.content_scale_y = content_scale_y_;
+        frame.seam = GlassCompositor::PassSeam{this, &Batched2DRenderer::resume_pass_callback};
+        if (op.kind == LayerFilterOp::Kind::ColorFunctions) {
+            // A 1:1 copy through the functions into the scratch target, which then becomes the
+            // layer; the old layer target is the scratch for whatever runs next.
+            if (layer.scratch == nullptr ||
+                !glass_.color_layer(frame, *layer.layer_target, *layer.scratch, op, scissors)) {
+                ++layer_filters_unsupported_;
+                continue;
+            }
+            std::swap(layer.layer_target, layer.scratch);
+            frame_target_ = layer.layer_target;
+            ++layer_filters_applied_;
+            continue;
+        }
         rhi::RenderTarget* out = layer.layer_target;
         if (shadow) {
             if (layer.spare == nullptr) {
@@ -110,15 +134,6 @@ void Batched2DRenderer::run_layer_filters(LayerFrame& layer) {
             scissors, 3.0f * pass.sigma + std::abs(pass.offset_x) + std::abs(pass.offset_y),
             extent_);
 
-        GlassCompositor::FrameContext frame;
-        frame.commands = commands_;
-        frame.target = layer.layer_target;
-        frame.desc = layer.layer_desc;
-        frame.extent = extent_;
-        frame.scissor = scissor_;
-        frame.content_scale_x = content_scale_x_;
-        frame.content_scale_y = content_scale_y_;
-        frame.seam = GlassCompositor::PassSeam{this, &Batched2DRenderer::resume_pass_callback};
         if (!glass_.blur_layer(frame, *layer.layer_target, *layer.scratch, *out, pass, scissors)) {
             ++layer_filters_unsupported_;
             continue;

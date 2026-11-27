@@ -78,7 +78,9 @@ constexpr StyleProperty kStyleProperties[] = {
     {"mask-origin", StyleKind::Keyword, "per-layer border-box | padding-box | content-box"},
     {"mask-clip", StyleKind::Keyword, "per-layer border-box | padding-box | content-box | no-clip"},
     {"mask-composite", StyleKind::Keyword, "per-layer add | subtract | intersect | exclude"},
-    {"filter", StyleKind::Keyword, "none | blur() | drop-shadow(), applied to an isolated layer"},
+    {"filter", StyleKind::Keyword,
+     "none | blur() | drop-shadow() | brightness() | contrast() | grayscale() | sepia() | "
+     "saturate() | hue-rotate() | invert() | opacity(), applied to an isolated layer"},
     {"opacity", StyleKind::Number, ""},
     {"box-shadow", StyleKind::List, "comma-separated shadow list, one per layer"},
     {"text-shadow", StyleKind::List, "comma-separated shadow list, one per layer"},

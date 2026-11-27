@@ -300,6 +300,7 @@ public:
         }
         Layer layer = std::move(layers_.back());
         layers_.pop_back();
+        layer.run_color_filters();
         const rendering::rhi::Rect region = intersect(clip_, layer.box);
         paint_each([&](rendering::software::CpuCanvas& canvas) {
             rendering::software::composite_layer(canvas, layer.black, layer.white, region,
@@ -314,6 +315,7 @@ public:
         if (layers_.empty() || layers_.back().masked) {
             return false;
         }
+        layers_.back().run_color_filters(); // the filter precedes the mask, as in CSS
         layers_.back().begin_mask();
         return true;
     }
@@ -395,10 +397,21 @@ private:
         Layer(const ui::paint::LayerDraw& draw, std::uint32_t width, std::uint32_t height)
             : box(draw.box),
               opacity(draw.opacity),
+              filter(draw.filter),
               black(width, height),
               white(width, height) {
             black.clear(rendering::rhi::Color{0.0f, 0.0f, 0.0f, 1.0f});
             white.clear(rendering::rhi::Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        // Runs the chain's colour functions once (the pair is the layer's complete content now).
+        // The CPU twin has no blur or drop-shadow: those ops are left out, like a GPU renderer
+        // without the pipelines, so only the colour functions are exercised here.
+        void run_color_filters() {
+            for (std::size_t index = 0; index < filter.count; ++index) {
+                rendering::software::apply_layer_color_filter(black, white, filter.ops[index]);
+            }
+            filter = rendering::gpu::LayerFilterChain{};
         }
 
         void begin_mask() {
@@ -419,6 +432,7 @@ private:
 
         rendering::rhi::Rect box;
         float opacity = 1.0f;
+        rendering::gpu::LayerFilterChain filter;
         rendering::software::CpuCanvas black;
         rendering::software::CpuCanvas white;
         std::optional<rendering::software::CpuCanvas> mask_black;

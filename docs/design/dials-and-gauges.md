@@ -26,7 +26,7 @@ reference draws knob arcs, tick marks and glow with a conic gradient masked to a
 | `clip-path` basic shapes | blocked on ADR-068 (Proposed) | — |
 | `conic-gradient()` | absent | — |
 | `mask` / `mask-image` / `-webkit-mask` | absent | — |
-| `filter`: `blur()` and `drop-shadow()` | shipped (#617) | `src/ui/paint/paint_filter.cpp`, `src/rendering/gpu/batched2d_layer_filter.cpp` |
+| `filter`: `blur()`, `drop-shadow()` and the colour functions | shipped (#617) | `src/ui/paint/paint_filter.cpp`, `src/rendering/gpu/batched2d_layer_filter.cpp` |
 | `Path` element | **asset raster only** | `src/ui/paint/paint_vector.cpp` |
 
 The last row is the one that decides this. `Path` is not a live vector path: `PaintVectorStyle`
