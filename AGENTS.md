@@ -469,11 +469,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `visibility` (`Node::set_style_hidden`/`rendered()` gating paint, hit test, a11y, focus,
       damage), `PropertyRegistry::longhand_names()`, tests `property_effects` and `property_status`
       (the latter fails when the registry and the table disagree).
-- [ ] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
+- [x] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
       each (Chromium-measured, golden on lavapipe, property-status doc updated): #617 conic gradient,
-      `mask`, `filter` or the `Path` route (decided: conic gradient, then `mask`, then `filter`; a
-      live `Path` is a rasterizer project, not a paint primitive —
-      [`dials-and-gauges.md`](docs/design/dials-and-gauges.md)). Umbrella #618.
+      `mask`, `filter` (decided: conic gradient, then `mask`, then `filter`; a live `Path` is a
+      rasterizer project, not a paint primitive —
+      [`dials-and-gauges.md`](docs/design/dials-and-gauges.md)). All three trails have landed; see
+      the #617 entry below for the evidence and the one remaining alias gap. Umbrella #618.
 - [x] #613 `radial-gradient()` and the repeating forms — one grammar with two shape halves, radial
       painting by bounded 32×32 tessellation through the shared sink hook (so CPU and GPU emit
       identical geometry), repeating as a stop-list transform, gradient interpolation wired into
@@ -485,6 +486,20 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       bottom to top, the `background` shorthand puts the colour on the final layer only, `url()` is
       rejected with a diagnostic — `src/ui/style/background_layers.cpp`,
       `tests/unit/background_layers_tests.cpp` (PR #676).
+- [ ] #617 conic-gradient, `mask` and `filter` (dials and gauges) — decided 2026-11-20 in
+      [`dials-and-gauges.md`](docs/design/dials-and-gauges.md): conic gradient, then `mask`, then
+      `filter`; **no `Path` route in V1** (a live `Path` needs paint-time rasterization and an
+      animatable `d`, which is a project). Two of the three trails are done:
+      **conic** (#680: `repeating-conic-gradient()`, 64×64 cell tessellation within 5/255 of
+      Chromium); **mask** (`mask-image` on isolated layers, RHI 1.19 `DestinationIn`; the
+      `mask-size`/`position`/`repeat`/`mode`/`origin`/`clip` longhands and the `mask` shorthand;
+      `mask-composite` with RHI 1.21 `SourceOut`/`Xor`; the CPU twin and the lavapipe golden);
+      **filter** (`blur()` and `drop-shadow()` on isolated layers, its own node field, subtree flag
+      and damage walk). Each justified a renderer change, not a new shader: the offscreen layer pool
+      now recycles inside the frame, caps bytes and trims idle, with refusals reported through
+      `diagnostics::OffscreenPressureReporter` (PRs #928-#941, `runtime-config-v1.md` `offscreenMaxMb`
+      / `offscreenIdleSeconds`). **Open:** the `-webkit-mask*` alias family, and the eight filter
+      colour functions — PR #942 carries the latter.
 - [x] #622 `:has()` and `@scope` — both supported, no named exception: `@scope` styles a component's
       subtree without a class on every descendant and `:has()` lets a rule reach a nested region it
       hosts, which is what ADR-064 item 6's nested theme region needs; the `:has()` walk is bounded
@@ -702,12 +717,19 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 **This is the design-time milestone**: everything a developer uses before the app ships (the browser
 preview, the studio that edits a project folder, the MCP adapter, devtools). Runtime and shipping
 concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are merged into one
-studio `index.html` (#392, PR #420); the React 19 + Vite conversion of that shell (ADR-054) lands next
-and the folder IDE (#391) builds on the converted shell. The order below is the farm order. #397-#399
-(stack overflow and quadratic lowering on untrusted input, from the #198 review) are closed, so #390,
-#391 and the MCP folder tools can feed untrusted files to that code.
+studio `index.html` (#392, PR #420), and since 2026-11-17 that shell is React 19 + Vite (ADR-054,
+#422); the folder IDE (#391) and the workbench (#584, W0-W5 landed in PR #586) build on it. The
+order below is the farm order. #397-#399 (stack overflow and quadratic lowering on untrusted input,
+from the #198 review) are closed, so #390, #391 and the MCP folder tools can feed untrusted files to
+that code.
 The Wasm studio stays single-threaded (ADR-045 decision 5); a separate multi-threaded studio site is a later,
 owner-planned item and is not part of this milestone.
+
+**State on 2026-11-27:** every P0-P7 stage, the studio shell, the folder IDE's IO layer, live edit,
+device profiles, the workbench dock and the studio-side mock services have landed. What is left in
+this milestone is the IDE work listed under #584 (W5b-W9), #516, #567-#569 and #575-#583, the canvas
+viewport work (#690), the fold-hinge overlay (#433), the remaining MCP tools (#396), and the paint
+family's last two items (#617's `-webkit-mask` alias and the filter colour functions, PR #942).
 
 - [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
@@ -812,20 +834,40 @@ owner-planned item and is not part of this milestone.
       (not "any order", which is false when replacement lengths differ). Every range is checked
       against UTF-8 code point boundaries. The six spec reasons are exact, and no patch is produced
       for any of them. Narrower than §10.1 and reported as such: the override layer
-      (`style.override.set`) is a later slice, so a commit today carries no declarations and answers
-      `no_overrides`, and the `token` binding test is against the node's inline `var(<token>)`.
-      **The override layer is tracked as #536** — it is the input a commit writes, so until it lands
-      the page shows the `no_overrides` reason rather than inventing a declaration. Evidence:
+      (`style.override.set`) is a later slice, so a commit day-one carried no declarations and
+      answered `no_overrides`. **#536 landed it** (below). Evidence:
       `tools/codegen/scene_canvas_patch*.{hpp,cpp}`, `tools/codegen/scene_build*.{hpp,cpp}`,
       `tools/codegen/scene_session.*`, `tools/codegen/canvas_report.*`,
       `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
       `scene_canvas_patch`, `docs/design/canvas-input-session.md` §5.3.
-- [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
-      modules in the download budget. Needs a measurement first; take it after #392.
-- [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
-      reported. The decisions are recorded (`mcp-server-v1.md` section 3: `TESSERA_MCP_` family,
-      `tools/mcp/schema/tools.json`, `toolSurfaceVersion`); the schema file and the version field are
-      still to implement. Take the read-only tools first.
+- [x] #536: studio: the style override layer (`style.override.set`/`clear`/`revert`, undo/redo) so
+      `source.patch` is reachable — validated with the stylesheet engine the compiler uses, an
+      invalid value answers `ok:false` with its `TESSERA_CSS_*` and leaves the node unchanged, and
+      an override changes only that `NodeRef` (never another instance of the same component).
+      A `token`-bound override makes a `token` commit succeed instead of `not_token_bound`; a commit
+      whose re-evaluated IR disagrees with the committed values reports
+      `TESSERA_DESIGNER_PATCH_MISMATCH`. Offsets in `source.patch` are real now (PRs #591 and the
+      earlier override landing: `tools/codegen/scene_canvas_override.cpp`, `scene_override.*`,
+      `wasm_canvas_override.cpp`, `designer/web/src/views/canvas-overrides.ts`, ctest
+      `scene_canvas_override`, `scene_canvas_override_commit`). The page half was wired in PR #591
+      (`#585`), which is also where the round trip is exercised
+      (`scripts/ci/preview_browser_override_commit.mjs`).
+- [x] #395: P6b: the latency budgets are `enforce` with a two-sided ratchet and every module the
+      studio loads is weighed. Raw wall clock was not ratchetable (1.7x and 2.7x runner noise across
+      eight Pages runs), so the pin is calibration-normalized: each probe times a fixed warmed
+      integer workload alongside the compile and reports the ratio (1.04x spread idle and under
+      contention, against 1.06x/1.08x raw). Evidence: `scripts/check_preview_budget.py`,
+      `tests/golden/perf/preview_budget.json` (PR #438).
+- [ ] #396: `tessera-mcp`: the last three unimplemented tools and the #350 spec decisions. Five of
+      the eight declared tools have landed — `list_files` (#406), `set_viewport` (with the fold
+      posture, #408), `snapshot`, `query_style` and `pick` — all `implemented` in
+      `tools/mcp/schema/tools.json`, over the same preview engine the studio uses.
+      Remaining: `apply_edits` (deterministic in-memory first, `write: true` behind the shared file
+      policy), `screenshot` (needs the native headless renderer / GPU decision, spec open question 4)
+      and `run_script` (needs the harness document). The three spec decisions are settled:
+      `TESSERA_MCP_*` is a row in `error-model-v1.md` §3, `tools.json` + `toolSurfaceVersion` ship
+      (`tools/mcp/schema/tools.json`, reported by `initialize`, gated byte-for-byte by `mcp_tools`),
+      and `open_project` reads nothing (section 8). Take `apply_edits` first.
 - [x] #406: `tessera-mcp`: project root from the agent's workdir (`roots/list`, else the working
       directory), `list_files` and folder-wide `diagnostics` / `get_ir`. Done: `tools/mcp/src/
       project_files.cpp` and `project_tools.cpp`, the shared file policy `src/schema/src/
@@ -836,8 +878,11 @@ owner-planned item and is not part of this milestone.
       in `tools/mcp/src/project_tools.cpp` over `cli::run` with `Options::dry_run` /
       `collect_generated`; test `mcp_project` (dry run, byte-identity with the CLI, developer class
       untouched, outDir and link refusals); spec `mcp-server-v1.md` section 4.
-- [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes the
-      ADR-054 conversion.
+- [x] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer — the
+      keyboard/host safe-area step moved into `ui::style::safe_area_style`, so the preview feeds a
+      simulated fold through the *same* path the native app runs rather than a second one
+      (`tools/codegen/scene_layout.*`, `tessera_canvas_set_safe_area`); evidence PR #429, ctest
+      `scene_skin_geometry`. The hinge **band** as a page overlay is #433; the layout half ships.
 - [x] #397: security: nested `:not()`/`:is()`/`:where()`/`:has()` overflowed the stack in the stylesheet
       compiler (found by the #198 review). Fixed: selector nesting is depth-bounded, so #390 and #391
       can feed user CSS to it.
@@ -858,7 +903,16 @@ owner-planned item and is not part of this milestone.
       #395, #408 and #171.** Evidence: `designer/web/src/App.tsx`, `docs/design/studio-page.md`.
       The Pages lane caught a real defect the conversion could not: the sample-manifest generator
       still read the pre-Vite path, so `--check` looked for a file the build had just deleted.
-- [ ] #387: P3b: text in the canvas preview, font loaded as data (IBM Plex Sans Latin subset).
+- [x] #387: P3b: text in the canvas preview, font loaded as data — `CountingSink::draw_text` now
+      forwards to the production `Batched2DSink` (HarfBuzz shaping + `TextRenderer`'s bounded glyph
+      atlas), so the preview and the app cannot drift. The font is a **page asset**, never in the
+      `.wasm`: `designer/web/public/fonts/IBMPlexSans-Latin.ttf` (OFL-1.1, with `OFL.txt`), fetched
+      and handed in through `tessera_canvas_set_font` (`tools/codegen/wasm_canvas_font.*`,
+      `designer/web/src/views/canvas-font.ts`). A failed fetch degrades to the box-only text and a
+      named page state. Found by rendering, not by reading: layout and paint had disagreed (the
+      stub measurer vs the real one) and both are now the same measurer. Evidence: PR #428,
+      `tests/unit/scene_frame_text_tests.cpp`, `scripts/ci/scene_frame_canvas_font_probe.mjs`,
+      `docs/specs/dependencies.md` (#280's font pack supersedes the single subset).
 - [x] #388: P3c pointer input -- the **engine half** (`CanvasSceneSession` + the
       `tessera_canvas_pointer` export). `:hover`/`:active` come from the real style engine, not from
       JS writing a class: the router sets `Node::pseudo_state` and marks `Dirty::Style`, so
@@ -871,52 +925,116 @@ owner-planned item and is not part of this milestone.
       `tessera_canvas_key`): Tab/Shift+Tab, Enter/Space, `:focus-visible`, no keyboard trap, focus
       kept across the rebuild a click causes; resize and fold keep the app's state. Evidence: `tools/codegen/scene_canvas_session.*`,
       `docs/design/canvas-input-session.md`, `scripts/ci/preview_browser_canvas_pointer.mjs`.
-- [ ] #389: conditional and repeated children in the scene preview (today a named
-      `TESSERA_SCENE_UNSUPPORTED`).
-- [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS
-      replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
-      from user code.
-- [ ] #461: paint: an outer `box-shadow` is painted inside a translucent box (CSS clips it to outside the
-      border box). Found by the Chrome parity form page; `form.module.css` keeps an opaque segment fill until
-      it lands.
-- [ ] #462: animation: `box-shadow` does not transition (it snaps to the end value). `form.module.css` leaves
-      the shadow out of the segment transition until it lands.
-- [ ] #463: style: CSS isolation for components (`*.module.css` scoped class names, `ready`); the
-      decisions and the checked premises are in the issue.
-- [ ] #457: `background-image: linear-gradient()` from a stylesheet (`ready`): the paint path
-      (`PaintData::gradient`) exists, no property feeds it; found by the Chrome parity dashboard page.
+- [x] #389: conditional and repeated children in the scene preview — both build instead of answering
+      `TESSERA_SCENE_UNSUPPORTED`. No second evaluator: the condition is evaluated against the one
+      `eval::Scope` the scene builder already seeds (carried cells, declared initializers, handler
+      assignments), so a branch flips off real state, and a scripted click on `setCount(count + 1)`
+      changes the painted branch. Evidence: PR #427, `scripts/ci/scene_snapshot_parity.py` (the two
+      dynamic shapes are corpus cases).
+- [x] #390: author stylesheet, `style` and `className` in the preview — a sheet is the author's when
+      it is not empty and not whitespace/comment-only, and `preview_stylesheet()` is then never
+      called; empty or comment-only falls back to the built-in sheet byte-for-byte. A sheet with one
+      bad rule still counts as the author's, so an invalid declaration cannot resurrect the built-in
+      style. The slice also fixed an unbounded `@supports` recursion #410 missed (20000 nested parens
+      aborted the process on `main`). Evidence: PR #458.
+- [x] #461: paint: an outer `box-shadow` is clipped to outside its own border box rather than painted
+      inside it — `src/ui/paint/paint_shadow.cpp` (PR #488).
+- [x] #462: animation: `box-shadow` transitions and keyframes interpolate the shadow list instead of
+      snapping to the end value — PR #518.
+- [x] #463: style: CSS isolation for components (`*.module.css` scoped class names) — spec, import
+      form, scoping scan, lowering, codegen embed and preview landed across PRs #495, #497, #498 and
+      #500, the gallery page is the worked example, `tests/unit/theme_scoping_tests.cpp` covers it.
+- [x] #457: `background-image: linear-gradient()` from a stylesheet — PR #519.
+
+### V1-M4 Sub-milestone: studio IDE ([#584](https://github.com/thnak/Tessera/issues/584), ADR-060, ADR-062)
+**Owner decisions 2026-11-19:** flexlayout-react 0.11.2 behind our own layout JSON and adapter
+(dockview fallback); our JSON is canonical; VS Code default chords with browser fallbacks; stable
+append-only command ids; layout per viewer only; no floating windows in V1; bottom dock collapsed by
+default. Specs: [`studio-workbench-v1.md`](docs/specs/studio-workbench-v1.md),
+[`studio-workbench-layout-v1.md`](docs/specs/studio-workbench-layout-v1.md); dock library ADR-062.
+
+Landed in PR #586 (W0-W5): the workbench-core registry (commands, when-clauses, keybinding
+resolver), the layout model with panel registry and persistence, the menu bar and toolbar, the
+command palette / quick open / context menus, notifications, and the flexlayout dock renderer.
+`designer/web/src/workbench/` (panels.json), `designer/web/src/lib/` (commands, layout), the
+`workbench_*.mjs` gates.
+
+- [ ] #561: W5b: activity bar and side bar shell (Explorer live; Search and Source Control reserved),
+      Ctrl+B and Ctrl+J.
+- [ ] #562: W5c: editor groups, preview tabs and path breadcrumbs (may move after V1).
+- [ ] #563: W6: rewrite `scripts/ci/preview_browser_layout.mjs` for the dock.
+- [ ] #564: W7: keyboard model (F6 region cycle, move-panel commands, separator resize, zen mode,
+      layout presets, a11y audit).
+- [ ] #565: W8: keybindings JSON and settings UI (Ctrl+,), layout and override import/export.
+- [ ] #566: W9: MCP projection of the command registry (`commands-tools.json` generator).
+- [ ] #516: dockable preview panes (Scene, Diagnostics, Canvas) in VS Code style.
+- [ ] #589: studio: sash snap, double-click reset and collapse below `minSize` (layout spec §4.4) —
+      the dock landed with keyboard-operable splitters only; these three are model operations on the
+      layout JSON so the keyboard and mouse paths share one code path.
+- [ ] #567: `studio-services-v1.md` and a no-UI protocol harness for the service workers (ADR-060,
+      **ready**; nothing flips the other worker items until it lands).
+- [ ] #569: move the existing compile and diagnostics views behind the worker protocol [ADR-060].
+- [ ] #575: Problems panel (`view.problems`, Ctrl+Shift+M) over project-wide diagnostics.
+- [ ] #580: cross-file search and replace (`view.search`, Ctrl+Shift+F).
+- [ ] #581: asset editor (images, fonts, icons in the project, preview, replace, size and license info).
+- [ ] #582: theme and design-token editor (Instrument tokens, light/dark/high-contrast, contrast checks).
+- [ ] #583: version history for project files (local snapshots, diff view, restore).
+- [ ] #590: retire or rewrite the stale `preview_browser_*` developer scripts — some still target the
+      pre-workbench page and are not in CI; keep what `workbench_*.mjs` does not already cover.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
-      tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
-      Landed in #508 (open folder/zip, limits, Save with conflict check, Download), #511 (new file,
-      rename, delete, Reopen last folder) and the entry-component dropdown; evidence
-      `scripts/ci/preview_project_load.mjs`, `scripts/ci/preview_browser_project_io.mjs`. Drafts in browser
-      storage landed after. Left: directory operations and one manual OS-picker check in Chrome/Edge.
+      tree, edit, explicit save, multi-file preview. **Landed** in #508 (open folder/zip, limits, Save
+      with conflict check, Download), #511 (new file, rename, delete, Reopen last folder), the
+      entry-component dropdown, the bounded Recent-projects list (`designer/web/src/lib/`, one
+      handle per directory in IndexedDB), drafts in browser storage, and view-only locked text files
+      with a "generated header may be out of date" advisory (PR #586); evidence
+      `scripts/ci/preview_project_load.mjs`, `scripts/ci/preview_browser_project_io.mjs`. The issue
+      stays open for what is genuinely left: directory operations (create/rename/move) and one manual
+      OS-picker check in Chrome/Edge.
 - [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
       scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
       Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so
       `#p5=` links work. Room must be left for #171's panes and #433's overlay. Landed in #439.
 - [ ] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
-      follow-up #408 left in `designer-studio-v1.md` section 6.1). Takes #431.
-- [ ] #436: engine: a window or emulator resize re-resolves `@media` (`AppHost::resize` never updates
-      `media_context`) and re-lays out the running preview in place (`set_viewport`, like
-      `set_posture`) without re-evaluating the source. `ready`; does not wait on #431.
-- [ ] #440: perf: one state change costs n + 1 child `update()` calls, and a dirty parent plus child run the
-      child twice (measured by `codegen_update_fanout`; `docs/design/observable.md` section 7). The fix is
-      ADR-056 (**Accepted** 2026-11-17), in three slices, in order: #441 read-set analysis (`ready`), then
-      #442 dirty masks, then #443 schedule children instead of calling them (each takes the previous).
-- [ ] #444: studio: live edit. Edits apply without pressing Run (debounce, last good frame on error); Run becomes
-      Restart app (owner direction 2026-11-17). Spec `studio-device-profiles-v1.md` section 6. `ready`; independent
-      of #445-#448.
-- [ ] #445: engine: Back and Volume input events, Home/Recents/Power mappings, unhandled Back, saved state
-      (device profiles E1). `ready`; spec accepted 2026-11-17, process death by the P4 snapshot rule.
-- [ ] #446: studio: `platform.event` message and Wasm viewer path (E2). Takes #445.
-- [ ] #447: studio: device profiles as data, selector, restart on device change (E3). Takes #446; keep-state needs #436.
-- [ ] #448: studio: platform panel, hardware button strip, event log and replay (E4). Takes #446 and #447.
-- [ ] #434: studio: mock services (`*.mock.ts`), console and call trace (ADR-055). **Blocked** on the
-      service seam (ADR-055 decision 9), #431 and #391; do not take it until those land.
+      follow-up #408 left in `designer-studio-v1.md` section 6.1). #431 landed, so the preview well
+      exists; drawn from the same `FoldInfo` the engine consumed, toggle off by default, excluded
+      from screenshots and from any byte sent to the viewer. `ready`.
+- [x] #436: engine: a window or emulator resize re-resolves `@media` and re-lays out the running
+      preview in place — `AppHost::resize` now updates the media context, and `set_viewport` re-lays
+      out the live session without re-evaluating the source (state cells, hover and focus survive;
+      `cascade_generation()` is the evidence that the cascade re-resolved only when a size crossed a
+      breakpoint). Evidence: PR #486, `tests/unit/scene_viewport_tests.cpp`, `src/app/host_viewport.cpp`.
+- [x] #440: perf: one state change no longer costs n + 1 `update()` calls — ADR-056 landed in its
+      three slices: #441 read-set analysis (`src/compiler/codegen`, `compute_read_sets`),
+      #442 the emitted dirty mask (`apply_state` re-evaluates only dirty bindings), #443 a parent
+      schedules a child's ticket instead of calling `update()`. Evidence: `codegen_update_fanout`,
+      PR #553 (`docs/design/observable.md` §7).
+- [x] #444: studio: live edit — an edit applies itself (150 ms debounce, `Ctrl+Enter` applies now,
+      last good frame kept on error) and Run became Restart app. `designer/web/src/page-live.ts` is
+      the page's only timer; the session's `requestFrame()` collapses a burst of applies into one
+      frame, measured via `CanvasSceneSession::frames_painted()`. Evidence: PR #482.
+- [x] #445: engine: Back and Volume input events, Home/Recents/Power mappings, unhandled Back and the
+      saved-state record (device profiles E1) — `EventType::VolumeKey`, the system-button split from
+      text dispatch, `src/hal` mappings. Evidence: PR #553 (`cd66991d`, `8792e706`).
+- [x] #446: studio: `platform.event` message and the Wasm viewer path (E2) —
+      `tools/codegen/wasm_canvas_platform.cpp`, `tessera_canvas_platform_event`, the shared
+      `PlatformEventDriver` (`scene_platform.cpp`) both the Wasm export and the native scripted run
+      use, `designer/web/src/views/canvas-platform.ts`, `designer/web/src/lib/platform-events.ts`;
+      `scene_input_parity.py` gained five platform cases. Evidence: PR #586.
+- [x] #447: studio: device profiles as data, selector, restart on device change (E3) — seven profiles
+      under `designer/web/public/profiles/`, `lib/device-profile.ts` + `device-profile-load.ts`.
+- [x] #448: studio: platform panel, hardware button strip, ordered event log and replay (E4) —
+      `designer/web/src/workbench/PlatformDock.tsx`, `designer/web/src/page-platform.ts`,
+      `scripts/ci/preview_platform_events.mjs`. Evidence for #447/#448: PR #586.
+- [x] #434: studio: mock services (`*.mock.ts`), console and call trace — the **studio-side half**
+      landed in PR #586: the `mock` accepted-file kind (64 files / 8 MiB), the static subset scan,
+      the sandbox worker with network/clock/DOM/dynamic-code globals removed, `designer/web/mock/`,
+      the Mock console and Call trace dock (`mock-console.ts`, `MockConsolePanel.tsx`), the lazy
+      esbuild-wasm transpiler with its own budget row, `preview_mock_host.mjs` / `preview_mock_sandbox.mjs`.
+      The engine-visible half (mocks feeding the preview) stays gated on the ADR-050 service seam,
+      which is why `studio-mock-services-v1.md` is still "proposed"; that residual is tracked under
+      #642, not here.
 - [ ] #435: studio D-S9: startup-phase preview (freeze at P0, P2, P4). **Blocked** on startup slices
-      S3 and S5 in Wasm and on #171's skins; one open question first (real `AppHost` or reduced stage
-      machine).
+      S3 and S5 in Wasm; one open question first (real `AppHost` or reduced stage machine).
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
@@ -1524,16 +1642,16 @@ migration (#218 migrated every test family, sample and tool to the generated bas
 legacy output, the merger and `EmitMode`), the documentation slice #211, and #158 (object-literal
 prop defaults and `useState` record initials, ADR-051); its only open item is #327's
 `emit_expr.cpp` / `emit_node.cpp` split, whose gate landed in #340. #463 (CSS isolation) landed
-across #495, #497 and #498 (decision, import form, scan, lowering, codegen embed, preview) and its
-closing landing (a conditional of constant `styles.x` reads, the gallery form as the worked example,
-the authored-class lookup and the isolation tests). **V1-M4 is the
-active milestone**: P1 (#165)
-landed the diagnostics page, the machine-readable diagnostics document
-(`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at
-https://thnak.github.io/Tessera/ and deployed by CI from `main`. P2 (#166, the evaluator on the
-null RHI) and P3 to P6 have since landed; the remaining V1-M4 work is the React 19 + Vite conversion of
-the studio shell ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md), #422), then #387-#390, then
-#391, plus #171, #395 and #408. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+across #495, #497, #498 and #500, with the gallery form the worked example and the authored-class
+lookup and isolation tests closing it. **V1-M4 is the
+active milestone**: every P0-P7 stage (the diagnostics page at
+https://thnak.github.io/Tessera/, the null-RHI evaluator, the WebGPU canvas, input, share/gallery,
+budgets, the MCP adapter and the devtools overlay) has landed, as have the studio shell (ADR-054,
+#422), the folder IDE's IO layer (#391, mostly), live edit (#444), device profiles (#445-#448), the
+workbench (W0-W5, PR #586) and the studio-side mock services (#434). What is left is the IDE work in
+#584 (W5b-W9, #516, #567-#583, #589, #590), the canvas viewport work (#690), the fold-hinge overlay
+(#433), the last three MCP tools (#396) and the tail of #617. V1-M3 closed with #159: the
+`shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
@@ -1545,10 +1663,11 @@ come later.
 
 **Studio front end (ADR-054, accepted 2026-11-16).** The hosted studio's chrome is React 19 +
 TypeScript built by Vite over the static Wasm host page; React renders the chrome only and the engine
-still draws just the preview canvas. #392 landed the three-view merge (PR #420) in vanilla ES modules,
-so the conversion is the next studio slice and lands ahead of #391, #171, #408 and #387-#390, which
-edit the shell it produces. Design-time mock services are `*.mock.ts` project files run in a sandboxed
-studio worker and never in the engine ([ADR-055](decisions/ADR-055-studio-mock-services.md)). Both are
+still draws just the preview canvas. The conversion landed in #422 (PR #426) over #392's merged
+three-view shell (PR #420), and everything after — #391, #171's panes, #408, #387-#390, the
+workbench — builds on it. Design-time mock services are `*.mock.ts` project files run in a sandboxed
+studio worker and never in the engine ([ADR-055](decisions/ADR-055-studio-mock-services.md)); the
+studio-side half ships, the engine-visible half waits on the ADR-050 service seam. Both are
 design-time only: no JS/React runtime enters a production app binary ([ADR-024](decisions/ADR-024-native-first-boundaries.md),
 non-negotiable 7), and Node/npm stays out of the native build.
 

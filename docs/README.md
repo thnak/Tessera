@@ -214,6 +214,8 @@ This page is the map and reading order for the framework.
 - [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list: parse, bottom-to-top order, interpolation, baselines (#614)
 - [`design/theme-scoping.md`](design/theme-scoping.md) — nested theme regions: the `:has()`/`@scope` decision, matching cost, `@layer`/source-order interaction (#622)
 - [`design/dials-and-gauges.md`](design/dials-and-gauges.md) — dials and gauges: the conic-gradient-then-mask-then-filter decision, and what a live `Path` would need (#617)
+- [`design/activity-and-idle.md`](design/activity-and-idle.md) — user inactivity as one shared seam: a per-window activity tracker plus an idle deadline the runtime loop parks against (proposed; no code yet)
+- [`design/decorative-animation.md`](design/decorative-animation.md) — ambient/decorative animation: optionality declared not inferred, the ambient gate, and the wake bound (proposed; `non_essential` classification implemented)
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
 - [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache, measurements, Go decision
@@ -275,10 +277,7 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline; hooks as engine behaviors: [`design/behavior-hooks.md`](design/behavior-hooks.md)
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
-- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
-  React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the
-  canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and
-  the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431): React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
 - [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
