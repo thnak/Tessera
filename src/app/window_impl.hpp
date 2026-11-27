@@ -53,9 +53,6 @@ inline constexpr std::size_t kMaxWindowEvents = 16;
 // Teardown drain of the lists this loop submitted: a hard budget, so a wedged or lost device cannot
 // stall shutdown, and the RHI owns the command resources until their fence signals.
 inline constexpr double kDrainBudgetSeconds = 0.25;
-// A single-window driver that has used no offscreen layer for this long, with its GPU work drained,
-// destroys the pool's idle targets (offscreen-layers.md section 5e): a static UI holds none.
-inline constexpr double kOffscreenIdleSeconds = 2.0;
 inline constexpr std::uint64_t kPollSliceMs = 1;
 
 // Brief park between recovery attempts that are still waiting on the CPU side (an in-place recovery
@@ -106,8 +103,8 @@ struct WindowHost::Impl {
     // Samples the pool after a frame was recorded: stats, metrics, the one-per-run warning.
     void observe_offscreen();
     // From the settled-scene branch: frees the pool's idle targets once nothing has used them for
-    // kOffscreenIdleSeconds and every in-flight frame has completed. Single-window groups only,
-    // because another window's frames may still read the shared pool.
+    // `WindowOptions::offscreen_idle_seconds` and every in-flight frame has completed.
+    // Single-window groups only, because another window's frames may still read the shared pool.
     void trim_idle_offscreen(double now_seconds);
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);

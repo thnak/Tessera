@@ -415,13 +415,16 @@ slice behavior + tests + docs, nothing user-visible until the last:
     gauges, and writes ONE `TESSERA_GPU_OFFSCREEN_EXHAUSTED` warning per run (category `gpu`, with the
     peak, the targets, the bytes, and the knob to turn) through the `Logger`. `WindowOptions::logger` and
     `metrics` supply them; with no logger the window logs to its own stderr `FileLogSink`, with no
-    registry the metrics are skipped. A single-window driver that has used no layer for 2 seconds, with
-    its in-flight frames complete, calls `trim_offscreen_targets(true)` from its settled-scene branch,
+    registry the metrics are skipped. A single-window driver that has used no layer for
+    `WindowOptions::offscreen_idle_seconds` (default 2), with its in-flight frames complete, calls
+    `trim_offscreen_targets(true)` from its settled-scene branch (`run()` and `pump_once()`),
     so a static UI holds no layer memory; a multi-window group relies on the 120-frame trim, because
     another window's frames may still read the shared pool. Tests: `diagnostics_offscreen` (counter,
     gauges, one warning, optional halves, the stderr line format) and `app_window_offscreen` (a real
     window: six masked boxes peak at two targets and refuse nothing; a pool capped at one target
-    counts the refusals, reports them in the stats and logs exactly once).
+    counts the refusals, reports them in the stats and logs exactly once; an idle window with a
+    0.15 s threshold destroys its targets and a later restyle rebuilds them with nothing refused;
+    mutation-checked by removing the trim call).
     **Measured (1920x1080, 12 masked sibling cards, default config, null backend sizes; a target is
     exactly 8,294,400 bytes).**
 

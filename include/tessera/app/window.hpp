@@ -150,13 +150,13 @@ struct WindowOptions {
     void* caret_active_user = nullptr;
     // The text runtime whose paint decoration carries the caret, when the app has one. The driver
     // pushes its blink result into it (`TextInputRuntime::set_caret_blink_visible`) and republishes
-    // the decoration, which is what makes the caret actually blink instead of staying solid. Null
-    // leaves the blink internal, so a caller with no text field keeps the old behaviour. Borrowed:
-    // the app owns it and must clear this before the runtime dies.
+    // the decoration, which makes the caret blink instead of staying solid. Null leaves the blink
+    // internal (no text field, the old behaviour). Borrowed: clear it before the runtime dies.
     ui::text::TextInputRuntime* caret_target = nullptr;
     // Borrowed sinks for the offscreen pool's warning and counters; null: stderr, none.
     diagnostics::Logger* logger = nullptr;
     diagnostics::MetricsRegistry* metrics = nullptr;
+    double offscreen_idle_seconds = 2.0; // idle time before a lone window trims its layer pool
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
