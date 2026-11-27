@@ -3,8 +3,8 @@
 #pragma once
 
 #include "tessera/rendering/gpu/glass_blur.hpp"
-#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/gpu/layer_filter.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/gpu/offscreen_target_pool.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 

@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/gpu/layer_filter.hpp"
+#include "tessera/rendering/gpu/mask_composite.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 
