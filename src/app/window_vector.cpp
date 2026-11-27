@@ -52,8 +52,8 @@ VectorStack::VectorStack(rhi::Device& device, rhi::TextureFormat format,
         return;
     }
     try {
-        // A 4K raster's output buffer is 33 MB (64 MiB as a pooled power of two); the default 16 MiB
-        // pool bound would destroy and recreate it every flush, so the steady state keeps one
+        // A 4K raster's output buffer is 33 MB (64 MiB as a pooled power of two); the default 16
+        // MiB pool bound would destroy and recreate it every flush, so the steady state keeps one
         // (measured in gpu_path_animated_measure, ADR-071).
         path::GpuPathRasterizerConfig gpu_config;
         gpu_config.max_pooled_bytes = 96ULL * 1024ULL * 1024ULL;
