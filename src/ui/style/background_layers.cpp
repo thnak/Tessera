@@ -100,6 +100,12 @@ GradientValue blend_gradients(const GradientValue& from, const GradientValue& to
         if (a.stop_count == 0 || b.stop_count == 0) {
             return a.stop_count == 0 ? to : from;
         }
+        // Stops placed in px (or beside one) only mean something against a box, so two lists that
+        // do not place their stops the same way switch at the halfway point instead of blending a
+        // px offset into a fraction.
+        if (a.positions != b.positions) {
+            return t < 0.5f ? from : to;
+        }
         result.linear.angle_degrees = std::fmod(
             std::fmod(a.angle_degrees + wrap_degrees(b.angle_degrees - a.angle_degrees) * t,
                       360.0f) +
@@ -119,6 +125,9 @@ GradientValue blend_gradients(const GradientValue& from, const GradientValue& to
         const ConicGradientValue& b = to.conic;
         if (a.stop_count == 0 || b.stop_count == 0) {
             return a.stop_count == 0 ? to : from;
+        }
+        if (a.positions != b.positions) {
+            return t < 0.5f ? from : to;
         }
         // The sweep is periodic, so the start angle interpolates along the shorter arc exactly as a
         // linear gradient's angle does.
@@ -143,6 +152,9 @@ GradientValue blend_gradients(const GradientValue& from, const GradientValue& to
     const RadialGradientValue& b = to.radial;
     if (a.stop_count == 0 || b.stop_count == 0) {
         return a.stop_count == 0 ? to : from;
+    }
+    if (a.positions != b.positions) {
+        return t < 0.5f ? from : to;
     }
     // The geometry interpolates only when both sides name it the same way; a size keyword change is
     // discrete for the same reason a shape change is.

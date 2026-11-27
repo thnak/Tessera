@@ -148,20 +148,6 @@ bool parse_prelude(const std::vector<std::string_view>& tokens, RadialGradientVa
     return true;
 }
 
-// True when `text` is the start of a colour stop rather than a prelude token. A stop is a colour,
-// and every colour spelling either starts with `#` or is a function/identifier; the prelude's own
-// keywords are all handled before this is consulted.
-bool looks_like_stop(std::string_view text) {
-    const std::string token = lower(trim(text));
-    if (token.empty()) {
-        return false;
-    }
-    if (token.front() == '#') {
-        return true;
-    }
-    return parse_color(token).ok;
-}
-
 } // namespace
 
 bool parse_radial_body(std::string_view inner, RadialGradientValue& out) {
@@ -181,22 +167,8 @@ bool parse_radial_body(std::string_view inner, RadialGradientValue& out) {
         first_stop = 1;
     }
 
-    const std::size_t count = parts.size() - first_stop;
-    if (count < 2 || count > kMaxGradientStops) {
-        return false;
-    }
-    std::array<std::optional<float>, kMaxGradientStops> positions;
-    for (std::size_t index = 0; index < count; ++index) {
-        if (!parse_stop(parts[first_stop + index], out.stops[index].color, positions[index])) {
-            return false;
-        }
-    }
-    out.stop_count = count;
-    fix_up_stop_offsets(positions, count);
-    for (std::size_t index = 0; index < count; ++index) {
-        out.stops[index].offset = positions[index].value();
-    }
-    return true;
+    return parse_stop_list(parts, first_stop, StopDomain::Line, out.stops, out.positions,
+                           out.stop_count);
 }
 
 } // namespace tessera::ui::style::detail

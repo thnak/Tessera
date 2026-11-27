@@ -11,7 +11,9 @@ Before, one gradient layer was many solid quads: 64 bands for linear, a 32x32 gr
 64x64 grid for conic (`tessellate_*`, `band_edge` in `paint_sink.hpp`). That cost vertices, was
 wrong for oblique angles (a dominant-axis band ignores the other axis), left radial corners
 unpainted and could not reproduce a repeating ramp. Now a gradient layer is **one quad** and the
-fragment shader evaluates the exact gradient (linear, radial, conic, `repeating-*`, up to 32 stops).
+fragment shader evaluates the exact gradient (linear, radial, conic, `repeating-*`, up to 32 stops per
+record; an authored gradient has at most 8, and a repeating one is wrapped in the shader, never
+expanded into more stops).
 The blend is the straight-alpha blend of a solid quad, and the rounded-corner clip and anti-aliasing
 are unchanged. `mask-image` gradients use the same path (`Batched2DSink::fill_*_gradient`).
 
@@ -24,7 +26,7 @@ records ([clip-records.md](clip-records.md), ADR-068), in a gradient area after 
 
 | Block | Element | Count | Bytes |
 |---|---|---|---|
-| `records` | `GradientRecord` { u32 kind, stop_count, first_stop, flags; f32 params[4] } | 512 | 16384 |
+| `records` | `GradientRecord` { u32 kind, stop_count, first_stop, flags (bit 0 = repeating); f32 params[4] } | 512 | 16384 |
 | `stop_colors` | vec4, straight RGBA | 2048 | 32768 |
 | `stop_offsets` | float, ascending | 2048 | 8192 |
 
@@ -51,7 +53,32 @@ already has, so a gradient follows any transform: linear (dx/span, dy/span, 0.5,
 ## 3. Ramp and colour rule
 
 The last stop with offset <= t is found, then the next stop is blended; duplicate offsets: the later
-stop wins; both ends are held. Interpolation stays encoded-space sRGB, but **premultiplied** (CSS
+stop wins; both ends are held. Stop offsets are positions along t and are **not** clamped to 0..1
+(`red -20%, blue 120%` is a ramp wider than the line; clamping each stop used to bend it), and t is
+not clamped either, so a radial or conic position past 1 still finds stops beyond it.
+
+### 3.1 Repeating ramps and stop positions
+
+`repeating-*-gradient()` sets record flag bit 0 (`kFlagRepeating`). The shader (and `gpu::gradient::ramp`,
+and `sample_gradient_stops` for the banded fallback) first wraps t into the ramp's own period:
+`t = first + fract((t - first) / period) * period`, with `first` the first stop's offset and `period` the
+last offset minus the first (CSS Images 4: the period is last minus first in resolved units). So a
+2px period on a 4000px line is the same two stops as a 200px one, where the old stop expansion
+overflowed its 32-stop cap. `pack` writes the flag only when the period is positive. A repeating ramp
+with no positive period is one colour, and Chromium (the baseline) paints the **last** stop's colour
+over the whole box (measured; CSS Images 3 says the average), which is what paint hands the sink (a
+single stop).
+
+The stylesheet grammar ([../paint-pass.md](../paint-pass.md) section 13) accepts the CSS Images 4
+stop forms: `<color> <position>{0,2}` (two positions are two stops of one colour), a position that
+is a percentage or a length (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`; not `em`/`rem`, and not `calc()`), and for conic an
+angle or a percentage. A length is resolved at paint time against the gradient line (linear:
+`|w sin a| + |h cos a|`, the `span` `pack` uses), the gradient ray (radial: the horizontal radius) or is
+refused (conic). `resolve_stop_positions` then runs the CSS fix-up (first 0, last 100 %, missing
+middle stops spread evenly, a position behind an earlier one raised to it) over the resolved
+fractions. Colour hints (`red, 30%, blue`) are not implemented: Chromium expands each into extra stops
+and matching it would need those stops within the 8-stop cap, so the value is refused rather than
+painted as a plain stop. Interpolation stays encoded-space sRGB, but **premultiplied** (CSS
 Images 3.5.3, what Chromium does), then un-premultiplied for the straight-alpha blend. Opaque and
 same-hue ramps are unchanged; a transparent-red to opaque-yellow ramp was 64/255 off Chromium with
 straight interpolation and is 1/255 off now. `gradient_math.hpp` is the single CPU definition and the
@@ -82,10 +109,12 @@ still approximates rounded corners by the rect bounds (unchanged).
 | radial | 812 | 1 | 311808 | 384 |
 | conic | 4096 | 1 | 1572864 | 384 |
 
-Against Chromium 159 (DPR 1, AMD RX 5300M, 15 scenes x 69 samples,
-`tests/gpu/batched2d/gradient_chromium_reference.hpp`): the shader is 0-1/255 on every scene. Bands
-were 2-8 on masks, 103 on a 63deg linear ramp, 255 on closest-side radial (corners unpainted), 209
-on a repeating linear ramp, 40 on repeating radial.
+Against Chromium 159 (DPR 1, 27 scenes x 69 samples,
+`tests/gpu/batched2d/gradient_chromium_reference.hpp` and `..._reference_stops.hpp`): the shader is
+0-1/255 on every scene (measured on lavapipe). Bands were 2-8 on masks, 103 on a 63deg linear ramp,
+255 on closest-side radial (corners unpainted), 209 on a repeating linear ramp, 40 on repeating
+radial, 202 and 185 on `repeating-linear-gradient` with px positions, 244 and 255 on the radial and
+elliptical px ones and 44 on a repeating conic.
 
 ## 7. Tests
 
@@ -95,7 +124,13 @@ on a repeating linear ramp, 40 on repeating radial.
   draw, per-frame reset.
 - `gradient_gpu`: every kind against the CPU twin, transform, rounded clip, 100 gradients in one
   draw, frames in flight.
-- `gradient_chromium_gpu`: shader and banded fallback against Chromium per scene.
+- `gradient_chromium_gpu`: shader and banded fallback against Chromium per scene, including the
+  twelve stop-position scenes (two positions, px lengths on linear, radial and elliptical ramps,
+  conic angles, stops outside the line, a 5px period, a degenerate repeat).
+- `gradient_stop_positions` (unit): the grammar (pairs, px and absolute units, conic angles, hints
+  and `em` refused, the 8-stop cap after splitting), `resolve_stop_positions`, and what paint hands
+  the renderer (unexpanded repeating ramps, px resolved per box, a degenerate repeat).
+- `cpu_wide_golden`: the `stops` scene is the same forms through the CPU twin.
 - `shader_parity`: GLSL/WGSL struct members, capacities, array order and mode agree.
 - `layer_mask_gpu`: tolerances tightened to 2/255.
 - `cpu_wide_golden`: conics, gradients, layers, masks and radials regenerated; `layer_mask_golden`:

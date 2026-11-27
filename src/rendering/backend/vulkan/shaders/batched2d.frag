@@ -302,8 +302,9 @@ float gradient_position(uint record, vec2 local) {
 
 // Encoded-space interpolation over the record's sorted stops: gpu::gradient::ramp. Find the last stop
 // at or below t, then blend it with the next one; a duplicate offset lets the later stop win, and t
-// outside the ramp takes the end stop. The loop runs only for a gradient fragment, bounded by the
-// record's own count (never more than 32).
+// outside the ramp takes the end stop, or, for a repeating record (flags bit 0), t first wraps into
+// [first offset, last offset). The loop runs only for a gradient fragment, bounded by the record's
+// own count (never more than 32).
 vec4 gradient_color(uint record, float t) {
     uint count = min(clip_buffer.gradients[record].stop_count, TESSERA_GRADIENT_MAX_STOPS_PER_RECORD);
     uint first = clip_buffer.gradients[record].first_stop;
@@ -313,7 +314,14 @@ vec4 gradient_color(uint record, float t) {
     if (count == 1u) {
         return clip_buffer.stop_colors[first];
     }
-    t = clamp(t, 0.0, 1.0);
+    if ((clip_buffer.gradients[record].flags & 1u) != 0u) {
+        float first_offset = clip_buffer.stop_offsets[first];
+        float period = clip_buffer.stop_offsets[first + count - 1u] - first_offset;
+        if (period > 0.0) {
+            float cycles = (t - first_offset) / period;
+            t = first_offset + (cycles - floor(cycles)) * period;
+        }
+    }
     int below = -1;
     for (uint i = 0u; i < count; ++i) {
         if (clip_buffer.stop_offsets[first + i] <= t) {

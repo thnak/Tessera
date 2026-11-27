@@ -90,15 +90,21 @@ struct ImageDraw {
 // alpha already includes node opacity. `clip` is the node's border-rounded box; sinks that cannot
 // express rounded clipping may use its rect bounds (documented CPU approximation).
 //
-// `kMaxDrawStops` is larger than the authored cap (8) because a repeating gradient arrives with its
-// ramp already expanded to cover the whole gradient line/radius (issue #613), so a sink draws the
-// repeat without a second code path. A non-repeating gradient never uses more than 8.
+// `kMaxDrawStops` is the renderer's per-gradient cap (one record holds 32 stops). A gradient never
+// arrives with more than the authored 8: a repeating one is NOT expanded any more (issue #613 did
+// that, and a short period on a long line overflowed the cap); it carries `repeating` instead and
+// every sampler wraps the ramp.
+//
+// Offsets are fractions of the gradient line (linear), ray (radial) or turn (conic), sorted and
+// NOT clamped to 0..1: a ramp may start before the line does (`red -20%, blue`) or run past it. A
+// repeating ramp's period is `stops[count - 1].offset - stops[0].offset`.
 inline constexpr std::size_t kMaxDrawStops = 32;
 
 struct GradientDraw {
     rhi::Rect rect;
     RoundedClip clip;
     float angle_degrees = 180.0f;
+    bool repeating = false;
     std::array<LinearGradientStop, kMaxDrawStops> stops{};
     std::size_t stop_count = 0;
 };
@@ -107,11 +113,11 @@ struct GradientDraw {
 // in absolute paint coordinates and `radius_x`/`radius_y` are its two radii in px, already resolved
 // from the size keyword against `rect` by the paint pass, so a sink never needs the box to place
 // the ramp. A circle has `radius_x == radius_y`. Stops follow the same clamp/sort/opacity rules as
-// `GradientDraw`, and a repeating gradient arrives with its ramp already expanded (offsets may run
-// past 1.0, which the shared sampler clamps).
+// `GradientDraw`, including `repeating`.
 struct RadialGradientDraw {
     rhi::Rect rect;
     RoundedClip clip;
+    bool repeating = false;
     float center_x = 0.0f;
     float center_y = 0.0f;
     float radius_x = 0.0f;
@@ -139,16 +145,27 @@ struct BackdropDraw {
 
 // Encoded-space (sRGB byte) interpolation over sorted stops, premultiplied by alpha (CSS Images
 // 3.5.3); at a duplicate offset the later stop wins. Sinks share this so the CPU/GPU ramps agree.
-// Both gradient shapes sample through here, so the linear and radial ramps cannot drift.
+// Every gradient shape samples through here, so the ramps cannot drift. `t` outside the first and
+// last stop holds that stop; `repeating` instead wraps `t` into [first, last) (a ramp with no
+// positive period holds like a plain one). The wrap is `gpu::gradient::ramp`'s, expression for
+// expression.
 [[nodiscard]] inline rhi::Color sample_gradient_stops(const LinearGradientStop* stops,
-                                                      std::size_t stop_count, float t) {
+                                                      std::size_t stop_count, float t,
+                                                      bool repeating = false) {
     if (stop_count == 0) {
         return rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
     }
     if (stop_count == 1) {
         return stops[0].color;
     }
-    t = std::clamp(t, 0.0f, 1.0f);
+    if (repeating) {
+        const float first = stops[0].offset;
+        const float period = stops[stop_count - 1].offset - first;
+        if (period > 0.0f) {
+            const float cycles = (t - first) / period;
+            t = first + (cycles - std::floor(cycles)) * period;
+        }
+    }
     for (std::size_t index = 0; index < stop_count; ++index) {
         if (t == stops[index].offset) {
             std::size_t last = index;
@@ -194,7 +211,7 @@ struct BackdropDraw {
 }
 
 [[nodiscard]] inline rhi::Color sample_linear_gradient(const GradientDraw& draw, float t) {
-    return sample_gradient_stops(draw.stops.data(), draw.stop_count, t);
+    return sample_gradient_stops(draw.stops.data(), draw.stop_count, t, draw.repeating);
 }
 
 // One band of a tessellated radial gradient: an axis-aligned box plus the colour to fill it with.
@@ -210,6 +227,7 @@ struct RadialBand {
 struct ConicGradientDraw {
     rhi::Rect rect;
     RoundedClip clip;
+    bool repeating = false;
     float center_x = 0.0f;
     float center_y = 0.0f;
     float from_angle_degrees = 0.0f;
@@ -275,7 +293,8 @@ void tessellate_radial_gradient(const RadialGradientDraw& draw, Emit&& emit) {
             const float top = band_edge(draw.rect.y, draw.rect.height, row, kRadialBands);
             const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kRadialBands);
             emit(RadialBand{{left, top, right - left, bottom - top},
-                            sample_gradient_stops(draw.stops.data(), draw.stop_count, distance)});
+                            sample_gradient_stops(draw.stops.data(), draw.stop_count, distance,
+                                                  draw.repeating)});
         }
     }
 }
@@ -318,8 +337,9 @@ template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& 
             const float right = band_edge(draw.rect.x, draw.rect.width, column + 1, kConicBands);
             const float top = band_edge(draw.rect.y, draw.rect.height, row, kConicBands);
             const float bottom = band_edge(draw.rect.y, draw.rect.height, row + 1, kConicBands);
-            emit(ConicBand{{left, top, right - left, bottom - top},
-                           sample_gradient_stops(draw.stops.data(), draw.stop_count, turn)});
+            emit(ConicBand{
+                {left, top, right - left, bottom - top},
+                sample_gradient_stops(draw.stops.data(), draw.stop_count, turn, draw.repeating)});
         }
     }
 }

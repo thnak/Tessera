@@ -1349,6 +1349,7 @@ function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::
 function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::stop_colors_offset
 function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::stop_offsets_offset
 function include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::total_buffer_bytes
+constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kFlagRepeating
 constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kGradientMode
 constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kMaxGradientRecords
 constant include/tessera/rendering/gpu/gradient_records.hpp tessera::rendering::gpu::gradient::kMaxGradientStops
@@ -3169,12 +3170,14 @@ struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::LinearGradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialGradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialPosition
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::StopPositions
 enum include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialShape
 enum include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialSize
 function include/tessera/ui/style/gradient.hpp tessera::ui::style::expand_repeating_stops
 function include/tessera/ui/style/gradient.hpp tessera::ui::style::is_gradient_function
 function include/tessera/ui/style/gradient.hpp tessera::ui::style::parse_gradient
 function include/tessera/ui/style/gradient.hpp tessera::ui::style::parse_linear_gradient
+function include/tessera/ui/style/gradient.hpp tessera::ui::style::resolve_stop_positions
 constant include/tessera/ui/style/gradient.hpp tessera::ui::style::kMaxGradientStops
 constant include/tessera/ui/style/gradient.hpp tessera::ui::style::kMaxRepeatingStops
 

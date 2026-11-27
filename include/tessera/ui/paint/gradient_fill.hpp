@@ -43,6 +43,7 @@ private:
     fill.kind = rendering::gpu::gradient::Kind::Linear;
     fill.rect = draw.rect;
     fill.angle_degrees = draw.angle_degrees;
+    fill.repeating = draw.repeating;
     fill.stops = stops.view();
     return fill;
 }
@@ -56,6 +57,7 @@ private:
     fill.center_y = draw.center_y;
     fill.radius_x = draw.radius_x;
     fill.radius_y = draw.radius_y;
+    fill.repeating = draw.repeating;
     fill.stops = stops.view();
     return fill;
 }
@@ -68,6 +70,7 @@ private:
     fill.center_x = draw.center_x;
     fill.center_y = draw.center_y;
     fill.from_angle_degrees = draw.from_angle_degrees;
+    fill.repeating = draw.repeating;
     fill.stops = stops.view();
     return fill;
 }

@@ -58,8 +58,8 @@ std::optional<float> parse_direction(std::string_view text) {
 } // namespace
 
 // Parses the inside of `linear-gradient(...)` (the text between the parentheses) into `out`.
-// `out.stops[i].offset` carries the authored position, or NaN when the stop had none; the caller
-// runs the shared fix-up. Returns false when the value is outside the grammar.
+// The stops (`color <position>{0,2}`, positions as a percentage or a length) go through the shared
+// list parser. Returns false when the value is outside the grammar.
 bool parse_linear_body(std::string_view inner, LinearGradientValue& out) {
     const std::vector<std::string_view> parts = split_commas(inner);
     if (parts.empty()) {
@@ -75,22 +75,8 @@ bool parse_linear_body(std::string_view inner, LinearGradientValue& out) {
         first_stop = 1;
     }
 
-    const std::size_t count = parts.size() - first_stop;
-    if (count < 2 || count > kMaxGradientStops) {
-        return false;
-    }
-    std::array<std::optional<float>, kMaxGradientStops> positions;
-    for (std::size_t index = 0; index < count; ++index) {
-        if (!parse_stop(parts[first_stop + index], out.stops[index].color, positions[index])) {
-            return false;
-        }
-    }
-    out.stop_count = count;
-    fix_up_stop_offsets(positions, count);
-    for (std::size_t index = 0; index < count; ++index) {
-        out.stops[index].offset = positions[index].value();
-    }
-    return true;
+    return parse_stop_list(parts, first_stop, StopDomain::Line, out.stops, out.positions,
+                           out.stop_count);
 }
 
 } // namespace tessera::ui::style::detail

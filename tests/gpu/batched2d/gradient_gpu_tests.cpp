@@ -231,7 +231,8 @@ bool every_kind(Harness& harness) {
     conic.stops = hard;
     ok = kind_matches_twin(harness, "conic with a hard edge, from 30deg", conic) && ok;
 
-    // The widest ramp a record holds: a 32-stop sawtooth, as a repeating gradient expands to.
+    // The widest ramp a record holds: a 32-stop sawtooth (the cap; a repeating gradient no longer
+    // needs it).
     std::array<gradient::Stop, 32> saw{};
     for (std::size_t index = 0; index < saw.size(); ++index) {
         saw[index].offset = static_cast<float>(index) / 31.0f;
@@ -242,6 +243,33 @@ bool every_kind(Harness& harness) {
     repeating.angle_degrees = 200.0f;
     repeating.stops = saw;
     ok = kind_matches_twin(harness, "linear, 32-stop repeating ramp", repeating) && ok;
+
+    // A repeating ramp is wrapped by the shader, not expanded into stops (short period, radial,
+    // conic), as is a ramp whose stops sit outside the line.
+    const std::array<gradient::Stop, 2> cycle{{{0.1f, kYellow}, {0.15f, kGreen}}};
+    gradient::Fill wrapped;
+    wrapped.rect = kBox;
+    wrapped.angle_degrees = 200.0f;
+    wrapped.repeating = true;
+    wrapped.stops = cycle;
+    ok = kind_matches_twin(harness, "linear, two-stop repeating ramp wrapped in the shader",
+                           wrapped) &&
+         ok;
+    gradient::Fill wrapped_radial = radial;
+    wrapped_radial.repeating = true;
+    wrapped_radial.stops = cycle;
+    ok = kind_matches_twin(harness, "radial, repeating ramp", wrapped_radial) && ok;
+    gradient::Fill wrapped_conic = conic;
+    wrapped_conic.repeating = true;
+    const std::array<gradient::Stop, 2> sweep{{{0.0f, kRed}, {0.125f, kBlue}}};
+    wrapped_conic.stops = sweep;
+    ok = kind_matches_twin(harness, "conic, repeating ramp", wrapped_conic) && ok;
+    const std::array<gradient::Stop, 3> wide{{{-0.4f, kRed}, {0.5f, kGreen}, {1.6f, kBlue}}};
+    gradient::Fill beyond;
+    beyond.rect = kBox;
+    beyond.angle_degrees = 63.0f;
+    beyond.stops = wide;
+    ok = kind_matches_twin(harness, "linear, stops outside the line", beyond) && ok;
 
     // One stop is a flat fill; two stops with the first past 0 hold the first colour before it.
     const std::array<gradient::Stop, 1> one{{{0.5f, kGreen}}};

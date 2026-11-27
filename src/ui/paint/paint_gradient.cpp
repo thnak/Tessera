@@ -26,12 +26,15 @@ namespace {
 using style::GradientStopValue;
 using style::GradientValue;
 
-// The resolved gradient in the paint pass's own terms: the stops are already clamped, sorted and
-// opacity-folded, and the geometry is either an angle (linear) or a centre plus two radii (radial).
+// The resolved gradient in the paint pass's own terms: the stops are already fixed up against the
+// box, sorted and opacity-folded, and the geometry is either an angle (linear) or a centre plus two
+// radii (radial). A repeating ramp is carried as authored with `repeating` set: the renderer wraps
+// it, so no period can overflow a stop cap.
 struct ResolvedGradient {
     GradientValue::Kind kind = GradientValue::Kind::Linear;
-    std::array<LinearGradientStop, style::kMaxRepeatingStops> stops{};
+    std::array<LinearGradientStop, style::kMaxGradientStops> stops{};
     std::size_t stop_count = 0;
+    bool repeating = false;
     float angle_degrees = 180.0f;
     float center_x = 0.0f;
     float center_y = 0.0f;
@@ -41,30 +44,54 @@ struct ResolvedGradient {
     float from_angle_degrees = 0.0f;
 };
 
-// Copies the authored stops into the resolved list, folding node opacity into each alpha. A
-// repeating gradient's ramp is expanded first, so the paint path below never sees a second form.
+// The least period a repeating ramp may have (in the ramp's own units, a fraction of the line). A
+// shorter one is below what a float can wrap, so it paints the average colour like a zero one.
+constexpr float kMinRepeatPeriod = 1.0e-6f;
+
+// Copies the authored stops into the resolved list, folding node opacity into each alpha. A stop
+// authored in px (or left without a position beside one) is placed against `line_length`, the
+// length of the gradient line (linear), ray (radial) or 1 for a conic (whose stops are never px).
+// Offsets are NOT clamped to 0..1: a ramp may start before the line does. A repeating ramp keeps
+// its authored stops; a degenerate one (no positive period) is a single colour, the last stop's.
 // `count` is capped at the authored maximum: a payload set in code can carry a larger count than
 // the value grammar allows.
-void copy_stops(const GradientStopValue* source, std::size_t count, bool repeating, float opacity,
-                ResolvedGradient& out) {
-    std::array<GradientStopValue, style::kMaxRepeatingStops> expanded{};
-    count = std::min(count, style::kMaxRepeatingStops);
-    std::copy(source, source + count, expanded.begin());
-    if (repeating) {
-        // The expansion is in place: it rewrites the ramp so it already spans the whole gradient
-        // line or radius, which is why the paint path below never sees a second form.
-        count = style::expand_repeating_stops(expanded.data(), count);
-    }
-    out.stop_count = std::min(count, style::kMaxRepeatingStops);
-    for (std::size_t index = 0; index < out.stop_count; ++index) {
-        out.stops[index].offset = std::clamp(expanded[index].offset, 0.0f, 1.0f);
-        const style::ColorRgba& color = expanded[index].color;
+void copy_stops(const GradientStopValue* source, std::size_t count, style::StopPositions positions,
+                float line_length, bool repeating, float opacity, ResolvedGradient& out) {
+    std::array<GradientStopValue, style::kMaxGradientStops> stops{};
+    count = std::min(count, style::kMaxGradientStops);
+    std::copy(source, source + count, stops.begin());
+    style::resolve_stop_positions(stops.data(), count, positions, line_length);
+    out.stop_count = count;
+    out.repeating = repeating;
+    for (std::size_t index = 0; index < count; ++index) {
+        out.stops[index].offset = stops[index].offset;
+        const style::ColorRgba& color = stops[index].color;
         out.stops[index].color = rhi::Color{color.r, color.g, color.b, color.a * opacity};
     }
     std::stable_sort(out.stops.begin(), out.stops.begin() + out.stop_count,
                      [](const LinearGradientStop& lhs, const LinearGradientStop& rhs) {
                          return lhs.offset < rhs.offset;
                      });
+    if (repeating && count >= 2 &&
+        !(out.stops[count - 1].offset - out.stops[0].offset > kMinRepeatPeriod)) {
+        // CSS Images 3 asks for the average colour, but Chromium (the pixel baseline, ADR-063)
+        // paints the LAST stop's colour over the whole box (measured: red/green/blue, translucent
+        // red then blue, radial and conic alike all come out blue), so that is what a degenerate
+        // ramp is.
+        const rhi::Color last = out.stops[count - 1].color;
+        out.stops[0] = {0.0f, last};
+        out.stop_count = 1;
+        out.repeating = false;
+    }
+}
+
+// The gradient line's length across `rect` for a linear gradient at `angle_degrees` (CSS Images 3
+// section 3.1.1); the same expression `gpu::gradient::pack` divides by, so a px stop lands on the
+// pixel the shader measures.
+float linear_line_length(const rhi::Rect& rect, float angle_degrees) {
+    const float radians = angle_degrees * 3.14159265358979323846f / 180.0f;
+    return std::max(
+        rect.width * std::abs(std::sin(radians)) + rect.height * std::abs(std::cos(radians)), 1.0f);
 }
 
 // One parsed layer value in the paint pass's terms. `rect` resolves the radial geometry, because a
@@ -74,7 +101,8 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
     resolved.kind = value.kind;
     if (value.kind == GradientValue::Kind::Linear) {
         resolved.angle_degrees = value.linear.angle_degrees;
-        copy_stops(value.linear.stops.data(), value.linear.stop_count, value.repeating, opacity,
+        copy_stops(value.linear.stops.data(), value.linear.stop_count, value.linear.positions,
+                   linear_line_length(rect, value.linear.angle_degrees), value.repeating, opacity,
                    resolved);
         return resolved;
     }
@@ -83,7 +111,8 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
         resolved.center_x = rect.x + conic.position.x * rect.width;
         resolved.center_y = rect.y + conic.position.y * rect.height;
         resolved.from_angle_degrees = conic.from_angle_degrees;
-        copy_stops(conic.stops.data(), conic.stop_count, value.repeating, opacity, resolved);
+        copy_stops(conic.stops.data(), conic.stop_count, conic.positions, 1.0f, value.repeating,
+                   opacity, resolved);
         return resolved;
     }
     const style::RadialGradientValue& radial = value.radial;
@@ -126,7 +155,10 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
         resolved.radius_x = std::max(resolved.radius_x, resolved.radius_y);
         resolved.radius_y = resolved.radius_x;
     }
-    copy_stops(radial.stops.data(), radial.stop_count, value.repeating, opacity, resolved);
+    // A px stop is measured along the gradient ray, whose length is the horizontal radius (a
+    // circle's only one).
+    copy_stops(radial.stops.data(), radial.stop_count, radial.positions, resolved.radius_x,
+               value.repeating, opacity, resolved);
     return resolved;
 }
 
@@ -141,6 +173,8 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
     if (data && data->gradient) {
         // A payload may carry more stops than the value grammar allows (a caller can set any
         // count); the layer list is fixed-size, so clamp here rather than write past its array.
+        // Its offsets are clamped to 0..1 as the payload contract says; only a stylesheet value
+        // may place a stop outside the line.
         const std::size_t stops = std::min(data->gradient->stop_count, style::kMaxGradientStops);
         style::BackgroundLayer& layer = list.layers[0];
         const bool conic = data->gradient->shape == GradientShape::Conic;
@@ -162,7 +196,7 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
             value.stop_count = stops;
             for (std::size_t index = 0; index < stops; ++index) {
                 const LinearGradientStop& stop = data->gradient->stops[index];
-                value.stops[index].offset = stop.offset;
+                value.stops[index].offset = std::clamp(stop.offset, 0.0f, 1.0f);
                 value.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
@@ -180,7 +214,7 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
             radial.stop_count = stops;
             for (std::size_t index = 0; index < stops; ++index) {
                 const LinearGradientStop& stop = data->gradient->stops[index];
-                radial.stops[index].offset = stop.offset;
+                radial.stops[index].offset = std::clamp(stop.offset, 0.0f, 1.0f);
                 radial.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
@@ -191,7 +225,7 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
             linear.stop_count = stops;
             for (std::size_t index = 0; index < stops; ++index) {
                 const LinearGradientStop& stop = data->gradient->stops[index];
-                linear.stops[index].offset = stop.offset;
+                linear.stops[index].offset = std::clamp(stop.offset, 0.0f, 1.0f);
                 linear.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
@@ -234,6 +268,7 @@ void emit_gradient(const style::BackgroundLayer& layer, const rhi::Rect& tile,
         draw.rect = tile;
         draw.clip = clip;
         draw.angle_degrees = gradient.angle_degrees;
+        draw.repeating = gradient.repeating;
         for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
             draw.stops[stop] = gradient.stops[stop];
         }
@@ -249,6 +284,7 @@ void emit_gradient(const style::BackgroundLayer& layer, const rhi::Rect& tile,
         draw.center_x = gradient.center_x;
         draw.center_y = gradient.center_y;
         draw.from_angle_degrees = gradient.from_angle_degrees;
+        draw.repeating = gradient.repeating;
         for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
             draw.stops[stop] = gradient.stops[stop];
         }
@@ -264,6 +300,7 @@ void emit_gradient(const style::BackgroundLayer& layer, const rhi::Rect& tile,
     draw.center_y = gradient.center_y;
     draw.radius_x = gradient.radius_x;
     draw.radius_y = gradient.radius_y;
+    draw.repeating = gradient.repeating;
     for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
         draw.stops[stop] = gradient.stops[stop];
     }

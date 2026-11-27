@@ -56,6 +56,30 @@ bool is_gradient_function(std::string_view text) {
     return false;
 }
 
+void resolve_stop_positions(GradientStopValue* stops, std::size_t count, StopPositions& positions,
+                            float line_length_px) {
+    if (!positions.pending()) {
+        positions = StopPositions{};
+        return;
+    }
+    count = std::min(count, kMaxGradientStops);
+    const float length = line_length_px > 0.0f ? line_length_px : 1.0f;
+    std::array<std::optional<float>, kMaxGradientStops> fractions;
+    for (std::size_t index = 0; index < count; ++index) {
+        const unsigned bit = 1U << index;
+        if ((positions.auto_mask & bit) != 0) {
+            continue;
+        }
+        fractions[index] =
+            (positions.length_mask & bit) != 0 ? stops[index].offset / length : stops[index].offset;
+    }
+    detail::fix_up_stop_offsets(fractions, count);
+    for (std::size_t index = 0; index < count; ++index) {
+        stops[index].offset = fractions[index].value();
+    }
+    positions = StopPositions{};
+}
+
 std::size_t expand_repeating_stops(GradientStopValue* stops, std::size_t count) {
     // The destination holds kMaxRepeatingStops entries, so a longer authored ramp cannot be copied
     // into the cycle buffer; it is truncated to what fits rather than read past the end.

@@ -35,12 +35,21 @@ namespace tessera::rendering::gpu::gradient {
 //   Radial  params = (cx, cy, radius_x, radius_y)          t = length((local - c) / radius)
 //   Conic   params = (cx, cy, from_turn, 0)                t = fract(atan2(dx, -dy) / tau - from)
 // where (dx, dy) is the CSS gradient-line direction and `span` its length across the box.
+//
+// Stop offsets are the ramp's own positions along t, ascending and NOT confined to 0..1 (a stop may
+// sit before the line starts or past where it ends). `kFlagRepeating` makes t wrap into the span
+// from the first stop's offset to the last's instead of holding the end stops, which is how
+// `repeating-*-gradient()` runs with any period at no cost in stops.
 
 enum class Kind : std::uint32_t {
     Linear = 0,
     Radial = 1,
     Conic = 2,
 };
+
+// `GradientRecord::flags` bit 0: the ramp repeats over [first offset, last offset). Written only
+// when that period is positive, so the shader never divides by zero.
+inline constexpr std::uint32_t kFlagRepeating = 1U;
 
 // A gradient quad's `Vertex2D::mode`. It is above every other mode (the exact-nearest textured quad
 // is 4096), so the shader tests it first, and it is a flat value: the record index rides in
@@ -51,14 +60,15 @@ struct GradientRecord {
     std::uint32_t kind = 0;
     std::uint32_t stop_count = 0;
     std::uint32_t first_stop = 0;
-    std::uint32_t flags = 0; // reserved, written as 0
+    std::uint32_t flags = 0; // kFlagRepeating, else 0
     float params[4] = {};
 };
 
 static_assert(sizeof(GradientRecord) == 32, "a gradient record is 32 bytes (std430, 16-aligned)");
 
-// The most stops one record may carry: the paint pass's `kMaxDrawStops`, which already includes a
-// repeating gradient's expanded ramp. The shader's loop is bounded by it.
+// The most stops one record may carry: the paint pass's `kMaxDrawStops`. A repeating ramp is not
+// expanded (the flag wraps it), so an authored gradient needs at most 8. The shader's loop is
+// bounded by it.
 inline constexpr std::uint32_t kMaxStopsPerGradient = 32;
 
 // Per-frame capacities. A frame that needs more keeps the gradients that fit and paints the rest

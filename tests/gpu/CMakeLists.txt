@@ -379,7 +379,8 @@ endif()
 add_executable(cpu_wide_golden_tests
     cpu_wide_golden_tests.cpp
     cpu_wide_gradient_scenes.cpp
-    cpu_wide_mask_scenes.cpp)
+    cpu_wide_mask_scenes.cpp
+    cpu_wide_stop_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE

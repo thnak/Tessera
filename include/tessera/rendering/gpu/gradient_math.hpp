@@ -14,9 +14,10 @@
 
 namespace tessera::rendering::gpu::gradient {
 
-// One colour stop as the renderer takes it. Offsets are already clamped to [0, 1] and sorted
-// ascending, and the colour's alpha already includes the node opacity: the paint pass does both
-// before it reaches a sink, so the renderer and the shader never see an unresolved stop.
+// One colour stop as the renderer takes it. Offsets are sorted ascending and are positions along
+// the ramp parameter t, not confined to [0, 1]; the colour's alpha already includes the node
+// opacity: the paint pass does both before it reaches a sink, so the renderer and the shader never
+// see an unresolved stop.
 struct Stop {
     float offset = 0.0f;
     rhi::Color color{0.0f, 0.0f, 0.0f, 0.0f};
@@ -33,6 +34,7 @@ struct Fill {
     float radius_x = 0.0f; // radial
     float radius_y = 0.0f;
     float from_angle_degrees = 0.0f; // conic, clockwise from 12 o'clock
+    bool repeating = false;          // wrap t over [first stop, last stop) (kFlagRepeating)
     std::span<const Stop> stops;
 };
 
@@ -57,6 +59,11 @@ struct Packed {
     GradientRecord& record = out.record;
     record = GradientRecord{};
     record.kind = static_cast<std::uint32_t>(fill.kind);
+    // Only a ramp with a positive period can repeat; anything else holds its end stops as a plain
+    // one does, which is also what the shader's divide-by-period needs to stay finite.
+    if (fill.repeating && fill.stops.back().offset > fill.stops.front().offset) {
+        record.flags |= kFlagRepeating;
+    }
     record.stop_count = static_cast<std::uint32_t>(count);
     record.first_stop = 0;
     const float centre_x = fill.rect.x + fill.rect.width * 0.5f;
@@ -139,7 +146,7 @@ struct Packed {
 // the next. At a duplicate offset the later stop wins, and t below the first stop or above the last
 // takes that stop's colour.
 [[nodiscard]] inline rhi::Color ramp(const float* colors, const float* offsets, std::uint32_t count,
-                                     float t) {
+                                     float t, bool repeating = false) {
     const auto stop = [colors](std::uint32_t index) {
         return rhi::Color{colors[index * 4 + 0], colors[index * 4 + 1], colors[index * 4 + 2],
                           colors[index * 4 + 3]};
@@ -150,7 +157,16 @@ struct Packed {
     if (count == 1) {
         return stop(0);
     }
-    t = std::clamp(t, 0.0f, 1.0f);
+    // The ramp holds its end stops (no clamp to 0..1: a stop may sit outside the line), or, for a
+    // repeating ramp, wraps t into [first, last). The wrap is `sample_gradient_stops`'s.
+    if (repeating) {
+        const float first = offsets[0];
+        const float period = offsets[count - 1] - first;
+        if (period > 0.0f) {
+            const float cycles = (t - first) / period;
+            t = first + (cycles - std::floor(cycles)) * period;
+        }
+    }
     std::int32_t below = -1;
     for (std::uint32_t index = 0; index < count; ++index) {
         if (offsets[index] <= t) {
@@ -186,7 +202,7 @@ struct Packed {
 [[nodiscard]] inline rhi::Color evaluate(const GradientRecord& record, const float* colors,
                                          const float* offsets, float lx, float ly) {
     return ramp(colors, offsets, std::min(record.stop_count, kMaxStopsPerGradient),
-                position(record, lx, ly));
+                position(record, lx, ly), (record.flags & kFlagRepeating) != 0);
 }
 
 [[nodiscard]] inline rhi::Color evaluate(const Packed& packed, float lx, float ly) {

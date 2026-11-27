@@ -74,8 +74,11 @@ bool grammar() {
 
     ok = expect(!parse_linear_gradient("linear-gradient(red)"), "one stop is invalid") && ok;
     ok = expect(!parse_linear_gradient("linear-gradient(red, nonsense)"), "a bad colour") && ok;
-    ok = expect(!parse_linear_gradient("linear-gradient(red 10px, blue)"),
-                "a length position is outside the grammar") &&
+    ok = expect(parse_linear_gradient("linear-gradient(red 10px, blue)").has_value(),
+                "a length position is part of the grammar (gradient_stop_positions covers it)") &&
+         ok;
+    ok = expect(!parse_linear_gradient("linear-gradient(red 10em, blue)"),
+                "a font-relative length has no font to resolve against") &&
          ok;
     ok = expect(!parse_linear_gradient("linear-gradient(to left right, red, blue)"),
                 "contradictory direction") &&
@@ -352,15 +355,17 @@ bool paints_radial_from_style() {
                     "stops reach the sink with node opacity folded in");
     }
 
-    // A repeating gradient reaches the sink with its ramp already expanded, so the paint path has
-    // one form to draw.
+    // A repeating gradient reaches the sink as authored, with `repeating` set: the renderer wraps
+    // the ramp, so no period can overflow a stop cap.
     ComputedStyle repeating;
     repeating.set("background-image", "repeating-radial-gradient(circle, #ff0000 0%, #0000ff 10%)");
     styles.set(1, repeating);
-    RecordingSink expanded;
-    paint_scene(node, styles, expanded);
-    ok = expect(expanded.radials.size() == 1 && expanded.radials.front().stop_count > 2,
-                "a repeating radial gradient arrives with an expanded ramp") &&
+    RecordingSink wrapped;
+    paint_scene(node, styles, wrapped);
+    ok = expect(wrapped.radials.size() == 1 && wrapped.radials.front().stop_count == 2 &&
+                    wrapped.radials.front().repeating &&
+                    near(wrapped.radials.front().stops[1].offset, 0.1F),
+                "a repeating radial gradient arrives unexpanded with its period") &&
          ok;
     return ok;
 }

@@ -2,8 +2,10 @@
 //
 // The per-fragment gradients against Chromium (ADR-076, issue #617): fifteen scenes - linear,
 // radial, conic, repeating and translucent gradients, as `background-image` and as `mask-image` -
-// painted through the real paint path and Batched2DSink on a real device, compared sample by sample
-// with what Chromium drew (gradient_chromium_reference.hpp, 69 samples per scene).
+// plus twelve colour-stop-position scenes (two positions, px lengths, positions outside the line,
+// conic angles; gradient_chromium_reference_stops.hpp), painted through the real paint path and
+// Batched2DSink on a real device, compared sample by sample with what Chromium drew
+// (gradient_chromium_reference.hpp, 69 samples per scene).
 //
 // Every scene is rendered twice, once with the shader and once with the banded fallback
 // (`Batched2DConfig::analytic_gradients` false), so the error the shader removed is a measured pair
@@ -15,6 +17,7 @@
 // Skips cleanly when the machine has no Vulkan device.
 
 #include "gradient_chromium_reference.hpp"
+#include "gradient_chromium_reference_stops.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -56,7 +59,7 @@ struct Budget {
     const char* name;
     int shader;
 };
-constexpr std::array<Budget, 15> kBudgets{{
+constexpr std::array<Budget, 27> kBudgets{{
     {"mask-linear@1", 2},
     {"mask-linear@0.5", 2},
     {"mask-radial@1", 2},
@@ -72,6 +75,20 @@ constexpr std::array<Budget, 15> kBudgets{{
     {"repeating-radial", 2},
     {"translucent-same-hue", 2},
     {"translucent-mixed-hue", 2},
+    // Colour-stop positions (gradient_chromium_reference_stops.hpp): two positions, px lengths,
+    // positions outside the line, conic angles, a degenerate repeat.
+    {"repeating-linear-px", 2},
+    {"repeating-linear-open", 2},
+    {"two-positions", 2},
+    {"stripes-px-pairs", 2},
+    {"repeating-radial-px", 2},
+    {"repeating-ellipse-px", 2},
+    {"repeating-conic-angles", 2},
+    {"conic-two-angles", 2},
+    {"linear-beyond-line", 2},
+    {"mixed-units", 2},
+    {"short-period", 2},
+    {"degenerate-repeat", 2},
 }};
 
 bool expect(bool condition, const std::string& message) {
@@ -285,7 +302,15 @@ int main() {
     bool ok = true;
     int worst_shader = 0;
     int worst_banded = 0;
+    std::vector<const reference::Scene*> scenes;
     for (const reference::Scene& scene : reference::kScenes) {
+        scenes.push_back(&scene);
+    }
+    for (const reference::Scene& scene : reference::kStopScenes) {
+        scenes.push_back(&scene);
+    }
+    for (const reference::Scene* scene_ptr : scenes) {
+        const reference::Scene& scene = *scene_ptr;
         std::uint32_t shader_quads = 0;
         std::uint32_t banded_quads = 0;
         const Comparison shader = compare(render(harness, scene, true, shader_quads), scene);

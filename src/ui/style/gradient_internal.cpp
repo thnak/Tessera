@@ -103,8 +103,17 @@ std::optional<float> parse_px_length(std::string_view text) {
     if (!parse_number(token, value, unit)) {
         return std::nullopt;
     }
-    if (unit == "px") {
-        return value;
+    // CSS absolute lengths at 96 dpi (CSS Values 4 section 6.2).
+    static constexpr struct {
+        const char* unit;
+        float px;
+    } kAbsolute[] = {{"px", 1.0f},          {"cm", 96.0f / 2.54f}, {"mm", 96.0f / 25.4f},
+                     {"q", 96.0f / 101.6f}, {"in", 96.0f},         {"pt", 96.0f / 72.0f},
+                     {"pc", 16.0f}};
+    for (const auto& entry : kAbsolute) {
+        if (unit == entry.unit) {
+            return value * entry.px;
+        }
     }
     // A bare `0` is a valid length in CSS; any other unitless number is not.
     if (unit.empty() && value == 0.0f) {
@@ -113,26 +122,115 @@ std::optional<float> parse_px_length(std::string_view text) {
     return std::nullopt;
 }
 
-bool parse_stop(std::string_view text, ColorRgba& color, std::optional<float>& position) {
-    std::string_view body = trim(text);
-    position.reset();
-    const std::size_t split = body.find_last_of(" \t");
-    if (split != std::string_view::npos && body.back() == '%' &&
-        body.find(')', split) == std::string_view::npos) {
-        const std::string number(trim(body.substr(split)));
-        float value = 0.0f;
-        std::string unit;
-        if (!parse_number(number, value, unit) || unit != "%") {
-            return false;
-        }
-        position = value / 100.0f;
-        body = trim(body.substr(0, split));
-    }
-    const ColorParseResult parsed = parse_color(body);
-    if (!parsed.ok) {
+bool looks_like_stop(std::string_view text) {
+    const std::vector<std::string_view> tokens = split_spaces(trim(text));
+    if (tokens.empty()) {
         return false;
     }
-    color = parsed.color;
+    const std::string first = lower(tokens.front());
+    return first.front() == '#' || parse_color(first).ok;
+}
+
+namespace {
+
+// One authored position: a fraction of the line/turn, or px along the line.
+struct Position {
+    float value = 0.0f;
+    bool length = false;
+};
+
+std::optional<Position> parse_position(std::string_view token, StopDomain domain) {
+    if (const std::optional<float> fraction = parse_percentage(token)) {
+        return Position{*fraction, false};
+    }
+    if (domain == StopDomain::Turn) {
+        if (const std::optional<float> degrees = parse_angle(token)) {
+            return Position{*degrees / 360.0f, false};
+        }
+        return std::nullopt;
+    }
+    if (const std::optional<float> px = parse_px_length(token)) {
+        // A bare `0` is the same place in either unit; calling it a fraction keeps a list that only
+        // says `0` and percentages resolvable without a box.
+        return *px == 0.0f ? Position{0.0f, false} : Position{*px, true};
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+bool parse_stop_list(const std::vector<std::string_view>& parts, std::size_t first,
+                     StopDomain domain, std::array<GradientStopValue, kMaxGradientStops>& stops,
+                     StopPositions& positions, std::size_t& count) {
+    std::array<std::optional<Position>, kMaxGradientStops> authored;
+    count = 0;
+    for (std::size_t part = first; part < parts.size(); ++part) {
+        const std::vector<std::string_view> tokens = split_spaces(parts[part]);
+        // Up to two trailing position tokens; whatever precedes them is the colour. A part that is
+        // only positions (a colour hint) leaves no colour and fails below.
+        std::size_t colour_tokens = tokens.size();
+        std::array<Position, 2> found{};
+        std::size_t found_count = 0;
+        while (colour_tokens > 1 && found_count < 2) {
+            const std::optional<Position> position =
+                parse_position(tokens[colour_tokens - 1], domain);
+            if (!position) {
+                break;
+            }
+            found[1 - found_count] = *position;
+            ++found_count;
+            --colour_tokens;
+        }
+        if (tokens.empty() || colour_tokens != 1) {
+            return false;
+        }
+        const ColorParseResult colour = parse_color(lower(tokens[0]));
+        if (!colour.ok) {
+            return false;
+        }
+        // Two positions are two stops of one colour; none or one is a single stop.
+        const std::size_t emitted = found_count == 2 ? 2 : 1;
+        if (count + emitted > kMaxGradientStops) {
+            return false;
+        }
+        for (std::size_t index = 0; index < emitted; ++index) {
+            stops[count].color = colour.color;
+            if (found_count != 0) {
+                authored[count] = found[found_count == 2 ? index : 1];
+            }
+            ++count;
+        }
+    }
+    if (count < 2) {
+        return false;
+    }
+
+    positions = StopPositions{};
+    for (std::size_t index = 0; index < count; ++index) {
+        if (authored[index] && authored[index]->length) {
+            positions.length_mask |= static_cast<std::uint8_t>(1U << index);
+        }
+        if (!authored[index]) {
+            positions.auto_mask |= static_cast<std::uint8_t>(1U << index);
+        }
+    }
+    if (positions.pending()) {
+        for (std::size_t index = 0; index < count; ++index) {
+            stops[index].offset = authored[index] ? authored[index]->value : 0.0f;
+        }
+        return true;
+    }
+    positions = StopPositions{};
+    std::array<std::optional<float>, kMaxGradientStops> fractions;
+    for (std::size_t index = 0; index < count; ++index) {
+        if (authored[index]) {
+            fractions[index] = authored[index]->value;
+        }
+    }
+    fix_up_stop_offsets(fractions, count);
+    for (std::size_t index = 0; index < count; ++index) {
+        stops[index].offset = fractions[index].value();
+    }
     return true;
 }
 

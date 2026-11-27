@@ -27,6 +27,10 @@ sink evaluates the same math per pixel.
 - The frame buffer grows by 57344 bytes per frame in flight.
 - Translucent mixed-hue ramps change (premultiplied); opaque and same-hue ramps do not.
 - Radial gradients now fill the whole box.
+- A `repeating-*` ramp is not expanded into stops: record flag bit 0 makes the shader wrap t over the
+  ramp's own period (last stop minus first), so any period costs the authored stops only. Stop
+  offsets are no longer clamped to 0..1, and a stop position may be a length or, for two positions,
+  a pair (gradients.md 3.1).
 - Metal stays banded until a device test exists.
 
 ## Alternatives

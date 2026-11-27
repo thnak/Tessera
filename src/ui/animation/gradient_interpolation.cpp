@@ -120,16 +120,27 @@ std::optional<std::string> interpolate_gradient(std::string_view from, std::stri
     if (lhs->kind == GradientValue::Kind::Radial && lhs->radial.shape != rhs->radial.shape) {
         return std::nullopt;
     }
-    if (lhs->kind == GradientValue::Kind::Linear) {
+    // This formatter writes percentages only: a conic value has its own prelude it does not write,
+    // and a stop authored in px has no fraction until paint knows the box. Both stay discrete.
+    if (lhs->kind == GradientValue::Kind::Conic) {
+        return std::nullopt;
+    }
+    const bool linear = lhs->kind == GradientValue::Kind::Linear;
+    if ((linear ? lhs->linear.positions.pending() || rhs->linear.positions.pending()
+                : lhs->radial.positions.pending() || rhs->radial.positions.pending())) {
+        return std::nullopt;
+    }
+    const std::string prefix = lhs->repeating ? "repeating-" : "";
+    if (linear) {
         const std::vector<GradientStopValue> stops =
             blend_stops(lhs->linear.stops.data(), lhs->linear.stop_count, rhs->linear.stops.data(),
                         rhs->linear.stop_count, t);
-        return format_linear(*lhs, stops, t, *rhs);
+        return prefix + format_linear(*lhs, stops, t, *rhs);
     }
     const std::vector<GradientStopValue> stops =
         blend_stops(lhs->radial.stops.data(), lhs->radial.stop_count, rhs->radial.stops.data(),
                     rhs->radial.stop_count, t);
-    return format_radial(*lhs, stops, t, *rhs);
+    return prefix + format_radial(*lhs, stops, t, *rhs);
 }
 
 } // namespace tessera::ui::animation

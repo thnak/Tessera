@@ -4,7 +4,8 @@
 // the fragment shader and the CPU reference share (docs/design/gpu/gradients.md, ADR-076):
 //  - the shader-shaped ramp equals the banded path's `sample_gradient_stops` over a dense sweep, so
 //    moving from bands to the shader changes no stop semantics (duplicate offsets, held ends, one
-//    stop, the 32-stop repeating expansion), and both interpolate premultiplied like CSS;
+//    stop, a repeating ramp wrapped over its own period, stops outside 0..1), and both interpolate
+//    premultiplied like CSS;
 //  - the position of every kind at known points: the CSS magic corners of a linear gradient, the
 //    radius of a radial one, the four o'clock directions of a conic one with and without `from`;
 //  - packing refuses what cannot be drawn, and the table hands out sequential records, advances
@@ -50,9 +51,11 @@ struct Ramp {
     std::vector<LinearGradientStop> stops;
     std::vector<float> colors;
     std::vector<float> offsets;
+    bool repeating = false;
 
-    explicit Ramp(std::vector<LinearGradientStop> source)
-        : stops(std::move(source)) {
+    explicit Ramp(std::vector<LinearGradientStop> source, bool wrap = false)
+        : stops(std::move(source)),
+          repeating(wrap) {
         for (const LinearGradientStop& stop : stops) {
             colors.insert(colors.end(), {stop.color.r, stop.color.g, stop.color.b, stop.color.a});
             offsets.push_back(stop.offset);
@@ -74,17 +77,29 @@ void ramp_matches_the_banded_sampler() {
         Ramp({{0.0f, kRed}, {0.0f, kGreen}, {0.0f, kBlue}}),              // all at the start
         Ramp({{1.0f, kRed}, {1.0f, kBlue}}),                              // all at the end
         Ramp(saw),
+        // Stops outside 0..1 are kept as they are, not clamped: the ramp is wider than the line.
+        Ramp({{-0.3f, kRed}, {0.4f, kGreen}, {1.4f, kBlue}}),
+        // Repeating ramps wrap t over [first, last): a short period (many cycles), a period that
+        // starts after 0 (so t below it wraps backwards), a hard-edged stripe pair, one that
+        // starts before 0, and the 32-stop cap.
+        Ramp({{0.0f, kRed}, {0.1f, kBlue}}, true),
+        Ramp({{0.2f, kRed}, {0.45f, kGreen}, {0.5f, kBlue}}, true),
+        Ramp({{0.0f, kRed}, {0.05f, kRed}, {0.05f, kBlue}, {0.1f, kBlue}}, true),
+        Ramp({{-0.1f, kRed}, {0.15f, kBlue}}, true),
+        Ramp(saw, true),
+        // No positive period: it cannot wrap, so it holds like a plain ramp.
+        Ramp({{0.4f, kRed}, {0.4f, kBlue}}, true),
     };
     int compared = 0;
     float worst = 0.0f;
     for (const Ramp& ramp : ramps) {
         for (int step = -250; step <= 1250; ++step) {
             const float t = static_cast<float>(step) / 1000.0f;
-            const rhi::Color expected =
-                tessera::ui::paint::sample_gradient_stops(ramp.stops.data(), ramp.stops.size(), t);
+            const rhi::Color expected = tessera::ui::paint::sample_gradient_stops(
+                ramp.stops.data(), ramp.stops.size(), t, ramp.repeating);
             const rhi::Color actual =
                 gradient::ramp(ramp.colors.data(), ramp.offsets.data(),
-                               static_cast<std::uint32_t>(ramp.stops.size()), t);
+                               static_cast<std::uint32_t>(ramp.stops.size()), t, ramp.repeating);
             worst =
                 std::max({worst, std::abs(actual.r - expected.r), std::abs(actual.g - expected.g),
                           std::abs(actual.b - expected.b), std::abs(actual.a - expected.a)});
@@ -93,10 +108,10 @@ void ramp_matches_the_banded_sampler() {
         // The exact stop offsets themselves, where the duplicate rule bites.
         for (const LinearGradientStop& stop : ramp.stops) {
             const rhi::Color expected = tessera::ui::paint::sample_gradient_stops(
-                ramp.stops.data(), ramp.stops.size(), stop.offset);
-            const rhi::Color actual =
-                gradient::ramp(ramp.colors.data(), ramp.offsets.data(),
-                               static_cast<std::uint32_t>(ramp.stops.size()), stop.offset);
+                ramp.stops.data(), ramp.stops.size(), stop.offset, ramp.repeating);
+            const rhi::Color actual = gradient::ramp(ramp.colors.data(), ramp.offsets.data(),
+                                                     static_cast<std::uint32_t>(ramp.stops.size()),
+                                                     stop.offset, ramp.repeating);
             worst =
                 std::max({worst, std::abs(actual.r - expected.r), std::abs(actual.g - expected.g),
                           std::abs(actual.b - expected.b), std::abs(actual.a - expected.a)});
@@ -297,10 +312,47 @@ void layout_matches_the_documented_bytes() {
            "the buffer is the clip area plus 16 + 32 + 8 KiB");
 }
 
+// A repeating ramp keeps its authored stops (no 32-stop cap on the period) and carries one flag;
+// the flag is only written when there is a period to wrap, so the shader never divides by zero.
+void repeating_is_a_flag_not_an_expansion() {
+    const rhi::Color solid_blue{0.0f, 0.0f, 1.0f, 1.0f};
+    const std::array<gradient::Stop, 2> cycle{{{0.0f, kRed}, {0.01f, solid_blue}}};
+    gradient::Fill fill;
+    fill.rect = {0.0f, 0.0f, 400.0f, 40.0f};
+    fill.angle_degrees = 90.0f;
+    fill.stops = cycle;
+    gradient::Packed packed;
+    expect(gradient::pack(fill, packed) && packed.record.flags == 0 &&
+               packed.record.stop_count == 2,
+           "a plain fill has no flag");
+    fill.repeating = true;
+    expect(
+        gradient::pack(fill, packed) && packed.record.flags == gradient::kFlagRepeating &&
+            packed.record.stop_count == 2,
+        "a repeating fill is two stops and the flag: a 4px period on a 400px line costs nothing");
+    // 100 cycles along 400px, a 4px period: the pixel centre 10.5px along the line is 2.5px into
+    // its cycle, 62.5 % of the way from red to blue.
+    const rhi::Color color = gradient::evaluate(packed, 10.5f - 200.0f, 0.0f);
+    expect(near(color.r, 0.375f, 1.0e-3f) && near(color.b, 0.625f, 1.0e-3f),
+           "the wrapped position lands inside the cycle");
+
+    const std::array<gradient::Stop, 2> flat{{{0.3f, kRed}, {0.3f, kBlue}}};
+    fill.stops = flat;
+    expect(gradient::pack(fill, packed) && packed.record.flags == 0,
+           "no positive period: no repeat flag");
+    const std::array<gradient::Stop, 2> offscreen{{{-0.5f, kRed}, {1.5f, kBlue}}};
+    fill.repeating = false;
+    fill.stops = offscreen;
+    expect(gradient::pack(fill, packed) && near(packed.offsets[0], -0.5f) &&
+               near(packed.offsets[1], 1.5f),
+           "offsets outside 0..1 are packed as they are");
+}
+
 } // namespace
 
 int main() {
     ramp_matches_the_banded_sampler();
+    repeating_is_a_flag_not_an_expansion();
     translucent_ramp_is_premultiplied();
     linear_position();
     radial_position();
