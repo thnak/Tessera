@@ -14,6 +14,7 @@
 #include <iostream>
 #include <memory>
 #include <new>
+#include <vector>
 
 namespace {
 
@@ -158,7 +159,14 @@ bool flags_are_independent() {
 } // namespace
 
 int main() {
-    if (!expect(sizeof(ui::Node) <= ui::kNodeSizeBudget, "sizeof(Node) is within the budget")) {
+    // The budget is the shipping figure. One member is a std::vector whose size is the stdlib's
+    // choice (MSVC Debug's is 32 bytes, not 24; node.hpp, issue #896), so measure the budget with
+    // the vector normalised to its shipping size. A real regression still moves the total.
+    constexpr std::size_t kShippingVectorSize = 24;
+    constexpr std::size_t kChildrenSize = sizeof(std::vector<std::unique_ptr<ui::Node>>);
+    if (!expect(sizeof(ui::Node) - kChildrenSize + kShippingVectorSize <= ui::kNodeSizeBudget,
+                "sizeof(Node) is within the budget") ||
+        !expect(sizeof(ui::Node) == ui::kNodeSizeExpected, "sizeof(Node) is the pinned size")) {
         return 1;
     }
     if (!flags_are_independent()) {
