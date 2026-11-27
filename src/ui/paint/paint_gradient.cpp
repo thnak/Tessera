@@ -5,11 +5,13 @@
 // CSS paint order, and each layer is resolved into the sink's own draw type.
 
 #include "paint_gradient.hpp"
+#include "paint_mask_tiles.hpp"
 #include "paint_properties.hpp"
 #include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/gradient.hpp"
+#include "tessera/ui/style/mask_layers.hpp"
 
 #include <algorithm>
 #include <array>
@@ -211,12 +213,82 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
     return parsed.value_or(list);
 }
 
+// One gradient layer drawn into `tile`: resolved against the tile (a radial's size keyword and a
+// percentage position are relative to the box being painted), then emitted as the sink's own draw.
+// `luminance` turns every stop's alpha into its luminance times its alpha (mask-mode: luminance).
+void emit_gradient(const style::BackgroundLayer& layer, const rhi::Rect& tile,
+                   const RoundedClip& clip, float opacity, bool luminance, PaintSink& sink,
+                   PaintStats& stats) {
+    ResolvedGradient gradient = resolve_value(layer.gradient, tile, opacity);
+    if (gradient.stop_count == 0) {
+        return;
+    }
+    if (luminance) {
+        for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
+            rhi::Color& color = gradient.stops[stop].color;
+            color.a *= 0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
+        }
+    }
+    if (gradient.kind == GradientValue::Kind::Linear) {
+        GradientDraw draw;
+        draw.rect = tile;
+        draw.clip = clip;
+        draw.angle_degrees = gradient.angle_degrees;
+        for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
+            draw.stops[stop] = gradient.stops[stop];
+        }
+        draw.stop_count = gradient.stop_count;
+        sink.fill_linear_gradient(draw);
+        ++stats.gradients;
+        return;
+    }
+    if (gradient.kind == GradientValue::Kind::Conic) {
+        ConicGradientDraw draw;
+        draw.rect = tile;
+        draw.clip = clip;
+        draw.center_x = gradient.center_x;
+        draw.center_y = gradient.center_y;
+        draw.from_angle_degrees = gradient.from_angle_degrees;
+        for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
+            draw.stops[stop] = gradient.stops[stop];
+        }
+        draw.stop_count = gradient.stop_count;
+        sink.fill_conic_gradient(draw);
+        ++stats.gradients;
+        return;
+    }
+    RadialGradientDraw draw;
+    draw.rect = tile;
+    draw.clip = clip;
+    draw.center_x = gradient.center_x;
+    draw.center_y = gradient.center_y;
+    draw.radius_x = gradient.radius_x;
+    draw.radius_y = gradient.radius_y;
+    for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
+        draw.stops[stop] = gradient.stops[stop];
+    }
+    draw.stop_count = gradient.stop_count;
+    sink.fill_radial_gradient(draw);
+    ++stats.gradients;
+}
+
+// The four geometry lists of a mask (mask_layers.hpp). An absent or unparsable list is the initial
+// value on every layer, which is what an empty list answers.
+struct MaskGeometry {
+    style::MaskValueList<style::MaskSize> sizes;
+    style::MaskValueList<style::MaskPosition> positions;
+    style::MaskValueList<style::MaskRepeat> repeats;
+    style::MaskValueList<style::MaskMode> modes;
+};
+
 // Walks a resolved layer list bottom to top and emits each gradient. Shared by the
 // `background-image` paint and the `mask-image` paint (issue #617): the same grammar and the same
 // draws, only the property read and the destination (the node's background, or a layer's mask
-// target) differ.
+// target) differ. `geometry` is the mask's per-layer size/position/repeat/mode, null for a
+// background.
 void emit_layers(const style::BackgroundLayerList& list, const rhi::Rect& rect,
-                 const RoundedClip& clip, float opacity, PaintSink& sink, PaintStats& stats) {
+                 const RoundedClip& clip, float opacity, PaintSink& sink, PaintStats& stats,
+                 const MaskGeometry* geometry = nullptr) {
     // CSS paints the LAST layer first and the FIRST layer on top (Backgrounds 3 section 2.1), so
     // the list is walked backwards. Each layer is a full-box fill, so a later (lower) layer is only
     // visible where the layers above it are translucent.
@@ -225,51 +297,32 @@ void emit_layers(const style::BackgroundLayerList& list, const rhi::Rect& rect,
         if (layer.kind == style::BackgroundLayerKind::None) {
             continue; // a transparent layer paints nothing
         }
-        const ResolvedGradient gradient = resolve_value(layer.gradient, rect, opacity);
-        if (gradient.stop_count == 0) {
+        if (geometry == nullptr) {
+            emit_gradient(layer, rect, clip, opacity, false, sink, stats);
             continue;
         }
-        if (gradient.kind == GradientValue::Kind::Linear) {
-            GradientDraw draw;
-            draw.rect = rect;
-            draw.clip = clip;
-            draw.angle_degrees = gradient.angle_degrees;
-            for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
-                draw.stops[stop] = gradient.stops[stop];
-            }
-            draw.stop_count = gradient.stop_count;
-            sink.fill_linear_gradient(draw);
-            ++stats.gradients;
+        const bool luminance = geometry->modes.at_layer(index) == style::MaskMode::Luminance;
+        const MaskTiling tiling = compute_mask_tiles(rect, geometry->sizes.at_layer(index),
+                                                     geometry->positions.at_layer(index),
+                                                     geometry->repeats.at_layer(index));
+        // A repeat past the tile cap (or a zero-size tile) paints nothing for this layer.
+        if (tiling.too_many || tiling.count == 0) {
             continue;
         }
-        if (gradient.kind == GradientValue::Kind::Conic) {
-            ConicGradientDraw draw;
-            draw.rect = rect;
-            draw.clip = clip;
-            draw.center_x = gradient.center_x;
-            draw.center_y = gradient.center_y;
-            draw.from_angle_degrees = gradient.from_angle_degrees;
-            for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
-                draw.stops[stop] = gradient.stops[stop];
-            }
-            draw.stop_count = gradient.stop_count;
-            sink.fill_conic_gradient(draw);
-            ++stats.gradients;
+        if (tiling.whole_box) {
+            emit_gradient(layer, rect, clip, opacity, luminance, sink, stats);
             continue;
         }
-        RadialGradientDraw draw;
-        draw.rect = rect;
-        draw.clip = clip;
-        draw.center_x = gradient.center_x;
-        draw.center_y = gradient.center_y;
-        draw.radius_x = gradient.radius_x;
-        draw.radius_y = gradient.radius_y;
-        for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
-            draw.stops[stop] = gradient.stops[stop];
+        // A tile that reaches outside the border box is cut to it: the mask covers the box only.
+        if (tiling.overflows_box) {
+            sink.push_clip(RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f});
         }
-        draw.stop_count = gradient.stop_count;
-        sink.fill_radial_gradient(draw);
-        ++stats.gradients;
+        for (std::size_t tile = 0; tile < tiling.count; ++tile) {
+            emit_gradient(layer, tiling.tiles[tile], clip, opacity, luminance, sink, stats);
+        }
+        if (tiling.overflows_box) {
+            sink.pop_clip();
+        }
     }
 }
 
@@ -311,9 +364,22 @@ void paint_mask_image(const style::ComputedStyle& style, const rhi::Rect& rect, 
     if (!parsed.has_value() || parsed->empty()) {
         return;
     }
+    MaskGeometry geometry;
+    const auto read = [&style](const char* name, auto& out, auto parse) {
+        if (const std::string* text = style.find(name)) {
+            if (auto parsed = parse(*text)) {
+                out = *parsed;
+            }
+        }
+    };
+    read("mask-size", geometry.sizes, style::parse_mask_size_list);
+    read("mask-position", geometry.positions, style::parse_mask_position_list);
+    read("mask-repeat", geometry.repeats, style::parse_mask_repeat_list);
+    read("mask-mode", geometry.modes, style::parse_mask_mode_list);
     // mask-clip / mask-origin default to border-box, which is not rounded by border-radius, and the
     // mask's own alpha is the whole value, so there is no node opacity to fold in.
-    emit_layers(*parsed, rect, RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f}, 1.0f, sink, stats);
+    emit_layers(*parsed, rect, RoundedClip{rect, 0.0f, 0.0f, 0.0f, 0.0f}, 1.0f, sink, stats,
+                &geometry);
 }
 
 } // namespace tessera::ui::paint::detail

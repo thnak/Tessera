@@ -2662,6 +2662,26 @@
       "note": "none or a list of gradients, used as an alpha mask"
     },
     {
+      "kind": "keyword",
+      "name": "mask-size",
+      "note": "per-layer auto | cover | contain | <px/%> [<px/%> | auto]"
+    },
+    {
+      "kind": "keyword",
+      "name": "mask-position",
+      "note": "per-layer 1 to 4 keyword/px/% values"
+    },
+    {
+      "kind": "keyword",
+      "name": "mask-repeat",
+      "note": "per-layer repeat-x | repeat-y | repeat | space | round | no-repeat"
+    },
+    {
+      "kind": "keyword",
+      "name": "mask-mode",
+      "note": "per-layer alpha | luminance | match-source"
+    },
+    {
       "kind": "number",
       "name": "opacity"
     },

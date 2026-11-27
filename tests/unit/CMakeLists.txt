@@ -2744,6 +2744,24 @@ target_link_libraries(paint_mask_tests PRIVATE tessera_paint tessera_style)
 
 add_test(NAME paint_mask COMMAND paint_mask_tests)
 
+# The mask geometry longhands and the mask shorthand (issue #617): parsers, per-layer lists, the
+# registry's grammar check and the shorthand expansion.
+add_executable(mask_layers_tests
+    mask_layers_tests.cpp)
+
+target_link_libraries(mask_layers_tests PRIVATE tessera_style)
+
+add_test(NAME mask_layers COMMAND mask_layers_tests)
+
+# Where each mask layer's gradient is drawn: size, position, repeat/space/round, the box clip, layer
+# cycling, the tile cap and luminance stops, checked against the paint stream.
+add_executable(paint_mask_geometry_tests
+    paint_mask_geometry_tests.cpp)
+
+target_link_libraries(paint_mask_geometry_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME paint_mask_geometry COMMAND paint_mask_geometry_tests)
+
 # `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
 # the coverage rule the CPU reference and the shader share.
 add_executable(clip_path_tests

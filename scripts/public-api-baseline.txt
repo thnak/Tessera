@@ -3167,6 +3167,24 @@ function include/tessera/ui/style/list_style.hpp tessera::ui::style::is_supporte
 function include/tessera/ui/style/list_style.hpp tessera::ui::style::list_marker_text
 function include/tessera/ui/style/list_style.hpp tessera::ui::style::parse_list_style_type
 
+header include/tessera/ui/style/mask_layers.hpp
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskLength
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskPosition
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskPositionAxis
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeat
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskSize
+struct include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskValueList
+enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskMode
+enum include/tessera/ui/style/mask_layers.hpp tessera::ui::style::MaskRepeatKind
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_mode_list
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_position
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_position_list
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_repeat
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_repeat_list
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_size
+function include/tessera/ui/style/mask_layers.hpp tessera::ui::style::parse_mask_size_list
+
 header include/tessera/ui/style/media_query.hpp
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaCondition
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaContext

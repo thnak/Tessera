@@ -94,7 +94,12 @@ longhand color paint
 longhand background-color paint
 longhand background-image paint
 longhand mask-image paint
+longhand mask-size paint
+longhand mask-position paint
+longhand mask-repeat paint
+longhand mask-mode paint
 shorthand background paint
+shorthand mask paint
 longhand opacity paint
 longhand box-shadow paint
 # `text-shadow` (issue #616) is a Paint-row name: it is painted behind a text node's glyphs and
