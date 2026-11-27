@@ -44,10 +44,6 @@ bool close(float a, float b, float tolerance = 1.0e-4f) {
     return std::abs(a - b) <= tolerance;
 }
 
-bool starts_with(const std::string& text, const char* prefix) {
-    return text.rfind(prefix, 0) == 0;
-}
-
 // The one place this engine knowingly differs from Chromium: `calc()` is not part of the V1 value
 // grammar anywhere, so a function whose argument is a calc() is rejected.
 bool is_calc(const std::string& css) {
