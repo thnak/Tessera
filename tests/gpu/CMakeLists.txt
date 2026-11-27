@@ -715,6 +715,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_filter_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_filter_gpu COMMAND layer_filter_gpu_tests)
     set_tests_properties(layer_filter_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Damage-limited redraw of a filtered node equals a full redraw (the filter dependency walk).
+    # Skips without a Vulkan device.
+    add_executable(filter_damage_gpu_tests
+        batched2d/filter_damage_gpu_tests.cpp)
+    target_link_libraries(filter_damage_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_frame tessera_layout tessera_runtime tessera_damage
+        tessera_golden tessera_rhi_vulkan)
+    add_test(NAME filter_damage_gpu COMMAND filter_damage_gpu_tests)
+    set_tests_properties(filter_damage_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # The mask-image lavapipe golden (issue #617): the CPU corpus's `masks` scene through the paint
     # path and the renderer's mask step on a software device, against tests/golden/gpu/mask_image.png
