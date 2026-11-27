@@ -60,7 +60,10 @@ names a render program. The contract a compute WGSL program follows:
 - Storage buffers are group 0, bindings 0 to `storage_buffer_count - 1`, **every one `var<storage,
   read_write>`**. WebGPU rejects a pipeline whose layout and declared access disagree, and the RHI binds one
   kind of buffer, so a buffer a kernel only reads is still declared `read_write`. A buffer used with
-  `atomicAdd` is declared `array<atomic<u32>>`, which WGSL requires.
+  `atomicAdd` is declared `array<atomic<u32>>`, which WGSL requires. An atomic array reads through `atomicLoad`, which D3D12 compiles to an interlocked
+  operation: a pass that only reads such a buffer should declare the same binding again as a plain `array<u32>`
+  (allowed while no entry point uses both views), as the path rasterizer's fine pass does (ADR-071: dense 4K
+  frame 93 ms with atomic reads, 4.8 ms with the plain view).
 - Push constants do not exist in WebGPU. The block is a uniform at group 0, **binding 8**
   (`kBindingComputePush`), written per `compute_push_constants` call into a per-list arena and bound with a
   dynamic offset, so changing it between dispatches builds no new bind group. A pipeline that declares push
