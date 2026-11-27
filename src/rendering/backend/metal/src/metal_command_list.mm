@@ -52,11 +52,17 @@ namespace {
 class MetalCommandList final : public rhi::CommandList {
 public:
     explicit MetalCommandList(MetalDevice& device) : device_(device) {}
+    // A list dropped mid-pass (a validation error threw between begin and end) must still close its
+    // encoder: Metal aborts the process on an encoder released without endEncoding.
+    ~MetalCommandList() override {
+        end_encoder();
+    }
 
     void begin_render_pass(const rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc) override;
     void end_render_pass() override;
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
+    void bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
@@ -78,6 +84,11 @@ private:
     void require_pass(const char* what) const;
     void require_outside_pass(const char* what) const;
     void require_pipeline(const char* what) const;
+    // Records the push-constant block and the storage buffer on the open encoder at the slots the
+    // bound pipeline's program uses. Re-run whenever the pipeline, the block or the buffer changes,
+    // because the fragment slots differ between programs (metal_shader_registry.hpp).
+    void apply_push_constants();
+    void apply_storage_buffer();
     // Ends the open render encoder, if any. A blit or a sampled bind needs this.
     void end_encoder();
     // Starts the command buffer on first use. A list may record several sequential passes; only the
@@ -90,6 +101,8 @@ private:
     id<MTLRenderCommandEncoder> encoder_ = nil;
     const MetalPipeline* pipeline_ = nullptr;
     const MetalBuffer* vertex_buffer_ = nullptr;
+    // RHI 1.12: the read-only storage buffer, applied at the bound pipeline's fragment slot.
+    const MetalBuffer* storage_buffer_ = nullptr;
     std::uint32_t pass_sample_count_ = 1;
     bool in_pass_ = false;
     bool submitted_ = false;
@@ -123,6 +136,33 @@ void MetalCommandList::require_pipeline(const char* what) const {
     if (pipeline_ == nullptr) {
         throw std::logic_error(std::string("metal ") + what + ": no pipeline is bound");
     }
+}
+
+void MetalCommandList::apply_push_constants() {
+    if (encoder_ == nil || push_constants_.empty()) {
+        return;
+    }
+    // MSL has no push constants; the portable shader branch reads a std140 uniform, so the block is
+    // uploaded as bytes (ADR-049's portable branch). The vertex block is always buffer(0); the
+    // fragment block's slot is the program's, because the storage buffer may precede it.
+    [encoder_ setVertexBytes:push_constants_.data() length:push_constants_.size() atIndex:0];
+    const std::uint32_t fragment_index =
+        pipeline_ != nullptr ? pipeline_->fragment_push_constant_index() : 0;
+    [encoder_ setFragmentBytes:push_constants_.data()
+                        length:push_constants_.size()
+                       atIndex:fragment_index];
+}
+
+void MetalCommandList::apply_storage_buffer() {
+    if (encoder_ == nil || storage_buffer_ == nullptr || pipeline_ == nullptr ||
+        !pipeline_->declares_storage_buffer()) {
+        return;
+    }
+    // Shared storage, so the CPU's writes are visible at draw time with no explicit sync, and the
+    // contents are read when the draw executes, not when this is recorded (device.hpp contract).
+    [encoder_ setFragmentBuffer:storage_buffer_->handle()
+                         offset:0
+                        atIndex:pipeline_->fragment_storage_buffer_index()];
 }
 
 void MetalCommandList::ensure_command_buffer() {
@@ -187,19 +227,13 @@ void MetalCommandList::begin_render_pass(const rhi::RenderTarget& target,
         [encoder_ setRenderPipelineState:pipeline_->state()];
     }
     if (vertex_buffer_ != nullptr) {
-        [encoder_ setVertexBuffer:vertex_buffer_->handle() offset:0 atIndex:0];
+        [encoder_ setVertexBuffer:vertex_buffer_->handle() offset:0 atIndex:kVertexStreamIndex];
     }
     for (const PendingTexture& pending : pending_textures_) {
         [encoder_ setFragmentTexture:pending.texture atIndex:pending.slot];
     }
-    if (!push_constants_.empty()) {
-        [encoder_ setVertexBytes:push_constants_.data()
-                          length:push_constants_.size()
-                         atIndex:0];
-        [encoder_ setFragmentBytes:push_constants_.data()
-                            length:push_constants_.size()
-                           atIndex:0];
-    }
+    apply_push_constants();
+    apply_storage_buffer();
 }
 
 void MetalCommandList::end_render_pass() {
@@ -218,14 +252,44 @@ void MetalCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
     pipeline_ = static_cast<const MetalPipeline*>(&pipeline);
     if (encoder_ != nil) {
         [encoder_ setRenderPipelineState:pipeline_->state()];
+        // The new program may use different fragment slots than the previous one.
+        apply_push_constants();
+        apply_storage_buffer();
     }
 }
 
 void MetalCommandList::bind_vertex_buffer(const rhi::Buffer& buffer) {
     vertex_buffer_ = &as_buffer(buffer);
     if (encoder_ != nil) {
-        [encoder_ setVertexBuffer:vertex_buffer_->handle() offset:0 atIndex:0];
+        [encoder_ setVertexBuffer:vertex_buffer_->handle() offset:0 atIndex:kVertexStreamIndex];
     }
+}
+
+void MetalCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) {
+    // The same refusals as the Vulkan and WebGPU backends (device.hpp contract), so a structural
+    // test written against null stays meaningful here.
+    require_pipeline("bind_storage_buffer");
+    if (!pipeline_->declares_storage_buffer()) {
+        throw std::logic_error(
+            "metal bind_storage_buffer: the bound pipeline declares no storage buffer");
+    }
+    // The storage buffer is slot 1 on every backend (set 1 on Vulkan, binding 3 on WebGPU); the
+    // Metal `[[buffer(n)]]` index is the program's, not the caller's slot.
+    if (slot != 1) {
+        throw std::invalid_argument(
+            "metal bind_storage_buffer: the storage buffer is slot 1, not slot " +
+            std::to_string(slot));
+    }
+    if (buffer.size() == 0) {
+        throw std::invalid_argument("metal bind_storage_buffer: an empty buffer cannot be read");
+    }
+    const MetalBuffer& concrete = as_buffer(buffer);
+    if (concrete.usage() != rhi::BufferUsage::Storage) {
+        throw std::invalid_argument(
+            "metal bind_storage_buffer: the buffer was not created with BufferUsage::Storage");
+    }
+    storage_buffer_ = &concrete;
+    apply_storage_buffer();
 }
 
 void MetalCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& texture) {
@@ -286,22 +350,13 @@ void MetalCommandList::push_constants(const void* data, std::size_t size) {
     }
     push_constants_.assign(static_cast<const std::uint8_t*>(data),
                            static_cast<const std::uint8_t*>(data) + size);
-    if (encoder_ != nil) {
-        // MSL has no push constants; the portable shader branch reads a std140 uniform at binding
-        // 0, so the block is uploaded as a uniform buffer (ADR-049's portable branch).
-        [encoder_ setVertexBytes:push_constants_.data()
-                          length:push_constants_.size()
-                         atIndex:0];
-        [encoder_ setFragmentBytes:push_constants_.data()
-                            length:push_constants_.size()
-                           atIndex:0];
-    }
+    apply_push_constants();
 }
 
 void MetalCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_vertex) {
     require_pass("draw");
     require_pipeline("draw");
-    if (vertex_buffer_ == nullptr) {
+    if (pipeline_->uses_vertex_stream() && vertex_buffer_ == nullptr) {
         throw std::logic_error("metal draw: no vertex buffer is bound");
     }
     [encoder_ drawPrimitives:MTLPrimitiveTypeTriangle

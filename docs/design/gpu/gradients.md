@@ -88,7 +88,8 @@ the SPIR-V.
 ## 4. Capability and fallback
 
 `Device::supports_analytic_gradients()` (RHI 1.20, non-pure, default false): true on Vulkan (when
-storage buffers exist), null and WebGPU. Metal keeps false for now, so it stays banded.
+storage buffers exist), null and WebGPU. Metal answers true for storage buffers but keeps this at
+false (banded) until a Metal test renders a gradient quad.
 `Batched2DRenderer::gradients_supported()` also requires `Batched2DConfig::analytic_gradients` and a
 pipeline declaring the storage buffer. `push_gradient` returns false when the capability is missing
 or the table is full; the sink then emits the old bands and `gradient_fallbacks()` counts it. A

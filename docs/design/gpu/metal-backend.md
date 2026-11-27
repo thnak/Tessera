@@ -103,6 +103,25 @@ Prefer `Shared` for CPU-written buffers and `Private` for GPU-only textures. Avo
 Staging and pending uploads use bounded queues, as in `frames.md` section 3, so a stalled GPU does
 not grow CPU memory.
 
+### 4.2 Argument-table slots and the storage buffer
+
+`bind_storage_buffer` (RHI 1.12, [ADR-068](../../../decisions/ADR-068-clip-state-in-a-storage-buffer.md))
+is `setFragmentBuffer:offset:atIndex:` on the open render encoder; the buffer is `Shared` (section 4.1),
+so the CPU's per-frame write is visible at draw time with no explicit synchronization. The RHI slot is
+1, as on Vulkan and WebGPU; the Metal index is not the slot but the program's, because SPIRV-Cross
+numbers `[[buffer(n)]]` itself (sets are ignored; storage buffers come before uniform buffers). Each
+program in the MSL registry therefore records its fragment push-constant and storage-buffer indices:
+batched2d is storage 0 and push constants 1, glass_blur is push constants 0, the conformance probe is
+storage 0. `metal_shader_registry_tests` asserts each against the generated MSL text, so a tool
+upgrade that renumbers them fails a test instead of binding the wrong buffer. A pipeline created with
+`PipelineDesc::storage_buffer` for a program with no storage buffer is refused; one created without it
+reports `declares_storage_buffer() == false` and `bind_storage_buffer` throws, the same refusals
+Vulkan and WebGPU give (no pipeline, slot other than 1, empty buffer, not `BufferUsage::Storage`).
+
+The vertex stage's push-constant block is `buffer(0)`, so the vertex stream is bound at `buffer(30)`
+(the top of the 31-entry table) instead of colliding with it. `supports_analytic_gradients()` stays
+false: the gradient branch is in the cross-compiled MSL, but no Metal test renders a gradient quad.
+
 ## 5. Presentation and `CAMetalLayer`
 
 - Acquire the drawable as late as possible: after offscreen and glass passes are recorded, just

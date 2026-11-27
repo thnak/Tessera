@@ -415,8 +415,8 @@ variable-length record list, and no push-constant budget holds one
   descriptor allocation. The capability is gated on
   `VkPhysicalDeviceLimits::maxPerStageDescriptorStorageBuffers`, which is the only honest limit: a
   fragment-stage storage buffer is core Vulkan 1.0, so there is no feature bit to enable.
-- WebGPU and Metal report false until ADR-068 slice 2 implements the binding; both have an
-  expressible form (`read-only-storage`, `[[buffer(n)]]`), so the answer is a schedule, not a limit.
+- WebGPU (binding 3, #905) and Metal (`setFragmentBuffer` at the program's `[[buffer(n)]]`, see
+  [metal-backend.md](metal-backend.md) section 4.2) report true.
 - Tests: the conformance check `storage_buffer_bind` (a fragment shader reads the buffer and the
   target is read back for its colour, on every backend that reports the capability) and the null
   structural test in `rhi_null_tests` (the recorded slot and size, plus the three refusals).
