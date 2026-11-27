@@ -92,31 +92,31 @@ std::unique_ptr<GpuPathRasterizer::Impl::Flight> GpuPathRasterizer::Impl::pack_a
     flight->list = device.create_command_list();
     rhi::CommandList& list = *flight->list;
     const std::uint32_t job_base = 0;
-    const auto bind_all = [&](const rhi::ComputePipeline& pipeline, std::uint32_t used) {
+    // Every pass binds all seven buffers, though each declares only some of them: a WebGPU compute
+    // pipeline's bind group layout holds every slot and a dispatch with one unbound throws
+    // (docs/design/gpu/compute.md section 3.1). Vulkan ignores the extras.
+    const auto bind_all = [&](const rhi::ComputePipeline& pipeline) {
         list.bind_compute_pipeline(pipeline);
         for (std::uint32_t binding = 0; binding < kBufferCount; ++binding) {
-            if ((used & (1U << binding)) != 0U) {
-                const bool resident =
-                    flight->uses_arena &&
-                    (binding == kSegs || binding == kStrokes || binding == kDashes);
-                list.bind_compute_buffer(binding, resident ? arena->buffer(binding)
-                                                           : *flight->buffers[binding]);
-            }
+            const bool resident = flight->uses_arena &&
+                                  (binding == kSegs || binding == kStrokes || binding == kDashes);
+            list.bind_compute_buffer(binding,
+                                     resident ? arena->buffer(binding) : *flight->buffers[binding]);
         }
         list.compute_push_constants(&job_base, sizeof(job_base));
     };
-    bind_all(*flight->slot->clear, kClearBindings);
+    bind_all(*flight->slot->clear);
     list.dispatch(groups(max_clear, kGroupSize), count, 1);
     list.compute_barrier();
     if (max_stroke > 0) {
-        bind_all(*flight->slot->stroke, kStrokeBindings);
+        bind_all(*flight->slot->stroke);
         list.dispatch(groups(max_stroke, kGroupSize), count, 1);
         list.compute_barrier();
     }
-    bind_all(*flight->slot->bin, kBinBindings);
+    bind_all(*flight->slot->bin);
     list.dispatch(groups(std::max(max_seg, 1U), kGroupSize), count, 1);
     list.compute_barrier();
-    bind_all(*flight->slot->fine, kFineBindings);
+    bind_all(*flight->slot->fine);
     list.dispatch(groups(max_width, kTile), groups(max_height, kTile), count);
     for (std::uint32_t index = 0; index < count; ++index) {
         const Job& job = pending[index];

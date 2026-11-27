@@ -17,22 +17,25 @@
 // push constant is a uniform (WebGPU has none). A batch of N rasters is N job records and the job is
 // the workgroup id's y (the fine pass: z), as in the GLSL.
 //
-// Not wired to a backend yet: the WebGPU backend has no compute support (RHI 1.16 is Vulkan only, and
-// ADR-072 slice 3 adds the buffer-to-texture copy), so nothing embeds this file; the CI gate
-// (scripts/ci/validate_wgsl.py) validates it with naga so it cannot rot before the backend arrives.
+// Run by the WebGPU backend (RHI 1.22, docs/design/gpu/compute.md section 3.1): the file is embedded
+// and registered as four programs (one per entry point, ids in webgpu_path_raster.hpp). The compute
+// contract fixes two things that differ from the GLSL's interface: every storage buffer at group 0,
+// bindings 0..6, is declared read_write (WebGPU rejects a layout whose access disagrees, and the RHI
+// binds one kind of buffer), and the push block is the uniform at binding 8 (kBindingComputePush),
+// not 7. scripts/ci/validate_wgsl.py validates it with naga.
 
-@group(0) @binding(0) var<storage, read> segs: array<u32>;
-@group(0) @binding(1) var<storage, read> paths: array<u32>;
+@group(0) @binding(0) var<storage, read_write> segs: array<u32>;
+@group(0) @binding(1) var<storage, read_write> paths: array<u32>;
 @group(0) @binding(2) var<storage, read_write> work: array<atomic<u32>>;
 @group(0) @binding(3) var<storage, read_write> pixels: array<u32>;
-@group(0) @binding(4) var<storage, read> strokes: array<u32>;
-@group(0) @binding(5) var<storage, read> dashes: array<u32>;
-@group(0) @binding(6) var<storage, read> jobs: array<u32>;
+@group(0) @binding(4) var<storage, read_write> strokes: array<u32>;
+@group(0) @binding(5) var<storage, read_write> dashes: array<u32>;
+@group(0) @binding(6) var<storage, read_write> jobs: array<u32>;
 
 struct Push {
     job_base: u32,
 }
-@group(0) @binding(7) var<uniform> pcb: Push;
+@group(0) @binding(8) var<uniform> pcb: Push;
 
 struct Job {
     width: u32,
