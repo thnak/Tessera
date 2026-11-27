@@ -258,11 +258,12 @@ jobs:
       - name: Build cross-compiled shaders and the parity test
         run: |
           cmake --build --preset ci --target \
-            tessera_shader_cross_batched2d tessera_shader_cross_glass_blur shader_parity_tests
+            tessera_shader_cross_batched2d tessera_shader_cross_glass_blur \
+            tessera_shader_cross_storage_probe shader_parity_tests
 
       - name: Cross-compile artifacts exist
         run: |
-          for id in batched2d glass_blur; do
+          for id in batched2d glass_blur storage_probe; do
             dir="build/ci/shaders/cross/$id"
             for stage in vert frag; do
               test -s "$dir/$id.$stage.portable.spv" || { echo "missing $dir/$id.$stage.portable.spv"; exit 1; }
@@ -271,7 +272,7 @@ jobs:
               test -s "$dir/$id.$stage.wgsl"         || { echo "missing $dir/$id.$stage.wgsl"; exit 1; }
             done
           done
-          echo "portable, MSL, HLSL and WGSL artifacts present for both shaders"
+          echo "portable, MSL, HLSL and WGSL artifacts present for all three shaders"
 
       # shader_parity proves the portable GLSL branch agrees with the authored WGSL interface; it
       # needs no tool and also runs in the default (cross OFF) lanes.
