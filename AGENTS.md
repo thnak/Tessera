@@ -537,8 +537,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       Landed as library slices: #669 RHI 1.12 null + Vulkan, #671 `ClipStateTable` and shader on the
       buffer, #672 `circle()`/`ellipse()`/`inset()` (parser, shader, `CpuCanvas` shaped clip), #673
       `polygon()` with both fill rules (vertex pool, `Batched2DRenderer::push_clip_shape`; PR #911) and
-      #674 shape interpolation (`animation/clip_path_interpolation.cpp`; PR #911). Open: #670 Metal +
-      WebGPU storage buffers, and the wiring itself — the paint pass reading `clip-path` (a shaped
+      #674 shape interpolation (`animation/clip_path_interpolation.cpp`; PR #911). #670 landed: WebGPU storage buffers (#905) and Metal
+      (PR #953: `bind_storage_buffer`, per-program fragment slots, the conformance check passes on the
+      macOS runner; analytic gradients stay off on Metal). Open: the wiring itself — the paint pass reading `clip-path` (a shaped
       clip around a node's children) and hit testing against the shape. `path()` stays out of V1
       (fill-rule evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
