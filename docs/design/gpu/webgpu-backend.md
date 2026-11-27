@@ -112,8 +112,12 @@ device code written against the 2025-style `webgpu.h` (`WGPUStringView`, `WGPU_*
 revision. `scripts/ci/validate_wgsl.py` passes on `batched2d.wgsl`. The workflow passed actionlint
 1.7.12 but has not run on GitHub yet.
 
-Not verified: any call into a real WebGPU device. Node has no `navigator.gpu`, so the smoke never
-creates a buffer, pipeline or pass, and nothing has drawn a pixel; naga accepting `batched2d.wgsl`
+Verified against a real WebGPU device (2026-11-27, compute only): `webgpu_compute_conformance` runs the
+RHI 1.22 compute kernels through Dawn's Node bindings on a D3D12 GPU and matches the exact expected results
+([`compute.md`](compute.md) section 4), which exercises buffer creation, pipeline creation from the WGSL
+registry, passes, copies and the async map. Not verified: any draw. The smoke still runs without WebGPU
+(Node has no `navigator.gpu`), so it creates no buffer, pipeline or pass, and nothing has drawn a pixel;
+naga accepting `batched2d.wgsl`
 does not prove that Tint (Chrome) or WebKit accepts it. MSL output is unvalidated (no Metal
 toolchain). A browser or Dawn-native lane running the batched 2D scene against the null/lavapipe
 reference is the next step.

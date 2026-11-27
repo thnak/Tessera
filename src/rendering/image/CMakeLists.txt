@@ -4,6 +4,8 @@ add_library(tessera_image STATIC
     image_decode_cache.cpp
     image_loader.cpp
     image_resize.cpp
+    downscale_kernels.cpp
+    downscale_kernels_x86.cpp
     jpeg_scaled.cpp
     webp_decode.cpp
     image_texture_cache.cpp)
@@ -41,6 +43,12 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(image_resize_tests PRIVATE
         TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_IMAGE_FIXTURE_DIR}")
     add_test(NAME image_resize COMMAND image_resize_tests)
+
+    add_executable(image_downscale_isa_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/image_downscale_isa_tests.cpp)
+    target_include_directories(image_downscale_isa_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(image_downscale_isa_tests PRIVATE tessera_image)
+    add_test(NAME image_downscale_isa COMMAND image_downscale_isa_tests)
 
     add_executable(jpeg_scaled_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/jpeg_scaled_tests.cpp)

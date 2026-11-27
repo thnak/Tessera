@@ -61,7 +61,10 @@ std::uint32_t buffer_usage_flags(rhi::BufferUsage usage) {
         // because the CPU writes the record list through a staging copy, STORAGE because the shader
         // reads it. The binding itself lands with ADR-068 slice 2; the usage mapping is here so a
         // buffer created with it is well formed on this backend too.
-        return bits::kStorage | bits::kCopyDst;
+        // RHI 1.18 compute: a compute pass reads and writes it (STORAGE is both on WebGPU; the
+        // shader's declared access picks), a copy reads it back (COPY_SRC) and a dispatch can take
+        // its arguments from it (INDIRECT), as every Vulkan Storage buffer can.
+        return bits::kStorage | bits::kCopyDst | bits::kCopySrc | bits::kIndirect;
     }
     return 0;
 }

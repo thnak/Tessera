@@ -19,6 +19,9 @@ tessera_embed_wgsl(batched2d.wgsl)
 tessera_embed_wgsl(glass_blur.wgsl)
 # Mip chain downsample (RHI 1.6, issue #510); used internally by the texture, not a registry id.
 tessera_embed_wgsl(mip_downsample.wgsl)
+# Compute conformance kernels (RHI 1.22, issue #684): embedded for the Wasm conformance program only,
+# not registered as a built-in program.
+tessera_embed_wgsl(compute_conformance.wgsl)
 
 add_library(tessera_webgpu_mapping STATIC
     src/webgpu_mapping.cpp
@@ -39,7 +42,8 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         src/webgpu_mipmaps.cpp
         src/webgpu_pipeline.cpp
         src/webgpu_canvas_target.cpp
-        src/webgpu_command_list.cpp)
+        src/webgpu_command_list.cpp
+        src/webgpu_compute.cpp)
     target_link_libraries(tessera_webgpu PUBLIC tessera_webgpu_mapping)
     if (EMSCRIPTEN)
         # Dawn's emdawnwebgpu port supplies webgpu/webgpu.h and the browser bindings. The port
@@ -51,5 +55,14 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         add_executable(webgpu_wasm_smoke smoke/webgpu_wasm_smoke.cpp)
         target_link_libraries(webgpu_wasm_smoke PRIVATE tessera_webgpu)
         target_link_options(webgpu_wasm_smoke PRIVATE "-sENVIRONMENT=node")
+
+        # Compute conformance (RHI 1.22, issue #684): runs only against a real WebGPU device the host
+        # injects (scripts/webgpu_compute_conformance.mjs), so the lane builds it but does not run it.
+        add_executable(webgpu_compute_conformance smoke/webgpu_compute_conformance.cpp)
+        target_include_directories(webgpu_compute_conformance PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src ${TESSERA_WGSL_GEN_DIR})
+        target_link_libraries(webgpu_compute_conformance PRIVATE tessera_webgpu)
+        target_link_options(webgpu_compute_conformance PRIVATE
+            "-sENVIRONMENT=node" "-sJSPI" "-sEXIT_RUNTIME=1")
     endif()
 endif()

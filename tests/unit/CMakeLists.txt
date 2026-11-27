@@ -1968,6 +1968,12 @@ target_link_libraries(glyph_raster_tests PRIVATE tessera_text)
 
 add_test(NAME glyph_raster COMMAND glyph_raster_tests "${TESSERA_FONT_FIXTURE}")
 
+# Issue #686: a measurement program, not a test (no ctest entry); see docs/design/text-gpu-raster.md.
+add_executable(glyph_raster_measure
+    glyph_raster_measure.cpp)
+
+target_link_libraries(glyph_raster_measure PRIVATE tessera_text)
+
 add_executable(glyph_atlas_tests
     glyph_atlas_tests.cpp)
 

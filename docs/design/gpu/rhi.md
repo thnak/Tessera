@@ -91,8 +91,10 @@ RHI versioning and capabilities (ADR-049):
   backend answer true, WebGPU and Metal false until their slices land.
   1.18 adds `ComputeCapabilities`, `Device::compute_capabilities()` and `CommandList::dispatch_indirect`
   ([`compute.md`](compute.md), issue #684); Vulkan implements them, and the null backend records compute
-  only when made with `create_null_compute_device`. WebGPU and Metal keep the defaults (zeroed capabilities,
-  throwing calls) until their slices land.
+  only when made with `create_null_compute_device`. Metal keeps the defaults (zeroed capabilities, throwing
+  calls) until its slice lands; WebGPU implements compute from 1.22.
+  1.22 adds `ComputePipelineDesc::shader_id`, the WGSL registry name a backend without SPIR-V builds a compute
+  pipeline from ([`compute.md`](compute.md) 3.1); Vulkan and null ignore it.
   1.19 adds `BlendMode::DestinationIn` (`dst * src.a` on all four channels), the mask step of an isolated
   layer (issue #617, section 4.1); every backend expresses it with fixed blend factors.
   1.21 adds `BlendMode::SourceOut` and `BlendMode::Xor`, the combine steps of a `mask-composite` layer

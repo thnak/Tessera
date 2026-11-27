@@ -59,6 +59,14 @@ void test_usage_flags() {
            "staging buffer usage");
     expect(wg::buffer_usage_flags(rhi::BufferUsage::Readback) == (b::kMapRead | b::kCopyDst),
            "readback buffer usage");
+    // RHI 1.22 compute: a Storage buffer is read and written by a pass, copied from, written by the
+    // queue and usable as indirect-dispatch arguments; none of those combine with MAP_*.
+    expect(wg::buffer_usage_flags(rhi::BufferUsage::Storage) ==
+               (b::kStorage | b::kCopyDst | b::kCopySrc | b::kIndirect),
+           "storage buffer usage");
+    expect((wg::buffer_usage_flags(rhi::BufferUsage::Storage) & (b::kMapRead | b::kMapWrite)) == 0,
+           "a storage buffer is never mappable");
+    expect(b::kStorage == 128 && b::kIndirect == 256, "storage and indirect bit values");
     // Spec-fixed bit values (the device code casts these straight into WGPU flag types).
     expect(b::kMapRead == 1 && b::kMapWrite == 2 && b::kCopySrc == 4 && b::kCopyDst == 8 &&
                b::kIndex == 16 && b::kVertex == 32 && b::kUniform == 64,

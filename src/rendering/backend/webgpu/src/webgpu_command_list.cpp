@@ -48,16 +48,18 @@ void on_work_done(WGPUQueueWorkDoneStatus, WGPUStringView, void* userdata, void*
     delete state;
 }
 
-class WebGpuCommandList final : public rhi::CommandList {
+class WebGpuCommandList final : public WebGpuComputeCommands {
 public:
     explicit WebGpuCommandList(std::shared_ptr<WebGpuContext> context)
-        : context_(std::move(context)),
+        : WebGpuComputeCommands(context),
+          context_(std::move(context)),
           completion_(std::make_shared<Completion>()) {
         WGPUCommandEncoderDescriptor desc = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
         encoder_ = wgpuDeviceCreateCommandEncoder(context_->device, &desc);
     }
 
     ~WebGpuCommandList() override {
+        end_compute_pass();
         release_pass();
         release_groups();
         if (encoder_ != nullptr) {
@@ -78,6 +80,7 @@ public:
         if (pass_ != nullptr) {
             throw std::logic_error("WebGpuCommandList: render pass already open");
         }
+        end_compute_pass();
         const auto& wgpu_target = static_cast<const WebGpuTargetViews&>(target);
         target_extent_ = target.extent();
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
@@ -218,6 +221,7 @@ public:
         }
         const auto& wgpu_target = static_cast<const WebGpuRenderTarget&>(target);
         auto& wgpu_buffer = static_cast<WebGpuBuffer&>(buffer);
+        end_compute_pass();
         const rhi::Extent2D extent = target.extent();
         if (buffer.size() < readback_buffer_size(extent, target.format())) {
             throw std::out_of_range("WebGpuCommandList: readback buffer is too small");
@@ -277,6 +281,7 @@ public:
                 "WebGpuCommandList: destination offset plus region exceeds the target");
         }
 
+        end_compute_pass();
         WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         src.texture = wgpu_source.resolved_texture();
         src.origin = {static_cast<std::uint32_t>(source_region.x),
@@ -299,6 +304,7 @@ public:
         if (pass_ != nullptr) {
             throw std::logic_error("WebGpuCommandList: render pass still open");
         }
+        end_compute_pass();
         WGPUCommandBufferDescriptor desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
         WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder_, &desc);
         wgpuQueueSubmit(context_->queue, 1, &commands);
@@ -318,6 +324,14 @@ public:
     // Single-threaded Wasm cannot spin for the callback, so a wait is a poll.
     [[nodiscard]] bool wait(std::uint64_t) override {
         return completion_->done;
+    }
+
+protected:
+    [[nodiscard]] WGPUCommandEncoder compute_encoder() const override {
+        return encoder_;
+    }
+    [[nodiscard]] bool render_pass_open() const override {
+        return pass_ != nullptr;
     }
 
 private:
