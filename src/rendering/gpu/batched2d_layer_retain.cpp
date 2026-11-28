@@ -40,6 +40,12 @@ RetainedLayerStats Batched2DRenderer::retained_layer_stats() const {
     return retain_.cache != nullptr ? retain_.cache->stats() : RetainedLayerStats{};
 }
 
+void Batched2DRenderer::release_retained_layer(std::uint64_t owner) {
+    if (retain_.cache != nullptr && retain_.cache->enabled()) {
+        retain_.cache->invalidate(owner);
+    }
+}
+
 bool Batched2DRenderer::retain_layer(std::uint64_t owner, std::uint64_t key, bool clean) {
     retain_.pending = LayerRetainPending{};
     RetainedLayerCache* cache = retain_.cache.get();

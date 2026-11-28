@@ -231,7 +231,12 @@ call), so its old layer would still sit in the cache. The policy therefore keeps
 the table's reset count, into the retained-layer key, so the next promotion has a new key and
 misses. A full table is cleared rather than grown (it is reserved at construction), which moves
 every key as well. A promoted node skips the per-node record and the subtree draw list (they
-would replay it flat).
+would replay it flat). The key only guarantees a miss; the stale entry itself used to wait for
+LRU or idle eviction. Since #1014 `observe` reports a promoted node that turned dirty, and the pass
+tells its sink at once (`PaintSink::release_layer`, forwarded by every wrapper sink, never recorded
+into a draw list); `Batched2DSink` drops the entry through
+`Batched2DRenderer::release_retained_layer` (counted as `invalidated`), so a layer's pooled target
+returns before the next frame.
 
 **Where it observes.** In the `paint_node` wrapper, after the node painted, from the stats delta:
 draws, backdrops and `PaintStats::layers` (layers opened for the node's own style). A node painted
@@ -240,8 +245,9 @@ being recorded are not observed (the outermost clean subtree is), and a promoted
 painted nothing, so its history stands. A partial repaint bumps the retain epoch, which restarts
 every count, so promotion needs full repaints like every retained layer (section 6).
 
-**Off by default.** `FramePipelineConfig::promote_layers` is false: the owner decision on issue
-#476 was to wait for a measurement. The measurement says the cost saved is the CPU paint walk and
+**Off by default.** `FramePipelineConfig::promote_layers` is false (the runtime config key
+`layerPromotion`, [runtime-config-v1](../../specs/runtime-config-v1.md), turns it on): the owner
+decision on issue #476 was to wait for a measurement. The measurement says the cost saved is the CPU paint walk and
 quad batching of an unchanged subtree, not rasterization, which stays one draw:
 
 | `layer_retain_bench`, 16 plain cards, 40 children each (656 nodes), 1920x1080, 300 frames | CPU paint + record (null) | Vulkan frame (RTX 4060, blocking submit) |
@@ -251,18 +257,22 @@ quad batching of an unchanged subtree, not rasterization, which stays one draw:
 
 So promotion pays when a large, mostly static tree is repainted in full (a resize, a theme change,
 an animated backdrop) and is irrelevant when the frame is already damage-clipped. It is still
-opt-in because one retained layer holds device memory per card, the composite can differ from the
-flat paint by a rounding step at anti-aliased edges (not yet compared byte for byte), and the
-runtime config key that would expose it is a follow-up.
+opt-in because one retained layer holds device memory per card. The promoted frame was compared
+with the flat frame byte for byte on lavapipe and a real GPU (`layer_promotion_gpu`, rounded
+children, AA off and on, a content change in the middle): byte-identical in both settings (worst channel delta 0 on llvmpipe and on an RTX 4060). The test still allows one
+rounding step with AA on, since another scene or driver may round differently, and requires zero with AA off. Promotion stays opt-in for memory, not for correctness.
 
 **Diagnostics.** `PaintStats::promoted_layers` and `::layers`; `FramePipeline::layer_promotion_stats()`
 (entries, promotable, promotions, demotions, rejected for backdrop, nested layer or size, table
 resets); `Batched2DRenderer::retained_layer_stats()` (entries, bytes, hits, records, refused,
 invalidated, evicted); and the overlay's `layers` line (`OverlayFrame::layers_enabled` and the
 `layer_*` fields: `layers 3  3072KiB  hit 40  rec 3  refused 1  evicted 2  promoted 2`), omitted
-when the cache is off so the existing overlay is unchanged.
+when the cache is off so the existing overlay is unchanged. `tessera::app::fill_layer_overlay`
+([`layer_overlay.hpp`](../../../src/app/layer_overlay.hpp)) fills those fields from the two stats
+structs; the window driver draws no overlay yet, so only the helper is wired.
 
 **Tests.** `paint_layer_promotion` (policy and paint pass: earns the promotion, records then hits,
 a dirty node never hits a stale layer, flat for few draws, small area, glass inside, faded, LCD,
 no policy, retention off, a new epoch, over the subtree draw list, bounded table) and
-`diagnostics_overlay` (the layer line).
+`diagnostics_overlay` (the layer line), `window_config` (the `layerPromotion` key and the overlay
+helper) and `layer_promotion_gpu` (promoted vs flat pixels, release on dirty).

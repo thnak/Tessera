@@ -13,7 +13,9 @@
 // mapped FramePipelineConfig through FramePipeline's paint seam: with the key off the painted
 // transform is the authoritative tick state, with it on the frame paints the blended value.
 
+#include "layer_overlay.hpp"
 #include "tessera/app/window.hpp"
+#include "tessera/diagnostics/overlay.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -25,6 +27,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -154,6 +157,43 @@ bool interpolation_key_maps_to_the_pipeline_config() {
                     disabled.redraw_policy.max_scissors == enabled.redraw_policy.max_scissors,
                 "the interpolation key changes interpolation only") &&
          ok;
+    return ok;
+}
+
+// `layerPromotion` (issue #1014) opts the pipeline into generic promotion; off by default.
+bool layer_promotion_key_maps_to_the_pipeline() {
+    RuntimeConfig on;
+    on.layer_promotion = true;
+    return expect(!window_pipeline_config(RuntimeConfig{}).promote_layers,
+                  "layers are not promoted by default") &&
+           expect(window_pipeline_config(on).promote_layers,
+                  "layerPromotion=true enables promote_layers");
+}
+
+// The overlay's layer line is filled from the renderer's cache stats and the pipeline's promotion
+// stats (issue #1014); a renderer without a cache keeps the line off.
+bool layer_overlay_is_filled_from_the_stats() {
+    tessera::rendering::gpu::RetainedLayerStats cache;
+    cache.entries = 3;
+    cache.bytes = 4096;
+    cache.hits = 9;
+    cache.records = 4;
+    cache.refused = 1;
+    cache.evicted = 2;
+    tessera::ui::paint::LayerPromotionStats promotion;
+    promotion.promotable = 2;
+    tessera::diagnostics::OverlayFrame frame;
+    tessera::app::fill_layer_overlay(frame, true, cache, promotion);
+    const auto lines = tessera::diagnostics::OverlayModel::build(frame, {});
+    bool ok = expect(!lines.empty() && lines.back() == "layers 3  4KiB  hit 9  rec 4  refused 1  "
+                                                       "evicted 2  promoted 2",
+                     "the layers line carries the cache and promotion counters");
+    tessera::app::fill_layer_overlay(frame, false, cache, promotion);
+    bool has_layers_line = false;
+    for (const std::string& line : tessera::diagnostics::OverlayModel::build(frame, {})) {
+        has_layers_line = has_layers_line || line.starts_with("layers ");
+    }
+    ok = expect(!has_layers_line, "a renderer without a layer cache omits the line") && ok;
     return ok;
 }
 
@@ -440,6 +480,8 @@ int main() {
     ok = defaults_match_runtime_config_defaults() && ok;
     ok = interpolation_key_maps_to_the_pipeline_config() && ok;
     ok = cull_draws_key_maps_to_the_paint_cull() && ok;
+    ok = layer_promotion_key_maps_to_the_pipeline() && ok;
+    ok = layer_overlay_is_filled_from_the_stats() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
     ok = offscreen_max_mb_maps_to_pool_bytes() && ok;
     ok = layer_cache_budget_maps_to_retained_bytes() && ok;

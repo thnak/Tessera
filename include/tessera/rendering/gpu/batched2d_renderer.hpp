@@ -147,6 +147,9 @@ public:
     // composite them and nothing between may be drawn. False: draw as usual; a clean node is cached
     // at pop_layer(), a dirty one drops its entry. Never throws.
     [[nodiscard]] bool retain_layer(std::uint64_t owner, std::uint64_t key, bool clean);
+    // Drops the retained entry of `owner` at once (its node turned dirty while painted flat); a
+    // no-op when there is none. Safe mid-frame: a pool target still in flight is released late.
+    void release_retained_layer(std::uint64_t owner);
     // Not final (image loading, glass that could not run): the open layer is not retained.
     void note_layer_degraded() {
         ++retain_.degraded;

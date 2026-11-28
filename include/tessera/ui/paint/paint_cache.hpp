@@ -430,6 +430,7 @@ public:
         void push_layer(const LayerDraw& layer) override;
         void pop_layer() override;
         [[nodiscard]] bool retain_layer(const LayerRetention& retention) override;
+        void release_layer(std::uint64_t owner) override;
         [[nodiscard]] bool begin_layer_mask() override;
         void end_layer_mask() override;
         [[nodiscard]] bool begin_mask_layer(rendering::gpu::MaskCompositeOp op) override;
