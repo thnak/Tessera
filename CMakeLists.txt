@@ -211,6 +211,8 @@ add_subdirectory(src/hal/filesystem)
 add_subdirectory(src/hal/surface)
 add_subdirectory(src/runtime)
 add_subdirectory(src/ui/input)
+# The browser HAL (ADR-046, issue #290): pure translation/scheduling everywhere, exports Emscripten only.
+add_subdirectory(src/platform/web)
 add_subdirectory(src/ui/scene)
 add_subdirectory(src/ui/behavior)
 add_subdirectory(src/ui/style)
