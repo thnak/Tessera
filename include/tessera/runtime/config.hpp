@@ -89,6 +89,9 @@ struct RuntimeConfig {
     // window builds its pipeline config. Last in the struct so positional aggregate initialization
     // of the older fields keeps its meaning.
     bool layer_promotion = false;
+    // Draws the diagnostics overlay (fps, frame ms, damage, layer cache) over the window after the
+    // scene (issue #1024). Off by default; a hot-path cost only while on. Last in the struct.
+    bool diagnostics_overlay = false;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;
 };

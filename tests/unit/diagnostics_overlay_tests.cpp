@@ -101,6 +101,14 @@ int main() {
         return 7;
     }
 
+    // Issue #1024: the fps line follows the damage line and is absent while fps is unknown.
+    frame.fps = 59.94;
+    frame.frame_ms = 16.7;
+    const auto timed = OverlayModel::build(frame, metrics, 0);
+    if (!expect(timed.size() == 4 && timed[2] == "fps 59.9  frame 16.7ms", "fps line")) {
+        return 8;
+    }
+
     std::cout << "diagnostics_overlay: ok\n";
     return 0;
 }

@@ -32,6 +32,7 @@
 #include "tessera/ui/text/text_input_runtime.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
+#include "window_overlay.hpp"
 
 #include <array>
 #include <cstddef>
@@ -234,6 +235,13 @@ struct WindowHost::Impl {
     // Selects the frame-time source, records it in stats, and feeds the host. `cpu_frame_time_ms`
     // is the frame's CPU cost through present, which stays the fallback.
     runtime::FrameTimeSample observe_frame_time(double cpu_frame_time_ms);
+
+    // --- diagnostics overlay (issue #1024, window_overlay.cpp) --------------------------------
+    // `diagnosticsOverlay`: the meter reads the same frame cost the adaptive controller gets, and
+    // `draw_diagnostics_overlay` paints the panel after the scene, before the renderer ends.
+    FrameRateMeter overlay_meter;
+    std::size_t overlay_scissors = 0;
+    void draw_diagnostics_overlay(bool full_repaint);
 
     // --- host-owned caret blink (window_lifecycle.cpp) --------------------------------------
     // The clock the caret ticks against: the borrowed WindowOptions::clock when set (tests inject a

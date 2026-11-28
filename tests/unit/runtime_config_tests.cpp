@@ -327,7 +327,11 @@ bool check_section_2_sample() {
     // `false` must read through so the two can be compared.
     const auto cull_off = parse_one("cullDraws", "false");
     const auto promo_on = parse_one("layerPromotion", "true");
-    if (!expect(!sample->layer_promotion, "layerPromotion defaults to off") ||
+    const auto overlay_on = parse_one("diagnosticsOverlay", "true");
+    if (!expect(!sample->diagnostics_overlay && overlay_on.has_value() &&
+                    overlay_on->diagnostics_overlay,
+                "diagnosticsOverlay defaults to off and reads through") ||
+        !expect(!sample->layer_promotion, "layerPromotion defaults to off") ||
         !expect(promo_on.has_value() && promo_on->layer_promotion,
                 "layerPromotion=true reads through")) {
         return false;

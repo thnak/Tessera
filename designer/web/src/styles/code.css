@@ -13,6 +13,25 @@
  */
 
 
+/* Split groups (#1025): the area is one or two groups side by side; each is a tab row over its editor. */
+.editor-groups { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; }
+.editor-group { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.editor-groups.is-split .editor-group + .editor-group { border-left: 1px solid var(--border); }
+.editor-groups.is-split .editor-group.is-focused .editor-tab.is-selected { box-shadow: inset 0 2px 0 var(--focus-ring); }
+.tabrow { display: flex; align-items: stretch; flex: none; border-bottom: 1px solid var(--border); background: var(--bg); }
+.tabrow .tabstrip { flex: 1 1 auto; min-width: 0; border-bottom: 0; }
+.editor-group-action {
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.editor-group-action:hover:not(:disabled) { color: var(--text); }
+.editor-group-action:disabled { opacity: 0.4; }
+.editor-group-action:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
 .tabstrip {
   display: flex;
   align-items: stretch;

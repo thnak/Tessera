@@ -55,7 +55,7 @@ export interface WorkbenchSurfaceProps {
   runEnabled: boolean;
   applying: boolean;
   onSelectTab: (path: string) => void;
-  onEdit: (text: string) => void;
+  onEdit: (text: string, path: string) => void;
   onRestart: () => void;
   onSave: () => void;
   onApplyNow: () => void;
@@ -100,17 +100,20 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
     theme: <ThemePanel theme={props.theme} visible={props.workbench.visible.has("theme")} />,
     editor: (
       <CodeRegion
-        open={workspace.state.open}
+        groups={workspace.state}
         files={workspace.state.files}
-        active={workspace.state.active}
         dirty={workspace.state.dirty}
+        textOf={workspace.textOf}
         preview={workspace.state.preview}
         onPinTab={workspace.pinTab}
-        text={props.activeText}
         revision={props.revision}
         sourceRef={refs.source}
         onSelectTab={props.onSelectTab}
         onCloseTab={workspace.closeTab}
+        onFocusTab={workspace.focusTab}
+        onMoveTab={workspace.moveTab}
+        onSplit={workspace.splitEditor}
+        onJoin={workspace.joinEditors}
         onEdit={props.onEdit}
         applying={props.applying}
         onSave={props.onSave}
