@@ -37,11 +37,14 @@ State of the code at the time of writing, which this spec must not hide:
   pending (section 4.3), and the evaluator and the generated base run all of it; `TESSERA_SUSPENSE_NO_BOUNDARY`
   and `TESSERA_SUSPENSE_TOO_MANY_READS` surface from TSX with source positions (section 9). The tests are
   `lowering_pending`, `lowering_resource`, `codegen_pending_tsx` and the model tests of section 11.
-  Still open: `.error` has no generated form, the data-store adapter publishes no typed `.data`, a
-  resource in an effect dependency list is not accepted, and the Studio preview does not show the
-  pending state yet (#657).
-- The data store (`src/runtime/data_store*`) is reached through a `ResourceView` the host binds and lacked
-  four things (section 3.3), now provided.
+  The leftovers of #956 are implemented (decisions 16 to 20): `.error` generates, the store adapter
+  publishes typed `.data`, a service that is a `ResourceProvider` binds the views by key, a resource
+  field is accepted in an effect dependency list, `useDeferredValue` takes a number or bool prop, the
+  key is checked against the method's parameters, and bindings that read the pending model refresh
+  without `update()` (section 10.1). Still open: the Studio preview does not show the pending state
+  yet (#657).
+- The data store (`src/runtime/data_store*`) is reached through a `ResourceView`, bound by the host or
+  by a provider service (section 10.2), and lacked four things (section 3.3), now provided.
 - `useDeferredValue` has no spike; its rules here follow the ADR text and the decisions of section 12.
 
 ## 2. The rule in one place
@@ -93,8 +96,11 @@ Rules:
 - `data` has a type only when the analyzer knows it: the `type` field of the entry (section 3.4) is the
   `ui/services.json` method's declared return type when that is `int`, `float`, `bool` or `string`, and
   is omitted for any other result (a record, `void`). A `.data` read of an untyped resource validates
-  but is `TESSERA_CODEGEN_UNSUPPORTED`; `.error` has no generated form yet. The key is not checked
-  against the method's parameters in V1: binding a key to a fetch is the host's job.
+  but is `TESSERA_CODEGEN_UNSUPPORTED`. `.error` is the failure text, a `string` for every resource
+  (empty until a fetch fails). The key is checked against the method's parameters (decision 19): a
+  scalar key for a one-parameter method, or a record whose fields are the parameter names, once
+  each, with parts of the declared types (an `int` may supply a `float`); a mismatch is
+  `TESSERA_REACT_HOOK_ARG`. Binding a key to a fetch is the provider's job (section 10.2) or the host's.
 
 ### 3.2 What it reads from the store
 
@@ -285,8 +291,8 @@ const [isPending, startTransition] = useTransition();
   typed as `value`, updates the component like any output, and is allocation-free (one stored scalar).
 - Its meaning is weaker than React's: it is the settled value, not a lower-priority render. Ported code
   gets the same result but not the same timing, and the documentation MUST say so.
-- Implemented in #656 slice 3: `const d = useDeferredValue(x)` takes the name of a `useState` value (a
-  prop is not accepted yet) and lowers to one `deferred_value` `behaviors` entry whose one arg is `x` and
+- Implemented in #656 slice 3 and #956: `const d = useDeferredValue(x)` takes the name of a `useState`
+  value, or of a destructured bool or number prop (decision 18), and lowers to one `deferred_value` `behaviors` entry whose one arg is `x` and
   whose one output `value` has `x`'s type; `d` reads `beh::d.value`. The generated base keeps one
   `DeferredScalar` member and reads it through an accessor; a marked setter reads it just before it
   assigns, so the settled value is what the UI showed before the change. The evaluator runs the same
@@ -331,7 +337,8 @@ the pending model.
 | `TESSERA_IR_TRANSITION` | validator (exists) | A `transition` mark on an action that is not a state setter |
 | `TESSERA_IR_MALFORMED` | validator (exists) | `fallback` on a kind other than `ErrorBoundary`/`Suspense` |
 | `TESSERA_SUSPENSE_UNKNOWN_READ` | run time (exists, recoverable `PendingError`) | A read slot was never registered on the boundary |
-| `TESSERA_REACT_HOOK_ARG` | analyzer (exists) | `useResource` arguments are not of the declared kind or type, or a key is not pure |
+| `TESSERA_REACT_HOOK_ARG` | analyzer, lowering (exists) | `useResource` arguments are not of the declared kind or type, a key is not pure, or the key does not match the method's parameters (decision 19: analyzer for the field names and count, lowering for the part types) |
+| `TESSERA_REACT_EFFECT_DEPS` | analyzer (exists) | An effect that reads `feed.status`, `feed.data` or `feed.error` lists exactly those dotted names (decision 17); a bare resource or another dotted name is rejected |
 
 The ADR lists only `TESSERA_SUSPENSE_NO_BOUNDARY`; the spike has no code for the read limit, so
 `TESSERA_SUSPENSE_TOO_MANY_READS` is the one addition (decision 6), and nothing else is new
@@ -357,6 +364,52 @@ specifier is the project import codes (`TESSERA_IR_UNRESOLVED`, `TESSERA_IR_UNSU
 - Generated code MUST NOT fetch in render, MUST NOT wait on the UI thread, and MUST NOT throw across
   threads or FFI (no promise is thrown; ADR-067 alternatives).
 
+### 10.1 Refresh without `update()`
+
+A component with a resource, a transition-marked setter or a deferred value declares one more dirty
+cell, `pending::sync` (`kBit_pending_sync_`; [ADR-056](../../decisions/ADR-056-update-dependency-masks-and-scheduled-children.md)
+mask layout). Every binding that reads `res::<name>.<field>` depends on it, and a binding that reads
+`isPending` or a deferred value is unbounded already, so it carries it too; a binding that reads
+neither does not. `pending_sync()` folds what the model publishes (each resource's
+`ResourceState::signature()`, the transition mark, each boundary's phase) into one word and, when it
+differs from the last one, sets the cell and schedules the update; `flush_update()` runs the same
+sync first, without scheduling, so an effect that depends on a resource sees this frame's state. The
+marked setter sets the cell itself. A host with an `UpdateScheduler` attached therefore calls
+`pending_sync()` (or nothing, when a provider drives the views, which still needs the frame boundary
+to call it) and the bindings refresh; without a scheduler the dirty bit waits for the next
+`flush_update()` or `update()`. The signature compares the address and length of a text, not its
+bytes: a source republishes through a new epoch.
+
+### 10.2 Binding the data store: `ResourceProvider`
+
+The generated component never names the store. A resource whose service type provides
+`ResourceView resource(std::string_view method, std::string_view key) noexcept`
+(`tessera/ui/pending/resource_provider.hpp`) is bound through that service, resolved at `attach_services`
+by the usual `useService` seam ([ADR-050](../../decisions/ADR-050/README.md)); a service without the member
+is not touched and the host calls `bind_<res>` as before. The key is the canonical encoding of
+section 3.1, written by `ResourceKey` into a fixed 192-byte buffer (`id=i1;`, `name=s2:ab;`; a bare scalar has
+an empty name), compared by value every sync, with no allocation; an oversized key leaves the resource
+unbound. On a change the component asks the provider again, so the provider owns what the view reads
+(typically a `StoreResource::typed<T>` per key over the `DataStore`), starts the fetch for a key it has not
+seen, and keeps the entry alive. `StoreResource` publishes the stored value as the scalar `.data` of its
+declared type (a value of another type reads as absent), and the store's failure message as `.error`;
+reads allocate nothing after warm-up, and only a key change allocates (the provider's new entry). A
+hand `bind_<res>` wins: that resource is never asked of the provider again. A key change in a handler
+rebinds at once; a marked setter then re-anchors the transition mark to the new entry's epoch, because
+the new key is a new store entry with its own epoch (a host that fetches on the same view keeps the
+`epoch + 1` rule).
+
+### 10.3 Target-less behaviors
+
+`Instance::attach` refuses an empty target set on purpose (a behavior that declared targets and got none
+stays detached). `useHotkeys` and the registered `transition` and `deferred_value` engines declare none,
+so `Instance::attach_untargeted` is the way in, and a generated base attaches a behavior whose manifest
+entry has no targets through it at once. `transition` and `deferred_value` stay model-backed in the
+generated base (decision 11 stands): their state is driven by the marked setter (an epoch handed to
+`TransitionMark::begin` *before* the assignment) and by the resource subscription, which an options hash
+cannot express, so attaching them through an `Instance` would only copy the component's own state. A host
+that drives them by arguments (the preview) attaches them with `attach_untargeted`.
+
 ## 11. Verification layers
 
 Every normative rule has a test at one of three layers, plus the usual front-end and IR layers.
@@ -369,6 +422,9 @@ Every normative rule has a test at one of three layers, plus the usual front-end
 | Codegen text | the generated base and the golden `tests/golden/codegen/pending/Feed.g.hpp` | `codegen_pending` |
 | Allocation-free update | after a three-cycle warm-up, 64 transition cycles allocate zero (global `operator new` counter) | `codegen_pending_runtime` |
 | Front end, resources and deferred values (#656 slice 3) | `useResource` (forms, typed `data`, bare-call naming), `useDeferredValue`, the rejected forms, and the two `TESSERA_SUSPENSE_*` codes with source positions | `lowering_resource` |
+| Provider binding, typed data, `.error`, refresh and effects (#956) | on the compiled `ProviderFeed`: the provider binds by canonical key with no `bind` call, typed string and int `.data`, the failure text, a scheduler flush after `pending_sync()` with no `update()`, an effect over `row.status`, a hand bind wins, and zero allocations in steady state | `codegen_pending_provider`, `pending_resource` (`StoreResource::typed`, `ResourceKey`, `signature`) |
+| Effect dependencies, deferred prop, key check (#956) | resource fields as effect dependencies, `useDeferredValue` over a prop, the key against the method parameters | `lowering_resource` |
+| Target-less attach (#956) | `Instance::attach_untargeted` | `behavior_instance` |
 | Boundary hold and deferred rule | a held boundary keeps its content, releasing re-applies the rule; `DeferredScalar` | `pending_model`, `pending_behavior` |
 | TSX to generated C++ and the evaluator | one TSX component (resource, `Suspense`, `useTransition`, `useDeferredValue`) agrees with the evaluator after every step, including the held old subtree | `codegen_pending_tsx` |
 | Front end (#656 slice 1) | `<Suspense>`, `lazy` and `useTransition` lower to the IR above; the rejected forms are rejected; the module validates; a component without them is unchanged | `lowering_pending`, `tests/golden/ir/pending-ui.json`, `hook_manifest`, `schema` |
@@ -431,24 +487,48 @@ Decisions taken in #656 slice 3, conservative and recorded where they bind:
 10. **`type` of a resource.** The IR has no result type of its own, so the entry gets an optional `type`
     (section 3.4): the manifest method's declared return type when it is `int`, `float`, `bool` or
     `string`, omitted otherwise. Typed `.data` is a scalar in the view (`ResourceState::number` or
-    `text`); an untyped `.data` and every `.error` stay `TESSERA_CODEGEN_UNSUPPORTED`.
-11. **The `transition` behavior is registered, and the generated base does not attach it.**
+    `text`); an untyped `.data` stays `TESSERA_CODEGEN_UNSUPPORTED`. `.error` generates for every
+    resource since #956 (`ResourceState::error`, a string; decision 16).
+11. **The `transition` behavior is registered, and the generated base does not attach it** (the reason is
+    stated in section 10.3; #956 kept it and made target-less attach possible for the behaviors that can use it).
     `transition` and `deferred_value` are in the engine registry (the manifest and the registry stay
     one closed set), but `Instance::attach` takes no target-less behavior and the mark is driven by the
     marked setter and the subscription, so the generated base reads its own `TransitionMark` and
     `DeferredScalar`; the registered classes serve a host that drives them by arguments.
-12. **`useDeferredValue` takes a `useState` name** (not a prop or an expression) of a bool, number or
+12. **`useDeferredValue` takes a `useState` name** (a bool, number prop is also accepted since #956,
+    decision 18; never an expression) of a bool, number or
     string-literal union; any other argument is `TESSERA_REACT_HOOK_FORM` or `TESSERA_REACT_HOOK_ARG`,
     any other type `TESSERA_IR_UNSUPPORTED` (section 6).
 13. **Where the suspense codes are raised.** `TESSERA_SUSPENSE_NO_BOUNDARY` and
     `TESSERA_SUSPENSE_TOO_MANY_READS` come from the IR validator over the lowered component, with the
     source position of the `useResource` call or the boundary; the analyzer does not repeat them, because
     the boundary tree is only known after lowering.
-14. **Refresh.** `pending_sync()` publishes resource state to the boundary and the mark; bindings that
-    read `res::`, `isPending` or a deferred value are external reads, so a host calls `update()` after a
-    sync, as for every other external value (environment, behavior outputs).
-15. **Key and method parameters.** A key is checked as a pure scalar or record of scalars; its match with
-    the service method's parameters is the host's binding of the fetch in V1.
+14. **Refresh.** `pending_sync()` publishes resource state to the boundary and the mark. Since #956 it also
+    marks the pending cell and schedules the update when anything the bindings read changed, so a host
+    no longer calls `update()` after a sync (section 10.1; the original rule was that a host did).
+15. **Key and method parameters.** Superseded by decision 19: the key is checked against the method's
+    parameters.
+
+Decisions taken for #956 (2026-11-28), conservative again:
+
+16. **`.error` and the store adapter.** `ResourceState` gains `error` (a view of the failure message);
+    `.error` is a `string` for every resource and needs no `type`. `StoreResource::typed<T>` publishes the
+    stored `T` (bool, an integer, a float or `std::string`) as `.data`; `DataStore::try_published` gained a
+    payload overload that copies the value pointer and the error message without allocating (it only
+    try-locks, like the original read).
+17. **Effect dependencies.** `feed.status`, `feed.data` and `feed.error` may be listed, and are required when the
+    body reads them; the IR dependency is `res::feed.<field>` and the dependency hash is the status
+    word, the typed scalar or the error text. Only the effect rule asks for resource reads: a memo list is
+    unchanged.
+18. **`useDeferredValue` over a prop.** A destructured prop of type bool, int or float. A string prop is
+    `TESSERA_IR_UNSUPPORTED` because a literal union is not recorded in a prop's IR type (copy it into
+    `useState` to defer it).
+19. **Key against parameters.** One scalar for a one-parameter method, or a record naming each parameter
+    once; part types must equal the declared type (an `int` may supply a `float`); a part whose type is
+    unknown (a derived expression) is let through. Reported as `TESSERA_REACT_HOOK_ARG`.
+20. **Store binding and refresh.** The provider seam, the key encoding and the pending cell are
+    sections 10.1 and 10.2; `attach_untargeted` is section 10.3. A key longer than 192 bytes is left
+    unbound rather than truncated.
 
 ## 13. Related documents
 

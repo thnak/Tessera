@@ -122,7 +122,8 @@ unchanged; additive, `irVersion` stays `1`):
 - `transition` (`useTransition`) and `deferred_value` (`useDeferredValue`, one `value` arg, one output `value`
   typed like the deferred state) are registered engine behaviors, but the generated base reads the
   component's own `TransitionMark` and `DeferredScalar` instead of an `Instance`
-  ([`pending-ui-v1.md`](pending-ui-v1.md) sections 5, 6 and 12).
+  ([`pending-ui-v1.md`](pending-ui-v1.md) sections 5, 6, 10.3 and 12). A behavior with no target attaches through
+  `Instance::attach_untargeted` (`attach` refuses an empty target set on purpose).
 - `args` lists every manifest field in manifest order, including defaulted ones (written as literals), so
   a consumer needs no manifest to evaluate a behavior.
 - A callback arg holds a `handler` id (`handler::N` for an inline setter handler, or a `bind::` id for a
