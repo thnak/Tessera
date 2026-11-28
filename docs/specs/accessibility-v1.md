@@ -36,7 +36,7 @@ struct SemanticsNode {
 
 - Roles: generic, button, link, text, heading, image, text field, checkbox, radio, switch,
   slider, progress, list, list item, tab, tab panel, dialog, menu, menu item, scroll view,
-  tooltip, alert.
+  tooltip, alert, status.
 - States: focused, focusable, disabled, checked/mixed, selected, expanded/collapsed, busy,
   invalid, read-only, required.
 - Actions: activate/click, focus, set value, increment/decrement, scroll, dismiss, show menu,
@@ -411,7 +411,7 @@ verbatim: no second tree, no scene pointers across the boundary. Everything live
 | Layer | Files | Contract |
 |---|---|---|
 | Errors | `uia_error.*` | `UiaError` values (`UnsupportedPlatform`, `ApartmentUnavailable`, `NotStarted`, `NoSnapshot`, `UnknownNode`, `PatternNotSupported`, `ElementNotEnabled`, `ThreadViolation`, `QueueFull`, `Timeout`, ...); thrown by nobody, returned everywhere. |
-| Mapping | `uia_mapping.*` | UIA property/pattern/control-type ids repeated as plain integers (the Windows probe static_asserts them against `UIAutomationClient.h`); `control_type_for(Role)` and `patterns_for(A11yNode)`. Switch maps to CheckBox (UIA has no switch), alert to Text, containers to Pane. Patterns: Invoke from `Action::Press`, Value from `Action::SetValue`, SelectionItem for selectable roles or `State::Selected`, Selection for List/Menu. |
+| Mapping | `uia_mapping.*` | UIA property/pattern/control-type ids repeated as plain integers (the Windows probe static_asserts them against `UIAutomationClient.h`); `control_type_for(Role)` and `patterns_for(A11yNode)`. Switch maps to CheckBox (UIA has no switch), alert and status to Text, containers to Pane. Patterns: Invoke from `Action::Press`, Value from `Action::SetValue`, SelectionItem for selectable roles or `State::Selected`, Selection for List/Menu. |
 | Handoff | `uia_handoff.*` | Single-producer/single-consumer one-slot handoff. `publish` replaces an unconsumed snapshot and increments `dropped` (drop-oldest, newest tree wins); `take` copies into the consumer's reused buffer. The slot keeps its reserved capacity, so the UI-thread path allocates nothing after the first snapshot. |
 | Provider | `uia_provider.*` | Bridge-thread projection of one node (`UiaElementInfo`: control type, patterns, bounded name/value/description, automation id, bounds, enabled/focused/selected), a precomputed parent table, `element`/`child_count`/`child_at`/`focused`/`hit_test`, and a bounded (32) coalescing action ring with a `SetValue` text payload. Every query asserts bridge-thread ownership. |
 | Bridge | `uia_bridge.*`, `uia_bridge_jobs.*` | Owns the one bridge thread, the apartment, the handoff, and a bounded (8) client-job ring. Phases `Idle -> Starting -> Running -> Failed/Stopped`; `start` never blocks on COM initialization, `stop` signals and joins with a liveness bound, restart re-initializes the same apartment. Jobs run inline when the caller is already the bridge thread; `post` enqueues work without waiting. The newest published tree is adopted immediately before each job runs, and `set_hooks` installs the bridge-thread lifecycle hooks the host uses to own the root provider. |

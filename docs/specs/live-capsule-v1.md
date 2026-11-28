@@ -131,10 +131,12 @@ announcements and timeouts (`live_capsule_host`), and the `LiveCapsule` componen
 layer (`live_capsule`). Tests: ctest `live_capsule` (unit) and `live_capsule_component` (headless
 AppHost: placement, focus, parts, in-place update, idle).
 
-Not yet: goldens (notch, punch-hole, none; three themes; mid-transition); a `Status` role in the
-accessibility tree (the node carries role `status` and `aria-live: polite`, but the tree maps it to
-generic); a content-hash measured slot size (slots carry size hints today); posting `start/update/end`
-from other threads; the `tessera-ui` surface.
+Also landed: the `Status` role in the accessibility tree (`Role::Status`; AT-SPI status bar, UIA Text),
+so the capsule node appears in the snapshot named from the front activity.
+
+Not yet: goldens (notch, punch-hole, none; three themes; mid-transition); a content-hash measured
+slot size (slots carry size hints today); posting `start/update/end` from other threads; the
+`tessera-ui` surface.
 
 ## 10. Decisions
 

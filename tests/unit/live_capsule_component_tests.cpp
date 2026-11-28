@@ -13,6 +13,10 @@ namespace {
 
 using namespace overlay_test;
 using namespace tessera::ui::capsule;
+using tessera::ui::a11y::A11yNode;
+using tessera::ui::a11y::A11ySnapshot;
+using tessera::ui::a11y::name_of;
+using tessera::ui::a11y::Role;
 using tessera::ui::accessibility::AnnouncementQueue;
 
 const Node* find_part(const Node& node, std::string_view part) {
@@ -102,8 +106,26 @@ void test_semantics_placement_and_focus() {
         named = named || (attribute.name == "aria-label" && attribute.value == "Timer running");
     }
     expect(named, "the accessible name comes from the front activity");
-    // The a11y tree has no Status role yet, so the node role is checked at the scene level.
     expect(content->role() == "status", "role status");
+    {
+        A11ySnapshot snapshot;
+        a11y_test::StubStyles styles;
+        // The fixture does not run layout for overlay content, so the box the capsule wrote is
+        // applied by hand; a zero-size node is not emitted.
+        content->set_bounds(
+            {capsule.rect().x, capsule.rect().y, capsule.rect().width, capsule.rect().height});
+        (void)a11y_test::build(*f.host->overlays().layer_node(OverlayLayer::Toast), styles,
+                               snapshot);
+        const A11yNode* status = nullptr;
+        for (const A11yNode& node : snapshot.nodes) {
+            if (node.role == Role::Status) {
+                status = &node;
+            }
+        }
+        expect(status != nullptr, "the snapshot carries a Status node for the capsule");
+        expect(status != nullptr && name_of(*status) == "Timer running",
+               "the Status node is named from the front activity");
+    }
     bool live = false;
     for (const auto& attribute : content->aria_attributes()) {
         live = live || (attribute.name == "aria-live" && attribute.value == "polite");
