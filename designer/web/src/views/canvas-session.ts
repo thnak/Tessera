@@ -57,6 +57,8 @@ import {
 } from "./canvas-frame";
 import { attachCanvasKeyboard } from "./canvas-keyboard";
 import { sendPlatformEvent } from "./canvas-platform";
+import { sendResourceControl } from "./canvas-resource";
+import { unavailableReport } from "../lib/resource-controls";
 import { unavailableReply } from "../lib/platform-events";
 import { attachCanvasPointer } from "./canvas-pointer";
 import {
@@ -910,6 +912,21 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         requestFrame();
       }
       return reply;
+    },
+    /**
+     * One control of a fake resource (issue #657, `designer-protocol-v1.md` section 5.2). The engine owns
+     * the resource and the tree derived from it; the page draws again only when the report says a frame is
+     * owed. `status` reads the report and owes none.
+     */
+    resourceControl: (request) => {
+      if (gpu === null) {
+        return unavailableReport("the canvas preview has not started");
+      }
+      const report = sendResourceControl(gpu.module, request);
+      if (report.ok && report.changed && visible) {
+        requestFrame();
+      }
+      return report;
     },
     /**
      * The computed style of one node (issue #849): the automation seam a browser check uses instead of

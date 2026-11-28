@@ -117,10 +117,70 @@ bool parse_platform_step(std::string_view rest, PlatformEvent& out, std::string&
     return true;
 }
 
+// `<action> [<name> [value...] [@<epoch>]]`: the part of a `resource` line after the keyword. The
+// value is the rest of the line, so a string-typed resource can hold spaces; a value that is a
+// whole number is also the number of a number-typed resource.
+bool parse_resource_step(std::string_view rest, PreviewInputStep& out, std::string& error) {
+    const auto trim = [](std::string_view text) {
+        const std::size_t first = text.find_first_not_of(" \t");
+        if (first == std::string_view::npos) {
+            return std::string_view();
+        }
+        return text.substr(first, text.find_last_not_of(" \t") - first + 1);
+    };
+    const auto split = [&](std::string_view text) {
+        text = trim(text);
+        const std::size_t end = text.find_first_of(" \t");
+        return std::pair{text.substr(0, end), end == std::string_view::npos
+                                                  ? std::string_view()
+                                                  : trim(text.substr(end))};
+    };
+    const auto [action, after_action] = split(rest);
+    if (action == kStatusAction) {
+        out.resource_status = true;
+        return after_action.empty() ? true
+                                    : (error = "`resource status` takes no arguments", false);
+    }
+    if (action.empty() || !pending_action_from(action, out.resource.action)) {
+        error =
+            "`resource` needs fetch, resolve, fail or status, got `" + std::string(action) + "`";
+        return false;
+    }
+    auto [name, value] = split(after_action);
+    if (name.empty()) {
+        error = "`resource " + std::string(action) + "` needs a resource name";
+        return false;
+    }
+    const std::size_t at = value.rfind('@');
+    if (at != std::string_view::npos &&
+        (at == 0 || value[at - 1] == ' ' || value[at - 1] == '\t')) {
+        const std::string_view digits = value.substr(at + 1);
+        std::uint64_t epoch = 0;
+        const auto [ptr, code] =
+            std::from_chars(digits.data(), digits.data() + digits.size(), epoch);
+        if (digits.empty() || code != std::errc{} || ptr != digits.data() + digits.size()) {
+            error = "the epoch must be `@<number>`, got `" + std::string(value.substr(at)) + "`";
+            return false;
+        }
+        out.resource.epoch = epoch;
+        value = trim(value.substr(0, at));
+    }
+    out.resource.resource = std::string(name);
+    out.resource.text = std::string(value);
+    out.resource.message = std::string(value);
+    double number = 0.0;
+    const auto [ptr, code] = std::from_chars(value.data(), value.data() + value.size(), number);
+    if (!value.empty() && code == std::errc{} && ptr == value.data() + value.size()) {
+        out.resource.number = number;
+    }
+    return true;
+}
+
 } // namespace
 
 std::string_view input_script_format() noexcept {
-    return "one step per line: `click <automationId>` or `platform <type> [value] [@ns]`";
+    return "one step per line: `click <automationId>`, `platform <type> [value] [@ns]` or "
+           "`resource <action> [name [value] [@epoch]]`";
 }
 
 bool parse_input_script(std::string_view text, std::vector<PreviewInputStep>& out,
@@ -160,10 +220,22 @@ bool parse_input_script(std::string_view text, std::vector<PreviewInputStep>& ou
             out.push_back(std::move(step));
             continue;
         }
+        constexpr std::string_view kResource = "resource";
+        if (trimmed.rfind(kResource, 0) == 0) {
+            PreviewInputStep step;
+            step.kind = "resource";
+            if (!parse_resource_step(trimmed.substr(kResource.size()), step, error)) {
+                error = "line " + std::to_string(line_number) + ": " + error;
+                return false;
+            }
+            out.push_back(std::move(step));
+            continue;
+        }
         constexpr std::string_view kClick = "click";
         if (trimmed.rfind(kClick, 0) != 0) {
             error = "line " + std::to_string(line_number) +
-                    ": expected `click <automationId>` or `platform <type> [value] [@ns]`";
+                    ": expected `click <automationId>`, `platform <type> [value] [@ns]` or "
+                    "`resource <action> [name [value] [@epoch]]`";
             return false;
         }
         std::string_view rest = trimmed.substr(kClick.size());
@@ -276,9 +348,20 @@ InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewO
     PlatformEventDriver platform;
     for (const PreviewInputStep& step : steps) {
         result.kinds.push_back(step.kind);
+        result.resources.emplace_back();
         if (step.kind == "platform") {
             result.clicks.emplace_back();
             result.platforms.push_back(platform.deliver(session, step.platform));
+        } else if (step.kind == "resource") {
+            result.clicks.emplace_back();
+            result.platforms.emplace_back();
+            PendingControlResult outcome;
+            if (step.resource_status) {
+                outcome.ok = true;
+            } else {
+                outcome = session.control_resource(step.resource);
+            }
+            result.resources.back() = pending_report_json(outcome, session.pending_report());
         } else {
             result.clicks.push_back(session.click(step.automation_id));
             result.platforms.emplace_back();
@@ -334,6 +417,21 @@ std::string scene_input_document(const ProjectInput& project, const ScenePreview
             append_quoted(out, steps[index].platform.value);
             out += ",\"reply\":";
             out += platform_reply_json(run.platforms[index]);
+            out += ",\"state\":";
+            out += state_cells_json(run.states[index + 1]);
+            out.push_back('}');
+            continue;
+        }
+        if (run.kinds[index] == "resource") {
+            // The report line ends in a newline of its own; the document is one object.
+            std::string_view report = run.resources[index];
+            while (!report.empty() && report.back() == '\n') {
+                report.remove_suffix(1);
+            }
+            out += "{\"step\":";
+            out += std::to_string(index);
+            out += ",\"kind\":\"resource\",\"report\":";
+            out += report;
             out += ",\"state\":";
             out += state_cells_json(run.states[index + 1]);
             out.push_back('}');

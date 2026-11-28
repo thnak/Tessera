@@ -169,6 +169,8 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
         return unsupported("a virtual collection (`" + node.id + "`) is not previewed yet");
+    case ir::NodeKind::Suspense:
+        return build_suspense(node, parent, depth);
     case ir::NodeKind::Slot:
         // The position is replaced by the instance's children, so it owns no scene node.
         return build_slot(node, parent, depth);

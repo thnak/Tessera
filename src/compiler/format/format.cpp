@@ -5,6 +5,7 @@
 // verification is what makes the three properties unconditional rather than a matter of testing.
 
 #include "builder.hpp"
+#include "other_formats.hpp"
 #include "tessera/compiler/format/format.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
@@ -77,24 +78,10 @@ std::string excerpt(std::string_view text) {
     return text.size() > kMax ? out + "..." : out;
 }
 
-} // namespace
-
-FormatResult format_source(FileKind kind, std::string_view text, const FormatOptions& options) {
+// The TSX printer proper: `source` is LF-normalised and has no BOM.
+FormatResult format_tsx_text(const std::string& source, const jsx::SourceMap& map,
+                             const FormatOptions& options) {
     FormatResult result;
-    if (kind != FileKind::Tsx) {
-        result.diagnostics.push_back(
-            FormatDiagnostic{"TESSERA_FMT_UNSUPPORTED", "only .tsx files can be formatted", 1, 1});
-        return result;
-    }
-    std::string_view body = text;
-    const bool bom = body.starts_with("\xEF\xBB\xBF");
-    if (bom) {
-        body.remove_prefix(3);
-    }
-    const bool crlf = body.find("\r\n") != std::string_view::npos;
-    const std::string source = normalize_newlines(body);
-    const jsx::SourceMap map(source);
-
     jsx::ModuleParseResult parsed = jsx::parse_module(source);
     if (parsed.root == nullptr || parsed.has_errors()) {
         std::string message = "the file does not parse, so it is not formatted";
@@ -167,7 +154,44 @@ FormatResult format_source(FileKind kind, std::string_view text, const FormatOpt
                       "the printed output changed the comments; this is a formatter bug", 0);
     }
 
-    result.changed = formatted != source;
+    result.text = std::move(formatted);
+    return result;
+}
+
+FormatResult format_plain(FileKind kind, const std::string& source, const jsx::SourceMap& map,
+                          const FormatOptions& options) {
+    Problem problem;
+    std::string out;
+    const bool ok = kind == FileKind::Css ? format_css(source, options, out, problem)
+                                          : format_json(source, options, out, problem);
+    if (!ok) {
+        return refuse(map, std::move(problem.code), std::move(problem.message),
+                      static_cast<std::uint32_t>(problem.offset));
+    }
+    FormatResult result;
+    result.text = std::move(out);
+    return result;
+}
+
+} // namespace
+
+FormatResult format_source(FileKind kind, std::string_view text, const FormatOptions& options) {
+    std::string_view body = text;
+    const bool bom = body.starts_with("\xEF\xBB\xBF");
+    if (bom) {
+        body.remove_prefix(3);
+    }
+    const bool crlf = body.find("\r\n") != std::string_view::npos;
+    const std::string source = normalize_newlines(body);
+    const jsx::SourceMap map(source);
+
+    FormatResult inner = kind == FileKind::Tsx ? format_tsx_text(source, map, options)
+                                               : format_plain(kind, source, map, options);
+    if (!inner.ok()) {
+        return inner;
+    }
+    FormatResult result;
+    std::string formatted = std::move(inner.text);
     if (crlf) {
         std::string converted;
         for (const char c : formatted) {
@@ -184,6 +208,21 @@ FormatResult format_source(FileKind kind, std::string_view text, const FormatOpt
     result.text = std::move(formatted);
     result.changed = result.text != text;
     return result;
+}
+
+std::optional<FileKind> file_kind_for_path(std::string_view path) {
+    const std::size_t slash = path.find_last_of("/\\");
+    const std::string_view name = slash == std::string_view::npos ? path : path.substr(slash + 1);
+    if (name == "tessera.json") {
+        return FileKind::Json;
+    }
+    if (name.ends_with(".tsx")) {
+        return FileKind::Tsx;
+    }
+    if (name.ends_with(".css")) {
+        return FileKind::Css;
+    }
+    return std::nullopt;
 }
 
 } // namespace tessera::compiler::format

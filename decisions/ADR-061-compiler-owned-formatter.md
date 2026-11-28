@@ -112,5 +112,6 @@ CSS is printed one declaration per line, custom-property values and `@`-rule pre
   (`docs/specs/source-format-v1.md`) holding the comment rules and the style table.
 - Mention `tessera fmt` in the port guide (ADR-058): noted in ADR-058's follow-up.
 - Slice 1 (#576) is implemented: `format_source` in `src/compiler/format/`, the `tessera_fmt` CLI in
-  `tools/fmt/`, and the spec above. The edit-list output, CSS and `tessera.json`, range formatting and
-  `fmt --check` over the shipped samples are still open.
+  `tools/fmt/`, and the spec above. Slice 2 (edit list, worker, Format Document) and slice 3 (CSS and
+  `tessera.json`, the `format` options, `docs/specs/source-format-v1.md` sections 12 and 13) are
+  implemented. Range formatting and `fmt --check` over the shipped samples are still open.

@@ -232,6 +232,9 @@ set(_tessera_scene_preview_sources
     # The session's behavior wiring (ADR-064 item 7, spike #658), split out when it pushed
     # `scene_session.cpp` past the source-size limit.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
+    # The pending-UI preview (issue #657): a deterministic resource double per `useResource`, driven
+    # by the page or a test, behind the boundary the build walk shows.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_pending.cpp
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_override.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
@@ -565,7 +568,7 @@ else ()
         # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
         # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
         # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_resource","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -1112,6 +1115,29 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_behavior COMMAND scene_behavior_tests)
+
+    # The pending UI in the preview (issue #657, pending-ui-v1.md sections 10 and 11): a TSX
+    # component with a suspending resource, previewed with the resource faked, shows the fallback,
+    # the content and the pending state. Compiled through the real front end by the #656 fixture.
+    add_executable(scene_pending_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scene_pending_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_pending_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(scene_pending_tests PRIVATE
+        tessera_automation_scene
+        tessera_behavior
+        tessera_css_module
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_jsx_frontend
+        tessera_layout
+        tessera_lowering
+        tessera_react_rules
+        tessera_scene
+        tessera_services_types
+        tessera_style)
+    add_test(NAME scene_pending COMMAND scene_pending_tests)
 
     # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and
     # safe-area path the app runs, a posture change is one layout pass, and the preview's SafeArea

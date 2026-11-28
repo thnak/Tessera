@@ -74,6 +74,13 @@ public:
 
     // The component's `ref` declarations, so the walk can record which scene node each one resolved
     // to (a behavior's target). Set once by `build()`.
+    // The pending-UI session that decides which subtree each `Suspense` boundary shows, and that
+    // the evaluator reads `res::` values from. Null: boundaries show their children.
+    void set_pending(eval::PendingSession* pending) noexcept {
+        pending_ = pending;
+        evaluator_.set_pending_session(pending);
+    }
+
     void set_component_refs(const std::vector<ir::Ref>* refs) noexcept {
         component_refs_ = refs;
     }
@@ -86,6 +93,8 @@ private:
     // the instance's host node, and a `Slot` splices the instance's children back in under the
     // caller's scope.
     bool build_instance(const ir::Node& node, ui::Node& host, std::size_t depth);
+    // A `Suspense` boundary: its live subtree, spliced into `parent` (no scene node of its own).
+    bool build_suspense(const ir::Node& node, ui::Node& parent, std::size_t depth);
     bool build_slot(const ir::Node& slot, ui::Node& parent, std::size_t depth);
 
     // Everything an instance replaces while its callee builds, restored when it is done.
@@ -124,6 +133,7 @@ private:
     std::size_t frame_index_ = 0;
     std::string loop_path_;
     eval::Evaluator evaluator_;
+    eval::PendingSession* pending_ = nullptr;
     std::uint64_t next_node_id_ = 2; // 1 is the window content root the caller owns
     int loop_depth_ = 0;
     // The component's `ref` declarations, borrowed from the IR for the duration of one build.

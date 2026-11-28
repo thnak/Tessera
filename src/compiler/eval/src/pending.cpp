@@ -53,14 +53,26 @@ void PendingSession::configure(const tessera::compiler::ir::Component& component
     const tessera::compiler::ir::SuspenseReads reads =
         tessera::compiler::ir::collect_suspense_reads(component);
     slots_.clear();
+    boundary_nodes_.clear();
     boundaries_.assign(reads.boundaries.size(), tessera::ui::pending::SuspenseBoundary{});
     for (std::size_t boundary = 0; boundary < reads.boundaries.size(); ++boundary) {
+        boundary_nodes_.push_back(reads.boundaries[boundary].boundary);
         slots_.push_back(reads.boundaries[boundary].resources);
         boundaries_[boundary].reset_reads(slots_.back().size());
     }
     watched_ = static_cast<std::size_t>(-1);
     transition_.clear();
     deferred_.clear();
+}
+
+std::optional<std::size_t>
+PendingSession::boundary_index(const tessera::compiler::ir::Node& node) const noexcept {
+    for (std::size_t index = 0; index < boundary_nodes_.size(); ++index) {
+        if (boundary_nodes_[index] == &node) {
+            return index;
+        }
+    }
+    return std::nullopt;
 }
 
 Value PendingSession::deferred(std::string_view id, const Value& current) {

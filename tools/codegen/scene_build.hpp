@@ -114,10 +114,17 @@ struct SceneBuildResult {
 // this walk applies point into `component`'s strings. The IR module must therefore outlive the
 // scene, as it does in every caller (a generated base's literals are static for the same reason).
 //
+// `pending` is the pending-UI session of the root component (ADR-067, docs/specs/pending-ui-v1.md
+// section 10), or null for none. With one, a `Suspense` boundary builds its fallback while the
+// session says it is in its fallback phase and its children otherwise, and `res::<name>.*` reads
+// answer from the session's resources. A boundary owns no scene node (the generated base attaches
+// whichever subtree is live), so none is built here either; without a session the children show.
+//
 // `module` is where a user component instance (`NodeKind::Component`) finds its callee. Without it
 // an instance is reported as unsupported, which is what a caller that has no project gets.
 [[nodiscard]] SceneBuildResult build_scene(const ir::Component& component, ui::Node& root,
                                            eval::Scope& scope, const ir::IrModule* module = nullptr,
-                                           InstanceScopes* instances = nullptr);
+                                           InstanceScopes* instances = nullptr,
+                                           eval::PendingSession* pending = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

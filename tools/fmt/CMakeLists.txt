@@ -41,8 +41,9 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_corpus_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_edits_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/source_format_css_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_cli_tests.cpp)
-    target_link_libraries(source_format_tests PRIVATE tessera_fmt_core)
+    target_link_libraries(source_format_tests PRIVATE tessera_fmt_core tessera_style)
     target_include_directories(source_format_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_definitions(source_format_tests PRIVATE
         TESSERA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string_view>
 #include <system_error>
@@ -16,12 +17,15 @@ namespace tessera::fmt_cli {
 namespace {
 
 namespace fs = std::filesystem;
+namespace format = tessera::compiler::format;
 
 constexpr std::string_view kUsage =
     "usage: tessera fmt [--check] [paths...]\n"
     "\n"
-    "  Formats .tsx files with the compiler-owned printer (ADR-061). A path is a file or a\n"
-    "  directory (walked for .tsx, skipping node_modules and dot directories); with no path\n"
+    "  Formats .tsx, .css and tessera.json files with the compiler-owned printer (ADR-061). A path "
+    "is a file or a\n"
+    "  directory (walked for .tsx, .css and tessera.json, skipping node_modules and dot "
+    "directories); with no path\n"
     "  the current directory is used.\n"
     "\n"
     "  --check   change nothing; list the files that would change and exit 1 if there are any\n"
@@ -48,6 +52,35 @@ bool skipped_directory(const fs::path& path) {
            (!name.empty() && name[0] == '.' && name != "." && name != "..");
 }
 
+// The options of the nearest tessera.json at or above the file's directory (ADR-061: `format`
+// in tessera.json), defaults when there is none. Cached per directory.
+format::FormatOptions options_for(const fs::path& file,
+                                  std::map<fs::path, format::FormatOptions>& cache) {
+    std::error_code ec;
+    fs::path dir = fs::absolute(file, ec).parent_path();
+    std::vector<fs::path> walked;
+    format::FormatOptions found;
+    for (; !dir.empty(); dir = dir.parent_path()) {
+        if (const auto hit = cache.find(dir); hit != cache.end()) {
+            found = hit->second;
+            break;
+        }
+        walked.push_back(dir);
+        std::string text;
+        if (read_file(dir / "tessera.json", text)) {
+            found = format::format_options_from_tessera_json(text);
+            break;
+        }
+        if (dir == dir.parent_path()) {
+            break;
+        }
+    }
+    for (const fs::path& visited : walked) {
+        cache[visited] = found;
+    }
+    return found;
+}
+
 void collect(const fs::path& root, std::vector<fs::path>& files, std::ostream& err, bool& failed) {
     std::error_code ec;
     if (fs::is_regular_file(root, ec)) {
@@ -63,7 +96,8 @@ void collect(const fs::path& root, std::vector<fs::path>& files, std::ostream& e
     for (; !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
         if (it->is_directory(ec) && skipped_directory(it->path())) {
             it.disable_recursion_pending();
-        } else if (it->is_regular_file(ec) && it->path().extension() == ".tsx") {
+        } else if (it->is_regular_file(ec) &&
+                   format::file_kind_for_path(it->path().generic_string()).has_value()) {
             files.push_back(it->path());
         }
     }
@@ -72,7 +106,6 @@ void collect(const fs::path& root, std::vector<fs::path>& files, std::ostream& e
 } // namespace
 
 int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {
-    namespace format = tessera::compiler::format;
     bool check = false;
     std::vector<std::string> paths;
     for (std::size_t i = 0; i < args.size(); ++i) {
@@ -83,7 +116,12 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
                 err << "--edits-json needs a readable file\n";
                 return 2;
             }
-            out << format::format_edits_json(format::FileKind::Tsx, text) << "\n";
+            const fs::path target(args[i + 1]);
+            std::map<fs::path, format::FormatOptions> cache;
+            out << format::format_edits_json(format::file_kind_for_path(target.generic_string())
+                                                 .value_or(format::FileKind::Tsx),
+                                             text, options_for(target, cache))
+                << "\n";
             return 0;
         }
         if (arg == "--check") {
@@ -109,6 +147,7 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
     std::sort(files.begin(), files.end());
     files.erase(std::unique(files.begin(), files.end()), files.end());
 
+    std::map<fs::path, format::FormatOptions> options_cache;
     std::size_t differing = 0;
     for (const fs::path& path : files) {
         std::string text;
@@ -117,7 +156,9 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
             failed = true;
             continue;
         }
-        const format::FormatResult result = format::format_source(format::FileKind::Tsx, text);
+        const format::FormatResult result = format::format_source(
+            format::file_kind_for_path(path.generic_string()).value_or(format::FileKind::Tsx), text,
+            options_for(path, options_cache));
         if (!result.ok()) {
             for (const format::FormatDiagnostic& d : result.diagnostics) {
                 err << path.generic_string() << ":" << d.line << ":" << d.column << ": error["

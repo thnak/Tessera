@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -116,6 +117,22 @@ struct ReExport {
     friend bool operator==(const ReExport&, const ReExport&) = default;
 };
 
+enum class DiagnosticSeverity : std::uint8_t { Error, Warning };
+
+// One problem in a file (#568): a parser diagnostic of that file, or a project-level finding
+// (an import that names no file, a component name declared twice). `code` is stable.
+struct Diagnostic {
+    Span span;
+    DiagnosticSeverity severity = DiagnosticSeverity::Error;
+    std::string code;
+    std::string message;
+    // A second location that explains the first (the other declaration of a duplicate).
+    std::optional<Span> related;
+    std::string related_message;
+
+    friend bool operator==(const Diagnostic&, const Diagnostic&) = default;
+};
+
 // The index of one file: symbols in source order, references in source order.
 struct FileIndex {
     FileId file = 0;
@@ -123,6 +140,9 @@ struct FileIndex {
     std::vector<Symbol> symbols;
     std::vector<Reference> references;
     std::vector<ReExport> re_exports;
+    // The parser's diagnostics for this file, in source order. Parsing recovers per top-level
+    // item, so a syntax error costs the symbols of that item only.
+    std::vector<Diagnostic> diagnostics;
 
     friend bool operator==(const FileIndex&, const FileIndex&) = default;
 };

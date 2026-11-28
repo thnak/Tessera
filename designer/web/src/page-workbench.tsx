@@ -16,6 +16,7 @@ import type { DeviceProfile } from "./lib/device-profile";
 import type { ProjectFile } from "./lib/project";
 import type { ProjectIo } from "./page-project-io";
 import type { PlatformControls } from "./page-platform";
+import type { ResourceControls } from "./page-resources";
 import type { ProblemsHandle } from "./page-problems";
 import type { PageRefs } from "./page-state";
 import type { Workspace } from "./page-workspace";
@@ -24,6 +25,7 @@ import { CallTracePanel } from "./regions/CallTracePanel";
 import { CodeRegion } from "./regions/CodeRegion";
 import { MockConsolePanel } from "./regions/MockConsolePanel";
 import { PlatformPanel } from "./regions/PlatformDock";
+import { ResourcePanel } from "./regions/ResourcePanel";
 import { CanvasPanel, DiagnosticsPanel, ScenePanel } from "./regions/PreviewPanels";
 import { ProblemsPanel } from "./regions/ProblemsPanel";
 import { ProjectBar } from "./regions/ProjectBar";
@@ -50,6 +52,8 @@ export interface WorkbenchSurfaceProps {
   overlay: ReactNode;
   strip: ReactNode;
   platform: PlatformControls;
+  /** The fake resources of the open component (issue #657), shown under the platform events. */
+  resources: ResourceControls;
   profile: DeviceProfile | null;
   mocks: MockConsole;
   files: readonly ProjectFile[];
@@ -112,6 +116,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
     "platform-events": (
       <Scroll>
         <PlatformPanel profile={props.profile} platform={props.platform} onRestart={props.onRestart} />
+        <ResourcePanel resources={props.resources} />
       </Scroll>
     ),
     "mock-console": (

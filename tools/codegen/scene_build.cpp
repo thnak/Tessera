@@ -27,6 +27,7 @@
 
 #include "scene_build.hpp"
 #include "scene_build_internal.hpp"
+#include "scene_pending.hpp"
 
 #include <string>
 
@@ -118,7 +119,8 @@ bool seed_component_scope(const ir::Component& component, eval::Scope& scope, st
 } // namespace internal
 
 SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eval::Scope& scope,
-                             const ir::IrModule* module, InstanceScopes* instances) {
+                             const ir::IrModule* module, InstanceScopes* instances,
+                             eval::PendingSession* pending) {
     SceneBuildResult result;
     // A caller with no session keeps no instance state: the scopes live for this build only, so the
     // frames in the result must not be used after it returns.
@@ -126,8 +128,20 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
     if (!internal::seed_component_scope(component, scope, result.error)) {
         return result;
     }
+    if (pending != nullptr && pending->configured()) {
+        // The seed gave every behavior output its manifest default; the pending session owns these,
+        // so the evaluator must reach it (an unresolved `beh::` read) instead of a stale default.
+        for (const ir::Behavior& behavior : component.behaviors) {
+            if (pending_drives(behavior)) {
+                for (const ir::BehaviorOutput& output : behavior.outputs) {
+                    scope.erase(behavior.id + "." + output.name);
+                }
+            }
+        }
+    }
     internal::Builder builder(root, scope, result, module,
                               instances != nullptr ? instances : &local);
+    builder.set_pending(pending);
     // A failed build leaves `error` set for the caller; the tree is discarded, because a partially
     // built tree would be a snapshot of a program that does not exist.
     (void)builder.build(component);

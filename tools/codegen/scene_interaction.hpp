@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_pending.hpp"
 #include "scene_platform.hpp"
 #include "scene_preview.hpp"
 #include "scene_project.hpp"
@@ -44,8 +45,11 @@ namespace tessera::compiler::codegen::cli {
 // from `InputRunResult::platforms` at the same index.
 struct PreviewInputStep {
     std::uint64_t automation_id = 0;
-    std::string_view kind = "click"; // "click" or "platform"
+    std::string_view kind = "click"; // "click", "platform" or "resource"
     PlatformEvent platform;
+    // A `resource` step (issue #657): one control of a fake resource, or a read (`status`).
+    PendingControl resource;
+    bool resource_status = false;
 };
 
 inline constexpr std::size_t kMaxInputSteps = 64;
@@ -54,6 +58,8 @@ inline constexpr std::size_t kMaxInputSteps = 64;
 //   click 1234567890123456789
 //   platform <type> [value] [@<timestampNs>]   e.g. `platform back`, `platform orientation
 //   landscape`
+//   resource <fetch|resolve|fail|status> [<name> [value...] [@<epoch>]]   a fake resource's control
+//   (`tessera_canvas_resource`'s vocabulary; the reply is the pending report)
 // Blank lines and lines starting with `#` are ignored, matching `parity::parse_script`'s shape so a
 // reviewer reads one script format in this repo, not two.
 [[nodiscard]] std::string_view input_script_format() noexcept;
@@ -83,6 +89,8 @@ struct InputRunResult {
     // platform step; the other one is default-constructed.
     std::vector<PreviewClickResult> clicks;
     std::vector<PlatformReply> platforms;
+    // `resources[i]` is the pending report line of a resource step, empty for the others.
+    std::vector<std::string> resources;
     std::vector<std::string_view> kinds;
 };
 

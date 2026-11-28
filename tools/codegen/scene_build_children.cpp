@@ -108,6 +108,18 @@ bool Builder::build_children(const ir::Node& node, ui::Node& parent, std::size_t
     return true;
 }
 
+bool Builder::build_suspense(const ir::Node& node, ui::Node& parent, std::size_t depth) {
+    // The generated base shows the fallback exactly while the boundary model says so; the preview
+    // asks the same model (the evaluator's `PendingSession` runs the one `SuspenseBoundary`).
+    const std::optional<std::size_t> index =
+        pending_ != nullptr ? pending_->boundary_index(node) : std::nullopt;
+    if (index && pending_->boundary_at(*index).fallback_live()) {
+        // The validator guarantees a fallback; a node without one shows nothing.
+        return node.fallback == nullptr || build_node(*node.fallback, parent, depth + 1);
+    }
+    return build_children(node, parent, depth);
+}
+
 bool Builder::build_conditional_child(const ir::Node& child, ui::Node& parent, std::size_t depth) {
     bool show = false;
     if (!detail::evaluate_condition(evaluator_, *scope_, child, show, result_.error)) {

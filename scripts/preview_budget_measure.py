@@ -105,6 +105,17 @@ MODULES = ("tessera_diagnostics", "tessera_scene_preview", "tessera_canvas")
 
 # The `.js` loader and the `.wasm` payload for each module, in a stable order so the recorded
 # breakdown and a report diff do not reshuffle when a module is added.
+# The studio's service workers (ADR-060) each load their own Wasm module with a lazy `import()` (format on the
+# first Format Document, analysis on the first diagnostics request), so neither is on the first-paint path and
+# neither is in `download_gzip_bytes`. They are weighed together in `lazy_service_modules_gzip_bytes` (issue
+# #568) so a growing service module cannot ship unweighed. The assembled site (`build/pages`) carries them; a
+# module directory without them (a bare `wasm-webgpu` codegen directory) has no such row, and an entry for it
+# in the budget file is then reported as unmeasured rather than measured as zero.
+LAZY_SERVICE_MODULES = ("tessera_format", "tessera_analysis")
+LAZY_SERVICE_FILES = tuple(
+    "{}.{}".format(module, extension) for module in LAZY_SERVICE_MODULES for extension in ("js", "wasm")
+)
+
 MODULE_FILES = tuple(
     "{}.{}".format(module, extension) for module in MODULES for extension in ("js", "wasm")
 )
@@ -159,7 +170,11 @@ CALIBRATION_ITERATIONS = 4000000
 CALIBRATION_CHECKSUM = 40185732
 
 # The two measured entries whose values the gate ratchets, in report order.
-SIZE_ENTRIES = ("download_gzip_bytes", "mock_transpiler_lazy_gzip_bytes")
+SIZE_ENTRIES = (
+    "download_gzip_bytes",
+    "mock_transpiler_lazy_gzip_bytes",
+    "lazy_service_modules_gzip_bytes",
+)
 LATENCY_ENTRIES = ("cold_engine_ready_ms", "edit_compile_ms")
 
 
@@ -291,6 +306,9 @@ def size_measurements(module_dir: Path) -> Dict[str, float]:
         path.relative_to(PAGE_DIST).as_posix(): gzip_size(path.read_bytes()) for path in lazy_mock_assets()
     }
     sizes["mock_transpiler_lazy_gzip_bytes"] = sum(lazy.values())
+    service_files = [module_dir / name for name in LAZY_SERVICE_FILES]
+    if all(path.is_file() for path in service_files):
+        sizes["lazy_service_modules_gzip_bytes"] = sum(gzip_size(path.read_bytes()) for path in service_files)
     return {name: float(value) for name, value in sizes.items()}
 
 
