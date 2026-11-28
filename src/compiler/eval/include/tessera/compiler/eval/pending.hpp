@@ -69,6 +69,19 @@ public:
     [[nodiscard]] std::size_t boundary_count() const noexcept {
         return boundaries_.size();
     }
+    // The boundary a `Suspense` IR node is: its index in `boundary_at`, or nullopt for a node the
+    // configured component does not own (a callee's boundary, which this session does not drive).
+    [[nodiscard]] std::optional<std::size_t>
+    boundary_index(const tessera::compiler::ir::Node& node) const noexcept;
+    // The `Suspense` IR node of boundary `index` (the inverse of `boundary_index`).
+    [[nodiscard]] const tessera::compiler::ir::Node*
+    boundary_node(std::size_t index) const noexcept {
+        return index < boundary_nodes_.size() ? boundary_nodes_[index] : nullptr;
+    }
+    // The resource the transition mark follows, or the index past the end while none does.
+    [[nodiscard]] std::size_t watched() const noexcept {
+        return watched_;
+    }
     [[nodiscard]] const tessera::ui::pending::SuspenseBoundary&
     boundary_at(std::size_t index) const {
         return boundaries_[index];
@@ -116,6 +129,7 @@ private:
     std::vector<tessera::ui::pending::ResourceView> views_;
     std::vector<std::vector<std::size_t>> slots_; // per boundary: the resource of each read slot
     std::vector<tessera::ui::pending::SuspenseBoundary> boundaries_;
+    std::vector<const tessera::compiler::ir::Node*> boundary_nodes_; // parallel to boundaries_
     std::size_t watched_ = static_cast<std::size_t>(-1); // the resource the mark follows
     tessera::ui::pending::FakeResource resource_;
     tessera::ui::pending::SuspenseBoundary boundary_;

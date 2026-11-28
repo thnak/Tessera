@@ -88,7 +88,7 @@ assets, gzip) and warns on the two latency rows. Those rows are the engine's sha
 host -- because the browser's parse and the WebGPU frame (P3) do not exist yet, so the table's
 `≤ 4 s` and `≤ 1 s` targets above are **not** what is being checked. The browser lane adds
 `cold_first_frame_ms`/`edit_to_view_ms` when there is a frame to time; the download row is the slice's
-number and is already enforced.
+number and is already enforced. The format and analysis workers' lazy modules are weighed apart in `lazy_service_modules_gzip_bytes` (#568).
 
 **The download row, as recorded.** `download_gzip_bytes` moved twice, each time as a reviewed edit of the
 budget file with the reason in the diff (`--update` refuses a raise by design, so a re-pin is never a

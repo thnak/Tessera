@@ -27,7 +27,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { createGate, launchGpuBrowser, pageLostDevice } from './browser_gpu.mjs';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 const MIME = {
@@ -47,7 +47,6 @@ const shotIndex = args.indexOf('--shot');
 const shot = shotIndex >= 0 ? args[shotIndex + 1] : null;
 const site = resolve(args.find((value, index) => index === 0 && value !== '--shot') ?? 'build/pages');
 
-const GPU_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--no-sandbox'];
 
 // One full-bleed box: every pixel of the frame is the same colour, so "did the paint cover the whole
 // surface" is a question about two samples (a corner and the centre), not about a layout reference.
@@ -92,15 +91,8 @@ function startServer() {
   });
 }
 
-let failures = 0;
-function check(name, ok, detail) {
-  // The detail is printed on a failure: on a pass it is the observation, which is noise unless the
-  // number is the point, and `--shot` covers that.
-  process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? `  -- ${detail}` : ''}\n`);
-  if (!ok) {
-    failures += 1;
-  }
-}
+const gate = createGate();
+const { check, section } = gate;
 
 async function settles(expression, page, timeout = 20000, argument = undefined) {
   try {
@@ -201,16 +193,21 @@ async function openCanvas(context, base) {
 }
 
 const { server, base } = await startServer();
-const browser = await chromium.launch({ args: GPU_ARGS });
+const browser = await launchGpuBrowser();
 
 try {
   // --- #598: the backing store follows the viewport ------------------------------------------------
   //
-  // Run with no device: this half is about WHICH code sets `canvas.width`, and `sizeToDevicePixels`
-  // runs before the module is ever asked for a frame. A browser without WebGPU therefore still proves
-  // it, which is what makes this check portable to a runner that cannot keep a device.
+  // This half needs a live device: a lost device clears the session's `gpu` and a viewport change is then
+  // not applied (see `section`, #958), so a run that lost it is retried or skipped loudly.
+  await section('the viewport sizing checks (#598)', async () => {
   const sizingContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const sizingPage = await openCanvas(sizingContext, base);
+  // No device from the start: nothing below can be judged, and every toolbar move would be a no-op.
+  if (await pageLostDevice(sizingPage)) {
+    await sizingContext.close();
+    return true;
+  }
 
   const first = await readCanvas(sizingPage);
   // The default viewport IS 320x240, so the bug is not "the number is 320x240" - it is that the
@@ -256,15 +253,23 @@ try {
     Math.abs(resized.width - expectedWidth) <= 1,
     `css ${resized.cssWidth} x DPR ${dpr} = ${expectedWidth}, canvas.width = ${resized.width}`,
   );
+  const lostSizing = await pageLostDevice(sizingPage);
   await sizingContext.close();
+  return lostSizing;
+  });
 
   // --- DPR 2 geometry: the store and the box both double ------------------------------------------
   //
   // The PAINT at DPR 2 is `scene_frame_parity.py`'s `dpr` case (lavapipe): a presented WebGPU frame
   // cannot be read back in headless Chromium, so the assertion here stops at the two numbers the
   // page owns - the backing store and the CSS box - which is where #598 and #599 both started.
+  await section('the DPR and drag-resize checks (#598, #599, #690)', async () => {
   const scaledContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const scaledPage = await openCanvas(scaledContext, base);
+  if (await pageLostDevice(scaledPage)) {
+    await scaledContext.close();
+    return true;
+  }
 
   const before768 = await frameCount(scaledPage);
   await chooseFromDeviceMenu(scaledPage, 'Viewport', '768x1024');
@@ -272,6 +277,11 @@ try {
   const before2 = await frameCount(scaledPage);
   await chooseFromDeviceMenu(scaledPage, 'Pixel Ratio', '2');
   await nextFrame(scaledPage, before2);
+  // Lost between the preset and the DPR change: the changes were not applied, which is the runner's doing.
+  if (await pageLostDevice(scaledPage)) {
+    await scaledContext.close();
+    return true;
+  }
 
   const doubled = await readCanvas(scaledPage);
   check(
@@ -297,7 +307,21 @@ try {
   // that the grips are wired at all - the session is created before React commits them, so a listener
   // looked up by id finds nothing - and that a burst of pointer events costs one frame.
   await chooseFromDeviceMenu(scaledPage, "Viewport", "320x240");
-  await settles(() => true, scaledPage, 500);
+  // Wait for the pane's zoom to settle on the 320x240 stage. This used to be `settles(() => true, ...)`, which
+  // resolves at once and waited for nothing: the drag below then started while the stage was still scaled
+  // for the 768x1024 viewport before it, and the drag (correctly) divides pointer travel by the live zoom,
+  // so the released size came out 544x408 instead of 520x390. At zoom 1 the stage's rect equals its layout box.
+  const stageSettled = await settles(() => {
+    const stage = document.querySelector('.canvas-zoom-stage');
+    const canvas = document.getElementById('canvas');
+    return (
+      stage !== null &&
+      canvas.style.width === '320px' &&
+      stage.offsetWidth === 320 &&
+      Math.abs(stage.getBoundingClientRect().width - 320) < 0.5
+    );
+  }, scaledPage, 5000);
+  check('the 320x240 stage is unscaled before the drag (#690)', stageSettled);
 
   const beforeDrag = await frameCount(scaledPage);
   const grip = await scaledPage.$("#canvas-resize-corner");
@@ -372,12 +396,13 @@ try {
     await scaledPage.screenshot({ path: shot, fullPage: false });
     process.stdout.write(`shot: ${shot}\n`);
   }
+  const lostScaled = await pageLostDevice(scaledPage);
   await scaledContext.close();
+  return lostScaled;
+  });
 } finally {
   await browser.close();
   server.close();
 }
 
-const verdict = failures > 0 ? `${failures} check(s) failed` : 'all checks passed';
-process.stdout.write(`\ncanvas size: ${verdict}\n`);
-process.exit(failures === 0 ? 0 : 1);
+process.exit(gate.finish('canvas size'));

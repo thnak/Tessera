@@ -35,6 +35,10 @@ CanvasSceneSession::CanvasSceneSession()
 
 CanvasSceneSession::~CanvasSceneSession() = default;
 
+PreviewSession* CanvasSceneSession::preview() noexcept {
+    return session_.get();
+}
+
 std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // One file is a project of one: the same code runs, so a single-file caller cannot see a
     // different session from the studio's.

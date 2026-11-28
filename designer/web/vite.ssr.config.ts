@@ -78,6 +78,10 @@ export default defineConfig({
         // forwarder it cooperates with. `scripts/ci/preview_canvas_text.mjs` drives both against a fake DOM.
         "canvas-text": "src/views/canvas-text.ts",
         "canvas-keyboard": "src/views/canvas-keyboard.ts",
+        // The Resources controls' request, report and sentences (issue #657), and the page-side call that
+        // drives the engine's `tessera_canvas_resource`. `scripts/ci/preview_resource_controls.mjs`.
+        "resource-controls": "src/lib/resource-controls.ts",
+        "canvas-resource": "src/views/canvas-resource.ts",
       },
       output: {
         format: "es",

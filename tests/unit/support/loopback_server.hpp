@@ -124,7 +124,9 @@ private:
 
     std::atomic<bool> running_{false};
     std::uint16_t port_ = 0;
-    int listener_ = -1;
+    // Atomic: `stop()` closes and clears it on the caller's thread while the accept thread reads it
+    // for its next `accept()` (a data race ThreadSanitizer reported).
+    std::atomic<int> listener_{-1};
     std::thread thread_;
 
     mutable std::mutex mutex_;

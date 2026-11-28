@@ -23,7 +23,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { createGate, launchGpuBrowser, pageLostDevice } from './browser_gpu.mjs';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 const MIME = {
@@ -43,7 +43,6 @@ const shotIndex = args.indexOf('--shot');
 const shot = shotIndex >= 0 ? args[shotIndex + 1] : null;
 const site = resolve(args.find((value, index) => index === 0 && value !== '--shot') ?? 'build/pages');
 
-const GPU_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--no-sandbox'];
 
 // One full-bleed box: a posture change re-lays it out, so the session has a tree to report metrics for.
 const PROJECT = {
@@ -85,13 +84,8 @@ function startServer() {
   });
 }
 
-let failures = 0;
-function check(name, ok, detail) {
-  process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? `  -- ${detail}` : ''}\n`);
-  if (!ok) {
-    failures += 1;
-  }
-}
+const gate = createGate();
+const { check, section } = gate;
 
 async function settles(expression, page, timeout = 20000, argument = undefined) {
   try {
@@ -180,131 +174,145 @@ async function openCanvas(context, base) {
 }
 
 const { server, base } = await startServer();
-const browser = await chromium.launch({ args: GPU_ARGS });
+const browser = await launchGpuBrowser();
 
 try {
-  const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
-  const page = await openCanvas(context, base);
+  // The overlay needs a live device (see `section`, #958).
+  await section('the fold overlay checks (#433)', async () => {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    const page = await openCanvas(context, base);
+    // Every check below reads the overlay the engine's metrics feed; a lost device means no metrics, so
+    // the section is retried and, if the runner never holds a device, skipped rather than failed (#958).
+    if (await pageLostDevice(page)) {
+      await context.close();
+      return true;
+    }
 
-  // --- off by default ----------------------------------------------------------------------------
-  const before = await readOverlay(page);
-  check('the overlay is off by default (#433)', before.hidden === true, `hidden=${before.hidden}`);
-  check(
-    'the toggle reads as unpressed (#433)',
-    before.pressed === 'false',
-    `aria-pressed=${before.pressed}`,
-  );
+    // --- off by default ----------------------------------------------------------------------------
+    const before = await readOverlay(page);
+    check('the overlay is off by default (#433)', before.hidden === true, `hidden=${before.hidden}`);
+    check(
+      'the toggle reads as unpressed (#433)',
+      before.pressed === 'false',
+      `aria-pressed=${before.pressed}`,
+    );
 
-  // --- a book fold draws its band ----------------------------------------------------------------
-  // 1280x800 is the toolbar's desktop preset; the numbers below are its band geometry.
-  await chooseFromDeviceMenu(page, 'Viewport', '1280x800');
-  await settles(() => true, page, 300);
-  const beforeFold = await frameCount(page);
-  await chooseFromDeviceMenu(page, 'Fold Posture', 'Book');
-  await nextFrame(page, beforeFold);
+    // --- a book fold draws its band ----------------------------------------------------------------
+    // 1280x800 is the toolbar's desktop preset; the numbers below are its band geometry.
+    await chooseFromDeviceMenu(page, 'Viewport', '1280x800');
+    // A real wait: this was `settles(() => true, ...)`, which resolves at once. The canvas' CSS box is the
+    // logical viewport, and the overlay is drawn from it, so the box must have moved before the posture and
+    // the toggle are driven (otherwise `beforeFold` can be read before the viewport frame lands).
+    const sized = await settles(() => document.getElementById('canvas').style.width === '1280px', page, 5000);
+    check('the viewport preset reached the canvas before the fold is armed (#433)', sized);
+    const beforeFold = await frameCount(page);
+    await chooseFromDeviceMenu(page, 'Fold Posture', 'Book');
+    await nextFrame(page, beforeFold);
 
-  await page.locator('#fold-toggle').click();
-  // The toggle asks the engine and draws; a query, so no frame is owed and none is waited for.
-  const armed = await settles(() => {
-    const overlay = document.getElementById('fold-overlay');
-    return overlay !== null && !overlay.hidden && overlay.querySelector('.fold-overlay-hinge') !== null;
-  }, page, 5000);
-  check('arming the overlay draws the hinge band (#433)', armed);
-  const book = await readOverlay(page);
-  check(
-    'the toggle reads as pressed (#433)',
-    book.pressed === 'true',
-    `aria-pressed=${book.pressed}, label "${book.toggleLabel}"`,
-  );
-  const hinge = book.boxes.find((box) => box.className.includes('fold-overlay-hinge'));
-  check(
-    'the band is centred on the width, a 24 px hinge (#433)',
-    // 1280 wide, a 24 px band centred: x = (1280 - 24) / 2 = 628, full height 800.
-    hinge !== undefined &&
-      Number.parseFloat(hinge.left) === 628 &&
-      Number.parseFloat(hinge.width) === 24 &&
-      Number.parseFloat(hinge.height) === 800,
-    `band ${hinge ? `${hinge.left} x ${hinge.width} x ${hinge.height}` : 'missing'}`,
-  );
-  check(
-    'the caption names the posture (#433)',
-    /vertical hinge 24px/.test(book.caption),
-    `caption "${book.caption}"`,
-  );
+    await page.locator('#fold-toggle').click();
+    // The toggle asks the engine and draws; a query, so no frame is owed and none is waited for.
+    const armed = await settles(() => {
+      const overlay = document.getElementById('fold-overlay');
+      return overlay !== null && !overlay.hidden && overlay.querySelector('.fold-overlay-hinge') !== null;
+    }, page, 5000);
+    check('arming the overlay draws the hinge band (#433)', armed);
+    const book = await readOverlay(page);
+    check(
+      'the toggle reads as pressed (#433)',
+      book.pressed === 'true',
+      `aria-pressed=${book.pressed}, label "${book.toggleLabel}"`,
+    );
+    const hinge = book.boxes.find((box) => box.className.includes('fold-overlay-hinge'));
+    check(
+      'the band is centred on the width, a 24 px hinge (#433)',
+      // 1280 wide, a 24 px band centred: x = (1280 - 24) / 2 = 628, full height 800.
+      hinge !== undefined &&
+        Number.parseFloat(hinge.left) === 628 &&
+        Number.parseFloat(hinge.width) === 24 &&
+        Number.parseFloat(hinge.height) === 800,
+      `band ${hinge ? `${hinge.left} x ${hinge.width} x ${hinge.height}` : 'missing'}`,
+    );
+    check(
+      'the caption names the posture (#433)',
+      /vertical hinge 24px/.test(book.caption),
+      `caption "${book.caption}"`,
+    );
 
-  // --- tabletop is the other axis ----------------------------------------------------------------
-  const beforeTabletop = await frameCount(page);
-  await chooseFromDeviceMenu(page, 'Fold Posture', 'Tabletop');
-  await nextFrame(page, beforeTabletop);
-  const tabletop = await settles(() => {
-    const caption = document.querySelector('#fold-overlay .fold-overlay-caption')?.textContent ?? '';
-    return /horizontal hinge/.test(caption);
-  }, page, 5000);
-  check('a posture change redraws the overlay (#433)', tabletop);
-  const tabletopBox = (await readOverlay(page)).boxes.find((box) =>
-    box.className.includes('fold-overlay-hinge'),
-  );
-  check(
-    'a tabletop band spans the width and is centred on the height (#433)',
-    // 800 tall, a 24 px band centred: y = (800 - 24) / 2 = 388, full width 1280.
-    tabletopBox !== undefined &&
-      Number.parseFloat(tabletopBox.top) === 388 &&
-      Number.parseFloat(tabletopBox.width) === 1280 &&
-      Number.parseFloat(tabletopBox.height) === 24,
-    `band ${tabletopBox ? `${tabletopBox.top} x ${tabletopBox.width} x ${tabletopBox.height}` : 'missing'}`,
-  );
+    // --- tabletop is the other axis ----------------------------------------------------------------
+    const beforeTabletop = await frameCount(page);
+    await chooseFromDeviceMenu(page, 'Fold Posture', 'Tabletop');
+    await nextFrame(page, beforeTabletop);
+    const tabletop = await settles(() => {
+      const caption = document.querySelector('#fold-overlay .fold-overlay-caption')?.textContent ?? '';
+      return /horizontal hinge/.test(caption);
+    }, page, 5000);
+    check('a posture change redraws the overlay (#433)', tabletop);
+    const tabletopBox = (await readOverlay(page)).boxes.find((box) =>
+      box.className.includes('fold-overlay-hinge'),
+    );
+    check(
+      'a tabletop band spans the width and is centred on the height (#433)',
+      // 800 tall, a 24 px band centred: y = (800 - 24) / 2 = 388, full width 1280.
+      tabletopBox !== undefined &&
+        Number.parseFloat(tabletopBox.top) === 388 &&
+        Number.parseFloat(tabletopBox.width) === 1280 &&
+        Number.parseFloat(tabletopBox.height) === 24,
+      `band ${tabletopBox ? `${tabletopBox.top} x ${tabletopBox.width} x ${tabletopBox.height}` : 'missing'}`,
+    );
 
-  // --- the band is page DOM, not engine paint ----------------------------------------------------
-  //
-  // The frame counter must not move because the overlay was armed: the overlay is a query over the
-  // snapshot, and an export that dispatched (or marked a dirty domain) would cost a frame here.
-  await page.locator('#fold-toggle').click();
-  await settles(() => document.getElementById('fold-overlay').hidden === true, page, 3000);
-  const offFrame = await frameCount(page);
-  await page.locator('#fold-toggle').click();
-  await settles(() => document.getElementById('fold-overlay').hidden === false, page, 3000);
-  const onFrame = await frameCount(page);
-  check(
-    'arming the overlay costs no frame (#433)',
-    onFrame === offFrame,
-    `frame ${offFrame} -> ${onFrame}`,
-  );
+    // --- the band is page DOM, not engine paint ----------------------------------------------------
+    //
+    // The frame counter must not move because the overlay was armed: the overlay is a query over the
+    // snapshot, and an export that dispatched (or marked a dirty domain) would cost a frame here.
+    await page.locator('#fold-toggle').click();
+    await settles(() => document.getElementById('fold-overlay').hidden === true, page, 3000);
+    const offFrame = await frameCount(page);
+    await page.locator('#fold-toggle').click();
+    await settles(() => document.getElementById('fold-overlay').hidden === false, page, 3000);
+    const onFrame = await frameCount(page);
+    check(
+      'arming the overlay costs no frame (#433)',
+      onFrame === offFrame,
+      `frame ${offFrame} -> ${onFrame}`,
+    );
 
-  // --- flat draws nothing, and names the posture -------------------------------------------------
-  const beforeFlat = await frameCount(page);
-  await chooseFromDeviceMenu(page, 'Fold Posture', 'Flat');
-  await nextFrame(page, beforeFlat);
-  const flat = await settles(() => {
-    const caption = document.querySelector('#fold-overlay .fold-overlay-caption')?.textContent ?? '';
-    return caption === 'flat';
-  }, page, 5000);
-  check('a flat fold still names its posture (#433)', flat);
-  const flatBoxes = (await readOverlay(page)).boxes.filter((box) =>
-    box.className.includes('fold-overlay-hinge'),
-  );
-  check('a flat fold draws no band (#433)', flatBoxes.length === 0, `${flatBoxes.length} band(s)`);
+    // --- flat draws nothing, and names the posture -------------------------------------------------
+    const beforeFlat = await frameCount(page);
+    await chooseFromDeviceMenu(page, 'Fold Posture', 'Flat');
+    await nextFrame(page, beforeFlat);
+    const flat = await settles(() => {
+      const caption = document.querySelector('#fold-overlay .fold-overlay-caption')?.textContent ?? '';
+      return caption === 'flat';
+    }, page, 5000);
+    check('a flat fold still names its posture (#433)', flat);
+    const flatBoxes = (await readOverlay(page)).boxes.filter((box) =>
+      box.className.includes('fold-overlay-hinge'),
+    );
+    check('a flat fold draws no band (#433)', flatBoxes.length === 0, `${flatBoxes.length} band(s)`);
 
-  // --- disarming hides it again ------------------------------------------------------------------
-  await page.locator('#fold-toggle').click();
-  await settles(() => document.getElementById('fold-overlay').hidden === true, page, 3000);
-  const disarmed = await readOverlay(page);
-  check('disarming hides the overlay (#433)', disarmed.hidden === true);
-  check(
-    'the toggle reads as unpressed again (#433)',
-    disarmed.pressed === 'false',
-    `aria-pressed=${disarmed.pressed}`,
-  );
+    // --- disarming hides it again ------------------------------------------------------------------
+    await page.locator('#fold-toggle').click();
+    await settles(() => document.getElementById('fold-overlay').hidden === true, page, 3000);
+    const disarmed = await readOverlay(page);
+    check('disarming hides the overlay (#433)', disarmed.hidden === true);
+    check(
+      'the toggle reads as unpressed again (#433)',
+      disarmed.pressed === 'false',
+      `aria-pressed=${disarmed.pressed}`,
+    );
 
-  if (shot) {
-    await page.screenshot({ path: shot, fullPage: false });
-    process.stdout.write(`shot: ${shot}\n`);
-  }
-  await context.close();
+    if (shot) {
+      await page.screenshot({ path: shot, fullPage: false });
+      process.stdout.write(`shot: ${shot}\n`);
+    }
+
+    const lost = await pageLostDevice(page);
+    await context.close();
+    return lost;
+  });
 } finally {
   await browser.close();
   server.close();
 }
 
-const verdict = failures > 0 ? `${failures} check(s) failed` : 'all checks passed';
-process.stdout.write(`\nfold overlay: ${verdict}\n`);
-process.exit(failures === 0 ? 0 : 1);
+process.exit(gate.finish('fold overlay'));

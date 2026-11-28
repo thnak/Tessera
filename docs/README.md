@@ -165,7 +165,7 @@ This page is the map and reading order for the framework.
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
   handlers, hooks (sections 0-9)
 - [`specs/jsx-subset-v1-jsx.md`](specs/jsx-subset-v1-jsx.md) — part 2 of the JSX/TSX subset: JSX,
-  intrinsic elements, rejected constructs, diagnostics, error-tolerant parsing, limits (sections 10-18); formatter (comment rules, style table, `tessera fmt`): [`specs/source-format-v1.md`](specs/source-format-v1.md)
+  intrinsic elements, rejected constructs, diagnostics, error-tolerant parsing, limits (sections 10-18); formatter (comment rules, style table, CSS, tessera.json, `tessera fmt`): [`specs/source-format-v1.md`](specs/source-format-v1.md)
 - [`specs/jsx-intrinsics-v1/`](specs/jsx-intrinsics-v1/README.md) — intrinsic element table: children,
   props, events and payloads, refs, IR lowering, lowercase HTML aliases, React compatibility,
   machine-readable form (folder with index)

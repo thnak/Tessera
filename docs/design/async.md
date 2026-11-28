@@ -89,6 +89,8 @@ Rules:
   allocation-free: no `std::function` wrapper is created. Fire-and-forget completions keep the
   bounded capacity and the `Stats::dropped` counter; `Stats::pending_continuations` and
   `Stats::continuations_executed` report the lane.
+  A queue destroyed with resumes still pending releases each queued task's keep-alive in its
+  destructor (issue #846); otherwise the self-reference leaks the frame, which the ASan lane found.
 - **Results and errors.** `co_await` yields the value (or void) and rethrows the child's exception
   at the await point. An exception that leaves a task body is stored in the task state, so a root
   task fails without terminating.

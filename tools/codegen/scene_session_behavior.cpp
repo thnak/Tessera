@@ -97,6 +97,9 @@ void PreviewSession::attach_behaviors(const SceneBuildResult& built) {
     }
     // Attach after the whole list exists, so a target lookup can see every node.
     for (BehaviorSlot& slot : behaviors_) {
+        if (pending_ && (slot.name == "transition" || slot.name == "deferred_value")) {
+            continue; // the pending session drives it (`pending_drives` in scene_pending.hpp)
+        }
         std::vector<ui::Node*> nodes;
         nodes.reserve(slot.target_nodes.size());
         for (const std::uint64_t node_id : slot.target_nodes) {

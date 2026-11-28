@@ -306,6 +306,14 @@ void test_an_unanswerable_exchange_reports_the_bound() {
     testing::expect_eq(ran.ticks, std::size_t{8}, "the bound, not convergence, stopped the run");
     testing::expect(app.text_of(kStatus) == std::nullopt,
                     "the answer never reached the scene within the bound");
+
+    // The request is still in flight. A service parked on work that never completes keeps its
+    // frames alive (service_runner.hpp, Abandonment), which the nightly ASan lane reports as a
+    // leak, so the test lets the scripted answer arrive before it ends and drains the frames.
+    app.clock().advance(3'601.0);
+    const testing::SettleResult drained = app.settle();
+    testing::expect(drained.outcome == testing::SettleOutcome::Settled,
+                    "the late answer arrives once the clock passes it");
 }
 
 // --- 5. The old long form ------------------------------------------------------------------------

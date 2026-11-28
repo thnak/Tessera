@@ -84,6 +84,17 @@ void operator delete(void* pointer, std::align_val_t) noexcept {
 void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
     tessera::detail::aligned_release(pointer);
 }
+// The nothrow forms are replaced too: libstdc++'s std::stable_sort takes its scratch buffer from
+// `new (std::nothrow)`. Left to the default, that buffer comes from the sanitizer's allocator and
+// is released by the malloc/free delete above, an alloc-dealloc mismatch under ASan.
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    count(size);
+    return std::malloc(size == 0 ? 1 : size);
+}
+void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+    count(size);
+    return std::malloc(size == 0 ? 1 : size);
+}
 void* operator new[](std::size_t size) {
     return ::operator new(size);
 }

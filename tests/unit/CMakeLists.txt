@@ -40,6 +40,14 @@ target_compile_definitions(analysis_index_tests PRIVATE
 
 add_test(NAME analysis_index COMMAND analysis_index_tests)
 
+# Project-wide diagnostics and the worker C ABI (issue #568, ADR-060).
+add_executable(analysis_diagnostics_tests
+    analysis_diagnostics_tests.cpp)
+
+target_link_libraries(analysis_diagnostics_tests PRIVATE tessera_analysis_entry)
+
+add_test(NAME analysis_diagnostics COMMAND analysis_diagnostics_tests)
+
 add_executable(jsx_module_tests
     jsx_module_tests.cpp)
 
@@ -1258,6 +1266,7 @@ add_executable(data_store_tests
     data_store_tests.cpp)
 
 target_link_libraries(data_store_tests PRIVATE tessera_runtime)
+tessera_allow_allocator_override(data_store_tests)
 
 add_test(NAME data_store COMMAND data_store_tests)
 

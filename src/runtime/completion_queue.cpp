@@ -19,6 +19,35 @@ CompletionQueue::CompletionQueue(std::size_t capacity, WakeFn wake, void* wake_c
     }
 }
 
+CompletionQueue::~CompletionQueue() {
+    // Pop one node at a time and release its reference outside the lock: destroying a frame can
+    // post another resume, which this loop then also drains.
+    for (;;) {
+        std::shared_ptr<void> released;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            wake_ = nullptr;
+            detail::ContinuationNode* node = nullptr;
+            for (ContinuationLane& lane : continuations_) {
+                if (lane.head != nullptr) {
+                    node = lane.head;
+                    lane.head = node->next_;
+                    if (lane.head == nullptr) {
+                        lane.tail = nullptr;
+                    }
+                    node->next_ = nullptr;
+                    node->linked_ = false;
+                    break;
+                }
+            }
+            if (node == nullptr) {
+                return;
+            }
+            released = node->take_queued_reference();
+        }
+    }
+}
+
 void CompletionQueue::set_wake(WakeFn wake, void* wake_context) noexcept {
     std::lock_guard<std::mutex> lock(mutex_);
     wake_ = wake;

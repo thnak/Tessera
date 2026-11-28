@@ -142,6 +142,9 @@ protected:
 
     // `detail::ContinuationNode`: the queued-resume entry point (issue #843).
     void resume_continuation() final;
+    std::shared_ptr<void> take_queued_reference() noexcept final {
+        return std::move(queued_keepalive_);
+    }
 
     std::exception_ptr exception_;
 
