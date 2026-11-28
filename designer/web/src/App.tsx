@@ -45,6 +45,7 @@ import { usePanelVisibility, useViewFromUrl } from "./page-panels";
 import { useProblems, useProblemsStore } from "./page-problems";
 import { useSearch } from "./page-search";
 import { useProjectProblems } from "./page-project-problems";
+import { useAnalysisHub } from "./page-analysis";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
 import { useWorkbench as useCommands } from "./page-commands";
@@ -447,6 +448,8 @@ export function App() {
     buildId: state.buildId,
     refs,
   });
+
+  useAnalysisHub({ workspace, jump: problems.jump, onWritten: onSearchWritten, commands: commandHost });
 
   // A picked folder with several samples (the repository root, `samples/gallery`) offers them in the quick pick.
   useEffect(() => {
