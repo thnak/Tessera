@@ -100,6 +100,7 @@ on:
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
       - 'scripts/ci/preview_browser_canvas_size.mjs'
       - 'scripts/ci/preview_browser_fold_overlay.mjs'
+      - 'scripts/ci/preview_browser_resources.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -168,6 +169,7 @@ on:
       - 'scripts/ci/preview_browser_canvas_handover.mjs'
       - 'scripts/ci/preview_browser_canvas_size.mjs'
       - 'scripts/ci/preview_browser_fold_overlay.mjs'
+      - 'scripts/ci/preview_browser_resources.mjs'
       - 'scripts/ci/package.json'
       - 'scripts/ci/package-lock.json'
       - '.github/workflows/pages.yml'
@@ -702,6 +704,13 @@ jobs:
       - name: Fold overlay over the preview (headless Chromium)
         run: >-
           node scripts/ci/preview_browser_fold_overlay.mjs build/pages
+
+      # The Resources section of the Platform events panel (issue #976): Resolve, a stale-epoch Resolve,
+      # Fetch and Fail change the status, epoch and summary exactly as the engine reports. Uses the shared
+      # device policy, so a runner that loses its WebGPU device reports a SKIP, never a pass (#958).
+      - name: Resources panel (headless Chromium)
+        run: >-
+          node scripts/ci/preview_browser_resources.mjs build/pages
 
       # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
       # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why
