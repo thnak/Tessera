@@ -154,6 +154,7 @@ bool WindowHost::Impl::replace_device() {
     device_options.validation = options.validation;
     device_options.surface = detail::surface_platform_for(window->window_system());
     device_options.font_path = options.font_path;
+    device_options.extra_font_paths = options.extra_font_paths;
     if (!group->replace_device(device_options)) {
         return false;
     }

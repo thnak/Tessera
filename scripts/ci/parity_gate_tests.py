@@ -170,9 +170,15 @@ class ParityGateTests(unittest.TestCase):
         self.assertEqual(code, 0)
         captures = [call for call in tools.calls if "--capture" in call]
         self.assertEqual(len(captures), 1)
-        font = Path(captures[0][captures[0].index("--font") + 1])
-        self.assertEqual(font.name, "IBMPlexSans-Regular.ttf")
-        self.assertIn("tessera-fonts", font.parts)
+        call = captures[0]
+        fonts = [Path(call[i + 1]) for i, arg in enumerate(call) if arg == "--font"]
+        # #973: the regular face first (the primary), then the weights the engine picks per run.
+        self.assertEqual(
+            [f.name for f in fonts],
+            ["IBMPlexSans-Regular.ttf", "IBMPlexSans-SemiBold.ttf", "IBMPlexSans-Bold.ttf"],
+        )
+        for font in fonts:
+            self.assertIn("tessera-fonts", font.parts)
 
     def test_a_module_page_emits_first(self) -> None:
         tools = FakeTools(structure=0.1)
@@ -184,6 +190,15 @@ class ParityGateTests(unittest.TestCase):
         browser = [call for call in tools.calls if any("chrome_parity.mjs" in part for part in call)]
         self.assertEqual(len(browser), 1)
         self.assertIn("--module-css", browser[0])
+
+    def test_the_browser_half_is_told_which_page(self) -> None:
+        # #973: without --page chrome_parity.mjs defaulted to the form, so `--page dash` compared the
+        # dashboard's engine capture against the form's twin.
+        tools = FakeTools(structure=0.1)
+        code, _, _ = self.gate(tools, "--page", "dash", "--repo", str(self.repo))
+        self.assertEqual(code, 0)
+        browser = [call for call in tools.calls if any("chrome_parity.mjs" in part for part in call)]
+        self.assertEqual(browser[0][browser[0].index("--page") + 1], "dash")
 
     def test_missing_playwright_is_one_actionable_line(self) -> None:
         code, _, err = self.gate(FakeTools(structure=0.1), "--page", "form", "--repo", str(self.repo), playwright_ok=False)

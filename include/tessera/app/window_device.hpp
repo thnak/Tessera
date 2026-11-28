@@ -43,6 +43,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace tessera::app {
 
@@ -81,6 +82,9 @@ struct WindowDeviceOptions {
     // what a one-window group passes; a multi-window group names it once here so every window
     // measures and paints with the same face.
     std::string font_path;
+    // More faces of the same family (a bold file): picked per run by CSS `font-weight` from the
+    // weight each file declares. Same "empty means the window's own" rule as `font_path`.
+    std::vector<std::string> extra_font_paths;
     // The RHI backend. `Vulkan` is production; `Null` is the deterministic backend the multi-window
     // acceptance runs on, because it records commands instead of presenting and therefore needs no
     // surface. A null-backend group still creates a real platform window (the HAL is independent of

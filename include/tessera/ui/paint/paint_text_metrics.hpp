@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui::paint {
 
@@ -88,6 +89,8 @@ public:
 class FontPaintTextMetrics final : public PaintTextMetricsSource {
 public:
     FontPaintTextMetrics(text::FontFace face, std::uint32_t id);
+    // The faces of one family, picked per run by `font-weight` (see `text::WeightedShaper`).
+    FontPaintTextMetrics(std::vector<text::FontFace> faces, std::uint32_t id);
     ~FontPaintTextMetrics() override;
 
     FontPaintTextMetrics(const FontPaintTextMetrics&) = delete;

@@ -2073,6 +2073,16 @@ add_test(NAME fallback_shaper COMMAND fallback_shaper_tests
     "${TESSERA_FONT_FIXTURE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
 
+add_executable(weighted_shaper_tests
+    weighted_shaper_tests.cpp)
+
+target_link_libraries(weighted_shaper_tests PRIVATE tessera_text tessera_paint)
+
+add_test(NAME weighted_shaper COMMAND weighted_shaper_tests
+    "${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
+    "${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Bold.ttf"
+    "${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-SemiBold.ttf")
+
 add_executable(glyph_atlas_faces_tests
     glyph_atlas_faces_tests.cpp)
 

@@ -14,9 +14,10 @@ Two pages: `form` (`FormPage.tsx`, `form.module.css`, light theme) and `dash` (`
 `--theme instrument-dark` on both sides).
 
 Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.module.css`, the theme
-tokens of `instrument.theme.json` (written into the page as `:root` variables) and the font
-`packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf` (Plex Sans Regular from the font pack, #970;
-`parity_gate.py` passes it to the gallery with `--font`). A difference is therefore a difference in how the two
+tokens of `instrument.theme.json` (written into the page as `:root` variables) and the fonts
+`packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-{Regular,SemiBold,Bold}.ttf` (Plex Sans from the font pack, #970;
+`parity_gate.py` passes all three to the gallery with repeated `--font`, the engine picks one per run by the weight
+the file declares, and `chrome_parity.mjs` declares them as 400, 600 and 700, #973). A difference is therefore a difference in how the two
 renderers read the same rules, not a difference in the rules. `FormPage.tsx` is deliberately busy: a
 card with a shadow, a two-column grid with a spanning item, text inputs (one in an error state), a
 select drawn from views, a segmented control, switches and a checkbox, a truncated help line, and a
@@ -139,8 +140,13 @@ These are not bugs; a markup author who writes for both has to know them.
   dashboard therefore uses a solid hero; a gradient there is the clearest visible gap against Chrome.
 - A border with different widths or colours per side is not one ring and keeps the square edge strips
   on a rounded box.
-- The engine's text stack loads one face (`--font`), so only Plex Sans Regular is shared and bold is still not
-  compared: verifying bold needs the text stack to load the pack's 600/700 faces, which it does not yet. The form runs in the light theme and the dashboard in the dark one, both at
+- Measured with Plex on lavapipe against Chromium (#973, `parity_gate.py`, 640x720): the form is at
+  `structure_diff_pct` 0.61 (over the 0.5 threshold; `differing_pixels_pct` 7.53) and the dashboard at 0.13
+  (3.02). The form's gap is vertical: each text input is 36 px in the engine and 38 px in Chrome, which shifts
+  every row below it; the 0.12 quoted in section 2 predates the Plex fixtures and was not re-measured with Noto. The gallery goldens now render with Plex
+  Sans Regular too (the default `TESSERA_GALLERY_FONT`).
+- The engine loads one face per weight (repeat `--font`, #973) and neither side synthesizes bold, but the
+  form and dashboard twins set no `font-weight` yet, so no bold run is compared until a page uses one. The form runs in the light theme and the dashboard in the dark one, both at
   device scale 1; high contrast, RTL and scale 2 need their own runs.
 - The engine's element boxes are not exported, so layout is compared through the overlay, not as
   numbers.
