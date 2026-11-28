@@ -16,10 +16,20 @@ export function Gallery() {
         <Button label="Primary" variant="primary" onPress={() => setPresses(presses + 1)}>
           <Text>Primary</Text>
         </Button>
-        <Button label="Primary small" variant="primary" size="sm" onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Primary small"
+          variant="primary"
+          size="sm"
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Small</Text>
         </Button>
-        <Button label="Primary disabled" variant="primary" disabled={true} onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Primary disabled"
+          variant="primary"
+          disabled={true}
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Disabled</Text>
         </Button>
       </View>
@@ -27,10 +37,20 @@ export function Gallery() {
         <Button label="Secondary" variant="secondary" onPress={() => setPresses(presses + 1)}>
           <Text>Secondary</Text>
         </Button>
-        <Button label="Secondary small" variant="secondary" size="sm" onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Secondary small"
+          variant="secondary"
+          size="sm"
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Small</Text>
         </Button>
-        <Button label="Secondary disabled" variant="secondary" disabled={true} onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Secondary disabled"
+          variant="secondary"
+          disabled={true}
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Disabled</Text>
         </Button>
       </View>
@@ -38,10 +58,20 @@ export function Gallery() {
         <Button label="Ghost" variant="ghost" onPress={() => setPresses(presses + 1)}>
           <Text>Ghost</Text>
         </Button>
-        <Button label="Ghost small" variant="ghost" size="sm" onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Ghost small"
+          variant="ghost"
+          size="sm"
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Small</Text>
         </Button>
-        <Button label="Ghost disabled" variant="ghost" disabled={true} onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Ghost disabled"
+          variant="ghost"
+          disabled={true}
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Disabled</Text>
         </Button>
       </View>
@@ -49,10 +79,20 @@ export function Gallery() {
         <Button label="Danger" variant="danger" onPress={() => setPresses(presses + 1)}>
           <Text>Danger</Text>
         </Button>
-        <Button label="Danger small" variant="danger" size="sm" onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Danger small"
+          variant="danger"
+          size="sm"
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Small</Text>
         </Button>
-        <Button label="Danger disabled" variant="danger" disabled={true} onPress={() => setPresses(presses + 1)}>
+        <Button
+          label="Danger disabled"
+          variant="danger"
+          disabled={true}
+          onPress={() => setPresses(presses + 1)}
+        >
           <Text>Disabled</Text>
         </Button>
       </View>

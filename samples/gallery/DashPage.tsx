@@ -36,7 +36,9 @@ export function DashPage() {
       </View>
 
       <View className="d-tabs">
-        <View className="d-tab d-tab-on"><Text className="d-tab-text d-tab-text-on">Overview</Text></View>
+        <View className="d-tab d-tab-on">
+          <Text className="d-tab-text d-tab-text-on">Overview</Text>
+        </View>
         <View className="d-tab"><Text className="d-tab-text">Orders</Text></View>
         <View className="d-tab"><Text className="d-tab-text">Customers</Text></View>
         <View className="d-tab d-tab-dim"><Text className="d-tab-text">Reports</Text></View>
@@ -84,13 +86,23 @@ export function DashPage() {
       </View>
 
       <View className="d-chips">
-        <View className="d-chip"><View className="d-chip-dot"></View><Text className="d-chip-text">Design</Text></View>
-        <View className="d-chip d-chip-on"><Text className="d-chip-text d-chip-text-on">Engineering</Text></View>
+        <View className="d-chip">
+          <View className="d-chip-dot"></View>
+          <Text className="d-chip-text">Design</Text>
+        </View>
+        <View className="d-chip d-chip-on">
+          <Text className="d-chip-text d-chip-text-on">Engineering</Text>
+        </View>
         <View className="d-chip"><Text className="d-chip-text">Support</Text></View>
         <View className="d-chip"><Text className="d-chip-text">Finance</Text></View>
-        <View className="d-chip d-chip-on"><Text className="d-chip-text d-chip-text-on">Operations</Text></View>
+        <View className="d-chip d-chip-on">
+          <Text className="d-chip-text d-chip-text-on">Operations</Text>
+        </View>
         <View className="d-chip"><Text className="d-chip-text">Legal</Text></View>
-        <View className="d-chip"><View className="d-chip-turn"></View><Text className="d-chip-text">Archive</Text></View>
+        <View className="d-chip">
+          <View className="d-chip-turn"></View>
+          <Text className="d-chip-text">Archive</Text>
+        </View>
       </View>
     </View>
   );

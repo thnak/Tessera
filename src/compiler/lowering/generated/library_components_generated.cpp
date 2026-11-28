@@ -204,12 +204,12 @@ ir::Node component_1_node_2() {
     node.id = "node::2";
     node.ui_id = "1127654960336062052";
     node.source.file = "packages/tessera-ui/Form.tsx";
-    node.source.offset = 1913;
+    node.source.offset = 1900;
     node.source.length = 10;
-    node.source.line = 37;
-    node.source.column = 7;
-    node.source.end_line = 37;
-    node.source.end_column = 17;
+    node.source.line = 35;
+    node.source.column = 33;
+    node.source.end_line = 35;
+    node.source.end_column = 43;
     return node;
 }
 
@@ -219,12 +219,12 @@ ir::Node component_1_node_1() {
     node.id = "node::1";
     node.ui_id = "14678135247258877049";
     node.source.file = "packages/tessera-ui/Form.tsx";
-    node.source.offset = 1883;
-    node.source.length = 52;
-    node.source.line = 36;
-    node.source.column = 5;
-    node.source.end_line = 38;
-    node.source.end_column = 12;
+    node.source.offset = 1877;
+    node.source.length = 40;
+    node.source.line = 35;
+    node.source.column = 10;
+    node.source.end_line = 35;
+    node.source.end_column = 50;
     node.props.emplace("className", ir::make_literal(std::string("form")));
     node.children.push_back(component_1_node_2());
     return node;
@@ -237,10 +237,10 @@ ir::Component make_component_1() {
     component.name = "Form";
     component.source.file = "packages/tessera-ui/Form.tsx";
     component.source.offset = 1786;
-    component.source.length = 156;
+    component.source.length = 134;
     component.source.line = 34;
     component.source.column = 1;
-    component.source.end_line = 40;
+    component.source.end_line = 36;
     component.source.end_column = 2;
     {
         ir::Prop prop;

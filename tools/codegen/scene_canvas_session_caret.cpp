@@ -32,7 +32,8 @@ void CanvasSceneSession::fill_caret_box(CanvasPointerResult& result) const {
     }
 }
 
-bool CanvasSceneSession::text_pointer(PreviewInput::Kind kind, float x, float y) {
+bool CanvasSceneSession::text_pointer(PreviewInput::Kind kind, float x, float y, bool shift,
+                                      std::uint32_t clicks) {
     if (kind == PreviewInput::Kind::PointerUp || kind == PreviewInput::Kind::PointerCancel) {
         selecting_text_ = false;
         return false;
@@ -56,7 +57,14 @@ bool CanvasSceneSession::text_pointer(PreviewInput::Kind kind, float x, float y)
     const std::optional<ui::text::TextHit> hit =
         ui::paint::text_field_hit(*focused, style, focused->world_bounds(), x, y,
                                   text_metrics_ != nullptr ? text_metrics_() : nullptr);
-    return hit && session_->move_text_caret(hit->byte_offset, !press);
+    if (!hit) {
+        return false;
+    }
+    if (press && clicks >= 2) {
+        return session_->move_text_caret(hit->byte_offset, false, clicks);
+    }
+    // Shift+press keeps the anchor like a drag does; a plain press collapses to the hit.
+    return session_->move_text_caret(hit->byte_offset, !press || shift);
 }
 
 } // namespace tessera::compiler::codegen::cli

@@ -1,24 +1,3 @@
-# Files under samples/ and packages/tessera-ui/ that predate tessera_fmt and are not canonical yet.
-# scripts/check_fmt_canonical.py (ctest fmt_check_samples) fails when a file listed here becomes canonical
-# (delete the line) or a file not listed here is not canonical. Reformatting them is blocked on the goldens
-# that read their line numbers (issue #990).
-packages/tessera-ui/Button.tsx
-packages/tessera-ui/Form.tsx
-packages/tessera-ui/Icon.tsx
-packages/tessera-ui/SafeArea.tsx
-packages/tessera-ui/icons/IconGlyph.tsx
-packages/tessera-ui/primitives/DismissableLayer.tsx
-packages/tessera-ui/primitives/Press.tsx
-packages/tessera-ui/primitives/Toggle.tsx
-samples/compiler-demo/Demo.tsx
-samples/gallery/DashPage.tsx
-samples/gallery/FormPage.tsx
-samples/gallery/Gallery.tsx
-samples/gallery/SwatchPage.tsx
-samples/gallery/dash.css
-samples/gallery/form.module.css
-samples/parity-demo/tessera.json
-samples/showcase/Showcase.tsx
-samples/showcase/app.css
-samples/showcase/showcase.module.css
-samples/showcase/tessera.json
+# Files under samples/ and packages/tessera-ui/ that are not canonical yet. Empty since #1008: every
+# shipped file is formatted. scripts/check_fmt_canonical.py (ctest fmt_check_samples) fails when a file
+# listed here becomes canonical (delete the line) or a file not listed here is not canonical.

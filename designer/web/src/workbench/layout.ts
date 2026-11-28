@@ -34,6 +34,19 @@ export {
   type CollapsedEdge,
 } from "./sash";
 export { migrateLayout, migrations, type Migration } from "./migrate";
+export {
+  MAX_PRESET_NAME,
+  MAX_USER_PRESETS,
+  PRESETS_STORAGE_KEY,
+  deleteUserPreset,
+  exportLayout,
+  importLayout,
+  listUserPresets,
+  saveUserPreset,
+  type ImportResult,
+  type SaveResult,
+  type UserPreset,
+} from "./layout-io";
 export { reconcile } from "./reconcile";
 export { PHONE_BREAKPOINT_PX, PHONE_GROUP, collapse, isPhoneWidth, phoneLayout, type PhoneView } from "./phone";
 export {

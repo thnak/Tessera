@@ -118,6 +118,44 @@ export function chordProblem(text: string): string | null;
 export function reservedProblem(text: string): { reserved: string; fallback: string | null } | null;
 export function stepOfEvent(event: KeyEventLike): ChordStep;
 
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
+}
+export const KEYBINDINGS_STORAGE_KEY: string;
+export const KEYBINDINGS_FORMAT: string;
+export const KEYBINDINGS_VERSION: number;
+export const MAX_KEYBINDINGS_BYTES: number;
+export const MAX_OVERRIDES: number;
+export type OverridesResult = { ok: true; overrides: KeybindingOverride[] } | { ok: false; errors: string[] };
+export function validateOverrides(input: unknown, commands: readonly CommandRecord[]): OverridesResult;
+export function serializeOverrides(overrides: readonly KeybindingOverride[]): string;
+export function setBinding(overrides: readonly KeybindingOverride[], record: CommandRecord, key: string, when?: string): KeybindingOverride[];
+export function clearBinding(overrides: readonly KeybindingOverride[], record: CommandRecord): KeybindingOverride[];
+export function resetBinding(overrides: readonly KeybindingOverride[], id: string): KeybindingOverride[];
+export function chordOfEvent(event: KeyEventLike, platform?: Platform): string | null;
+interface KeymapInputs {
+  commands: readonly CommandRecord[];
+  overrides: readonly KeybindingOverride[];
+  platform?: Platform;
+  isActive?: (id: string) => boolean;
+}
+export function collisionsFor(inputs: KeymapInputs, id: string, key: string): string[];
+export interface KeybindingRow {
+  id: string;
+  title: string;
+  category: string;
+  chord: string;
+  source: "default" | "user" | "removed" | "unbound";
+  defaultChord: string;
+  conflicts: string[];
+  shared: string[];
+}
+export function keybindingRows(inputs: KeymapInputs): KeybindingRow[];
+export function loadOverrides(storage: StorageLike | null | undefined, commands: readonly CommandRecord[]): { overrides: KeybindingOverride[]; notice: string | null };
+export function saveOverrides(storage: StorageLike | null | undefined, overrides: readonly KeybindingOverride[]): boolean;
+
 export type LogFn = (level: "info" | "warn" | "error", event: string, detail?: object) => void;
 export interface Registry {
   readonly records: readonly CommandRecord[];

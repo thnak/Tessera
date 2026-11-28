@@ -108,6 +108,19 @@ void test_unrecoverable() {
           "an unreadable file still refuses");
 }
 
+// CSS and tessera.json have no per-item boundary to trust: even with recovery on, an unbalanced
+// brace or a JSON syntax error is refused with a diagnostic and no text (spec section 14).
+void test_css_and_json_never_recover() {
+    const auto css =
+        format::format_source(format::FileKind::Css, "a{color:red}\nb{color:blue;\n", recovering());
+    check(!css.ok() && css.text.empty() && !css.diagnostics.empty(),
+          "an unbalanced CSS brace refuses even with recovery on");
+    const auto json =
+        format::format_source(format::FileKind::Json, "{\"name\":\"x\",}\n", recovering());
+    check(!json.ok() && json.text.empty() && !json.diagnostics.empty(),
+          "a tessera.json syntax error refuses even with recovery on");
+}
+
 void test_edits_and_json() {
     const std::string input = sample();
     const auto edits = format::format_edits(format::FileKind::Tsx, input, recovering());
@@ -145,6 +158,7 @@ void run_recover_tests() {
     test_idempotent();
     test_crlf_and_bom();
     test_unrecoverable();
+    test_css_and_json_never_recover();
     test_edits_and_json();
     test_utf16_offsets();
 }

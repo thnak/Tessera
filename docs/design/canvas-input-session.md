@@ -43,7 +43,7 @@ This is the part worth not re-deriving. **No layer in this path writes a class n
 matches a selector by hand.**
 
 ```
-tessera_canvas_pointer(kind, x, y, button)          wasm_canvas_entry.cpp
+tessera_canvas_pointer(kind, x, y, button, mods, clicks)  wasm_canvas_entry.cpp
   → CanvasSceneSession::pointer(kind, x, y, button) scene_canvas_session.cpp
     → PreviewSession::dispatch(PreviewInput)        scene_session.cpp
       → ui::InputRouter::dispatch(root, InputEvent)  src/ui/scene/input_dispatch.cpp
@@ -113,7 +113,7 @@ this module is given.
 | Export | Contract |
 |---|---|
 | `tessera_canvas_apply(component, fold, width, height, dpi)` | evaluate the staged project, keep it (carrying state across an edit); returns a report with `error` set when it produced no scene. An apply of the identical project reuses the evaluation instead of rebuilding it |
-| `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
+| `tessera_canvas_pointer(kind, x, y, button, modifiers, clicks)` | `modifiers` bit 0 is Shift and `clicks` the consecutive press count (both optional: 0 means none and 1); they only drive text selection ([`canvas-text-input.md`](canvas-text-input.md)). `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
 | `tessera_canvas_pick(x, y)` | what is under a point, for the picker overlay ([§5.1](#51-the-picker-query-issue-171)); coordinates are logical pixels; returns `{"pickVersion":1,"found":…,"automationId":"…","elementKind":"…","box":{"x":…,"y":…,"width":…,"height":…}}`. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_style(automationId)` | the style inspector's query ([§5.2](#52-the-style-inspector-query-issue-171)): the computed style, the matched rules with their provenance, and the box of one node. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_overlay()` | the debug overlay's geometry (issue #433): the hinge band and the safe-area, keyboard, gesture and cutout rectangles the RUNNING tree was laid out against, as `{"overlayVersion":1,"width":…,"height":…,"foldState":"…","foldOrientation":"…","foldOcclusion":"…","separating":…,"hingeAngle":…,"hinge":{…},"insets":{…},"ime":{…},"gestures":{…},"cutouts":[…]}`. Serialized from the session's own `WindowMetrics` (the snapshot the layout consumed), so a page that scaled it can never place a band the layout did not use. A query: it dispatches nothing and owes no frame, which is why arming the overlay presents nothing |

@@ -165,8 +165,7 @@
 
 /* FormPage reads `styles.selectValue`; the select text takes everything from `.select`, so the
    rule is empty. A CSS module needs the class declared, which the global sheet never did. */
-.selectValue {
-}
+.selectValue {}
 
 .selectCaret {
   color: var(--on-surface-muted);

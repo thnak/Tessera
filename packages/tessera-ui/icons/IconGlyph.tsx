@@ -5,9 +5,7 @@
 // The imported icons as `Path` nodes, selected by `<set>:<name>`. The `Icon` component
 // wraps this; see docs/specs/components/Icon.md.
 
-export type IconGlyphProps = {
-  name: string;
-};
+export type IconGlyphProps = { name: string };
 
 export function IconGlyph({ name }: IconGlyphProps) {
   return (

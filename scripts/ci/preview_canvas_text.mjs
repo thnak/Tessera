@@ -24,9 +24,11 @@ function test(name, body) {
 
 let textModule;
 let keyboardModule;
+let pointerModule;
 try {
   textModule = await import(pathToFileURL(resolve(DIST, "canvas-text.js")).href);
   keyboardModule = await import(pathToFileURL(resolve(DIST, "canvas-keyboard.js")).href);
+  pointerModule = await import(pathToFileURL(resolve(DIST, "canvas-pointer.js")).href);
 } catch {
   process.stderr.write(
     `SETUP ERROR: ${DIST}/canvas-text.js is missing. Build the page first:\n` +
@@ -34,7 +36,8 @@ try {
   );
   process.exit(2);
 }
-const { attachCanvasText, textModifiers } = textModule;
+const { attachCanvasText, textModifiers, SENTINEL } = textModule;
+const { createClickCounter } = pointerModule;
 const { attachCanvasKeyboard } = keyboardModule;
 
 // --- a fake DOM, just enough for the two modules -------------------------------------------------------
@@ -267,14 +270,38 @@ test("composition: start, update, then a commit or a cancel; keys during it are 
   area.dispatch("beforeinput", { inputType: "insertCompositionText", data: "ni", isComposing: true });
   assert.deepEqual(engine.keys, [], "the IME's keys are not forwarded");
   area.value = "ni";
+  engine.nextText = focused; // the engine keeps reporting the field as focused
   area.dispatch("compositionend", { data: "\u4f60" });
   assert.deepEqual(engine.texts, [["start", ""], ["update", "ni"], ["commit", "\u4f60"]]);
-  assert.equal(area.value, "", "the textarea is a source: it is emptied after a commit");
+  assert.equal(area.value, SENTINEL, "the textarea is a source: back to just the sentinel after a commit");
   engine.texts.length = 0;
   area.dispatch("compositionstart", {});
   area.dispatch("compositionupdate", { data: "zz" });
   area.dispatch("compositionend", { data: "" });
   assert.deepEqual(engine.texts, [["start", ""], ["update", "zz"], ["end", ""]]);
+});
+
+test("the hidden textarea holds a sentinel while editing so an empty-field Backspace still has something to delete", () => {
+  const { text, area, engine, focused } = setup();
+  assert.equal(area.value, "", "nothing before a field is focused");
+  text.sync(focused);
+  assert.equal(area.value, SENTINEL, "a focused field's textarea is never empty");
+  area.value = SENTINEL + "x";
+  area.dispatch("beforeinput", { inputType: "insertText", data: "x", isComposing: false });
+  area.value = "";
+  area.dispatch("beforeinput", { inputType: "deleteContentBackward", isComposing: false });
+  assert.deepEqual(engine.keys.map((k) => k[1]), ["Backspace", "Backspace"]);
+  text.sync({});
+  assert.equal(area.value, "", "and empty again once the field loses focus");
+});
+
+test("consecutive presses are counted by the page: same place and quick makes a double, else it restarts", () => {
+  const count = createClickCounter();
+  assert.equal(count(1000, 50, 50), 1);
+  assert.equal(count(1200, 52, 49), 2, "a quick press nearby is the second");
+  assert.equal(count(1400, 52, 49), 3, "and the third");
+  assert.equal(count(1500, 90, 49), 1, "a press elsewhere restarts");
+  assert.equal(count(2200, 90, 49), 1, "a slow press restarts");
 });
 
 test("paste commits the clipboard text, copy and cut put the engine's selection on the clipboard", () => {

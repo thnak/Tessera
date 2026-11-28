@@ -40,7 +40,8 @@ export function Button({
       onPointerDown={() => !disabled && setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
-      onKeyDown={(e: KeyEvent) => (e.key === "Enter" || e.key === " ") && !disabled && setPressed(true)}
+      onKeyDown={(e: KeyEvent) =>
+        (e.key === "Enter" || e.key === " ") && !disabled && setPressed(true)}
       onKeyUp={() => setPressed(false)}
       onClick={() => !disabled && onPress()}
     >

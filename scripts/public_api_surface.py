@@ -146,6 +146,25 @@ def strip_tsx(text: str) -> str:
     return "".join(out)
 
 
+def _field_segments(body: str) -> List[str]:
+    """Split a type literal body into field segments: every line, and also each top-level `;` / `,`
+    so a canonical one-line `{ a: string; b?: number }` yields both fields (tessera_fmt joins short
+    literals). Separators nested in braces, parens, brackets do not split."""
+    segments: List[str] = []
+    depth = 0
+    start = 0
+    for index, char in enumerate(body):
+        if char in "{([":
+            depth += 1
+        elif char in "})]":
+            depth = max(depth - 1, 0)
+        elif char == "\n" or (depth == 0 and char in ";,"):
+            segments.append(body[start:index])
+            start = index + 1
+    segments.append(body[start:])
+    return segments
+
+
 def component_declarations(text: str) -> Tuple[List[Tuple[str, str]], List[str]]:
     """`(declarations, warnings)`: components, their props and their `::part()` names.
 
@@ -168,7 +187,7 @@ def component_declarations(text: str) -> Tuple[List[Tuple[str, str]], List[str]]
         if opening < 0 or closing < 0:
             warnings.append("unterminated `{}Props` type literal".format(owner))
             continue
-        for line in source[opening + 1 : closing].splitlines():
+        for line in _field_segments(source[opening + 1 : closing]):
             field = _PROP_FIELD_RE.match(line)
             if field is not None:
                 declarations.append((PROP, "{}.{}".format(owner, field.group(1))))

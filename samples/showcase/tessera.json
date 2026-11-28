@@ -1,4 +1,8 @@
 {
   "schemaVersion": 1,
-  "app": { "name": "showcase", "entry": "Showcase.tsx", "namespace": "showcase" }
+  "app": {
+    "name": "showcase",
+    "entry": "Showcase.tsx",
+    "namespace": "showcase"
+  }
 }
