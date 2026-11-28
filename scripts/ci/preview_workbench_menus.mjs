@@ -87,15 +87,11 @@ await test('menus.json: every control of the spec mapping (section 4.1) has a ho
   assert.deepEqual(MENUS.statusBar.map((entry) => entry.widget), ['problems', 'caret', 'language', 'bell']);
 });
 
-await test('build: six live menus, Go is hidden until a go.* command is live', () => {
+await test('build: seven live menus; Go lists the live analysis commands and hides the reserved one', () => {
   const { registry } = bootRegistry();
   const bar = buildMenuBar(MENUS, { registry, providers });
-  assert.deepEqual(bar.map((menu) => menu.title), ['File', 'Edit', 'View', 'Run', 'Device', 'Help']);
-  const live = COMMANDS.map((record) => (record.id === 'go.definition' ? { ...record, status: 'live' } : record));
-  const next = bootRegistry({}, live);
-  const withGo = buildMenuBar(MENUS, { registry: next.registry, providers });
-  assert.deepEqual(withGo.map((menu) => menu.title), ['File', 'Edit', 'View', 'Go', 'Run', 'Device', 'Help']);
-  assert.deepEqual(labelsOf(withGo.find((menu) => menu.id === 'go').items), ['Go to Definition']);
+  assert.deepEqual(bar.map((menu) => menu.title), ['File', 'Edit', 'View', 'Go', 'Run', 'Device', 'Help']);
+  assert.deepEqual(labelsOf(bar.find((menu) => menu.id === 'go').items), ['Go to Definition', 'Find All References']);
 });
 
 await test('build: reserved items are hidden; separators fall between groups only', () => {
@@ -265,7 +261,8 @@ await test('nav: a disabled item is focusable and inert; Alt+letter opens by mne
   const inert = press(menus, nav, 'Enter');
   assert.equal(inert.effect, null);
   assert.equal(inert.nav.open, true);
-  assert.equal(openByMnemonic(menus, 'g'), null, 'Go is hidden, so Alt+G opens nothing');
+  assert.notEqual(openByMnemonic(menus, 'g'), null, 'Go is live, so Alt+G opens it');
+  assert.equal(openByMnemonic(menus, 'q'), null, 'no menu has the mnemonic Q');
   assert.equal(press(menus, nav, 'Tab').effect.type, 'close');
   assert.equal(press(menus, nav, 'Tab').nav.open, false);
 });

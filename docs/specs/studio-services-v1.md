@@ -258,9 +258,8 @@ the page's version is dropped by the client (`TESSERA_STUDIO_STALE`), so a hover
 - **Tests and gate.** `tests/unit/analysis_language_tests.cpp` (cross-file definition and references through imports,
   props and CSS classes, UTF-16 offsets, hover signature, doc and diagnostics, edits, ABI parity);
   `scripts/ci/preview_analysis_service.mjs` (request validation, argument passing and stale drop against the stand-in
-  engine and, with `TESSERA_ANALYSIS_WASM`, the same requests against the C++ library). The editor wiring (F12,
-  Shift+F12, tooltip, the `go.*` commands gated on `service.analysis.ready`) and its Playwright cases are separate studio
-  work.
+  engine and, with `TESSERA_ANALYSIS_WASM`, the same requests against the C++ library). The editor wiring (#984) is
+  section 16: F12 and Shift+F12 (`go.definition`, `go.references`) and the hover tooltip.
 
 ## 13. Completions and rename (`completion`, `prepareRename`, `rename`)
 
@@ -321,8 +320,8 @@ takes it as a fifth argument.
   `tests/unit/analysis_rename_tests.cpp` (component, prop, state and CSS class across files, every refusal code, re-analysis,
   ABI parity), `scripts/ci/preview_analysis_service.mjs` (request validation, latest-wins completion, the same requests against
   the Wasm module, and the completion budget: with `TESSERA_ANALYSIS_WASM` set, the p95 of 30 completions over
-  `samples/gallery` in the worker stays under 100 ms). The editor wiring (completion source, F2 `edit.renameSymbol`, multi-file
-  undo) and its Playwright cases are separate studio work.
+  `samples/gallery` in the worker stays under 100 ms). The editor wiring (#988) is
+  section 16: the completion source, F2 `edit.renameSymbol` and its multi-file undo.
 
 ## 14. Compile worker (`compile`) and the Problems panel (#569, #575)
 
@@ -393,3 +392,34 @@ panel (`view.search`, Ctrl+Shift+F, [studio-workbench-v1.md](studio-workbench-v1
 - **Gates.** `scripts/ci/preview_search_service.mjs` (matcher, globs, bounded regex, caps, replace plan, the worker
   protocol; no build), `scripts/ci/preview_search_client.mjs` (the client and the replace history from `dist-ssr`), both in
   `pages.yml`; and the developer-run browser gate `scripts/ci/workbench_search.mjs` (Playwright).
+
+## 16. Editor wiring (#984, #988)
+
+The page side of sections 12 and 13, all in `designer/web/src`:
+
+- **Hub.** `editor/analysis-hub.ts` is the one object the commands and the CodeMirror extensions share; the page attaches
+  the project (`page-analysis.ts`: files, text, open a span, write buffers, notify, offer references). The request sends
+  the project with the open file taken from the editor, so an answer is for the text on screen; the client
+  (`lib/analysis-client.ts` `query`) does not resend an unchanged project, so a hover or a completion is one request.
+  The answers become page data in `lib/analysis-nav.ts` (pure, gated).
+- **Commands.** `go.definition` (F12) opens the declaration through the Problems jump (file, then span); `go.references`
+  (Shift+F12) opens a single reference and lists several in the quick pick (palette intent `references`);
+  `edit.renameSymbol` (F2) asks `prepareRename`, prompts for the name, and applies the `rename` edits to the workspace
+  buffers as one operation, then offers `edit.undoRename` in the notification. Undo restores every file that still
+  holds the renamed text and names the ones it left alone. A plan that touches a locked file, or a file that changed
+  while the worker was busy, is refused whole. `service.analysis.ready` goes false once the worker is known to be missing,
+  which disables the `go.*` commands with the usual reason.
+- **Editor.** `editor/analysis-extensions.ts`: a hover tooltip (title, signature, doc, diagnostics as text nodes, never
+  markup) and a CodeMirror completion source (`@codemirror/autocomplete`) that asks on a word character, a trigger
+  character of section 13 or Ctrl+Space. Both stay silent when the worker answers nothing.
+- **Gate.** `scripts/ci/preview_analysis_wiring.mjs` (a step in `pages.yml`): the answers as page data, the hub against a
+  scripted client (F12, references, the rename refusals, one undo step, a file edited since), the client's request and
+  availability, the static wiring (live commands, handlers, extensions, readiness key) and, with `TESSERA_ANALYSIS_WASM`,
+  the hub against the C++ library. The Wasm cases of `preview_analysis_service.mjs`, written for #984, ran green against a
+  built `tessera_analysis.js` (completion p95 0.4 ms over `samples/gallery`).
+- **Still open.** Playwright cases (no browser in the lanes that built this): the chords, the hover popup, the completion
+  popup and rename in a real editor; an inline rename widget with a preview of the edits (a `prompt` asks the name today);
+  the keyboard guide entries; the preview size budget with the autocomplete package; and the gaps listed in sections 12 and 13
+  (no hover signature for props, duplicate-attribute collision, rename from a `.css` file or through an `as` alias,
+  auto-import, intrinsic tag names, members of a value). Renaming an exported component changes the name of its generated
+  `gen::<Component>Base`, so the developer class that derives from it needs the same edit.

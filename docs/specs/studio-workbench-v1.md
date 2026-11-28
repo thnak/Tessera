@@ -235,7 +235,7 @@ Edit
   Replace...                    *edit.replace           Ctrl+H
   ------
   Format Document               *edit.format           Shift+Alt+F      (ADR-061; .tsx; one undo step; format on save is on by default)
-  Rename Symbol...              R:edit.renameSymbol     F2 (editor focus) (analysis service)
+  Rename Symbol...              *edit.renameSymbol       F2 (editor focus) (analysis service)
   Toggle Line Comment           *edit.toggleComment     Ctrl+/   (editor keymap)
 View
   Command Palette...            *view.palette           Ctrl+Shift+P, F1
@@ -265,7 +265,7 @@ View
 Go
   Go to Definition              R:go.definition         F12
   Go to Symbol...               R:go.symbol             Ctrl+Shift+O
-  Find All References           R:go.references         Shift+F12
+  Find All References           *go.references           Shift+F12
 Run
   Restart App                   *run.restart            Ctrl+Shift+F5 (VS Code: Restart; F5 is Run)
   Apply Now                     *run.applyNow           Ctrl+Enter (editor focus)

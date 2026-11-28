@@ -46,6 +46,7 @@ on:
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_search_client.mjs'
+      - 'scripts/ci/preview_analysis_wiring.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -106,6 +107,7 @@ on:
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_search_client.mjs'
+      - 'scripts/ci/preview_analysis_wiring.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -324,6 +326,11 @@ jobs:
       # The page side of project search (#580): the client around the worker and the multi-file replace history.
       - name: Project search client and replace history
         run: node scripts/ci/preview_search_client.mjs
+
+      - name: Editor code intelligence wiring (F12, Shift+F12, hover, completion, rename; #984 #988)
+        run: node scripts/ci/preview_analysis_wiring.mjs
+        env:
+          TESSERA_ANALYSIS_WASM: build/wasm-webgpu/src/compiler/analysis/tessera_analysis.js
 
       # #575, #569: the page's analysis and compile clients over the real worker sources (stand-in engines):
       # a file that is not open reaches the Problems store, fixing it clears the row, an unavailable module is
