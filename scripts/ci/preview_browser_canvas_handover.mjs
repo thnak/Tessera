@@ -314,11 +314,20 @@ try {
         run.page,
       );
       const restarted = await run.state();
-      check(
-        'a restart draws again with the same device',
-        redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
-        restarted.status ?? '',
-      );
+      if (!redrew && lostDevice(restarted)) {
+        // The device was fine for the first frame and was taken away before the restart drew: the same
+        // runner condition the attempt loop above retries, arriving one step later. It is said out loud,
+        // and only for the pane's own "device was lost" sentence: any other unsupported state still fails.
+        skipLoudly('a restart draws again with the same device', `the runner lost the device after the first frame: ${restarted.body}`);
+      } else {
+        // The pane's cause and sentence are the detail, not the shared "WebGPU unavailable" status, which
+        // every unsupported state sets and so says nothing about which one this is.
+        check(
+          'a restart draws again with the same device',
+          redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
+          restarted.unsupported ? `${restarted.cause}-side: ${restarted.body}` : (restarted.status ?? ''),
+        );
+      }
       // A page error while the canvas is drawing is the signature of a Wasm/JS glue mismatch, which is
       // what this guards. A bare "a valid external Instance reference no longer exists" is NOT that: it
       // comes from the WebGPU port tearing down an instance after its device is gone, it appears only on

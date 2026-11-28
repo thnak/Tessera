@@ -200,7 +200,11 @@ try {
     // --- a book fold draws its band ----------------------------------------------------------------
     // 1280x800 is the toolbar's desktop preset; the numbers below are its band geometry.
     await chooseFromDeviceMenu(page, 'Viewport', '1280x800');
-    await settles(() => true, page, 300);
+    // A real wait: this was `settles(() => true, ...)`, which resolves at once. The canvas' CSS box is the
+    // logical viewport, and the overlay is drawn from it, so the box must have moved before the posture and
+    // the toggle are driven (otherwise `beforeFold` can be read before the viewport frame lands).
+    const sized = await settles(() => document.getElementById('canvas').style.width === '1280px', page, 5000);
+    check('the viewport preset reached the canvas before the fold is armed (#433)', sized);
     const beforeFold = await frameCount(page);
     await chooseFromDeviceMenu(page, 'Fold Posture', 'Book');
     await nextFrame(page, beforeFold);

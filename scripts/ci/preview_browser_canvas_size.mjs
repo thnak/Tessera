@@ -298,7 +298,21 @@ try {
   // that the grips are wired at all - the session is created before React commits them, so a listener
   // looked up by id finds nothing - and that a burst of pointer events costs one frame.
   await chooseFromDeviceMenu(scaledPage, "Viewport", "320x240");
-  await settles(() => true, scaledPage, 500);
+  // Wait for the pane's zoom to settle on the 320x240 stage. This used to be `settles(() => true, ...)`, which
+  // resolves at once and waited for nothing: the drag below then started while the stage was still scaled
+  // for the 768x1024 viewport before it, and the drag (correctly) divides pointer travel by the live zoom,
+  // so the released size came out 544x408 instead of 520x390. At zoom 1 the stage's rect equals its layout box.
+  const stageSettled = await settles(() => {
+    const stage = document.querySelector('.canvas-zoom-stage');
+    const canvas = document.getElementById('canvas');
+    return (
+      stage !== null &&
+      canvas.style.width === '320px' &&
+      stage.offsetWidth === 320 &&
+      Math.abs(stage.getBoundingClientRect().width - 320) < 0.5
+    );
+  }, scaledPage, 5000);
+  check('the 320x240 stage is unscaled before the drag (#690)', stageSettled);
 
   const beforeDrag = await frameCount(scaledPage);
   const grip = await scaledPage.$("#canvas-resize-corner");
