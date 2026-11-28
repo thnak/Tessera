@@ -28,7 +28,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchGpuBrowser } from './browser_gpu.mjs';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 const MIME = {
@@ -47,10 +47,6 @@ const args = process.argv.slice(2);
 const shotIndex = args.indexOf('--shot');
 const shot = shotIndex >= 0 ? args[shotIndex + 1] : null;
 const site = resolve(args.find((value, index) => index === 0 && value !== '--shot') ?? 'build/pages');
-
-// The flags that give headless Chromium a WebGPU device on a host with no GPU. `--no-sandbox` is what
-// a containerised runner needs (unprivileged user namespaces are off on Ubuntu 23.10+).
-const GPU_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--no-sandbox'];
 
 // The project the canvas previews. The studio starts with no project open (#391: nothing is bundled),
 // so the gate opens one through the page's own Open Zip route; `tessera.json` naming an entry is what
@@ -212,7 +208,7 @@ function drawCount(text) {
 }
 
 const { server, base } = await startServer();
-const browser = await chromium.launch({ args: GPU_ARGS });
+const browser = await launchGpuBrowser();
 
 /**
  * Whether this browser can hand out a device **right now**, asked in a page of its own.
@@ -318,11 +314,22 @@ try {
         run.page,
       );
       const restarted = await run.state();
-      check(
-        'a restart draws again with the same device',
-        redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
-        restarted.status ?? '',
-      );
+      // `redrew` alone cannot gate this: `#canvas-status` keeps the first frame's "drew N draw call" text
+      // until the pane replaces it, so the wait can succeed on a stale value while the device is already gone.
+      if (lostDevice(restarted)) {
+        // The device was fine for the first frame and was taken away before the restart drew: the same
+        // runner condition the attempt loop above retries, arriving one step later. It is said out loud,
+        // and only for the pane's own "device was lost" sentence: any other unsupported state still fails.
+        skipLoudly('a restart draws again with the same device', `the runner lost the device after the first frame: ${restarted.body}`);
+      } else {
+        // The pane's cause and sentence are the detail, not the shared "WebGPU unavailable" status, which
+        // every unsupported state sets and so says nothing about which one this is.
+        check(
+          'a restart draws again with the same device',
+          redrew && restarted.unsupported === false && drawCount(restarted.draws) > 0,
+          restarted.unsupported ? `${restarted.cause}-side: ${restarted.body}` : (restarted.status ?? ''),
+        );
+      }
       // A page error while the canvas is drawing is the signature of a Wasm/JS glue mismatch, which is
       // what this guards. A bare "a valid external Instance reference no longer exists" is NOT that: it
       // comes from the WebGPU port tearing down an instance after its device is gone, it appears only on
