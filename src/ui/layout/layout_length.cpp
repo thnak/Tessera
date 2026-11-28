@@ -83,11 +83,19 @@ bool is_auto_dimension(const std::string* value) {
 
 } // namespace
 
+bool contains_inline_size(const style::ComputedStyle& style) {
+    const std::string* container_type = computed_property(style, "container-type");
+    return is_keyword(container_type, "inline-size") || is_keyword(container_type, "size");
+}
+
+bool has_auto_width(const style::ComputedStyle& style) {
+    return is_auto_dimension(computed_property(style, "width"));
+}
+
 void apply_size_containment(YGNodeRef node, const style::ComputedStyle& style,
                             const std::string* box_sizing) {
     const std::string* container_type = computed_property(style, "container-type");
-    const bool contain_inline =
-        is_keyword(container_type, "inline-size") || is_keyword(container_type, "size");
+    const bool contain_inline = contains_inline_size(style);
     const bool contain_block = is_keyword(container_type, "size");
     if (is_keyword(box_sizing, "border-box")) {
         return; // `border-box` would fold the padding into the zero and collapse the box

@@ -51,7 +51,13 @@ void apply_block_auto_margin_fill(YGNodeRef node, bool is_root);
 // Rules for a child of a `display: block` parent, after `apply_style`: the auto-margin fill above,
 // and no shrinking. A block child is not a flex item, so a short container never squeezes it (it
 // overflows, as in a browser); the initial `flex-shrink: 1` applies only to real flex items.
-void apply_block_child_style(YGNodeRef node);
+void apply_block_child_style(YGNodeRef node, const style::ComputedStyle& style);
+
+// The user-agent sheet's `align-self` for a control (Button): an inline-block in a block parent
+// takes its own width, but a flex item of a flex container stretches like any other (Chrome
+// blockifies it). The sheet cannot test the parent's display, so it writes this marker; the
+// layout reads it as `auto` and `apply_block_child_style` turns it into `flex-start`.
+inline constexpr std::string_view kInlineAlignSelf = "-tessera-inline";
 
 // The root is at least the viewport tall and grows with its content (a document, not a fixed
 // window): height auto, `min-height` the available height, unless the author set either.

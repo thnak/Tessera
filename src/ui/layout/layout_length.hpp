@@ -53,4 +53,11 @@ struct Length {
 void apply_size_containment(YGNodeRef node, const style::ComputedStyle& style,
                             const std::string* box_sizing);
 
+// Whether `style` is a query container that contains its inline axis, and whether its width is
+// `auto`: a box that is stretched by its parent (a block child, a grid item) takes the width of its
+// area instead of the zero `apply_size_containment` wrote, which only stands for a shrink-to-fit
+// box.
+[[nodiscard]] bool contains_inline_size(const style::ComputedStyle& style);
+[[nodiscard]] bool has_auto_width(const style::ComputedStyle& style);
+
 } // namespace tessera::ui::layout

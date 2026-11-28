@@ -3,9 +3,8 @@
 // Track sizing and item measurement for the CSS Grid subset (docs/specs/grid-v1.md section 4).
 //
 // The algorithm is a documented subset of CSS Grid section 12: intrinsic track sizes come from the
-// items' max-content contributions, then free space is distributed to `fr` tracks, then `auto`
-// tracks stretch. There is no min-content pass beyond measuring a text leaf at zero width, so a
-// content-sized track never shrinks below its item's unwrapped size.
+// items' min- and max-content contributions (measured in grid_measure.cpp), then free space is
+// distributed to `fr` tracks, then `auto` tracks stretch.
 
 #include "grid_engine.hpp"
 #include "layout_style.hpp"
@@ -244,41 +243,6 @@ float GridEngine::contribution(const Item& item, bool is_column, bool maximum) c
         return size + item.margin_left + item.margin_right;
     }
     return item.max_content_height + item.margin_top + item.margin_bottom;
-}
-
-void GridEngine::measure_items() {
-    bool need_width = columns_.needs_content;
-    bool need_height = rows_.needs_content;
-    for (const Item& item : items_) {
-        if (item.justify_self != GridAlign::Stretch) {
-            need_width = true;
-        }
-        if (item.align_self != GridAlign::Stretch) {
-            need_height = true;
-        }
-        if (item.column_start + item.column_span - 1 >
-            static_cast<int>(columns_.explicit_tracks.size())) {
-            need_width = true;
-        }
-        if (item.row_start + item.row_span - 1 > static_cast<int>(rows_.explicit_tracks.size())) {
-            need_height = true;
-        }
-    }
-    for (Item& item : items_) {
-        if (!need_width && !need_height) {
-            continue;
-        }
-        const GridItemLayout maximum = layouter_.layout(*item.input, -1.0f, -1.0f, nullptr);
-        item.max_content_width = maximum.width;
-        item.max_content_height = maximum.height;
-        // A text leaf measured at zero available width reports its longest unbreakable run, which
-        // is the min-content width. A container would report zero there, so it reuses max-content.
-        if (need_width && !item.input->text.empty() && item.input->children.empty()) {
-            item.min_content_width = layouter_.layout(*item.input, 0.0f, -1.0f, nullptr).width;
-        } else {
-            item.min_content_width = maximum.width;
-        }
-    }
 }
 
 void GridEngine::size_axis(Axis& axis, float container_size, bool definite, bool is_column,
