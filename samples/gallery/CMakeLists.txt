@@ -11,6 +11,8 @@
 set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_gallery_button ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
 set(_gallery_safe_area ${PROJECT_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
+set(_gallery_icon ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Icon.tsx)
+set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.g.tsx)
 set(_gallery_outputs
     ${_gallery_gen}/Button.g.hpp ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
     ${_gallery_gen}/Gallery.g.hpp ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp
@@ -19,7 +21,10 @@ set(_gallery_outputs
     ${_gallery_gen}/SafeAreaPage.cpp
     ${_gallery_gen}/FormPage.g.hpp ${_gallery_gen}/FormPage.hpp ${_gallery_gen}/FormPage.cpp
     ${_gallery_gen}/DashPage.g.hpp ${_gallery_gen}/DashPage.hpp ${_gallery_gen}/DashPage.cpp
-    ${_gallery_gen}/SwatchPage.g.hpp ${_gallery_gen}/SwatchPage.hpp ${_gallery_gen}/SwatchPage.cpp)
+    ${_gallery_gen}/SwatchPage.g.hpp ${_gallery_gen}/SwatchPage.hpp ${_gallery_gen}/SwatchPage.cpp
+    ${_gallery_gen}/Icon.g.hpp ${_gallery_gen}/Icon.hpp ${_gallery_gen}/Icon.cpp
+    ${_gallery_gen}/IconGlyph.g.hpp ${_gallery_gen}/IconGlyph.hpp ${_gallery_gen}/IconGlyph.cpp
+    ${_gallery_gen}/IconsPage.g.hpp ${_gallery_gen}/IconsPage.hpp ${_gallery_gen}/IconsPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -31,16 +36,22 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css ${_gallery_gen}/src/form.module.css
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx ${_gallery_gen}/src/DashPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_gen}/src/SwatchPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src/icons
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon} ${_gallery_gen}/src/Icon.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon_glyph} ${_gallery_gen}/src/icons/IconGlyph.g.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx ${_gallery_gen}/src/IconsPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
             ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
             ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
-            ${_gallery_gen}/src/SwatchPage.tsx
+            ${_gallery_gen}/src/SwatchPage.tsx ${_gallery_gen}/src/Icon.tsx
+            ${_gallery_gen}/src/icons/IconGlyph.g.tsx ${_gallery_gen}/src/IconsPage.tsx
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
-            ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx
+            ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_icon} ${_gallery_icon_glyph}
+            ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
     COMMENT "Generating the gallery page"
     VERBATIM)
@@ -61,6 +72,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
     TESSERA_GALLERY_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css"
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
+    TESSERA_GALLERY_ICON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
     TESSERA_GALLERY_DASH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/dash.css"
@@ -126,6 +138,14 @@ if (TESSERA_BUILD_TESTS)
         list(APPEND _gallery_cases
             "swatch_${_theme}|--page swatch --theme instrument-${_theme_id} --width 560 --height 360 --font ${_gallery_plex_sans}")
     endforeach ()
+    # The Icon page (issue #530): every icon in both sizes, per theme, plus the right-to-left flip of
+    # the directional icon on the light theme.
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "icons_${_theme}|--page icons --theme instrument-${_theme_id} --width 480 --height 280")
+    endforeach ()
+    list(APPEND _gallery_cases "icons_rtl|--page icons --rtl --width 480 --height 280")
     foreach (_device notch gesture keyboard fold)
         foreach (_theme light dark)
             list(APPEND _gallery_cases
