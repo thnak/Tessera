@@ -106,8 +106,13 @@ void test_parsers() {
     check(!parse_font_feature_settings("'tnum' -1", none), "negative value is invalid");
     check(parse_font_feature_settings("normal", none) && none.empty(), "settings normal");
 
-    const FontFeatures merged = parse_font_features(FontVariantValues{
-        .ligatures = "none", .numeric = "tabular-nums", .settings = "'liga' 1, 'tnum' 0"});
+    const FontFeatures merged =
+        parse_font_features(FontVariantValues{.ligatures = "none",
+                                              .numeric = "tabular-nums",
+                                              .caps = {},
+                                              .east_asian = {},
+                                              .position = {},
+                                              .settings = "'liga' 1, 'tnum' 0"});
     check(value_of(merged, "liga") == 1, "a raw setting overrides the ligature keyword");
     check(value_of(merged, "tnum") == 0, "a raw setting overrides the numeric keyword");
     check(merged.count == 6, "overrides replace in place, one entry per tag");
