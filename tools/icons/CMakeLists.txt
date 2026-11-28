@@ -6,6 +6,7 @@
 # tests and the golden comparison all exercise the same bytes.
 add_library(tessera_icons_core STATIC
     src/icon_emit.cpp
+    src/icon_glyphs.cpp
     src/icon_import.cpp
     src/icon_license.cpp
     src/icon_set.cpp

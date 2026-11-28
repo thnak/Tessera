@@ -1,0 +1,13 @@
+# Icons the Instrument component library ships, one <set>:<name> per line (ADR-047 item 8).
+# Regenerate packages/tessera-ui/icons/ with:
+#   tessera icons add --iconify <pinned sets dir> --references packages/tessera-ui/icons.references \
+#       --out packages/tessera-ui/icons
+# Until a real Iconify pin is vendored the pinned directory is tests/fixtures/icons (a synthetic,
+# license-gated subset); see docs/specs/components/Icon.md section 9.
+tabler:home
+tabler:house
+tabler:check
+tabler:trash
+tabler:chevron-right
+tabler:search
+mdi:account

@@ -166,7 +166,7 @@ element (section 10.5). These props were decided by the project owner.
 |---|---|---|---|
 | `d` | string literal | yes | SVG path data (SVG 1.1 section 8.3). The compiler parses it (`TESSERA_JSX_PATH_DATA` on error); the data is stored in IR as written |
 | `viewBox` | string literal `"minX minY width height"` | yes | Four numbers separated by spaces, with width and height greater than 0. The path is scaled uniformly to fit the element box and centered (SVG `preserveAspectRatio="xMidYMid meet"`) |
-| `fill` | CSS color literal, `var(--name)` literal, or `"none"` | no | Default `"none"` |
+| `fill` | CSS color literal, `var(--name)` literal, or `"none"` | no | Default `"none"`. `"currentColor"` tints the path with the node's `color`; it cannot be mixed with a literal color on one `Path` |
 | `stroke` | same as `fill` | no | Default `"none"` |
 | `strokeWidth` | number literal | no | In viewBox units. Default `1`. Ignored when `stroke` is `"none"` |
 | `label` | string, pure expression | no | The accessible name. Without it the path is decorative and left out of the accessibility tree |

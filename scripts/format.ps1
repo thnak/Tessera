@@ -54,6 +54,8 @@ $files = Get-ChildItem -Path $root -Recurse -File -Include $extensions |
         $_.FullName -notmatch '\\build(\\|$)' -and
         # Golden files are generated text and must stay byte-identical to the generator output.
         $_.FullName -notmatch '\\tests\\golden\\' -and
+        # The emitted icon set (tessera icons add) is generated text, like the goldens.
+        $_.FullName -notmatch '\\packages\\[^\\]+\\icons\\' -and
         $_.FullName -notmatch '\\third_party\\(stb|volk|vma|yoga)\\' -and
         $_.FullName -notmatch '\\\.git\\'
     }

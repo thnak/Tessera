@@ -3489,6 +3489,25 @@ target_compile_definitions(library_button_lowering_tests PRIVATE
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)
 
+# Issue #530: the Icon stylesheet compiles, names no color, and flips only a directional icon.
+add_executable(library_icon_style_tests
+    library_icon_style_tests.cpp)
+target_link_libraries(library_icon_style_tests PRIVATE tessera_style)
+target_compile_definitions(library_icon_style_tests PRIVATE
+    TESSERA_ICON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css")
+add_test(NAME library_icon_style COMMAND library_icon_style_tests)
+
+# Issue #530: the library Icon lowers with the generated glyph table, validates under a salt and
+# generates C++ (the committed Icon goldens under tests/golden/codegen).
+add_executable(library_icon_lowering_tests
+    library_icon_lowering_tests.cpp)
+target_link_libraries(library_icon_lowering_tests PRIVATE
+    tessera_lowering tessera_codegen tessera_ir_ids)
+target_compile_definitions(library_icon_lowering_tests PRIVATE
+    TESSERA_LIBRARY_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui"
+    TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
+add_test(NAME library_icon_lowering COMMAND library_icon_lowering_tests)
+
 # SafeArea in the app host (#223): resolved insets become padding or margin before layout, per-edge
 # keyboard easing under the manual clock, reduced motion, and no layout for unchanged insets.
 add_executable(app_safe_area_tests

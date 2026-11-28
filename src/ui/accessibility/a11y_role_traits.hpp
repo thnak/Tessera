@@ -236,11 +236,11 @@ struct RoleAlias {
 };
 
 inline constexpr RoleAlias kRoleAliases[] = {
-    {"image", Role::Image},         {"text field", Role::TextField},
-    {"textfield", Role::TextField}, {"progressbar", Role::Progress},
-    {"list item", Role::ListItem},  {"tab panel", Role::TabPanel},
-    {"menu item", Role::MenuItem},  {"scrollview", Role::ScrollView},
-    {"none", Role::Presentation},
+    {"image", Role::Image},           {"img", Role::Image},
+    {"text field", Role::TextField},  {"textfield", Role::TextField},
+    {"progressbar", Role::Progress},  {"list item", Role::ListItem},
+    {"tab panel", Role::TabPanel},    {"menu item", Role::MenuItem},
+    {"scrollview", Role::ScrollView}, {"none", Role::Presentation},
 };
 
 // Row for `role`. An out-of-range value (only reachable by casting an arbitrary integer) degrades

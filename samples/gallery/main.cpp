@@ -16,7 +16,7 @@
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
 //                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
-//                      swatch (every colour token of the theme, issue #280)
+//                      swatch (every colour token of the theme, issue #280) or icons (#530)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -33,11 +33,13 @@
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
 #include "form_module.hpp"
+#include "gallery_vector_assets.hpp"
 #include "golden.hpp"
 #include "page_table.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/cutout.hpp"
+#include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -115,14 +117,15 @@ struct Resources {
 
 std::optional<Resources> load_resources() {
     const auto button_css = read_file(TESSERA_GALLERY_BUTTON_CSS);
+    const auto icon_css = read_file(TESSERA_GALLERY_ICON_CSS);
     const auto safe_area_css = read_file(TESSERA_GALLERY_SAFE_AREA_CSS);
     const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
     const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
     const auto dash_css = read_file(TESSERA_GALLERY_DASH_CSS);
     const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !safe_area_css || !gallery_css || !form_css || !dash_css || !swatch_css ||
-        !theme_json) {
+    if (!button_css || !icon_css || !safe_area_css || !gallery_css || !form_css || !dash_css ||
+        !swatch_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -132,7 +135,8 @@ std::optional<Resources> load_resources() {
         return std::nullopt;
     }
     Resources resources;
-    resources.library_sheet = style::prepare_stylesheet(*button_css);
+    // The library sheet is the Button and the Icon look (one `tessera-ui` layer).
+    resources.library_sheet = style::prepare_stylesheet(*button_css + "\n" + *icon_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
     auto form_module = gallery::load_form_module(*form_css);
@@ -325,6 +329,8 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     options.height = static_cast<std::uint32_t>(args.height);
     options.font_path = args.font;
     options.scheduler = &scene.scheduler;
+    const tessera::ui::assets::AssetBundle vector_bundle = gallery::gen::vector_assets::bundle();
+    options.vector_assets = &vector_bundle;
     options.configure_host = [&](tessera::app::AppHost& host) { configure(host, resources, args); };
     options.advance_seconds = static_cast<double>(args.advance_ms) / 1000.0;
     const std::optional<tessera::app::CapturedFrame> frame =
@@ -352,7 +358,9 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
 
 template<typename Scene>
 int run_window(const Args& args, const Resources& resources, Scene& scene) {
+    const tessera::ui::assets::AssetBundle vector_bundle = gallery::gen::vector_assets::bundle();
     tessera::app::WindowOptions options;
+    options.vector_assets = &vector_bundle;
     options.title = "Tessera gallery";
     options.width = static_cast<std::uint32_t>(args.width);
     options.height = static_cast<std::uint32_t>(args.height);
@@ -376,7 +384,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area|form|dash|swatch] [--device "
+           "               [--page buttons|safe-area|form|dash|swatch|icons] [--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
            "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";

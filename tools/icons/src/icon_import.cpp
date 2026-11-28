@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "icon_emit.hpp"
+#include "icon_glyphs.hpp"
 #include "icon_import.hpp"
 #include "icon_license.hpp"
 #include "icon_set.hpp"
@@ -118,6 +119,7 @@ std::expected<ImportResult, std::string> import_icons(const ImportRequest& reque
               });
     result.files.push_back(EmittedFile{"icons.manifest", build_embed_manifest(result)});
     result.files.push_back(EmittedFile{"icons.g.hpp", build_icons_header(result)});
+    result.files.push_back(EmittedFile{"IconGlyph.tsx", build_icon_glyphs_tsx(result)});
     result.files.push_back(EmittedFile{"ICON_LICENSES.txt", build_attribution(attribution)});
     std::sort(result.files.begin(), result.files.end(),
               [](const EmittedFile& lhs, const EmittedFile& rhs) { return lhs.path < rhs.path; });

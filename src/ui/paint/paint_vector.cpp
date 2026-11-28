@@ -29,7 +29,11 @@ void paint_vector_content(const Node& node, const style::ComputedStyle& style,
     if (!rect.has_value()) {
         return;
     }
-    const std::optional<rhi::Color> tint = content_tint(payload.tint, payload.opacity, opacity);
+    std::optional<rhi::Color> payload_tint = payload.tint;
+    if (!payload_tint.has_value() && payload.tint_current_color) {
+        payload_tint = current_color(style);
+    }
+    const std::optional<rhi::Color> tint = content_tint(payload_tint, payload.opacity, opacity);
     if (!tint.has_value()) {
         return;
     }

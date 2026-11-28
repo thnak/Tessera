@@ -119,8 +119,11 @@ pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel`
   references) with a diagnostic instead of rendering a different icon. Fixtures are under
   `tests/fixtures/icons/`; the deterministic end-to-end output is the checked-in golden
   `tests/golden/icons/`.
-- **Still to come:** the `Icon` component itself (it ships with the package-imports work) and the
-  AnimatedIcon SMIL/keyframe converter below.
+- **Implemented (issue #530):** the `Icon` component ([spec](../specs/components/Icon.md)). The tool also
+  emits `IconGlyph.tsx` (one `currentColor` `Path` per path of each path-only icon), which `Icon`
+  selects by name; `currentColor` is a tint (white document, `tint_current_color`, node `color`).
+- **Still to come:** the AnimatedIcon SMIL/keyframe converter below, stroke caps/joins on `Path`, and
+  shape-to-path conversion in the importer.
 - **AnimatedIcon** converts the SVG SMIL animations that animated Iconify sets use, plus CSS
   `@keyframes` inside the SVG, into Tessera keyframes at build time. Supported subset: `opacity`,
   `stroke-dasharray`, `stroke-dashoffset`, fill and stroke colors, path `d` when both shapes have

@@ -64,6 +64,12 @@
 
 .g-root.g-rtl {
   direction: rtl;
+  /* The Icon flips a directional glyph by this token (packages/tessera-ui/icon.css). */
+  --icon-flip: -1;
+}
+
+.ip-accent {
+  color: var(--accent);
 }
 
 /* SafeArea page (issue #223): the window is tinted so the unsafe area shows; the library SafeArea
