@@ -3476,6 +3476,11 @@ add_executable(a11y_span_tests
 target_link_libraries(a11y_span_tests PRIVATE tessera_accessibility)
 add_test(NAME a11y_span COMMAND a11y_span_tests)
 
+add_executable(a11y_table_tests
+    a11y_table_tests.cpp)
+target_link_libraries(a11y_table_tests PRIVATE tessera_accessibility)
+add_test(NAME a11y_table COMMAND a11y_table_tests)
+
 add_executable(codegen_span_tests
     codegen_span_tests.cpp)
 target_link_libraries(codegen_span_tests PRIVATE tessera_codegen)

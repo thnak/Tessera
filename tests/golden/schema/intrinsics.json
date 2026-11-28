@@ -617,6 +617,139 @@
       "target": "View"
     },
     {
+      "inject": [
+        {
+          "name": "role",
+          "value": "table"
+        }
+      ],
+      "note": "the user-agent sheet makes it `display: table`; the layout engine lays out the tree below it",
+      "status": "partial",
+      "tag": "table",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-header-group`; shown above the body",
+      "status": "mapped",
+      "tag": "thead",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-row-group`",
+      "status": "mapped",
+      "tag": "tbody",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-footer-group`; shown below the body",
+      "status": "mapped",
+      "tag": "tfoot",
+      "target": "View"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "row"
+        }
+      ],
+      "note": "`display: table-row`",
+      "status": "mapped",
+      "tag": "tr",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "colSpan",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        },
+        {
+          "kind": "rename",
+          "name": "rowSpan",
+          "note": "a static integer; 0 spans the group",
+          "rename": "aria-rowspan"
+        }
+      ],
+      "inject": [
+        {
+          "name": "role",
+          "value": "cell"
+        }
+      ],
+      "note": "`display: table-cell`; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan`",
+      "status": "mapped",
+      "tag": "td",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "colSpan",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        },
+        {
+          "kind": "rename",
+          "name": "rowSpan",
+          "note": "a static integer; 0 spans the group",
+          "rename": "aria-rowspan"
+        },
+        {
+          "kind": "reject",
+          "name": "scope",
+          "suggestion": "row headers are not modelled; `th` is a column header"
+        }
+      ],
+      "inject": [
+        {
+          "name": "role",
+          "value": "columnheader"
+        }
+      ],
+      "note": "as `td`, bold and centred by the user-agent sheet; `scope` is rejected",
+      "status": "mapped",
+      "tag": "th",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-caption`; `caption-side` puts it above or below the grid",
+      "status": "mapped",
+      "tag": "caption",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "span",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        }
+      ],
+      "note": "`display: table-column-group`; takes no space of its own",
+      "status": "mapped",
+      "tag": "colgroup",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "span",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        }
+      ],
+      "note": "`display: table-column`; its `width` sizes the column",
+      "status": "mapped",
+      "tag": "col",
+      "target": "View"
+    },
+    {
       "alternative": "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` after V1",
       "status": "unsupported",
       "tag": "form"
@@ -640,56 +773,6 @@
       "alternative": "Library `Select` (after V1)",
       "status": "unsupported",
       "tag": "datalist"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "table"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "thead"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tbody"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tfoot"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tr"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "td"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "th"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "caption"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "colgroup"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "col"
     },
     {
       "alternative": "`Path` with `d` and `viewBox`",
@@ -1066,6 +1149,30 @@
         "Suspense"
       ],
       "note": "the number of a list item; `li value` is rewritten to it (a static integer)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-colspan",
+      "name": "aria-colspan",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "columns a table cell or `col` spans; `td`/`th` `colSpan` and `col` `span` are rewritten to it",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-rowspan",
+      "name": "aria-rowspan",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "rows a table cell spans (0 to the end of the group); `td`/`th` `rowSpan` is rewritten to it",
       "type": "string",
       "value": "expr"
     },
@@ -2608,7 +2715,11 @@
     "menuitem",
     "tooltip",
     "alert",
-    "paragraph"
+    "paragraph",
+    "table",
+    "row",
+    "cell",
+    "columnheader"
   ],
   "schemaVersion": 1,
   "style": [
@@ -3001,7 +3112,7 @@
     {
       "kind": "length",
       "name": "vertical-align",
-      "note": "baseline, sub, super or a length"
+      "note": "baseline, sub, super, a length, or on a table cell middle, top, bottom"
     },
     {
       "kind": "keyword",
@@ -3012,6 +3123,26 @@
       "kind": "keyword",
       "name": "list-style-position",
       "note": "outside only"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-collapse",
+      "note": "separate or collapse (tables)"
+    },
+    {
+      "kind": "length",
+      "name": "border-spacing",
+      "note": "one or two lengths (tables)"
+    },
+    {
+      "kind": "keyword",
+      "name": "caption-side",
+      "note": "top or bottom (tables)"
+    },
+    {
+      "kind": "keyword",
+      "name": "table-layout",
+      "note": "auto or fixed (tables)"
     },
     {
       "kind": "keyword",

@@ -32,9 +32,9 @@ void apply_table_spans(LayoutInput& input, const Node& node) {
     for (const Node::AriaAttribute& aria : node.aria_attributes()) {
         if (aria.name == "aria-colspan") {
             const int span = parse_span(aria.value, 1);
-            input.col_span = static_cast<std::uint16_t>(span < 1 ? 1 : span);
+            input.col_span = static_cast<std::uint32_t>(span < 1 ? 1 : span);
         } else if (aria.name == "aria-rowspan") {
-            input.row_span = static_cast<std::uint16_t>(parse_span(aria.value, 1));
+            input.row_span = static_cast<std::uint32_t>(parse_span(aria.value, 1));
         }
     }
 }

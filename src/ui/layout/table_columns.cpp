@@ -8,6 +8,7 @@
 #include "table_engine.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <vector>
 
@@ -202,6 +203,12 @@ void TableEngine::size_columns(const GridContentBox& content) {
         size_columns_fixed(table_width - chrome);
     } else {
         size_columns_auto(table_width - chrome);
+    }
+    // A spanning cell fits its columns only if their float sum is not a hair short of the width it
+    // measured at, or its text wraps for the want of 1e-5 px. Whole 1/256 px widths add exactly and
+    // never round down below what a column was given.
+    for (Column& column : columns_) {
+        column.width = std::ceil(column.width * 256.0f) / 256.0f;
     }
 }
 

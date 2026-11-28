@@ -231,6 +231,31 @@ inline constexpr std::array<RoleTraits, static_cast<std::size_t>(Role::kCount)> 
      .uia = UiaControlType::Text,
      .layer = AtspiLayer::Widget,
      .textual = true},
+    // Table, Row, Cell, ColumnHeader (ARIA `table`, `row`, `cell`, `columnheader`): the HTML table
+    // tags' roles. AT-SPI has no row role the bridge emits, so a row is a filler; UIA exposes a
+    // row as a group, a cell as a data item and a header as a header item.
+    {.name = "table",
+     .atspi = AtspiRole::Table,
+     .atspi_name = "table",
+     .uia = UiaControlType::Table,
+     .layer = AtspiLayer::Background},
+    {.name = "row",
+     .atspi = AtspiRole::Filler,
+     .atspi_name = "table row",
+     .uia = UiaControlType::Group,
+     .layer = AtspiLayer::Background},
+    {.name = "cell",
+     .atspi = AtspiRole::TableCell,
+     .atspi_name = "table cell",
+     .uia = UiaControlType::DataItem,
+     .layer = AtspiLayer::Background,
+     .textual = true},
+    {.name = "columnheader",
+     .atspi = AtspiRole::TableColumnHeader,
+     .atspi_name = "table column header",
+     .uia = UiaControlType::HeaderItem,
+     .layer = AtspiLayer::Background,
+     .textual = true},
 }};
 
 static_assert(kRoleTable.size() == static_cast<std::size_t>(Role::kCount),

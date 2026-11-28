@@ -67,17 +67,17 @@ void test_schema_version_and_counts() {
     check(schema::elements().size() == 14, "14 intrinsic elements (README section 3)");
     check(schema::type_records().size() == 12,
           "12 payload records (common-and-events.md section 2)");
-    check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
+    check(schema::aliases().size() == 101, "56 mapped/partial and 45 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     // 128 since ADR-068 slice 4 added `clip-path` (issue #672); 130 with `list-style-type` and
     // `list-style-position` (issue #541); 147 with the `-webkit-mask*` longhand aliases (#617).
-    check(schema::style_properties().size() == 153, "153 style longhands");
-    check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
+    check(schema::style_properties().size() == 157, "157 style longhands");
+    check(schema::role_tokens().size() == 27, "27 role tokens (common-and-events.md 1.1)");
     // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
     // id-reference attributes `useId` exists to fill.
-    // 29 with `aria-start`, `aria-reversed` and `aria-value`, the targets of `ol start`,
-    // `ol reversed` and `li value` (issue #912).
-    check(schema::common_props().size() == 29, "29 common attributes");
+    // 31 with `aria-colspan` and `aria-rowspan` (issue #543); 29 with `aria-start`, `aria-reversed`
+    // and `aria-value`, the targets of `ol start`, `ol reversed` and `li value` (issue #912).
+    check(schema::common_props().size() == 31, "31 common attributes");
 }
 
 void test_element_rows() {
@@ -299,9 +299,19 @@ void test_aliases() {
               type->values.size() == 3,
           "button type value map");
     const schema::AliasRow* table = schema::find_alias("table");
-    check(table != nullptr && table->status == schema::AliasStatus::Unsupported &&
-              !table->alternative.empty(),
-          "table has no mapping and an alternative");
+    check(table != nullptr && table->status == schema::AliasStatus::Partial &&
+              table->target == "View" && table->inject.size() == 1 &&
+              table->inject[0].value == "table",
+          "table maps to a View with role table");
+    const schema::AliasRow* cell = schema::find_alias("td");
+    check(cell != nullptr && find_attr(*cell, "colSpan") != nullptr &&
+              find_attr(*cell, "colSpan")->rename == "aria-colspan" &&
+              find_attr(*cell, "rowSpan")->rename == "aria-rowspan",
+          "td spans are renamed to aria-colspan and aria-rowspan");
+    const schema::AliasRow* form = schema::find_alias("form");
+    check(form != nullptr && form->status == schema::AliasStatus::Unsupported &&
+              !form->alternative.empty(),
+          "form has no mapping and an alternative");
     check(schema::find_alias("nosuchtag") == nullptr, "an unknown lowercase tag is not found");
 
     for (const schema::AliasRow& alias : schema::aliases()) {

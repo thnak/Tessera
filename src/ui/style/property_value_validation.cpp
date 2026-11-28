@@ -149,10 +149,17 @@ const char* text_decoration_value_error(std::string_view property, std::string_v
                    : "text-decoration-thickness takes auto, from-font or a px/em/rem length";
     }
     if (property == "vertical-align") {
+        // The CSS-wide keywords stay: the user-agent sheet's cells take their row's value with
+        // `inherit` (docs/design/table-layout.md section 3).
+        if (value == "inherit" || value == "initial" || value == "unset" || value == "revert" ||
+            value == "revert-layer") {
+            return nullptr;
+        }
         return is_supported_vertical_align(value)
                    ? nullptr
-                   : "vertical-align takes baseline, sub, super or a px/em/rem length; top, "
-                     "middle, bottom, text-top, text-bottom and percentages are not supported";
+                   : "vertical-align takes baseline, sub, super, top, middle, bottom or a "
+                     "px/em/rem "
+                     "length; text-top, text-bottom and percentages are not supported";
     }
     return nullptr;
 }

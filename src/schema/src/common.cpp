@@ -162,6 +162,25 @@ constexpr PropRow kCommonProps[] = {
      {},
      tags(kHiddenExcept),
      "the number of a list item; `li value` is rewritten to it (a static integer)"},
+    {"aria-colspan",
+     "string",
+     ValueKind::Expression,
+     false,
+     "",
+     "props.aria-colspan",
+     {},
+     tags(kHiddenExcept),
+     "columns a table cell or `col` spans; `td`/`th` `colSpan` and `col` `span` are rewritten to "
+     "it"},
+    {"aria-rowspan",
+     "string",
+     ValueKind::Expression,
+     false,
+     "",
+     "props.aria-rowspan",
+     {},
+     tags(kHiddenExcept),
+     "rows a table cell spans (0 to the end of the group); `td`/`th` `rowSpan` is rewritten to it"},
     {"aria-hidden",
      "bool",
      ValueKind::Expression,
@@ -315,10 +334,10 @@ constexpr AliasAttr kCommonAliasAttrs[] = {
 };
 
 constexpr std::string_view kRoleTokens[] = {
-    "generic",     "presentation", "none",     "button", "link",      "heading",
-    "img",         "textbox",      "checkbox", "radio",  "switch",    "slider",
-    "progressbar", "list",         "listitem", "tab",    "tabpanel",  "dialog",
-    "menu",        "menuitem",     "tooltip",  "alert",  "paragraph",
+    "generic",  "presentation", "none",     "button", "link",   "heading",      "img",
+    "textbox",  "checkbox",     "radio",    "switch", "slider", "progressbar",  "list",
+    "listitem", "tab",          "tabpanel", "dialog", "menu",   "menuitem",     "tooltip",
+    "alert",    "paragraph",    "table",    "row",    "cell",   "columnheader",
 };
 
 constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
@@ -333,7 +352,7 @@ constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
 }
 
 static_assert(prop_names_are_unique(kCommonProps), "common prop names are unique");
-static_assert(std::size(kRoleTokens) == 23, "the role token list of common-and-events.md 1.1");
+static_assert(std::size(kRoleTokens) == 27, "the role token list of common-and-events.md 1.1");
 
 } // namespace
 

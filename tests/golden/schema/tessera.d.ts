@@ -10,7 +10,7 @@ export interface ElementRef<T> {
   readonly current: T | null;
 }
 
-export type RoleToken = "generic" | "presentation" | "none" | "button" | "link" | "heading" | "img" | "textbox" | "checkbox" | "radio" | "switch" | "slider" | "progressbar" | "list" | "listitem" | "tab" | "tabpanel" | "dialog" | "menu" | "menuitem" | "tooltip" | "alert" | "paragraph";
+export type RoleToken = "generic" | "presentation" | "none" | "button" | "link" | "heading" | "img" | "textbox" | "checkbox" | "radio" | "switch" | "slider" | "progressbar" | "list" | "listitem" | "tab" | "tabpanel" | "dialog" | "menu" | "menuitem" | "tooltip" | "alert" | "paragraph" | "table" | "row" | "cell" | "columnheader";
 
 export interface ViewElement {
   readonly kind: "View";
@@ -154,6 +154,8 @@ export interface CommonProps {
   'aria-start'?: string;
   'aria-reversed'?: boolean;
   'aria-value'?: string;
+  'aria-colspan'?: string;
+  'aria-rowspan'?: string;
   'aria-hidden'?: boolean;
   'aria-disabled'?: boolean;
   'aria-selected'?: boolean;
@@ -521,6 +523,42 @@ export interface preProps extends TextProps {
 export interface blockquoteProps extends ViewProps {
 }
 
+export interface tableProps extends ViewProps {
+}
+
+export interface theadProps extends ViewProps {
+}
+
+export interface tbodyProps extends ViewProps {
+}
+
+export interface tfootProps extends ViewProps {
+}
+
+export interface trProps extends ViewProps {
+}
+
+export interface tdProps extends ViewProps {
+  colSpan?: string;
+  rowSpan?: string;
+}
+
+export interface thProps extends ViewProps {
+  colSpan?: string;
+  rowSpan?: string;
+}
+
+export interface captionProps extends ViewProps {
+}
+
+export interface colgroupProps extends ViewProps {
+  span?: string;
+}
+
+export interface colProps extends ViewProps {
+  span?: string;
+}
+
 export type HTMLDivElement = ViewElement;
 export type HTMLElement = ViewElement;
 export type HTMLUListElement = ViewElement;
@@ -599,6 +637,16 @@ declare global {
       hr: hrProps;
       pre: preProps;
       blockquote: blockquoteProps;
+      table: tableProps;
+      thead: theadProps;
+      tbody: tbodyProps;
+      tfoot: tfootProps;
+      tr: trProps;
+      td: tdProps;
+      th: thProps;
+      caption: captionProps;
+      colgroup: colgroupProps;
+      col: colProps;
     }
   }
 }

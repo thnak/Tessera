@@ -34,7 +34,7 @@ bool control_types() {
         Role role;
         UiaControlType type;
     };
-    constexpr std::array<Case, 25> kCases{{
+    constexpr std::array<Case, 29> kCases{{
         {Role::Generic, UiaControlType::Pane},
         {Role::Presentation, UiaControlType::Pane},
         {Role::Button, UiaControlType::Button},
@@ -59,6 +59,10 @@ bool control_types() {
         {Role::Tooltip, UiaControlType::ToolTip},
         {Role::Alert, UiaControlType::Text},
         {Role::Status, UiaControlType::Text},
+        {Role::Table, UiaControlType::Table},
+        {Role::Row, UiaControlType::Group},
+        {Role::Cell, UiaControlType::DataItem},
+        {Role::ColumnHeader, UiaControlType::HeaderItem},
         {Role::Presentation, UiaControlType::Pane},
     }};
     for (const Case& item : kCases) {

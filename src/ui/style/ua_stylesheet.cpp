@@ -45,6 +45,13 @@ std::string_view ua_stylesheet_text() noexcept {
     // and `decimal` for `ol`; the painter draws it for a `role="listitem"` child, matched through
     // the tag the alias keeps like `pre` below.
     //
+    // Tables (issue #543, docs/design/table-layout.md): the tags select by the tag the alias keeps,
+    // like `pre`. `table` is `display: table`, `box-sizing: border-box` and `border-spacing: 2px`
+    // as in Chrome, and shrinks to its content in a block parent (the inline marker, as for
+    // `Button`). `td`/`th` have Chrome's 1px padding and take the row's `vertical-align`, which
+    // the row groups and rows set to `middle` (the table itself does too, standing in for the
+    // implicit `tbody` a browser inserts around bare rows); `th` is bold and centred.
+    //
     // States (issue #606): Chrome fades a disabled control to 30% of its face, border and text (the
     // disabled rules come after hover/active so a disabled button does not react), and draws the
     // `:focus-visible` ring as a 2px #101010 outline. The engine has no `outline`, so the ring is a
@@ -69,6 +76,17 @@ std::string_view ua_stylesheet_text() noexcept {
            "hr { height: 0; margin: 0.5em 0; border-top-width: 1px; border-top-style: solid; "
            "border-top-color: #9a9a9a; border-bottom-width: 1px; border-bottom-style: solid; "
            "border-bottom-color: #eeeeee; }\n"
+           "table { display: table; box-sizing: border-box; border-spacing: 2px; "
+           "align-self: -tessera-inline; vertical-align: middle; }\n"
+           "thead { display: table-header-group; vertical-align: middle; }\n"
+           "tbody { display: table-row-group; vertical-align: middle; }\n"
+           "tfoot { display: table-footer-group; vertical-align: middle; }\n"
+           "tr { display: table-row; vertical-align: inherit; }\n"
+           "td, th { display: table-cell; padding: 1px; vertical-align: inherit; }\n"
+           "th { font-weight: 700; text-align: center; }\n"
+           "caption { display: table-caption; text-align: center; }\n"
+           "colgroup { display: table-column-group; }\n"
+           "col { display: table-column; }\n"
            "Button, TextInput, TextArea { line-height: normal; }\n"
            "Button { display: flex; flex-direction: row; align-items: center; "
            "justify-content: center; text-align: center; padding: 2px 7px; "

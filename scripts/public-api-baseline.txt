@@ -2759,6 +2759,10 @@ function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::round_hal
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_rect
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_scalar
 
+header include/tessera/ui/layout/table_span.hpp
+class include/tessera/ui/layout/table_span.hpp tessera::ui::Node
+function include/tessera/ui/layout/table_span.hpp tessera::ui::layout::apply_table_spans
+
 header include/tessera/ui/overlay/overlay.hpp
 class include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHost
 struct include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHandle

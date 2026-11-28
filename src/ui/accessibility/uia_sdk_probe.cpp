@@ -76,6 +76,9 @@ static_assert(static_cast<std::int32_t>(UiaControlType::Group) == UIA_GroupContr
 static_assert(static_cast<std::int32_t>(UiaControlType::Document) == UIA_DocumentControlTypeId);
 static_assert(static_cast<std::int32_t>(UiaControlType::Window) == UIA_WindowControlTypeId);
 static_assert(static_cast<std::int32_t>(UiaControlType::Pane) == UIA_PaneControlTypeId);
+static_assert(static_cast<std::int32_t>(UiaControlType::DataItem) == UIA_DataItemControlTypeId);
+static_assert(static_cast<std::int32_t>(UiaControlType::HeaderItem) == UIA_HeaderItemControlTypeId);
+static_assert(static_cast<std::int32_t>(UiaControlType::Table) == UIA_TableControlTypeId);
 
 } // namespace
 

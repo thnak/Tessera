@@ -67,6 +67,13 @@ against it.
 | `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
 | `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |
 | `blockquote` | `View` | - | mapped | The user-agent sheet gives it `margin: 1em 40px` |
+| `table` | `View` | `role="table"` | partial | The user-agent sheet makes it `display: table` (`border-spacing: 2px`, shrink-to-fit); a table engine lays out the tree below it ([`table-layout.md`](../../design/table-layout.md), ADR-079): auto and fixed layout, `border-spacing`, `border-collapse`, captions. Named gaps (section 3.8) are tracked in the follow-up of #543 |
+| `thead`, `tbody`, `tfoot` | `View` | - | mapped | `display: table-header-group`, `table-row-group`, `table-footer-group`; the first `thead` shows above and the first `tfoot` below every body |
+| `tr` | `View` | `role="row"` | mapped | `display: table-row` |
+| `td` | `View` | `role="cell"` | mapped | `display: table-cell`, 1px padding; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan` (section 3.8). Write text in a `span`, as for `li` |
+| `th` | `View` | `role="columnheader"` | mapped | As `td`, bold and centred; `scope` is `HTML_ATTR` |
+| `caption` | `View` | - | mapped | `display: table-caption`; `caption-side` puts it above or below the grid |
+| `colgroup`, `col` | `View` | - | mapped | `display: table-column-group` / `table-column`; take no space; `span` becomes `aria-colspan`; a `width` sizes the column |
 
 The emphasis rows inject a **default run style**, not a wrapper element style: a user `className` or
 `style` of the same property wins, and only the properties of [`elements-basic.md`](elements-basic.md)
@@ -156,6 +163,15 @@ literal (`-2` included); `reversed` also takes `{true}`/`{false}`. Anything else
 `TESSERA_IR_UNSUPPORTED`. A dynamic value would need a metadata slot per item and is not in V1. The
 counting rules are in [`list-style.md`](../../design/list-style.md) section 2.
 
+### 3.8 Table spans
+
+`td`/`th` `colSpan` and `rowSpan` and `col`/`colgroup` `span` rename to `aria-colspan` and
+`aria-rowspan` (`aria-colspan` for `span`). The value is a static integer literal or string; the layout
+reads it from the node, clamps it to 1000, and a `rowSpan` of 0 reaches the end of the row group. Anything
+else is `TESSERA_IR_UNSUPPORTED`. The named gaps of `table` (collapsed borders resolve by width only, a
+caption sits inside the table's border, no anonymous table wrapper for a bare `table-*` display) are in
+[`table-layout.md`](../../design/table-layout.md) section 8.
+
 ## 4. DOM element types in `useRef`
 
 In the type argument of `useRef` (subset 7), these names are accepted as the intrinsic on the right.
@@ -181,7 +197,6 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 |---|---|
 | `form` | **Planned** (#544). Until then `TextInput` `onSubmit` plus `Button` `onClick`; the library `Form` and `Field` |
 | `select`, `option`, `optgroup`, `datalist` | **Planned** (#544). Until then library `Select` |
-| `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | **Planned**, implemented completely (#543, ADR-059 owner answer 3). Until then `View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data |
 | `svg`, `g`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `text`, `defs`, `use`, `path` | `Path` with `d` and `viewBox` ([Q17] for an automatic single-path rewrite) |
 | `video`, `audio`, `picture`, `source`, `track`, `canvas` | **Planned** (#545). Until then `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
 | `dialog`, `details`, `summary`, `menu`, `popover` | Overlay service and library components ([`overlays-and-layers-v1.md`](../overlays-and-layers-v1.md)) |

@@ -41,15 +41,19 @@ struct LayoutInput {
     // own boxes - Yoga's measure callback decides those - but the text-fit fact must use the very
     // wrap decision paint will, so the caller forwards it here. It is part of the layout-input
     // signature because it changes the fact, which is part of the layout result.
-    bool text_wrap = false;
-    // Font-size runs of the inline spans of this Text (docs/design/inline-size-runs.md): the same
-    // table paint hands the measurer, so a shrunk `sub`/`sup`/`small` is measured as it is drawn.
-    text::TextSizeRunsId text_runs{};
+    //
+    // `text_wrap` and the two table spans below share one 32-bit word, so a table cell's spans cost
+    // nothing: `LayoutInput` is a per-node record held for every node of the scene and its size is
+    // budgeted (`sizeof_layout_input`).
+    std::uint32_t text_wrap : 1 = 0;
     // The `colspan`/`rowspan` of a table cell and the `span` of a `col`/`colgroup` (ARIA
     // `aria-colspan`/`aria-rowspan`, docs/design/table-layout.md section 2). Columns: 1 is none.
     // Rows: 0 spans to the end of the row group, as `rowspan="0"`. Part of the layout signature.
-    std::uint16_t col_span = 1;
-    std::uint16_t row_span = 1;
+    std::uint32_t col_span : 10 = 1;
+    std::uint32_t row_span : 10 = 1;
+    // Font-size runs of the inline spans of this Text (docs/design/inline-size-runs.md): the same
+    // table paint hands the measurer, so a shrunk `sub`/`sup`/`small` is measured as it is drawn.
+    text::TextSizeRunsId text_runs{};
     // The signature of this subtree as the last pass that visited it computed it (zero: never).
     // A caller that retains the input between passes keeps it so an unchanged subtree can be
     // skipped (`LayoutSignatureBuilder::reuse`). It is derived data and is not part of the input's

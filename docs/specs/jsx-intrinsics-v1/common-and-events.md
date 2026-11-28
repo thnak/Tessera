@@ -21,6 +21,8 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `aria-start` | string | E | `""` | `props["aria-start"]` | same | First number of an ordered list; `ol start` is rewritten to it (a static integer) ([`list-style.md`](../../design/list-style.md)) |
 | `aria-reversed` | bool | E | `false` | `props["aria-reversed"]` | same | An ordered list counts down; `ol reversed` is rewritten to it |
 | `aria-value` | string | E | `""` | `props["aria-value"]` | same | The number of a list item; `li value` is rewritten to it (a static integer) |
+| `aria-colspan` | string | E | `""` | `props["aria-colspan"]` | same | Columns a table cell or `col` spans; `td`/`th` `colSpan` and `col` `span` are rewritten to it (a static integer) ([`table-layout.md`](../../design/table-layout.md)) |
+| `aria-rowspan` | string | E | `""` | `props["aria-rowspan"]` | same | Rows a table cell spans (0 to the end of the group); `td`/`th` `rowSpan` is rewritten to it |
 | `aria-level` | string | E | `""` | `props["aria-level"]` | same | Heading level `"1"`-`"6"`; `h1`-`h6` inject it and the user-agent sheet sizes by it ([`ua-audit.md`](../../reference/ua-audit.md)) |
 | `aria-disabled`, `aria-selected`, `aria-expanded`, `aria-busy`, `aria-invalid`, `aria-readonly`, `aria-required` | bool | E | `false` | `props["aria-..."]` | same | The state of the same name in [`accessibility-v1.md`](../accessibility-v1.md) section 2 |
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |
@@ -49,6 +51,7 @@ Roles are written as WAI-ARIA tokens, because React code already uses them. They
 | `textbox` | text field | `tab` | tab |
 | `checkbox` | checkbox | `tabpanel` | tab panel |
 | `radio` | radio | `dialog`, `menu`, `menuitem`, `tooltip`, `alert`, `paragraph` | same name |
+| `table`, `row`, `cell`, `columnheader` | same name | | |
 
 `text` and `scroll view` have no token: they are the implied roles of `Text` and `Scroll`. Each
 intrinsic has an implied role (`Button` is `button`, `TextInput`/`TextArea` are `textbox`, `Image`

@@ -243,7 +243,7 @@ This page is the map and reading order for the framework.
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/click-synthesis.md`](design/click-synthesis.md) — `onClick` as a synthesized `Click` (pointer, keyboard, accessibility)
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
-- [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
+- [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding; [`design/table-layout.md`](design/table-layout.md) for HTML tables
 - [`design/layout-observation.md`](design/layout-observation.md) — size observation, read model, settle rounds, container queries (ADR-041)
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/inline-size-runs.md`](design/inline-size-runs.md) for `sub`/`sup`/`small` size runs; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`; [`design/list-style.md`](design/list-style.md) for `list-style` and the `ul`/`ol` markers
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,

@@ -30,6 +30,10 @@ constexpr AliasInject kInjectHeading[6][2] = {
     {{"role", "heading"}, {"aria-level", "3"}}, {{"role", "heading"}, {"aria-level", "4"}},
     {{"role", "heading"}, {"aria-level", "5"}}, {{"role", "heading"}, {"aria-level", "6"}}};
 constexpr AliasInject kInjectRoleParagraph[] = {{"role", "paragraph"}};
+constexpr AliasInject kInjectRoleTable[] = {{"role", "table"}};
+constexpr AliasInject kInjectRoleRow[] = {{"role", "row"}};
+constexpr AliasInject kInjectRoleCell[] = {{"role", "cell"}};
+constexpr AliasInject kInjectRoleColumnHeader[] = {{"role", "columnheader"}};
 constexpr AliasInject kInjectRoleLink[] = {{"role", "link"}};
 
 // `input type="password"` injects secure; the text-ish types inject inputMode.
@@ -182,6 +186,38 @@ constexpr AliasAttr kListItemAttrs[] = {
     {"value", AliasAttrKind::Rename, "aria-value", "", {}, "a static integer"},
 };
 
+// Table spans (docs/design/table-layout.md section 2) are carried as `aria-colspan`/`aria-rowspan`,
+// the ARIA names of the same facts; the layout input and the accessibility tree both read them.
+constexpr AliasAttr kCellAttrs[] = {
+    {"colSpan", AliasAttrKind::Rename, "aria-colspan", "", {}, "a static integer"},
+    {"rowSpan",
+     AliasAttrKind::Rename,
+     "aria-rowspan",
+     "",
+     {},
+     "a static integer; 0 spans the group"},
+};
+
+constexpr AliasAttr kHeaderCellAttrs[] = {
+    {"colSpan", AliasAttrKind::Rename, "aria-colspan", "", {}, "a static integer"},
+    {"rowSpan",
+     AliasAttrKind::Rename,
+     "aria-rowspan",
+     "",
+     {},
+     "a static integer; 0 spans the group"},
+    {"scope",
+     AliasAttrKind::Reject,
+     "",
+     "row headers are not modelled; `th` is a column header",
+     {},
+     ""},
+};
+
+constexpr AliasAttr kColumnAttrs[] = {
+    {"span", AliasAttrKind::Rename, "aria-colspan", "", {}, "a static integer"},
+};
+
 constexpr AliasAttr kAnchorAttrs[] = {
     {"href", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
     {"target", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
@@ -221,8 +257,6 @@ constexpr std::string_view kAltForm =
     "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` "
     "after V1";
 constexpr std::string_view kAltSelect = "Library `Select` (after V1)";
-constexpr std::string_view kAltTable =
-    "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data";
 constexpr std::string_view kAltSvg = "`Path` with `d` and `viewBox`";
 constexpr std::string_view kAltMedia = "`CustomElement`";
 constexpr std::string_view kAltOverlay = "Overlay service and library components";
@@ -234,6 +268,13 @@ constexpr std::string_view kAltDocument =
 constexpr AliasRow plain(std::string_view tag, std::string_view target, AliasStatus status,
                          std::string_view note) {
     return AliasRow{tag, target, status, {}, {}, {}, false, "", note};
+}
+
+// A `View` carrier of a table tag with its injected roles and attribute rewrites.
+constexpr AliasRow carrier(std::string_view tag, AliasStatus status,
+                           std::span<const AliasInject> inject, std::span<const AliasAttr> attrs,
+                           std::string_view note) {
+    return AliasRow{tag, "View", status, inject, attrs, {}, false, "", note};
 }
 
 constexpr AliasRow kAliases[] = {
@@ -355,6 +396,25 @@ constexpr AliasRow kAliases[] = {
           "block"),
     plain("blockquote", "View", AliasStatus::Mapped,
           "the user-agent sheet gives it the 1em 40px margin"),
+    // Tables (issue #543): `View` carriers; the user-agent sheet gives each its `display` value.
+    // clang-format off
+    carrier("table", AliasStatus::Partial, rows(kInjectRoleTable), {},
+            "the user-agent sheet makes it `display: table`; the layout engine lays out the tree below it"),
+    carrier("thead", AliasStatus::Mapped, {}, {}, "`display: table-header-group`; shown above the body"),
+    carrier("tbody", AliasStatus::Mapped, {}, {}, "`display: table-row-group`"),
+    carrier("tfoot", AliasStatus::Mapped, {}, {}, "`display: table-footer-group`; shown below the body"),
+    carrier("tr", AliasStatus::Mapped, rows(kInjectRoleRow), {}, "`display: table-row`"),
+    carrier("td", AliasStatus::Mapped, rows(kInjectRoleCell), rows(kCellAttrs),
+            "`display: table-cell`; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan`"),
+    carrier("th", AliasStatus::Mapped, rows(kInjectRoleColumnHeader), rows(kHeaderCellAttrs),
+            "as `td`, bold and centred by the user-agent sheet; `scope` is rejected"),
+    carrier("caption", AliasStatus::Mapped, {}, {},
+            "`display: table-caption`; `caption-side` puts it above or below the grid"),
+    carrier("colgroup", AliasStatus::Mapped, {}, rows(kColumnAttrs),
+            "`display: table-column-group`; takes no space of its own"),
+    carrier("col", AliasStatus::Mapped, {}, rows(kColumnAttrs),
+            "`display: table-column`; its `width` sizes the column"),
+    // clang-format on
 
     // Section 5: no mapping.
     {"form", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltForm, ""},
@@ -362,16 +422,6 @@ constexpr AliasRow kAliases[] = {
     {"option", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
     {"optgroup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
     {"datalist", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
-    {"table", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"thead", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tbody", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tfoot", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tr", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"td", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"th", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"caption", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"colgroup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"col", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
     {"svg", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
     {"g", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
     {"circle", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
