@@ -23,11 +23,11 @@ front-end first rejections (code, files):
   TESSERA_REACT_UNKNOWN_HOOK 1
 
 pipeline rejections (first blocking code, files):
-  TESSERA_IR_UNKNOWN_PROP 4
   TESSERA_IR_UNSUPPORTED 4
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
+  TESSERA_IR_UNKNOWN_PROP 3
+  TESSERA_IR_UNRESOLVED 2
   TESSERA_IR_BINDING 1
-  TESSERA_IR_UNRESOLVED 1
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
   TESSERA_JSX_SUBSET_MUTATION 1
@@ -62,7 +62,7 @@ files:
   accepted react/expressions/string-methods.tsx components=1 pipeline=ok
   accepted react/expressions/style-literal.tsx components=1 pipeline=ok
   accepted react/expressions/template-string.tsx components=1 pipeline=ok
-  accepted react/forms/checkbox-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
+  accepted react/forms/checkbox-input.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
   accepted react/forms/controlled-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/forms/label-html-for.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/handlers/handler-control-flow.tsx components=1 pipeline=ok
