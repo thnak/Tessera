@@ -11,7 +11,8 @@ same stylesheet, how far is what the engine paints from what a browser paints?
 | Chrome | `tools/parity/P.html`, the same structure as HTML | `scripts/ci/chrome_parity.mjs --page P` |
 
 Two pages: `form` (`FormPage.tsx`, `form.module.css`, light theme) and `dash` (`DashPage.tsx`, `dash.css`, run with
-`--theme instrument-dark` on both sides).
+`--theme instrument-dark` on both sides).A third, `controls` (`ControlsPage.tsx`, the Switch, Checkbox and Radio sheets, run at `--width 640 --height 360`), is plain CSS like `dash`: structure 0.10 %.
+
 
 Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.module.css`, the theme
 tokens of `instrument.theme.json` (written into the page as `:root` variables) and the fonts
