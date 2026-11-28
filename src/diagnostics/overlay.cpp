@@ -34,6 +34,10 @@ std::vector<std::string> OverlayModel::build(const OverlayFrame& frame,
     lines.push_back("damage " + std::to_string(frame.damage_rects) + "  scissors " +
                     std::to_string(frame.scissors) + "  full " +
                     (frame.full_redraw ? "yes" : "no"));
+    if (frame.fps > 0.0) {
+        lines.push_back("fps " + milliseconds(frame.fps) + "  frame " +
+                        milliseconds(frame.frame_ms) + "ms");
+    }
     // Omitted when no budget is configured: a ratio against 0 ms would be a fabricated number, and
     // the overlay is the diagnostic of record for a frame-budget miss.
     if (frame.budget_ms > 0.0) {

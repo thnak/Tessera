@@ -565,6 +565,16 @@ target_link_libraries(window_config_tests PRIVATE tessera_app tessera_frame tess
 
 add_test(NAME window_config COMMAND window_config_tests)
 
+add_executable(window_overlay_tests
+    window_overlay_tests.cpp)
+
+target_include_directories(window_overlay_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(window_overlay_tests PRIVATE tessera_app tessera_diagnostics tessera_gpu)
+
+add_test(NAME window_overlay COMMAND window_overlay_tests)
+
 # The window's display-aware AA policy mapping (docs/design/display-aware-rendering.md sections 2, 5
 # and 6): window metrics plus the renderer inputs resolve to an AaPolicy, the explicit switch and a
 # golden/AA-off renderer pin `golden_aa_policy()`, and the power preset and MSAA rules reach the

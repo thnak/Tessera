@@ -79,6 +79,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "offscreenMaxMb": 256,
     "offscreenIdleSeconds": 2,
     "layerPromotion": false,
+    "diagnosticsOverlay": false,
     "animationInterpolation": true,
     "interpolationEpsilonPx": 0.0625,
     "deterministic": false
@@ -137,6 +138,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `offscreenMaxMb` | integer | `256` | `1..4096` | Cap on the bytes of all pooled offscreen targets together, in MiB (`Batched2DConfig::max_offscreen_bytes`). 256 MiB holds 7 frame-size targets at 4K. A request that would pass the cap paints without the effect and is counted, like the target cap; the pool is never switched off by this key (`glassMaxBlurTargets=0` does that), so `0` is an error. |
 | `offscreenIdleSeconds` | number | `2` | `0..3600` | Seconds a lone settled window waits, with its frames in flight complete, before it destroys its pooled offscreen targets so a static UI holds no layer memory (`WindowHost` idle branch, [`offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5e). `0` releases at the first idle pass. Not used by a multi-window group, which relies on the 120-frame release. |
 | `layerPromotion` | boolean | `false` | | Generic layer promotion ([`offscreen-layers-retention.md`](../design/gpu/offscreen-layers-retention.md) section 11): a clean, large, expensive container with no glass inside is kept as a retained layer like a masked or filtered one (`FramePipelineConfig::promote_layers`, read in `window_pipeline_config`). Off by default: the measured full paint is cheap and each layer holds device memory; the promoted frame matched the flat frame byte for byte on lavapipe ([section 11](../design/gpu/offscreen-layers-retention.md)). Needs `layerCacheBudgetMb` above `0`; the draw/area/stability thresholds are the engine defaults of `LayerPromotionConfig`. |
+| `diagnosticsOverlay` | boolean | `false` | | Draws the diagnostics overlay in the window driver (`window_overlay.cpp`): smoothed `fps`, frame ms, damage/scissor counts and, with `layerCacheBudgetMb` above `0`, the layer-cache line (`fill_layer_overlay`), as one rounded panel of text after the scene, inside the frame it describes. Off by default; the numbers lag the frame by one because they are the cost of the frames before it. |
 | `glassMaxBackdropArea` | integer | `4000000` | `0..268435456` | Backdrop dependency-region area in device pixels (`4000000` = 4 Mpx) above which the blur runs at half resolution and is upsampled bilinearly ([`glass-v1.md`](glass-v1.md) section 5). A quality choice, not a removal of the effect. |
 | `animationInterpolation` | boolean | `true` | | Interpolate visual state at render rate. |
 | `interpolationEpsilonPx` | number | `0.0625` | `0.0..4.0` | Device pixels an interpolated transform must move before its painted box is damaged again ([`game-loop.md`](../design/game-loop.md) section 3.2). `0` disables the suppression. Never a wake source. |

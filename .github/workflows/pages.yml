@@ -81,7 +81,9 @@ on:
       - 'scripts/ci/preview_format_service.mjs'
       - 'scripts/ci/preview_search_service.mjs'
       - 'scripts/ci/preview_asset_info.mjs'
+      - 'scripts/ci/preview_editor_groups.mjs'
       - 'designer/web/asset-info.js'
+      - 'designer/web/editor-groups.js'
       - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
@@ -150,7 +152,9 @@ on:
       - 'scripts/ci/preview_format_service.mjs'
       - 'scripts/ci/preview_search_service.mjs'
       - 'scripts/ci/preview_asset_info.mjs'
+      - 'scripts/ci/preview_editor_groups.mjs'
       - 'designer/web/asset-info.js'
+      - 'designer/web/editor-groups.js'
       - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
@@ -401,6 +405,9 @@ jobs:
       # Asset editor data layer (#581): image and font info, reference scan, rename and replace plans.
       - name: Asset info and rename plans (no browser)
         run: node scripts/ci/preview_asset_info.mjs
+
+      - name: Editor groups model (#1025, no browser)
+        run: node scripts/ci/preview_editor_groups.mjs
 
       - name: Search service (matcher, bounded regex engine, replace plan, ADR-060)
         run: node scripts/ci/preview_search_service.mjs

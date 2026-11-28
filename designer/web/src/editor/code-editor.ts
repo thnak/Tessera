@@ -93,6 +93,8 @@ export interface CodeEditorOptions {
   onApplyNow: () => void;
   /** The accessible name of the editing surface. */
   label: string;
+  /** The id of the editing surface (`source`; a second editor group needs its own, ids are unique). */
+  id?: string;
   /** The caret moved, the selection changed or a file opened: 1-based line and column, and the selected characters. */
   onCaret?: (caret: { line: number; column: number; selected: number }) => void;
 }
@@ -163,7 +165,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
     studioTheme,
     analysisExtensions(analysisHub, () => current),
     EditorView.contentAttributes.of({
-      id: "source",
+      id: options.id ?? "source",
       "aria-label": options.label,
       spellcheck: "false",
       autocapitalize: "off",

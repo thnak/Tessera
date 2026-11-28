@@ -8,6 +8,7 @@ add_library(tessera_layout STATIC
     grid_layout.cpp
     grid_placement.cpp
     grid_tracks.cpp
+    grid_measure.cpp
     layout_engine.cpp
     layout_observer.cpp
     layout_observer_settle.cpp
@@ -54,6 +55,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/grid_signature_tests.cpp)
     target_link_libraries(grid_signature_tests PRIVATE tessera_layout)
     add_test(NAME grid_signature COMMAND grid_signature_tests)
+
+    add_executable(layout_intrinsic_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/layout_intrinsic_tests.cpp)
+    target_link_libraries(layout_intrinsic_tests PRIVATE tessera_layout)
+    add_test(NAME layout_intrinsic COMMAND layout_intrinsic_tests)
 
     # The retained tree's acceptance gate (issue #735, slice D): a randomized edit sequence whose
     # every frame must equal the from-scratch path box for box. It includes the module's internal

@@ -133,6 +133,10 @@ SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleShe
     if (settle != nullptr) {
         settle->install_container_source(tree);
     }
+    // A memoised pass resolves each node once against the installed container source: the plain
+    // `compute(sheet, node)` takes no source, so without this an `@container` rule never matched
+    // here while it does in the app host (the window's style provider memoises the same way).
+    tree.begin_memo(false);
     ui::layout::LayoutInput input = build_layout_input(root, tree, sheet, result.metrics);
     input.style.set("width", pixels(metrics.width));
     input.style.set("height", pixels(metrics.height));

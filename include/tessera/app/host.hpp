@@ -246,6 +246,8 @@ public:
     // dirty, which the cache key already handles. `resize()` re-creates the pipeline, so the cache
     // starts cold there. Read the counters after paint() to see one frame's hits/misses.
     [[nodiscard]] const ui::paint::PaintCacheStats& paint_cache_stats() const;
+    // What the generic layer promotion policy currently promotes (issue #1024: the overlay line).
+    [[nodiscard]] ui::paint::LayerPromotionStats layer_promotion_stats() const;
 
     // Client-area change: updates the root's inline size, the layout viewport, the damage target
     // and the pipeline's DPI scale, then marks the whole subtree for layout/paint and forces a

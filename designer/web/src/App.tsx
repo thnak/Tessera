@@ -380,13 +380,14 @@ export function App() {
   const search = useSearch({ workspace, reveal: problems.jump, onWritten: onSearchWritten, visible: workbench.visible.has("search") });
 
   const onEdit = useCallback(
-    (text: string) => {
-      // A locked file opens read-only, so this is not reached for one; the guard keeps it so.
-      if (workspace.state.files.find((file) => file.path === workspace.state.active)?.editable !== true) {
+    (text: string, path: string) => {
+      // A locked file opens read-only, so this is not reached for one; the guard keeps it so. `path` is the
+      // group's own file: with a split, the editor that was typed in is not always the page's active one.
+      if (workspace.state.files.find((file) => file.path === path)?.editable !== true) {
         return;
       }
-      workspace.writeBuffer(workspace.state.active, text);
-      if (/\.mock\.ts$/i.test(workspace.state.active)) {
+      workspace.writeBuffer(path, text);
+      if (/\.mock\.ts$/i.test(path)) {
         setMockRevision((value) => value + 1);
       }
       // The live edit (issue #444): the trigger owns the debounce, so this is one call per keystroke and
@@ -396,7 +397,7 @@ export function App() {
       scheduleProjectProblems();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspace.state.active],
+    [workspace.state.files],
   );
 
   const { onCustomSize, onControlChange } = useToolbarControls({

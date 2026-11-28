@@ -150,6 +150,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             continue;
         }
 
+        overlay_scissors = frame.render.redraw_plan.scissors.size();
         const FrameResult outcome = render_and_present(frame.render.full_redraw);
         if (outcome != FrameResult::Presented) {
             ++stats.idle_waits;

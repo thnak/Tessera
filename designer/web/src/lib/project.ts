@@ -245,3 +245,27 @@ export function treeRows(
 export function fileAt(files: readonly ProjectFile[], path: string): ProjectFile | null {
   return files.find((file) => file.path === path) ?? null;
 }
+
+/** Why `path` cannot be a new file in `files`, or the file record; a path is checked, never trusted. */
+export function acceptNewFile(files: readonly ProjectFile[], path: string, text: string): ProjectFile | string {
+  let file: ProjectFile;
+  try {
+    file = projectFile(path, text);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  if (!file.editable) {
+    return `${file.name} is not a file the studio edits (use .tsx, .jsx, .css or .json)`;
+  }
+  if (fileAt(files, file.path) !== null) {
+    return `${file.path} already exists`;
+  }
+  const prefix = `${file.path}/`;
+  if (files.some((other) => other.path.startsWith(prefix))) {
+    return `${file.path} is a folder in this project`;
+  }
+  if (files.some((other) => file.path.startsWith(`${other.path}/`))) {
+    return `${file.path} would sit inside a file`;
+  }
+  return file;
+}

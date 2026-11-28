@@ -7,7 +7,7 @@
  *
  *   node scripts/ua_audit/page.mjs --chrome <chrome> --preview <tessera_scene_preview> \
  *        --twin tools/parity/showcase.html --tsx samples/showcase/Showcase.tsx --component Showcase \
- *        --css samples/showcase/app.css,samples/showcase/showcase.module.css [--sizes 900x700,400x800]
+ *        --css samples/showcase/app.css,samples/showcase/showcase.module.css [--sizes 900x700,400x800] [--root .app]
  *
  * The TSX is rewritten for the preview CLI (one stylesheet, `styles.x` -> `"x"`). Tessera's preview
  * measures text with a stub, so a text node that wraps differs by line count; those rows are
@@ -28,6 +28,7 @@ const css = arg('--css', '').split(',').filter(Boolean);
 const sizes = arg('--sizes', '900x700,400x800').split(',');
 const out = resolve(arg('--out', 'out/page_parity'));
 const tol = Number(arg('--tol', '1'));
+const rootSel = arg('--root', '.app');
 mkdirSync(join(out, 'ui'), { recursive: true });
 
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -45,14 +46,14 @@ for (const size of sizes) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(pathToFileURL(twin).href);
   await page.evaluate(() => document.fonts.ready);
-  const chrome = await page.evaluate(() => {
-    const root = document.querySelector('.app');
+  const chrome = await page.evaluate((sel) => {
+    const root = document.querySelector(sel);
     return [root, ...root.querySelectorAll('*')].map((e) => {
       const r = e.getBoundingClientRect();
       const lines = e.children.length === 0 ? Math.round(r.height / parseFloat(getComputedStyle(e).lineHeight || '1')) : 0;
       return { tag: e.tagName.toLowerCase(), cls: e.className, x: r.x, y: r.y, width: r.width, height: r.height, leaf: e.children.length === 0 };
     });
-  });
+  }, rootSel);
   await page.close();
   const json = JSON.parse(execFileSync(preview, ['--scene-json', '-', join(out, 'ui', 'Preview.tsx'), '--component', component,
     '--size', size, '--stylesheet', join(out, 'ui', 'Preview.css'), '--file', 'ui/Preview.tsx'], { encoding: 'utf8', maxBuffer: 1 << 26 }));

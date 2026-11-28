@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- The browser twin of samples/compiler-demo: the same structure and the very stylesheet the sample imports. No reset (ADR-063). Compare with scripts/ua_audit/page.mjs --root. The initial state is rendered: count 0. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera compiler-demo twin</title>
+<style>
+  @font-face { font-family: T; src: url(../../tests/fixtures/fonts/NotoSans-Regular.ttf); }
+  :root { --font-sans: T; }
+  html, body { margin: 0; font-family: T; }
+  button, input { font-family: T; line-height: 1.2; }
+  /* the engine measures text with a stub (line height 1.2): pin the page to it so boxes compare */
+  body { line-height: 1.2; }
+</style>
+<link rel="stylesheet" href="../../samples/compiler-demo/demo.css">
+</head>
+<body>
+<div class="card">
+  <div class="title">Count: 0</div>
+  <div class="muted">Name: </div>
+  <button class="primary">Add</button>
+  <input class="field" value="">
+</div>
+</body>
+</html>

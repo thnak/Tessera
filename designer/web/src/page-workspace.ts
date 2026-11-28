@@ -14,10 +14,11 @@
 // `views/*-session.ts`; the page hands them a `SourceHost` (`lib/views.ts`) that reads the file Run
 // compiles. Nothing here touches the DOM or React beyond the hook.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   SEED_ENTRY,
   fileAt,
+  acceptNewFile,
   projectFile,
   seedProject,
   treeRows,
@@ -28,6 +29,7 @@ import { bootProject } from "./page-boot";
 import { closeTabIn, openPreview, pinTab as pinIn } from "./lib/editor-tabs";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
 import { planFolderDelete, planFolderMove } from "../project-folder-ops.js";
+import { activeAfterClose, joinGroups, moveTab as moveGroupTab, settle, splitActive } from "../editor-groups.js";
 
 /** The shape of the left column and the middle column, as React state. */
 export interface WorkspaceState {
@@ -37,8 +39,12 @@ export interface WorkspaceState {
   open: string[];
   /** The open tab that is still a replaceable preview (#562), or `null`; an edit or a double click pins it. */
   preview: string | null;
-  /** The file the editor shows; always one of `open` (or `""` before the seed settles). */
+  /** The file the editor shows; always one of `open` (or `""` before the seed settles). With a split, the focused group's file. */
   active: string;
+  /** The open tabs shown in the second editor group (a subset of `open`; empty = not split), see `editor-groups.js`. */
+  side: string[];
+  /** What the main / second group shows while the other group has focus. */
+  mainActive: string; sideActive: string;
   /** The tree's selection, which may be a directory. */
   selected: string;
   /** The directories whose children are hidden. */
@@ -69,6 +75,14 @@ export interface Workspace {
   openFile: (file: ProjectFile) => void;
   /** Closes a tab; the next tab becomes active, and the active file stays active when it is not the one. */
   closeTab: (path: string) => void;
+  /** Splits the editor area: the focused tab moves to a second group (needs two open tabs). */
+  splitEditor: () => void;
+  /** Moves a tab to a group at an index (a drag, or a reorder); the moved tab gets focus. */
+  moveTab: (path: string, group: "main" | "side", index?: number) => void;
+  /** Focus moved into the group showing `path`: it becomes active (no revision bump, no text change). */
+  focusTab: (path: string) => void;
+  /** Merges the second group back into the main one. */
+  joinEditors: () => void;
   /** Writes a buffer, marking the file dirty the first time it differs from the project's copy. */
   writeBuffer: (path: string, text: string) => void;
   /** Adds a project file (a gallery sample, an import): confined by the caller's `projectFile`. */
@@ -113,6 +127,9 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
     open: path ? [path] : [],
     preview: null,
     active: path,
+    side: [],
+    mainActive: path,
+    sideActive: "",
     selected: path,
     collapsed: [],
     dirty: [],
@@ -129,7 +146,12 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
  * paint, and the layout is reviewable without a load path.
  */
 export function useWorkspace(): Workspace {
-  const [state, setState] = useState<WorkspaceState>(() => initialWorkspace(bootProject()));
+  const [state, setRaw] = useState<WorkspaceState>(() => initialWorkspace(bootProject()));
+  // `settle` keeps the editor groups consistent with `open` and `active` on every update.
+  const setState: Dispatch<SetStateAction<WorkspaceState>> = useCallback(
+    (update) => setRaw((previous) => settle(previous, typeof update === "function" ? update(previous) : update)),
+    [],
+  );
   // The one mutable store: file path -> the text the editor currently holds. A ref, for the reason in
   // the header: a keystroke must not re-render the page.
   const buffers = useRef<Map<string, string>>(new Map());
@@ -165,7 +187,9 @@ export function useWorkspace(): Workspace {
       }
       // A single click is a preview: it replaces the previous preview tab rather than adding one (#562).
       const tabs = openPreview({ open: previous.open, preview: previous.preview }, row.path, previous.dirty);
-      return { ...previous, selected: row.path, active: row.path, open: [...tabs.open], preview: tabs.preview };
+      const side = previous.side.map((tab) => (tab === previous.preview && !tabs.open.includes(tab) ? row.path : tab));
+      // The new preview takes the replaced one's place, in its editor group too.
+      return { ...previous, selected: row.path, active: row.path, open: [...tabs.open], side, preview: tabs.preview };
     });
   }, []);
 
@@ -240,12 +264,22 @@ export function useWorkspace(): Workspace {
         return previous;
       }
       const { open, preview } = closeTabIn({ open: previous.open, preview: previous.preview }, path);
-      const active = previous.active === path ? (open[open.length - 1] ?? "") : previous.active;
+      const active = activeAfterClose(previous, path);
       const dirty = previous.dirty.filter((candidate) => candidate !== path);
       buffers.current.delete(path);
       return { ...previous, open: [...open], preview, active, dirty, selected: active === "" ? previous.selected : active };
     });
   }, []);
+
+  const splitEditor = useCallback(() => setState((previous) => splitActive(previous)), [setState]);
+  const focusTab = useCallback((path: string) => setState((p) => (p.open.includes(path) ? { ...p, active: path, selected: path } : p)), [setState]);
+  const moveTab = useCallback(
+    (path: string, group: "main" | "side", index?: number) => {
+      setState((previous) => moveGroupTab(previous, path, group, index));
+    },
+    [setState],
+  );
+  const joinEditors = useCallback(() => setState((previous) => joinGroups(previous)), [setState]);
 
   const writeBuffer = useCallback((path: string, text: string) => {
     buffers.current.set(path, text);
@@ -295,35 +329,11 @@ export function useWorkspace(): Workspace {
     }));
   }, []);
 
-  /** Why `path` cannot be a new file in `files`, or the file record; a path is checked, never trusted. */
-  const accept = (files: readonly ProjectFile[], path: string, text: string): ProjectFile | string => {
-    let file: ProjectFile;
-    try {
-      file = projectFile(path, text);
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error);
-    }
-    if (!file.editable) {
-      return `${file.name} is not a file the studio edits (use .tsx, .jsx, .css or .json)`;
-    }
-    if (fileAt(files, file.path) !== null) {
-      return `${file.path} already exists`;
-    }
-    const prefix = `${file.path}/`;
-    if (files.some((other) => other.path.startsWith(prefix))) {
-      return `${file.path} is a folder in this project`;
-    }
-    if (files.some((other) => file.path.startsWith(`${other.path}/`))) {
-      return `${file.path} would sit inside a file`;
-    }
-    return file;
-  };
-
   const stateRef = useRef(state);
   stateRef.current = state;
 
   const createFile = useCallback((path: string): string | null => {
-    const file = accept(stateRef.current.files, path, "");
+    const file = acceptNewFile(stateRef.current.files, path, "");
     if (typeof file === "string") {
       return file;
     }
@@ -348,7 +358,7 @@ export function useWorkspace(): Workspace {
         return previous;
       }
       const open = previous.open.filter((candidate) => candidate !== path);
-      const active = previous.active === path ? (open[open.length - 1] ?? "") : previous.active;
+      const active = activeAfterClose(previous, path);
       const wasAdded = previous.added.includes(path);
       if (!wasAdded && !removedTexts.current.has(path)) {
         removedTexts.current.set(path, file.text);
@@ -375,7 +385,7 @@ export function useWorkspace(): Workspace {
       }
       const text = buffers.current.get(from) ?? source.text;
       const others = stateRef.current.files.filter((candidate) => candidate.path !== from);
-      const file = accept(others, to, text);
+      const file = acceptNewFile(others, to, text);
       if (typeof file === "string") {
         return file;
       }
@@ -427,6 +437,7 @@ export function useWorkspace(): Workspace {
         open,
         preview: previous.preview === null ? null : renamed(previous.preview),
         active: renamed(previous.active),
+        side: previous.side.map(renamed),
         selected: byOld.has(previous.selected) ? renamed(previous.selected) : previous.selected === from ? to : previous.selected,
         collapsed: previous.collapsed.map((dir) => (dir === from || dir.startsWith(`${from}/`) ? to + dir.slice(from.length) : dir)),
         dirty: [...previous.dirty.filter((path) => !gone(path)), ...moved.map((entry) => entry.move.to)],
@@ -464,6 +475,10 @@ export function useWorkspace(): Workspace {
     openFile,
     pinTab,
     closeTab,
+    splitEditor,
+    focusTab,
+    moveTab,
+    joinEditors,
     writeBuffer,
     addFile,
     putFile,
