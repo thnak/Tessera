@@ -249,6 +249,14 @@ rules (section 8). A behavior whose targets are not all present attaches nothing
 generated base. `scene_behavior` proves a pointer press reaches the behavior through the session's
 own dispatch.
 
+A behavior output read in an expression reaches the tree: after every dispatch the session writes
+each attached instance's outputs into the scope (`beh::<name>.<output>`) and, when one changed,
+re-evaluates the tree (bounded to three rounds), replaying the last pointer position as a move so the
+hover the output came from survives the rebuild. While a pointer is down the rebuild is deferred (it
+would reset the router and drop the press), so an expression that paints `pressed` shows the new
+value from the next rebuild, not during the press; `hovered` and `focused` follow live.
+`scene_behavior` pins the hovered case.
+
 Two gaps the preview still has, stated so a user is not misled: a callback arg is recorded by handler
 id and passed as 0, so a behavior that invokes a callback is wired but inert there; and a behavior
 the registry lacks is reported in the session's error list rather than failing the build, because the

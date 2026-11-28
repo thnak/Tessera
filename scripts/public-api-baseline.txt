@@ -365,6 +365,26 @@ class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder
 struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedComponent
 struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateReport
 
+header include/tessera/appfw/secret_store.hpp
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretBackend
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretBytes
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretStore
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretError
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretKey
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretStoreConfig
+enum include/tessera/appfw/secret_store.hpp tessera::appfw::SecretErrorCode
+function include/tessera/appfw/secret_store.hpp tessera::appfw::describe_secret_error
+function include/tessera/appfw/secret_store.hpp tessera::appfw::is_valid_secret_key
+function include/tessera/appfw/secret_store.hpp tessera::appfw::secret_error_code_name
+constant include/tessera/appfw/secret_store.hpp tessera::appfw::kMaxSecretKeyPartBytes
+
+header include/tessera/appfw/secret_store_fake.hpp
+class include/tessera/appfw/secret_store_fake.hpp tessera::appfw::FakeSecretBackend
+struct include/tessera/appfw/secret_store_fake.hpp tessera::appfw::FakeSecretCall
+
+header include/tessera/appfw/secret_store_wincred.hpp
+class include/tessera/appfw/secret_store_wincred.hpp tessera::appfw::WinCredSecretBackend
+
 header include/tessera/appfw/service.hpp
 class include/tessera/appfw/service.hpp tessera::appfw::Service
 struct include/tessera/appfw/service.hpp tessera::appfw::ServiceRegistration
@@ -3899,26 +3919,10 @@ prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.childr
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.defaultOpen
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.label
 
-component packages/tessera-ui/primitives/FocusScope.tsx FocusScope
-prop packages/tessera-ui/primitives/FocusScope.tsx FocusScope.children
-prop packages/tessera-ui/primitives/FocusScope.tsx FocusScope.label
-
-component packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation
-prop packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation.children
-prop packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation.label
-
 component packages/tessera-ui/primitives/Press.tsx Press
 prop packages/tessera-ui/primitives/Press.tsx Press.children
 prop packages/tessera-ui/primitives/Press.tsx Press.label
 prop packages/tessera-ui/primitives/Press.tsx Press.onPress
-
-component packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus
-prop packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus.children
-prop packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus.label
-
-component packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical
-prop packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical.children
-prop packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical.label
 
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children

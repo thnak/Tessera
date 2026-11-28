@@ -32,7 +32,7 @@ python -B scripts/ci/parity_gate.py --page form
 ```
 
 It exits 0 when `structure_diff_pct` is within the threshold (0.5 % by default, the form being at
-0.12 %), 1 when it is over, and **2 when a step could not run** - a missing Playwright, a missing
+0.09 %, after the text fields became `content-box` as in Chrome, #973), 1 when it is over, and **2 when a step could not run** - a missing Playwright, a missing
 gallery binary, a capture that wrote nothing. A step that cannot run is not a pass. It prints both
 numbers and the artifact paths, so a farm agent can attach them to a PR.
 
@@ -142,8 +142,9 @@ These are not bugs; a markup author who writes for both has to know them.
   on a rounded box.
 - Measured with Plex on lavapipe against Chromium (#973, `parity_gate.py`, 640x720): the form is at
   `structure_diff_pct` 0.61 (over the 0.5 threshold; `differing_pixels_pct` 7.53) and the dashboard at 0.13
-  (3.02). The form's gap is vertical: each text input is 36 px in the engine and 38 px in Chrome, which shifts
-  every row below it; the 0.12 quoted in section 2 predates the Plex fixtures and was not re-measured with Noto. The gallery goldens now render with Plex
+  (3.02). The form's gap was vertical: the UA sheet made text fields
+  `border-box` (the form's `height: 36px` stayed 36 px) while Chrome's text inputs are `content-box` (36 + 2 border =
+  38 px), shifting every row below. Fixed in the UA sheet: the form is now at 0.09 (`differing_pixels_pct` 3.51). The gallery goldens now render with Plex
   Sans Regular too (the default `TESSERA_GALLERY_FONT`).
 - The engine loads one face per weight (repeat `--font`, #973) and neither side synthesizes bold, but the
   form and dashboard twins set no `font-weight` yet, so no bold run is compared until a page uses one. The form runs in the light theme and the dashboard in the dark one, both at

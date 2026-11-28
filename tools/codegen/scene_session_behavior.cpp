@@ -23,6 +23,9 @@ namespace {
 
 namespace ui = tessera::ui;
 
+// The same fixed step `dispatch()` advances its event clock by.
+constexpr double kEventStepSeconds = 1.0 / 60.0;
+
 // One evaluated option value, from the evaluator's own `Value`. A callback arg is handled by the
 // caller (the preview does not resolve handler ids to thunks yet); this covers the three value
 // kinds the manifest declares.
@@ -112,6 +115,79 @@ void PreviewSession::attach_behaviors(const SceneBuildResult& built) {
                                        "` did not attach: its targets are not all present, or the "
                                        "registry has no such behavior");
         }
+    }
+}
+
+bool PreviewSession::sync_behavior_outputs() {
+    bool changed = false;
+    for (std::size_t index = 0; index < behaviors_.size() && index < component_.behaviors.size();
+         ++index) {
+        const BehaviorSlot& slot = behaviors_[index];
+        if (!slot.instance.attached()) {
+            continue;
+        }
+        const ir::Behavior& declared = component_.behaviors[index];
+        const std::span<const ui::behavior::OutputValue> outputs = slot.instance.outputs();
+        for (std::size_t at = 0; at < declared.outputs.size() && at < outputs.size(); ++at) {
+            const ui::behavior::OutputValue& output = outputs[at];
+            const std::string id = declared.id + "." + declared.outputs[at].name;
+            const auto found = scope_.find(id);
+            const eval::Value* held = found != scope_.end() ? &found->second : nullptr;
+            bool same = false;
+            eval::Value next;
+            switch (output.kind) {
+            case ui::behavior::OutputValue::Kind::Bool: {
+                next = eval::Value::of_bool(output.boolean);
+                const bool* was = held != nullptr ? held->as_bool() : nullptr;
+                same = was != nullptr && *was == output.boolean;
+                break;
+            }
+            case ui::behavior::OutputValue::Kind::Number: {
+                next = eval::Value::of_float(output.number);
+                const double* was = held != nullptr ? held->as_float() : nullptr;
+                same = was != nullptr && *was == output.number;
+                break;
+            }
+            case ui::behavior::OutputValue::Kind::String: {
+                next = eval::Value::of_string(std::string(output.text));
+                const std::string* was = held != nullptr ? held->as_string() : nullptr;
+                same = was != nullptr && *was == output.text;
+                break;
+            }
+            }
+            if (same) {
+                continue;
+            }
+            scope_[id] = std::move(next);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+void PreviewSession::settle_behavior_outputs() {
+    // Three rounds is enough for any output that depends only on the pointer and focus; a behavior
+    // whose output feeds its own option would otherwise loop.
+    constexpr int kMaxRounds = 3;
+    for (int round = 0; round < kMaxRounds; ++round) {
+        if (!sync_behavior_outputs()) {
+            return;
+        }
+        // A pointer is down: a rebuild would reset the router and drop the press that produced the
+        // output. The scope keeps the new value and the next rebuild reads it.
+        if (router_.active() != nullptr) {
+            return;
+        }
+        rebuild();
+        if (has_pointer_) {
+            PreviewInput move;
+            move.kind = PreviewInput::Kind::PointerMove;
+            move.x = pointer_x_;
+            move.y = pointer_y_;
+            router_.dispatch(*root_, to_input_event(move, next_timestamp_s_));
+            next_timestamp_s_ += kEventStepSeconds;
+        }
+        refresh_behaviors();
     }
 }
 

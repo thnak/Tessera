@@ -169,34 +169,61 @@ void test_dismissable_layer() {
     generates(layer, "DismissableLayer");
 }
 
-// The scope and roving primitives carry runtime flags; the behavior itself is the headless
-// `focus_scope` test (src/ui/scene/focus_scope.cpp), so here the contract is that the flag reaches
-// the generated node.
-void test_focus_scope() {
-    Primitive scope = load("FocusScope");
-    if (scope.component == nullptr) {
+// The scope, roving and list primitives are behavior hooks now (issue #643, ADR-064 item 7): the
+// behavior itself is tested headlessly (`behavior_focus_trap`, `behavior_roving_focus`), so here
+// the contract is that the hook call lowers to one `behaviors` entry on the element it targets and
+// that codegen attaches the engine behavior to it. No wrapper component adds a node.
+Primitive load_source(const std::string& name, const std::string& text) {
+    Primitive primitive;
+    primitive.keep = parse_file("ui/" + name + ".tsx", text);
+    primitive.result = lowering::lower_module(primitive.keep->module_source(), "primitives");
+    check(primitive.result.has_value(), name + " lowers: " + first_message(primitive.result));
+    if (primitive.result) {
+        primitive.component = find_component(*primitive.result, name);
+        check(primitive.component != nullptr, name + " component exists");
+    }
+    return primitive;
+}
+
+// The hook form of one former wrapper. `options` is the hook's option object.
+Primitive hook_primitive(const std::string& name, const std::string& hook,
+                         const std::string& options, const std::string& role) {
+    return load_source(name,
+                       "export function " + name +
+                           "(): Node {\n  const box = useRef<View>(null);\n  const b = " + hook +
+                           "(box, " + options + ");\n  return <View ref={box} role=\"" + role +
+                           "\" aria-label=\"x\"><Text>t</Text></View>;\n}\n");
+}
+
+void expect_behavior(Primitive& primitive, const std::string& name, const std::string& behavior,
+                     const std::string& needle) {
+    if (primitive.component == nullptr) {
         return;
     }
-    check_eq(prop_text(scope.component->root, "role"), "group", "the scope is a group");
-    check(scope.component->root.props.count("focusTrap") == 1, "the scope traps focus");
-    const std::string source = generates(scope, "FocusScope");
-    check(source.find("->set_focus_trap(true);") != std::string::npos, "codegen sets the trap");
+    check(primitive.component->behaviors.size() == 1, name + " has one behavior entry");
+    if (primitive.component->behaviors.size() == 1) {
+        check_eq(primitive.component->behaviors.front().behavior, behavior,
+                 name + " names the engine behavior");
+    }
+    const std::string source = generates(primitive, name);
+    check(source.find("attach(\"" + behavior + "\"") != std::string::npos,
+          name + " attaches the registry behavior");
+    check(needle.empty() || source.find(needle) != std::string::npos,
+          name + " passes its option: " + needle);
+}
+
+void test_focus_scope() {
+    Primitive scope = hook_primitive("FocusScope", "useFocusTrap", "{}", "group");
+    expect_behavior(scope, "FocusScope", "focus_trap", "");
 }
 
 void test_roving_focus() {
-    for (const auto& [name, axis] :
-         {std::pair<const char*, const char*>{"RovingFocus", "Horizontal"},
-          std::pair<const char*, const char*>{"RovingFocusVertical", "Vertical"}}) {
-        Primitive group = load(name);
-        if (group.component == nullptr) {
-            continue;
-        }
-        check(group.component->root.props.count("focusGroup") == 1,
-              std::string(name) + " is a focus group");
-        const std::string source = generates(group, name);
-        check(source.find(std::string("Node::FocusGroup::") + axis) != std::string::npos,
-              std::string(name) + " sets the " + axis + " axis");
-    }
+    Primitive row =
+        hook_primitive("RovingFocus", "useListFocus", "{ orientation: \"horizontal\" }", "group");
+    expect_behavior(row, "RovingFocus", "roving_focus", "horizontal");
+    Primitive column = hook_primitive("RovingFocusVertical", "useListFocus",
+                                      "{ orientation: \"vertical\" }", "group");
+    expect_behavior(column, "RovingFocusVertical", "roving_focus", "vertical");
 }
 
 // Runs the slider key handler and returns `state::value`.
@@ -273,14 +300,9 @@ void test_text_field_state() {
 }
 
 void test_list_navigation() {
-    Primitive list = load("ListNavigation");
-    if (list.component == nullptr) {
-        return;
-    }
-    check_eq(prop_text(list.component->root, "role"), "listbox", "the list is a listbox");
-    const std::string source = generates(list, "ListNavigation");
-    check(source.find("Node::FocusGroup::Vertical") != std::string::npos, "vertical axis");
-    check(source.find("->set_typeahead(true);") != std::string::npos, "typeahead is on");
+    Primitive list = hook_primitive("ListNavigation", "useListFocus",
+                                    "{ orientation: \"vertical\", typeahead: true }", "listbox");
+    expect_behavior(list, "ListNavigation", "roving_focus", "vertical");
 }
 
 } // namespace
