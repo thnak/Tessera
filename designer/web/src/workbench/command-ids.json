@@ -74,5 +74,7 @@
   "notify.clearAll",
   "notify.toggleDoNotDisturb",
   "edit.undoRename",
-  "edit.toggleFormatOnSave"
+  "edit.toggleFormatOnSave",
+  "view.history",
+  "history.restorePrevious"
 ]

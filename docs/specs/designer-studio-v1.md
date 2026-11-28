@@ -393,8 +393,9 @@ counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
 - **Version history** (issue #583): a save, and a format or rename, records the file's text as a local
   snapshot in this browser (bounded, deduplicated, never uploaded, never in a share link); a timeline per
   file shows a line diff against the working text, and Restore is an ordinary undoable edit. The pure
-  modules are specified in [studio-project-io.md](../design/studio-project-io.md) section 5; the panel and
-  commands wait on the workbench panels (#560) and palette (#558).
+  modules are specified in [studio-project-io.md](../design/studio-project-io.md) section 5; the History
+  panel (`view.history`, the side bar group's third tab) and Restore Previous Version
+  (`history.restorePrevious`) are live, the Playwright probe is not yet.
 - **Limits**: the per-file and per-project limits of [jsx-subset-v1.md](jsx-subset-v1.md) section 15
   apply (1 MiB per file, depth 128, 100 diagnostics, 64 components), plus a 32 MiB workspace cap with
   a clear error. Project text and assets are untrusted input; size checks run before parsing.

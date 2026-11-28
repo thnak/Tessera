@@ -52,6 +52,8 @@ export default defineConfig({
         // The project search client and the replace history (#580), so `scripts/ci/preview_search_client.mjs` drives what ships.
         "search-client": "src/lib/search-client.ts",
         "search-replace": "src/lib/search-replace.ts",
+        // The version history model (#583), so `scripts/ci/preview_history_model.mjs` drives what ships.
+        "history-model": "src/lib/history-model.ts",
         // The skin manifest's rules, so `scripts/ci/preview_skins.mjs` tests the validator the page
         // ships rather than a copy of it. `skin-load.ts` is here too: the gate drives the real loader
         // against a stub `fetch`, which is what proves a missing manifest is a rejection and not a

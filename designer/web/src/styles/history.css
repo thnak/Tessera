@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The Version History panel (#583): the timeline of the active file and the changed lines of the selected
+ * version. Existing colour tokens only (`--pane-bg`, `--border`, `--text`, `--text-dim`, `--accent-fg`,
+ * `--error`, `--focus-ring`), so every theme and the contrast gate apply without a new pair. The diff marks
+ * lines with a leading + or - as well as colour.
+ */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  background: var(--pane-bg);
+  font-size: 12.5px;
+}
+.history[hidden] { display: none; }
+.history-head { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.history-path { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-status { margin: 0; padding: 4px 8px; color: var(--text-dim); }
+.history-list { margin: 0; padding: 0; list-style: none; }
+.history-row {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.history-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.history-row.selected { color: var(--accent-fg); }
+.history-label { flex: 1 1 auto; }
+.history-age, .history-stat { flex: none; color: var(--text-dim); }
+.history-detail { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); }
+.history-restore {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.history-restore:disabled { color: var(--text-dim); cursor: default; }
+.history-restore:focus-visible { outline: 2px solid var(--focus-ring); }
+.history-diff { margin: 0; overflow: auto; color: var(--text); font-family: var(--mono, monospace); font-size: 12px; }
+.history-add { color: var(--accent-fg); }
+.history-del { color: var(--error); }

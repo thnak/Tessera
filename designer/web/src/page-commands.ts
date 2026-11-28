@@ -74,6 +74,8 @@ export interface WorkbenchApi {
   /** A sample entry of the picked folder, chosen from the welcome view or the quick pick, becomes the project. */
   pickSample: (entry: string) => void;
   restart: () => void;
+  /** Restore Previous Version (#583): the active file's newest version that differs from the current text. */
+  restoreVersion: () => void;
   applyNow: () => void;
   setControl: (name: keyof ControlValues, value: string) => void;
   setCustomSize: (width: number, height: number) => void;
@@ -262,6 +264,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
         const order = [...THEMES];
         a().setControl("theme", order[(order.indexOf(a().controls.theme) + 1) % order.length]);
       },
+      "history.restorePrevious": () => a().restoreVersion(),
       "run.restart": () => a().restart(),
       "run.applyNow": () => a().applyNow(),
       "run.inputScript": () => a().refs.runInput.current?.click(),

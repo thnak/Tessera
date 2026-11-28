@@ -1053,6 +1053,21 @@
       "description": "Format the open file when it is saved (tessera.studio.formatOnSave)",
       "checked": "editor.formatOnSave",
       "status": "live"
+    },
+    {
+      "id": "view.history",
+      "title": "Version History",
+      "category": "View",
+      "description": "Show the local versions of the active file, kept on save, format and rename",
+      "status": "live"
+    },
+    {
+      "id": "history.restorePrevious",
+      "title": "Restore Previous Version",
+      "category": "Edit",
+      "description": "Restore the newest earlier version of the active file as one undoable edit",
+      "enabled": "project.open",
+      "status": "live"
     }
   ]
 }

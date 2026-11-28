@@ -44,6 +44,7 @@
         { "command": "view.gotoLine", "group": "go@3" },
         { "command": "view.explorer", "group": "views@1" },
         { "command": "view.search", "group": "views@2" },
+        { "command": "view.history", "group": "views@3" },
         { "command": "view.sourceControl", "group": "views@3" },
         { "command": "view.problems", "group": "views@4" },
         { "submenu": "view.panels", "title": "Panels", "group": "views@5",

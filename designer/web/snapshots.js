@@ -127,6 +127,15 @@ export function renamePath(history, from, to) {
   return { ...history, entries: history.entries.map((entry) => (entry.path === from ? { ...entry, path: to } : entry)) };
 }
 
+/** Moves the history of a renamed folder (every path under `from/`) with it; `from` and `to` have no trailing slash. */
+export function renameTree(history, from, to) {
+  const prefix = `${from}/`;
+  return {
+    ...history,
+    entries: history.entries.map((entry) => (entry.path.startsWith(prefix) ? { ...entry, path: `${to}/${entry.path.slice(prefix.length)}` } : entry)),
+  };
+}
+
 /** The history without `path` (the file was deleted and the person chose to drop its versions). */
 export function forgetPath(history, path) {
   return { ...history, entries: history.entries.filter((entry) => entry.path !== path) };
