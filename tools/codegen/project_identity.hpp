@@ -32,12 +32,22 @@ struct ThemePinSpec {
     std::string pin; // MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH
 };
 
+// `dependencies` of the project config (project-config-v1.md): what the generated CMake target
+// adds. `modules` names the opt-in framework modules the app links ("sqlite" is
+// `tessera_appfw_storage_sqlite`, issue #983); the build switches the matching CMake option.
+struct DependenciesSpec {
+    std::vector<std::string> include_dirs; // project-relative POSIX directories
+    std::vector<std::string> link_libraries;
+    std::vector<std::string> modules; // closed set, deduplicated, document order
+};
+
 // The project identity of one run: the id salt (empty: ids stay unassigned) and the root that
 // source paths are relative to (docs/specs/automation-ids-v1.md section 2).
 struct ProjectIdentity {
     std::string salt;
     std::filesystem::path root;
     std::vector<PackageRootSpec> packages;
+    DependenciesSpec dependencies;
     // `assets.theme` as a project-relative POSIX path, empty when the config names no theme asset.
     std::string theme;
     // `assets.themePins`: theme id -> version pin, in document order (ADR-047 item 4). Checked

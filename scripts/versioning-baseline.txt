@@ -160,6 +160,7 @@ field	tessera.json	project-config-v1::`deepLinks`::singleInstance	boolean	-	true
 field	tessera.json	project-config-v1::`dependencies`::includeDirs	string[]	-	[]
 field	tessera.json	project-config-v1::`dependencies`::licenseReview	boolean	-	true
 field	tessera.json	project-config-v1::`dependencies`::linkLibraries	string[]	-	[]
+field	tessera.json	project-config-v1::`dependencies`::modules	string[]	-	[]
 field	tessera.json	project-config-v1::`dev`::preview.backend	string	-	webgpu
 field	tessera.json	project-config-v1::`dev`::preview.hotReload	boolean	-	true
 field	tessera.json	project-config-v1::`dev`::preview.port	integer	-	5173

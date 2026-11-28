@@ -2277,6 +2277,13 @@ if (TESSERA_BUILD_TESTS)
 
         add_test(NAME permissions_config
             COMMAND permissions_config_tests $<TARGET_FILE:tessera_codegen_cli>)
+
+        # `tessera.json` `dependencies` and its `modules` key (issue #983).
+        add_executable(dependencies_config_tests
+            ${PROJECT_SOURCE_DIR}/tests/unit/dependencies_config_tests.cpp)
+
+        add_test(NAME dependencies_config
+            COMMAND dependencies_config_tests $<TARGET_FILE:tessera_codegen_cli>)
     endif ()
 
     # The demo target only exists on host builds (see the cross-compiling guard above).

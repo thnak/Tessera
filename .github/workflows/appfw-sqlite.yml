@@ -11,14 +11,14 @@ on:
     paths:
       - 'src/appfw/**'
       - 'include/tessera/appfw/**'
-      - 'tests/unit/appfw_sql_tests.cpp'
+      - 'tests/unit/appfw_sql*_tests.cpp'
       - 'CMakeLists.txt'
       - '.github/workflows/appfw-sqlite.yml'
   pull_request:
     paths:
       - 'src/appfw/**'
       - 'include/tessera/appfw/**'
-      - 'tests/unit/appfw_sql_tests.cpp'
+      - 'tests/unit/appfw_sql*_tests.cpp'
       - 'CMakeLists.txt'
       - '.github/workflows/appfw-sqlite.yml'
 
@@ -51,7 +51,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build appfw_sql_tests
-        run: cmake --build build --target appfw_sql_tests
+        run: cmake --build build --target appfw_sql_tests appfw_sql_vfs_tests
 
       - name: Test
         run: ctest --test-dir build -R appfw_sql --output-on-failure
