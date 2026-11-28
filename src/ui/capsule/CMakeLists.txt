@@ -8,13 +8,14 @@ add_library(tessera_capsule STATIC
     capsule_state.cpp
     live_capsule.cpp
     live_capsule_host.cpp
-    live_capsule_poster.cpp)
+    live_capsule_poster.cpp
+    slot_measure.cpp)
 
 target_include_directories(tessera_capsule PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_capsule PUBLIC tessera_animation tessera_scene tessera_accessibility
-    tessera_runtime)
+    tessera_runtime tessera_text)
 
 target_compile_features(tessera_capsule PUBLIC cxx_std_23)
 

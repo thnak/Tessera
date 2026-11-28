@@ -6,7 +6,10 @@
 
 #include "overlay_test_fixture.hpp"
 #include "tessera/ui/capsule/live_capsule.hpp"
+#include "tessera/ui/capsule/slot_measure.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
+#include <memory>
 #include <string>
 
 namespace {
@@ -207,6 +210,62 @@ void test_update_in_place_and_idle() {
     expect(builds == idle_builds, "an idle capsule rebuilds nothing");
 }
 
+void test_measured_slot_sizes() {
+    // StubTextMeasurer advances 0.5 * font size per code point: "0:42" at 11px is 22 px wide.
+    const auto stub = std::make_shared<tessera::ui::text::StubTextMeasurer>();
+    const auto text = [](Node& slot, const char* value) {
+        Node& node = slot.add_child(std::make_unique<Node>(tessera::ui::NodeId{9001}));
+        node.set_element_kind("Text");
+        tessera::ui::PaintData data;
+        data.kind = tessera::ui::PaintKind::Text;
+        data.text = value;
+        node.set_paint_data(std::move(data));
+    };
+    const auto compact_width = [&](bool measured, const char* trailing) {
+        Fixture f;
+        LiveCapsuleHost host;
+        LiveCapsule capsule(host, f.host->overlays());
+        if (measured) {
+            capsule.set_slot_measurer(make_intrinsic_slot_measurer(stub));
+        }
+        Activity a = timer();
+        a.slots.leading_width = 100.0f;
+        a.slots.trailing_width = 100.0f;
+        a.slots.leading = [](Node& slot) {
+            Node& dot = slot.add_child(std::make_unique<Node>(tessera::ui::NodeId{9002}));
+            dot.set_element_kind("View");
+            dot.set_inline_style("width", "14px");
+            dot.set_inline_style("height", "14px");
+        };
+        a.slots.trailing = [&](Node& slot) { text(slot, trailing); };
+        host.start(std::move(a));
+        settle(f, capsule, notch_env());
+        return capsule.rect().width;
+    };
+    // cutout 60 + twice the wider slot: trailing is 22 + 12 + 1 border, leading only 14 + 12 + 1.
+    expect(std::abs(compact_width(true, "0:42") - 130.0f) < 0.5f,
+           "compact width is the measured slots plus the cutout");
+    expect(std::abs(compact_width(true, "0:42:17") - 163.0f) < 0.5f,
+           "a longer trailing text widens the capsule");
+    expect(std::abs(compact_width(false, "0:42") - 240.0f) < 0.5f,
+           "without a measurer the hints apply");
+
+    Fixture f;
+    LiveCapsuleHost host;
+    LiveCapsule capsule(host, f.host->overlays());
+    capsule.set_slot_measurer(make_intrinsic_slot_measurer(stub));
+    host.start(timer());
+    const LiveCapsuleEnv env = notch_env();
+    settle(f, capsule, env);
+    capsule.activate(0);
+    settle(f, capsule, env);
+    // "Timer" 5 * 7 = 35 and two actions: (Pause 5*5.5 + 16 + 8) + (Stop 4*5.5 + 16 + 8) = 97.5.
+    expect(std::abs(capsule.rect().width - (97.5f + 26.0f)) < 0.5f,
+           "the expanded card is sized from its title, content and actions");
+    expect(std::abs(capsule.rect().height - (20.0f + 24.0f + 26.0f)) < 0.5f,
+           "the card height is title plus actions plus padding");
+}
+
 void test_reduced_motion_and_fallback() {
     Fixture f;
     LiveCapsuleHost host;
@@ -315,6 +374,7 @@ int main() {
     suite = "live_capsule_component";
     test_semantics_placement_and_focus();
     test_update_in_place_and_idle();
+    test_measured_slot_sizes();
     test_reduced_motion_and_fallback();
     test_rotation_and_fold_placement();
     test_high_priority_preempts();

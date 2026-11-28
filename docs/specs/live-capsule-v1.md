@@ -46,7 +46,7 @@ under the hinge: a hinge rectangle that overlaps it shifts the capsule to the la
 | State | Content | Size |
 |---|---|---|
 | `minimal` | An icon or dot (one slot) | Smallest, at most the cutout width plus one dot |
-| `compact` | Leading and trailing slots around the cutout (or a single row when there is none) | Cutout width plus the slots, capped at `60%` of the window width |
+| `compact` | Leading and trailing slots around the cutout (or a single row when there is none) | Cutout width plus twice the wider slot (the capsule is centred on the cutout), or both slots in one row with no cutout; capped at `60%` of the window width |
 | `expanded` | A card: title, content slot, up to two actions | Capped at `90%` of the window width and `40%` of its height |
 
 Transitions: a tap on `minimal` or `compact` expands; a tap outside, `Escape` or an upward swipe
@@ -149,8 +149,18 @@ component writes position, size and radius). The component now sets class `capsu
 the title and action labels as text, owns the text of its box inline styles (the scene borrows inline
 style text, so temporaries dangled), and has `abandon()` for a host torn down before it.
 
-Not yet: a content-hash measured slot size (slots carry size hints today); the `tessera-ui` TSX
-surface (#305).
+Measured slot sizes (#997): `LiveCapsule::set_slot_measurer` installs a `SlotMeasurer`
+(`slot_measure.hpp`); after each rebuild the component measures the built leading and trailing slots
+(plus 12 px edge padding and the 1 px border each) and the expanded card (title, content, actions, 12 px padding and the border) and
+sizes the capsule from that. `make_intrinsic_slot_measurer` is the stock one: a Text node on one
+line, an inline px `width`/`height`, otherwise a row of children; builder-content padding and margins
+are not counted. The `Slots` size hints are now only the fallback when no measurer is installed. The
+goldens measure with the test font and no longer carry hints, so the compact and expanded baselines
+were regenerated.
+
+`tessera-ui` surface: `CapsuleStatus.tsx` (dot plus label, tones, styled in `live-capsule.css`) is
+the stock slot content; ctest `library_capsule_status`. Not yet: starting an activity from TSX (a
+lowering story for `LiveCapsuleHost::start`, shared with the #305 overlay surface).
 
 ## 10. Decisions
 

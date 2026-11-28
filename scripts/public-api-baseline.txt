@@ -2517,6 +2517,20 @@ constant include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::
 header include/tessera/ui/capsule/live_capsule_poster.hpp
 class include/tessera/ui/capsule/live_capsule_poster.hpp tessera::ui::capsule::LiveCapsulePoster
 
+header include/tessera/ui/capsule/slot_measure.hpp
+class include/tessera/ui/capsule/slot_measure.hpp tessera::ui::Node
+struct include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::SlotExtent
+enum include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::SlotTextRole
+alias include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::SlotMeasurer
+function include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::intrinsic_slot_extent
+function include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::make_intrinsic_slot_measurer
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kActionGap
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kActionHeight
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kActionPaddingX
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kCapsuleBorder
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kCardPadding
+constant include/tessera/ui/capsule/slot_measure.hpp tessera::ui::capsule::kSlotEdgePadding
+
 header include/tessera/ui/chart/chart_geometry.hpp
 class include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartDamage
 struct include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartPlot
@@ -3879,6 +3893,11 @@ prop packages/tessera-ui/Button.tsx Button.label
 prop packages/tessera-ui/Button.tsx Button.onPress
 prop packages/tessera-ui/Button.tsx Button.size
 prop packages/tessera-ui/Button.tsx Button.variant
+
+component packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus
+prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.dot
+prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.label
+prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.tone
 
 component packages/tessera-ui/Field.tsx Field
 prop packages/tessera-ui/Field.tsx Field.children

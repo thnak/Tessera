@@ -26,6 +26,7 @@
 .leading,
 .trailing,
 .minimal-icon {
+  white-space: nowrap;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -83,4 +84,38 @@
 
 .action:focus-visible {
   outline: 2px solid var(--focus-ring);
+}
+
+/* CapsuleStatus (CapsuleStatus.tsx): a fixed 8 px dot and a one-line label. The dot is a width and a
+   height in px so the slot measurer reads its size without running layout. */
+
+.tcaps-status {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.tcaps-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  margin-right: var(--space-1);
+  background-color: var(--accent);
+}
+
+.tcaps-tone-success .tcaps-dot {
+  background-color: var(--success);
+}
+
+.tcaps-tone-warning .tcaps-dot {
+  background-color: var(--warning);
+}
+
+.tcaps-tone-danger .tcaps-dot {
+  background-color: var(--danger);
+}
+
+.tcaps-label {
+  white-space: nowrap;
+  color: var(--on-surface);
 }

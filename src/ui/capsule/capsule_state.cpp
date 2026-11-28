@@ -27,9 +27,14 @@ CapsuleSize capsule_size(const CapsuleSizeInput& input) noexcept {
         size.corner_radius = size.height * 0.5f;
         break;
     case CapsuleState::Compact:
-        size.width = std::min(cutout_w + non_negative(input.leading_width) +
-                                  non_negative(input.trailing_width),
-                              window_w * kCompactMaxWidthFraction);
+        // The capsule is centred on the cutout, so the slots need the same room on both sides or
+        // the wider one runs under the hardware. With no cutout it is one row of both slots.
+        size.width =
+            std::min(cutout_w > 0.0f
+                         ? cutout_w + 2.0f * std::max(non_negative(input.leading_width),
+                                                      non_negative(input.trailing_width))
+                         : non_negative(input.leading_width) + non_negative(input.trailing_width),
+                     window_w * kCompactMaxWidthFraction);
         size.height = std::max(kCapsuleHeight, non_negative(input.cutout_height));
         size.corner_radius = size.height * 0.5f;
         break;

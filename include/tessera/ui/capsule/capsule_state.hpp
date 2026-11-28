@@ -39,7 +39,8 @@ struct CapsuleSize {
 };
 
 // The target box of a state. Minimal is at most the cutout width plus one dot; compact is the
-// cutout plus both slots capped at 60% of the window; expanded is the card capped at 90% x 40%. The
+// cutout plus twice the wider slot (the capsule is centred on the cutout; one row of both slots
+// with no cutout) capped at 60% of the window; expanded is the card capped at 90% x 40%. The
 // pill radius is half the height.
 [[nodiscard]] CapsuleSize capsule_size(const CapsuleSizeInput& input) noexcept;
 
