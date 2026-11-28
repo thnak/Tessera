@@ -1016,6 +1016,7 @@ header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue
 struct include/tessera/hal/window.hpp tessera::hal::AccessibilityRoot
+struct include/tessera/hal/window.hpp tessera::hal::TextInputRect
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
 struct include/tessera/hal/window.hpp tessera::ui::InputEvent
