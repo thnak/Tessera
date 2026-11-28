@@ -25,6 +25,7 @@ import {
   type TreeRow,
 } from "./lib/project";
 import { bootProject } from "./page-boot";
+import { closeTabIn, openPreview, pinTab as pinIn } from "./lib/editor-tabs";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
 import { planFolderDelete, planFolderMove } from "../project-folder-ops.js";
 
@@ -34,6 +35,8 @@ export interface WorkspaceState {
   files: ProjectFile[];
   /** The open tabs, in tab order (the order they were opened). */
   open: string[];
+  /** The open tab that is still a replaceable preview (#562), or `null`; an edit or a double click pins it. */
+  preview: string | null;
   /** The file the editor shows; always one of `open` (or `""` before the seed settles). */
   active: string;
   /** The tree's selection, which may be a directory. */
@@ -60,6 +63,8 @@ export interface Workspace {
   selectRow: (row: TreeRow) => void;
   /** Opens or closes a directory row's children (`ArrowRight`/`ArrowLeft` in the tree). */
   toggleDir: (path: string) => void;
+  /** Pins a preview tab so the next single click opens beside it instead of replacing it. */
+  pinTab: (path: string) => void;
   /** Opens (or focuses) a file, adding it to the project when the path is new. */
   openFile: (file: ProjectFile) => void;
   /** Closes a tab; the next tab becomes active, and the active file stays active when it is not the one. */
@@ -106,6 +111,7 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
   return {
     files,
     open: path ? [path] : [],
+    preview: null,
     active: path,
     selected: path,
     collapsed: [],
@@ -157,12 +163,16 @@ export function useWorkspace(): Workspace {
         // generated header) does: it opens read-only.
         return { ...previous, selected: row.path };
       }
-      return {
-        ...previous,
-        selected: row.path,
-        active: row.path,
-        open: previous.open.includes(row.path) ? previous.open : [...previous.open, row.path],
-      };
+      // A single click is a preview: it replaces the previous preview tab rather than adding one (#562).
+      const tabs = openPreview({ open: previous.open, preview: previous.preview }, row.path, previous.dirty);
+      return { ...previous, selected: row.path, active: row.path, open: [...tabs.open], preview: tabs.preview };
+    });
+  }, []);
+
+  const pinTab = useCallback((path: string) => {
+    setState((previous) => {
+      const tabs = pinIn({ open: previous.open, preview: previous.preview }, path);
+      return tabs.preview === previous.preview ? previous : { ...previous, preview: tabs.preview };
     });
   }, []);
 
@@ -229,11 +239,11 @@ export function useWorkspace(): Workspace {
       if (!previous.open.includes(path)) {
         return previous;
       }
-      const open = previous.open.filter((candidate) => candidate !== path);
+      const { open, preview } = closeTabIn({ open: previous.open, preview: previous.preview }, path);
       const active = previous.active === path ? (open[open.length - 1] ?? "") : previous.active;
       const dirty = previous.dirty.filter((candidate) => candidate !== path);
       buffers.current.delete(path);
-      return { ...previous, open, active, dirty, selected: active === "" ? previous.selected : active };
+      return { ...previous, open: [...open], preview, active, dirty, selected: active === "" ? previous.selected : active };
     });
   }, []);
 
@@ -246,11 +256,14 @@ export function useWorkspace(): Workspace {
       // state update that changes nothing, so React re-renders the page once per dirty transition.
       const dirty = original !== null && (original.text !== text || previous.added.includes(path));
       const was = previous.dirty.includes(path);
-      if (dirty === was) {
+      // An edit pins a preview tab (#562): the file is no longer something to look at in passing.
+      const preview = previous.preview === path && dirty ? null : previous.preview;
+      if (dirty === was && preview === previous.preview) {
         return previous;
       }
       return {
         ...previous,
+        preview,
         dirty: dirty
           ? [...previous.dirty, path]
           : previous.dirty.filter((candidate) => candidate !== path),
@@ -344,6 +357,7 @@ export function useWorkspace(): Workspace {
         ...previous,
         files: previous.files.filter((candidate) => candidate.path !== path),
         open,
+        preview: previous.preview === path ? null : previous.preview,
         active,
         selected: previous.selected === path ? active : previous.selected,
         dirty: previous.dirty.filter((candidate) => candidate !== path),
@@ -411,6 +425,7 @@ export function useWorkspace(): Workspace {
         ...previous,
         files: [...previous.files.filter((file) => !gone(file.path)), ...moved.map((entry) => entry.file)].sort(byPath),
         open,
+        preview: previous.preview === null ? null : renamed(previous.preview),
         active: renamed(previous.active),
         selected: byOld.has(previous.selected) ? renamed(previous.selected) : previous.selected === from ? to : previous.selected,
         collapsed: previous.collapsed.map((dir) => (dir === from || dir.startsWith(`${from}/`) ? to + dir.slice(from.length) : dir)),
@@ -447,6 +462,7 @@ export function useWorkspace(): Workspace {
     selectRow,
     toggleDir,
     openFile,
+    pinTab,
     closeTab,
     writeBuffer,
     addFile,

@@ -48,6 +48,7 @@ on:
       - 'scripts/ci/preview_search_client.mjs'
       - 'scripts/ci/preview_analysis_wiring.mjs'
       - 'scripts/ci/preview_history_model.mjs'
+      - 'scripts/ci/preview_editor_tabs.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -115,6 +116,7 @@ on:
       - 'scripts/ci/preview_search_client.mjs'
       - 'scripts/ci/preview_analysis_wiring.mjs'
       - 'scripts/ci/preview_history_model.mjs'
+      - 'scripts/ci/preview_editor_tabs.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -346,6 +348,8 @@ jobs:
       # The version history panel's model (#583): timeline rows, the changed-line view, the one-edit restore plan.
       - name: Version history model
         run: node scripts/ci/preview_history_model.mjs
+      - name: Editor preview tabs and breadcrumbs model (#562)
+        run: node scripts/ci/preview_editor_tabs.mjs
 
       # #575, #569: the page's analysis and compile clients over the real worker sources (stand-in engines):
       # a file that is not open reaches the Problems store, fixing it clears the row, an unavailable module is

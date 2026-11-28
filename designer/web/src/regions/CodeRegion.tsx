@@ -20,6 +20,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
+import { breadcrumbs } from "../lib/editor-tabs";
 import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
 /** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
@@ -59,14 +60,18 @@ function EditorTabs({
   files,
   active,
   dirty,
+  preview,
   onSelect,
+  onPin,
   onClose,
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
   active: string;
   dirty: readonly string[];
+  preview: string | null;
   onSelect: (path: string) => void;
+  onPin: (path: string) => void;
   onClose: (path: string) => void;
 }) {
   return (
@@ -79,7 +84,9 @@ function EditorTabs({
         return (
           <div
             key={path}
-            className={"editor-tab" + (selected ? " is-selected" : "")}
+            className={"editor-tab" + (selected ? " is-selected" : "") + (path === preview ? " is-preview" : "")}
+            data-preview={path === preview ? "true" : undefined}
+            onDoubleClick={() => onPin(path)}
             // A tab is a button (select) plus a button (close): the wrapper is the row, so the close
             // control is not nested inside the tab's own button -- interactive content inside a
             // `role="tab"` element is not a tab, it is a broken control.
@@ -154,6 +161,8 @@ export function CodeRegion({
   files,
   active,
   dirty,
+  preview = null,
+  onPinTab = () => {},
   text,
   revision,
   sourceRef,
@@ -171,6 +180,9 @@ export function CodeRegion({
   files: readonly ProjectFile[];
   active: string;
   dirty: readonly string[];
+  /** The open tab that is a replaceable preview (italic); a double click pins it (#562). */
+  preview?: string | null;
+  onPinTab?: (path: string) => void;
   /** The active file's text: what the editor shows after a tab switch or a programmatic replace. */
   text: string;
   /**
@@ -260,9 +272,22 @@ export function CodeRegion({
           files={files}
           active={active}
           dirty={dirty}
+          preview={preview}
           onSelect={onSelectTab}
+          onPin={onPinTab}
           onClose={onCloseTab}
         />
+      ) : null}
+      {empty === null && active !== "" ? (
+        <nav className="breadcrumbs" id="editor-breadcrumbs" aria-label="Breadcrumbs">
+          <ol>
+            {breadcrumbs(active).map((crumb) => (
+              <li key={crumb.path} aria-current={crumb.file ? "page" : undefined} title={crumb.path}>
+                {crumb.name}
+              </li>
+            ))}
+          </ol>
+        </nav>
       ) : null}
 
       <div
