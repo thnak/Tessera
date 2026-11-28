@@ -33,6 +33,12 @@ export interface CanvasFrameReport {
    * breakpoint and not at all for a resize that stays inside one.
    */
   cascade?: number;
+  /**
+   * An animation is running (issue #603): the engine's animation runtime holds an entry, so the page
+   * requests the next frame after this one and stops when it is false (`canvas-motion.ts`). Absent in a
+   * report from a module built before the animation runtime, which reads as "nothing animates".
+   */
+  animating?: boolean;
   drawCalls: number;
   vertices: number;
   nodes: number;

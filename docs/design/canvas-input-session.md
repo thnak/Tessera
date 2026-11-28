@@ -119,7 +119,8 @@ this module is given.
 | `tessera_canvas_overlay()` | the debug overlay's geometry (issue #433): the hinge band and the safe-area, keyboard, gesture and cutout rectangles the RUNNING tree was laid out against, as `{"overlayVersion":1,"width":…,"height":…,"foldState":"…","foldOrientation":"…","foldOcclusion":"…","separating":…,"hingeAngle":…,"hinge":{…},"insets":{…},"ime":{…},"gestures":{…},"cutouts":[…]}`. Serialized from the session's own `WindowMetrics` (the snapshot the layout consumed), so a page that scaled it can never place a band the layout did not use. A query: it dispatches nothing and owes no frame, which is why arming the overlay presents nothing |
 | `tessera_canvas_key(kind, key, modifiers, repeat)` | keyboard (issue #388): `kind` is `"down" \| "up" \| "blur"`; `key` is a W3C `KeyboardEvent.key`; `modifiers` a Shift 1 / Control 2 / Alt 4 / Meta 8 mask. Returns the pointer report plus `focusedId`, `focusVisible`, `focusMoved`, `handled` (the page calls `preventDefault`) and `left` (Tab walked off the end of the tab order: focus is released and the browser carries on, so the canvas is never a keyboard trap). Enter activates on key-down, Space on key-up; the `:focus-visible` ring shows only after keyboard traversal |
 | `tessera_canvas_text(kind, text)` | typed text for the focused `TextInput`/`TextArea` (issue #601, [`canvas-text-input.md`](canvas-text-input.md)): `kind` is `"commit"` (typed or pasted text, an IME result), `"start" \| "update" \| "end"` (the IME preedit) or `"copy" \| "cut"` (the report's `text` is the selection). Returns the key report; `handled` says the field took it. Every pointer and key report also carries `textFocus`, `caret`, `selectionStart`, `selectionEnd`, `composing`, `multiline` and `fieldBox` (logical pixels) while a text field holds focus, and none of them otherwise |
-| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates. `width`/`height` are the **physical** extent the page sized the backing store to, and the paint pass composes the session's own DPI scale onto every position (issue #599, [§5.5](#55-the-device-scale-issue-599)) |
+| `tessera_canvas_tick(now_ms, reduced_motion)` | advance the session's animation clock to the page's `requestAnimationFrame` timestamp and sync style, so transitions and `@keyframes` start and move (issue #603, [§5.7](#57-animation-issue-603)); returns `{"tickVersion":1,"running":…,"dtMs":…,"samples":…,"reducedMotion":…}`. Called before each draw |
+| `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates. The report carries `animating`, the keep-alive of [§5.7](#57-animation-issue-603). `width`/`height` are the **physical** extent the page sized the backing store to, and the paint pass composes the session's own DPI scale onto every position (issue #599, [§5.5](#55-the-device-scale-issue-599)) |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
 | `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"clamped":…,"cascadeGeneration":…,"error":""}` (issue #436). The request is held to the viewport limits (issue #690, [§5.4](#54-the-viewport-limits-issue-690)): an over-limit value is clamped and reported by `clamped`, a non-finite or non-positive one is refused with `error` and the picture stays |
 | `tessera_canvas_platform_event(type, value, timestampNs)` | one normalized hardware button or environment event of a device profile (issue #446, [protocol §5.1](../specs/designer-protocol-v1.md#51-platformevent)); returns the reply document (`handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, ...). The event goes through `hal::SyntheticEventInjector` and `PlatformEventDriver` (`scene_platform.cpp`), the code the native scripted run executes. A `relaunch` reply ends the evaluation, so the page's next `tessera_canvas_apply` is the cold start. `timestampNs` is a double (a 64-bit integer crosses the ABI as a BigInt); negative means "now" |
@@ -404,6 +405,40 @@ reads `custom` afterwards, the size is remembered like any other control change,
 the DPR stay consistent with it. The reached size goes through `clampViewport`, so a drag cannot reach
 a size a menu could not, and a clamped one says so on the readout.
 
+### 5.7 Animation (issue #603)
+
+The canvas used to run no animation runtime and ask for no second frame, so `:hover` changed style
+instantly, `@keyframes` never played and a transition could not be seen. The session now owns a
+`CanvasMotion` driver (`scene_canvas_motion.{hpp,cpp}`): the production `AnimationRuntime` and
+`FramePipeline` (the pair `AppHost` runs) over a `RuntimeLoop` whose clock is a `ManualClock`.
+
+- **The clock is the page's.** `tessera_canvas_tick(now_ms, reduced_motion)` takes the `requestAnimationFrame`
+  timestamp; the driver feeds the difference to the `ManualClock`, ticks the pipeline once (`dt` clamped to
+  250 ms, so a hidden tab does not fast-forward an animation) and syncs style against the live tree, as
+  `AppHost::begin_frame(dt, alpha)` does. The same timestamps always give the same values, which is what
+  `scene_canvas_motion_tests` relies on. The page calls tick, then draw, in one refresh.
+- **What reaches the paint pass.** The animated values (opacity, colors, transforms: the paint-only samples
+  the native paint view carries) go to `scene_frame_paint_tree` as a `PaintView`; an idle scene hands it
+  none and paints exactly what it did before. Layout-affecting properties stay discrete, as natively.
+- **Keep-alive, idle is zero frames.** `animating()` is true while the runtime holds an entry or a spring;
+  `needs_frame()` includes it, `tessera_canvas_draw`'s report carries it, and the page
+  (`canvas-motion.ts`) requests the next refresh while it is true and nothing once it is false. The
+  first idle timestamp re-anchors the clock, so the gap between two interactions is not simulated time.
+- **Reduced motion.** The page passes `matchMedia("(prefers-reduced-motion: reduce)")` with each tick; the
+  runtime's clamp applies to animations that start while it is set (it does not rewrite running ones).
+- **State survives.** The driver belongs to an evaluation: a click (a re-evaluation of the tree), a
+  `set_viewport` or a posture change keeps it, so an animation keeps its progress and hover keeps its
+  baseline; a new `start()` that evaluates replaces it, and its first frame records the style baseline
+  (without which the first hover would be a first sighting and start no transition).
+- **The style sync runs only for a sheet that declares motion** (`@keyframes`, `transition*`, `animation*`),
+  so a static scene's pixels are what they were before the driver existed. The sync also applies
+  `z-index` and `transform` to the scene, which the font-free native frame CLI does not; a sheet with
+  `animation` and `transform` therefore differs from `tessera_scene_frame` by design.
+
+Not done here: `useAnimatedValue(...).set(..., {animate})` (`scene_build.cpp` evaluates the cell to its
+initializer), springs, and the `prefers-reduced-motion` media query's answer in `@media`. Gates:
+`scene_canvas_motion_tests` (engine, manual clock) and `scripts/ci/preview_canvas_motion.mjs` (page loop).
+
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,
 attached by `canvas-session.ts`; `scripts/ci/preview_browser_canvas_pointer.mjs` is its browser acceptance
@@ -522,6 +557,8 @@ page half is proven to build, typecheck and render its ids.
 |---|---|
 | `tools/codegen/scene_canvas_session.{hpp,cpp}` | the persistent session: evaluation, pointer dispatch, frame accounting, and the picker's `pick()` query |
 | `tools/codegen/scene_canvas_inspect.{hpp,cpp}` | the style inspector's query: computed style, matched rules with their provenance, and the box, for one node |
+| `tools/codegen/scene_canvas_motion.{hpp,cpp}`, `wasm_canvas_motion.cpp` | the animation driver, its tick report and `tessera_canvas_tick` (issue #603) |
+| `designer/web/src/views/canvas-motion.ts` | the page's animation frame loop (keep-alive, no double chain) and the reduced-motion read |
 | `tools/codegen/scene_frame.{hpp,cpp}` | `scene_frame_paint_tree()` - paint a caller-owned tree; `scene_frame_paint()` is now its wrapper |
 | `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()`, `canvas_pick_report_json()` and `canvas_style_report_json()` beside the existing frame report (host-compilable) |
 | `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/pick/style/draw/reset`, with the coordinate rule on the exports |

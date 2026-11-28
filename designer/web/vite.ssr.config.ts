@@ -81,6 +81,7 @@ export default defineConfig({
         // The drag-resize arithmetic (issue #690 slice b): one step per animation frame, and the same
         // clamp. `scripts/ci/preview_canvas_resize.mjs`.
         "canvas-resize": "src/views/canvas-resize.ts",
+        "canvas-motion": "src/views/canvas-motion.ts",
         // The fold-hinge and safe-area overlay's geometry (issue #433): the band and the inset boxes
         // scaled from the `WindowMetrics` the engine reported. `scripts/ci/preview_fold_overlay.mjs`.
         "canvas-fold": "src/views/canvas-fold.ts",

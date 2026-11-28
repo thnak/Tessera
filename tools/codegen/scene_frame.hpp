@@ -6,6 +6,7 @@
 #include "scene_prepare.hpp"
 #include "scene_preview.hpp"
 #include "tessera/rendering/rhi/device.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -121,11 +122,15 @@ scene_frame_paint(const PreparedScene& scene, rhi::Device& device, rhi::RenderTa
 //
 // `text` carries the font: the shaper and atlas renderer the sink draws runs with. Null paints the
 // boxes only, which is the documented degraded state a failed font fetch produces.
+//
+// `view` carries the animated paint values of a running animation (issue #603): the canvas session
+// hands it the animation runtime's samples. Null paints the authoritative style, as before.
 [[nodiscard]] SceneFrameResult
 scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
                        rhi::Device& device, rhi::RenderTarget& target,
                        const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {},
-                       PreviewTextStack* text = nullptr, float device_scale = 1.0f);
+                       PreviewTextStack* text = nullptr, float device_scale = 1.0f,
+                       const ui::paint::PaintView* view = nullptr);
 
 // Evaluates `text` exactly as `scene_preview_document()` does (same stages, same options, same
 // salt) and then paints the resulting tree with `ui::paint::paint_scene()` through the batched 2D

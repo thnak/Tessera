@@ -12,7 +12,7 @@ ADR-063 decision 5: a sample exists to prove Tessera carries a complex UI stack 
 | `useState`, conditional rendering, controlled input | Showcase | shown (typing in the Studio: #601) |
 | Library components (`Button`, `Field`, `Form`) | FormPage, Gallery | shown |
 | `@layer`, `@container`, theme dark/light | Gallery, SafeAreaPage | partly; Showcase to follow |
-| `transition`, `@keyframes`, springs | none yet | needs #603 to play in the Studio |
+| `transition`, `@keyframes`, springs | none yet | the Studio plays `@keyframes` and `:hover` transitions (#603); springs and `useAnimatedValue` do not yet |
 | Lists with `.map`, custom components with props | none yet | the preview CLI cannot take a second component per file; to follow |
 
 Browser twins: `tools/parity/showcase.html`, `form.html`, `dash.html`. Compare a page with its twin using `scripts/ua_audit/page.mjs` ([`ua-audit.md`](ua-audit.md), Page parity).

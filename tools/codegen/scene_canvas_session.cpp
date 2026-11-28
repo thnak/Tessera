@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "diagnostic_record.hpp"
+#include "scene_canvas_motion.hpp"
 #include "scene_canvas_session.hpp"
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/input.hpp"
@@ -181,6 +182,12 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     cutouts_ = source.cutouts;
     measurer_ = source.measurer;
     fresh_ = true;
+    // A new evaluation is a new animation run: node ids and the style baseline belong to the tree
+    // just built, so the previous driver (and what it animated) goes with the previous tree. Its
+    // baseline is recorded by its first frame (`animate()`), which is what makes the first hover a
+    // change instead of a first sighting.
+    motion_ = std::make_unique<CanvasMotion>();
+    motion_->set_reduced_motion(reduced_motion_);
     return error_;
 }
 
@@ -429,7 +436,7 @@ bool CanvasSceneSession::needs_frame() const {
     if (!started()) {
         return false;
     }
-    if (fresh_) {
+    if (fresh_ || (motion_ != nullptr && motion_->running())) {
         return true;
     }
     return ui::has_any(session_->root().subtree_dirty(), kFrameDomains);
@@ -444,8 +451,12 @@ SceneFrameResult CanvasSceneSession::paint(rhi::Device& device, rhi::RenderTarge
         result.error = error_.empty() ? "the session has no scene to paint" : error_;
         return result;
     }
+    // The animation driver's values reach the paint pass as a view over the authoritative style, so
+    // an idle scene (empty view) paints exactly what it did before the driver existed.
+    const ui::frame::InterpolationPaintView animated =
+        motion_ != nullptr ? motion_->view() : ui::frame::InterpolationPaintView();
     result = scene_frame_paint_tree(session_->root(), sheet(), device, target, desc, pipeline, text,
-                                    dpi_scale_);
+                                    dpi_scale_, animated.empty() ? nullptr : &animated);
     if (!result.error.empty()) {
         return result;
     }

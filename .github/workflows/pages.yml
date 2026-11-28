@@ -56,6 +56,7 @@ on:
       - 'scripts/ci/preview_canvas_zoom.mjs'
       - 'scripts/ci/preview_canvas_text.mjs'
       - 'scripts/ci/preview_canvas_resize.mjs'
+      - 'scripts/ci/preview_canvas_motion.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
       - 'scripts/ci/preview_resource_controls.mjs'
@@ -116,6 +117,7 @@ on:
       - 'scripts/ci/preview_canvas_zoom.mjs'
       - 'scripts/ci/preview_canvas_text.mjs'
       - 'scripts/ci/preview_canvas_resize.mjs'
+      - 'scripts/ci/preview_canvas_motion.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
       - 'scripts/ci/preview_resource_controls.mjs'
@@ -425,6 +427,9 @@ jobs:
 
       - name: Canvas drag-resize arithmetic (handles, the zoom, the per-frame step rule)
         run: node scripts/ci/preview_canvas_resize.mjs
+
+      - name: Canvas animation frame loop (frames advance while animating, then stop; idle is zero frames)
+        run: node scripts/ci/preview_canvas_motion.mjs
 
       - name: Canvas viewport limits (the clamp that keeps a size from losing the device)
         run: node scripts/ci/preview_viewport_limits.mjs

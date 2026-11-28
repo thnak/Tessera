@@ -263,6 +263,9 @@ set(_tessera_scene_preview_sources
 # `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    # The animation driver (issue #603): the production animation runtime and FramePipeline over the
+    # session's tree, advanced by the page's frame clock.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_motion.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_text.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
@@ -379,7 +382,9 @@ if (NOT EMSCRIPTEN)
         tessera_paint
         tessera_rhi
         tessera_scene
-        tessera_style)
+        tessera_style
+        tessera_frame
+        tessera_runtime)
     # The session paints, so it needs `scene_frame.cpp` compiled into this OBJECT library too; it is
     # deliberately not a link dependency because that target is an OBJECT library as well.
     target_sources(tessera_canvas_report PRIVATE
@@ -514,6 +519,8 @@ else ()
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
         # `platform.event` (issue #446): the engine side of a device profile's buttons and events.
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_platform.cpp
+        # The page's animation clock (issue #603): `tessera_canvas_tick`.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_motion.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -560,7 +567,9 @@ else ()
         tessera_paint
         tessera_scene
         tessera_style
-        tessera_webgpu)
+        tessera_webgpu
+        tessera_frame
+        tessera_runtime)
     set_target_properties(tessera_canvas_wasm PROPERTIES OUTPUT_NAME tessera_canvas)
     target_link_options(tessera_canvas_wasm PRIVATE
         --no-entry
@@ -581,7 +590,7 @@ else ()
         # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
         # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
         # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_key","_tessera_canvas_text","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_resource","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_key","_tessera_canvas_text","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_tick","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_resource","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -1209,13 +1218,16 @@ if (TESSERA_BUILD_TESTS)
     #                         through the scripted run
     #   scene_canvas_text     typed text into a `TextInput` (issue #601): commit, caret keys, IME
     #                         composition, selection with copy and cut, the controlled-field rule
+    #   scene_canvas_motion   the preview animates (issue #603): @keyframes and `:hover` transitions
+    #                         advance with the page's frame timestamps, idle is zero frames, reduced
+    #                         motion settles at once, state survives the animation's frames
     #   scene_canvas_size_change  `onSizeChange` in the preview (issue #694): the callback fires on
     #                         the first layout and after a viewport change, with the real box in its
     #                         `SizeChangeEvent` payload
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
             scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change
-            scene_canvas_text)
+            scene_canvas_text scene_canvas_motion)
         add_executable(${_canvas_test}_tests
             ${PROJECT_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -1245,7 +1257,9 @@ if (TESSERA_BUILD_TESTS)
             tessera_rhi
             tessera_rhi_null
             tessera_scene
-            tessera_style)
+            tessera_style
+            tessera_frame
+            tessera_runtime)
         add_test(NAME ${_canvas_test} COMMAND ${_canvas_test}_tests)
     endforeach ()
 
@@ -1281,7 +1295,9 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi
         tessera_rhi_null
         tessera_scene
-        tessera_style)
+        tessera_style
+        tessera_frame
+        tessera_runtime)
     add_test(NAME scene_viewport COMMAND scene_viewport_tests)
 
     # The canvas viewport limits (issue #690): the one clamp that keeps a typed size, a device
@@ -1336,7 +1352,9 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi
         tessera_rhi_null
         tessera_scene
-        tessera_style)
+        tessera_style
+        tessera_frame
+        tessera_runtime)
     add_test(NAME scene_fold_media COMMAND scene_fold_media_tests)
 
     # ADR-074 `env()` in the preview: the simulated device answers the standard variables through the
@@ -1368,7 +1386,9 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi
         tessera_rhi_null
         tessera_scene
-        tessera_style)
+        tessera_style
+        tessera_frame
+        tessera_runtime)
     add_test(NAME scene_environment COMMAND scene_environment_tests)
 
     # The skin's safe area reaching the engine's layout (issue #171's skins slice,
@@ -1406,7 +1426,9 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi
         tessera_rhi_null
         tessera_scene
-        tessera_style)
+        tessera_style
+        tessera_frame
+        tessera_runtime)
     add_test(NAME scene_skin_geometry COMMAND scene_skin_geometry_tests)
 
     add_executable(codegen_layering_tests
