@@ -469,6 +469,10 @@ const ui::paint::PaintCacheStats& AppHost::paint_cache_stats() const {
     return impl_->pipeline->paint_cache_stats();
 }
 
+ui::paint::LayerPromotionStats AppHost::layer_promotion_stats() const {
+    return impl_->pipeline->layer_promotion_stats();
+}
+
 // The whole size change lives in host_viewport.cpp: the media context is part of it now (issue
 // #436), and the rule that separates "re-resolve the cascade" from "re-lay out" is worth reading in
 // one place rather than at the bottom of this file.

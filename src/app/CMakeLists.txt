@@ -130,6 +130,10 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         window_lifecycle_seam.cpp
         # The offscreen layer pool's counters, once-per-run warning and idle release.
         window_offscreen.cpp
+        # The diagnostics overlay panel (issue #1024), drawn after the scene when `diagnosticsOverlay`
+        # is on.
+        window_overlay.cpp
+        window_overlay.hpp
         # The frame's paint-target decision (adaptive render scale, glass, 4x MSAA presentation),
         # split out of window.cpp for its size budget.
         window_present_targets.cpp

@@ -234,6 +234,7 @@ field	tessera.json	runtime-config-v1::3. Fields::backgroundMaxFps	integer	-	0
 field	tessera.json	runtime-config-v1::3. Fields::cullDraws	boolean	-	true
 field	tessera.json	runtime-config-v1::3. Fields::damageRects	boolean	-	true
 field	tessera.json	runtime-config-v1::3. Fields::deterministic	boolean	-	false
+field	tessera.json	runtime-config-v1::3. Fields::diagnosticsOverlay	boolean	-	false
 field	tessera.json	runtime-config-v1::3. Fields::dirtyRendering	string	-	auto
 field	tessera.json	runtime-config-v1::3. Fields::drawListCacheBudgetMb	integer	-	32
 field	tessera.json	runtime-config-v1::3. Fields::dynamicRefreshRate	string	-	auto

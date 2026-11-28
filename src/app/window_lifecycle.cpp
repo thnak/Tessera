@@ -468,6 +468,7 @@ bool WindowHost::Impl::pump_once(const runtime::RuntimeTick& tick, bool advance_
     }
 
     const std::uint32_t presented = stats.presented;
+    overlay_scissors = frame.render.redraw_plan.scissors.size();
     const FrameResult outcome = render_and_present(frame.render.full_redraw);
     if (outcome != FrameResult::Presented) {
         // Same rule as run(): the attempt consumed the repaint request and the damage plan, so
@@ -489,8 +490,7 @@ bool WindowHost::Impl::pump_once(const runtime::RuntimeTick& tick, bool advance_
     // pacer check above returned without waiting); the source is the GPU interval when the RHI
     // probe reported it usable and a completed submission produced one, else this frame's CPU cost.
     (void)observe_frame_time((hal::steady_now_seconds() - now) * 1000.0);
-    // Step 3: the decided present cap reaches the pacer at this frame boundary (single-iteration
-    // twin of the call in run()).
+    // Step 3: the decided present cap reaches the pacer at this frame boundary (twin of run()).
     apply_present_cap(hal::steady_now_seconds());
     host->end_frame();
     loop->clear_render_dirty();

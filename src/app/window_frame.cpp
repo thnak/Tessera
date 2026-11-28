@@ -148,6 +148,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     if (detail::VectorStack* const vectors = vector(); vectors != nullptr) {
         vectors->flush();
     }
+    draw_diagnostics_overlay(full_repaint);
     renderer()->end();
     observe_offscreen();
     if (msaa) {
@@ -217,6 +218,7 @@ void WindowHost::Impl::sample_frame_sync() {
 runtime::FrameTimeSample WindowHost::Impl::observe_frame_time(double cpu_frame_time_ms) {
     // The selection rule and the capability bookkeeping live in detail::FrameTimeProbe; the host
     // records the verdict in stats and hands the raw numbers to the adaptive controller.
+    overlay_meter.record(cpu_frame_time_ms, options.runtime.frame_budget_ms);
     const detail::FrameTimeObservation observation = frame_time.observe(cpu_frame_time_ms);
     stats.frame_time_source = observation.sample.source;
     if (observation.sample.source == runtime::FrameTimeSource::Gpu) {
