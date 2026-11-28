@@ -748,5 +748,86 @@ test("collapsed edges: every collapsed group with a visible neighbour gets a res
   assert.deepEqual(wb.collapsedEdges(both).map((edge) => [edge.groupId, edge.edge]), [["g-bottom", "end"], ["g-project", "start"]]);
 });
 
+// ---- 7. import, export and saved presets (W8 #565) ---------------------------------------------------------
+
+class MemoryStorage {
+  constructor() { this.map = new Map(); }
+  getItem(key) { return this.map.has(key) ? this.map.get(key) : null; }
+  setItem(key, value) { this.map.set(key, value); }
+}
+const blocked = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } };
+
+test("import: an exported layout imports back identical, and zen is never carried", () => {
+  const layout = wb.applyPreset(dflt(), "side-by-side").layout;
+  const zen = clone(layout);
+  zen.shell.zen = true;
+  const text = wb.exportLayout(zen);
+  assert.equal(JSON.parse(text).shell.zen, false);
+  const back = wb.importLayout(text);
+  assert.ok(back.ok, JSON.stringify(back));
+  assert.deepEqual(back.layout, layout);
+});
+
+test("import: every refusal is one sentence and nothing is returned to apply", () => {
+  const refusals = [
+    ["not json", /not JSON/],
+    ["[]", /not a studio layout/],
+    ["{}", /not a studio layout/],
+    [JSON.stringify({ ...clone(dflt()), version: 999 }), /newer studio/],
+    [JSON.stringify({ ...clone(dflt()), format: "other" }), /not valid/],
+    [JSON.stringify({ ...clone(dflt()), root: { type: "group", id: "g-x", panels: [], active: "" } }), /not valid/],
+  ];
+  for (const [text, pattern] of refusals) {
+    const result = wb.importLayout(text);
+    assert.equal(result.ok, false, text.slice(0, 40));
+    assert.match(result.message, pattern, text.slice(0, 40));
+    assert.equal("layout" in result, false);
+  }
+  assert.equal(wb.importLayout("x".repeat(wb.MAX_LAYOUT_BYTES * 2 + 1)).ok, false);
+});
+
+test("import: an older layout is migrated like a stored one", () => {
+  const v1 = fixture("v1.json");
+  const result = wb.importLayout(JSON.stringify(v1));
+  assert.ok(result.ok, JSON.stringify(result));
+  assertValid(result.layout, "migrated import");
+});
+
+test("presets: save, list, replace by name, delete; a blank name and a full list are refused", () => {
+  const storage = new MemoryStorage();
+  const one = wb.applyPreset(dflt(), "editor-only").layout;
+  const two = wb.applyPreset(dflt(), "preview-focus").layout;
+  assert.deepEqual(wb.listUserPresets(storage), []);
+  assert.ok(wb.saveUserPreset(storage, " Mine ", one).ok);
+  assert.ok(wb.saveUserPreset(storage, "Other", two).ok);
+  assert.deepEqual(wb.listUserPresets(storage).map((preset) => preset.name), ["Mine", "Other"]);
+  assert.deepEqual(wb.listUserPresets(storage)[0].layout, one);
+  assert.ok(wb.saveUserPreset(storage, "Mine", two).ok);
+  assert.equal(wb.listUserPresets(storage).length, 2, "same name replaces");
+  assert.deepEqual(wb.listUserPresets(storage)[1].layout, two);
+  assert.equal(wb.saveUserPreset(storage, "  ", one).ok, false);
+  assert.equal(wb.saveUserPreset(storage, "x".repeat(wb.MAX_PRESET_NAME + 1), one).ok, false);
+  assert.deepEqual(wb.deleteUserPreset(storage, "Mine").map((preset) => preset.name), ["Other"]);
+  for (let index = 0; index < wb.MAX_USER_PRESETS; index += 1) {
+    wb.saveUserPreset(storage, `p${index}`, one);
+  }
+  const full = wb.saveUserPreset(storage, "one more", one);
+  assert.equal(full.ok, false);
+  assert.match(full.message, /delete one first/);
+});
+
+test("presets: a blocked store lists nothing and refuses a save without throwing; a corrupt store lists nothing", () => {
+  assert.deepEqual(wb.listUserPresets(blocked), []);
+  assert.deepEqual(wb.listUserPresets(null), []);
+  const refused = wb.saveUserPreset(blocked, "Mine", dflt());
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /storage is blocked/);
+  const storage = new MemoryStorage();
+  storage.setItem(wb.PRESETS_STORAGE_KEY, "{");
+  assert.deepEqual(wb.listUserPresets(storage), []);
+  storage.setItem(wb.PRESETS_STORAGE_KEY, JSON.stringify({ version: 1, presets: [{ name: "bad", layout: { nope: true } }, { name: "", layout: dflt() }] }));
+  assert.deepEqual(wb.listUserPresets(storage), [], "entries that do not validate are dropped");
+});
+
 process.stdout.write(`workbench_layout: ${passed} passed, ${failures} failed\n`);
 process.exit(failures === 0 ? 0 : 1);

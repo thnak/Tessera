@@ -76,5 +76,7 @@
   "edit.undoRename",
   "edit.toggleFormatOnSave",
   "view.history",
-  "history.restorePrevious"
+  "history.restorePrevious",
+  "view.openKeybindings",
+  "view.openSettings"
 ]

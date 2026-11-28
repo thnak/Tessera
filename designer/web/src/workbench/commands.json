@@ -1062,6 +1062,26 @@
       "status": "live"
     },
     {
+      "id": "view.openKeybindings",
+      "title": "Keyboard Shortcuts Editor",
+      "category": "View",
+      "description": "Open the keyboard shortcuts: rebind a command, see conflicts, import or export the overrides as JSON",
+      "keybinding": {
+        "default": "Mod+K Mod+S"
+      },
+      "status": "live"
+    },
+    {
+      "id": "view.openSettings",
+      "title": "Settings",
+      "category": "View",
+      "description": "Open the settings: keyboard shortcuts, saved layouts and layout import or export, the color theme",
+      "keybinding": {
+        "default": "Mod+,"
+      },
+      "status": "live"
+    },
+    {
       "id": "history.restorePrevious",
       "title": "Restore Previous Version",
       "category": "Edit",
