@@ -42,8 +42,7 @@ std::optional<Resources> load_resources() {
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
     if (!button_css || !icon_css || !switch_css || !checkbox_css || !radio_css || !range_css ||
         !progress_css || !disclosure_css || !safe_area_css || !gallery_css || !form_css ||
-        !dash_css || !swatch_css || !lists_css ||
-        !tables_css || !theme_json) {
+        !dash_css || !swatch_css || !lists_css || !tables_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }

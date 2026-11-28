@@ -282,7 +282,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area|form|dash|swatch|icons|lists|controls|tables|tags] "
+           "               [--page "
+           "buttons|safe-area|form|dash|swatch|icons|lists|controls|tables|tags] "
            "[--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"

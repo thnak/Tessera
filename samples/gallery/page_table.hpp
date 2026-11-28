@@ -62,7 +62,8 @@ template<typename Page> struct Scene {
 // here has no branch there, or the reverse - which is the drift a second list would otherwise
 // invite.
 inline constexpr std::array<std::string_view, 10> kPageNames{
-    "buttons", "safe-area", "form", "dash", "swatch", "icons", "lists", "controls", "tables", "tags"};
+    "buttons", "safe-area", "form",     "dash",   "swatch",
+    "icons",   "lists",     "controls", "tables", "tags"};
 
 // Whether `name` is a page. `--page`'s validation is this and nothing else, so an unknown page and
 // a known one are answered by the same list.
