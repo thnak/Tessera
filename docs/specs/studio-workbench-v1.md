@@ -234,7 +234,8 @@ Edit
   Find Next / Previous          *edit.findNext/Previous F3 / Shift+F3
   Replace...                    *edit.replace           Ctrl+H
   ------
-  Format Document               *edit.format           Shift+Alt+F      (ADR-061; .tsx; one undo step; format on save is on by default)
+  Format Document               *edit.format           Shift+Alt+F      (ADR-061; .tsx/.css/tessera.json; one undo step)
+  Format on Save                *edit.toggleFormatOnSave check mark (`editor.formatOnSave`); on by default
   Rename Symbol...              R:edit.renameSymbol     F2 (editor focus) (analysis service)
   Toggle Line Comment           *edit.toggleComment     Ctrl+/   (editor keymap)
 View

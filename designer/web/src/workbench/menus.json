@@ -32,7 +32,8 @@
         { "command": "edit.replace", "group": "find@4" },
         { "command": "edit.format", "group": "code@1" },
         { "command": "edit.renameSymbol", "group": "code@2" },
-        { "command": "edit.toggleComment", "group": "code@3" }
+        { "command": "edit.toggleComment", "group": "code@3" },
+        { "command": "edit.toggleFormatOnSave", "group": "code@4" }
       ]
     },
     {

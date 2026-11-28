@@ -278,7 +278,7 @@
       "services": [
         "format"
       ],
-      "note": "format service (ADR-061); .tsx only until slice 3",
+      "note": "format service (ADR-061); .tsx, .css and tessera.json",
       "status": "live"
     },
     {
@@ -1037,6 +1037,14 @@
       "category": "Notifications",
       "description": "Keep notifications in the history without showing toasts",
       "checked": "notify.dnd",
+      "status": "live"
+    },
+    {
+      "id": "edit.toggleFormatOnSave",
+      "title": "Format on Save",
+      "category": "Edit",
+      "description": "Format the open file when it is saved (tessera.studio.formatOnSave)",
+      "checked": "editor.formatOnSave",
       "status": "live"
     }
   ]
