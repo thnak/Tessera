@@ -86,6 +86,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-074](ADR-074-stylesheet-environment-w3c-names-and-tessera-prefix.md) | Stylesheet environment: the standard fold media features (`device-posture`, `*-viewport-segments`), `env()` with the standard variables, and `--tessera-` author-defined variables (hinge angle, IME and gesture insets) where the W3C has none; the angle is continuous and paint-only, never in the media context | Proposed |
 | [ADR-075](ADR-075-fetch-shim-and-query-layer.md) | Server data in TSX: a `fetch` shim (chain form, typed `json()`, abort via effect cleanup) and a `tessera/query` layer (`useQuery`, `useMutation`, `QueryClient`) over one abstract `HttpService` whose default is `NetClient` and the existing data store, with a coverage table | Proposed |
 | [ADR-077](ADR-077-tessera-cli-design-time.md) | One `tessera` command for design time: verbs over the existing drivers, a native `watch` loop with the devtools hot-reload rules, optional windowed preview, MCP gaps closed through the verbs, no second engine | Proposed |
+| [ADR-078](ADR-078-secret-storage-platform-keystore.md) | Secret storage: an async `SecretStore` over a blocking per-platform keystore seam (Credential Manager, Secret Service over the in-tree D-Bus code with no libsecret, Keychain, Android Keystore), no insecure fallback, Wasm reports unavailable, secrets never reach logs, a named in-memory fake; threat model excludes same-user malware (#841) | Proposed |
 | [ADR-076](ADR-076-per-fragment-gradients.md) | Per-fragment gradients: one quad per gradient layer, stops in the frame storage buffer, RHI 1.20 capability with a banded fallback, premultiplied interpolation (#617) | Accepted |
 
 ## Dependency overview
@@ -147,6 +148,7 @@ ADR-069 awaitable declares no resume (accepted) ── ADR-021 async runtime, AD
 ADR-070 frame arena (accepted) ── memory-model-v1 sections 2/3/9, #701 measurement
 ADR-071 GPU compute tile rasterizer (accepted with conditions) ── ADR-057 vector paths exit, ADR-004, ADR-068 storage buffers, ADR-049 RHI versioning
 ADR-072 RHI copy buffer to texture ── ADR-071 compute rasterizer handoff, ADR-049 RHI versioning, ADR-003 thin RHI
+ADR-078 secret storage (proposed) ── security.md sections 6/11, ADR-012 static linking (no libsecret), ADR-021 async runtime, ADR-050 services, ADR-052 net tokens, #403 redaction gate
 ADR-076 per-fragment gradients ── ADR-068 storage buffer, ADR-049 RHI versioning
 ADR-073 window presets (proposed) ── project-config-v1 window block, designer-studio-v1 skins and presets, responsive window-is-media-context, ADR-045 skins
 ADR-075 server data in TSX (proposed) ── ADR-058 class B shims, ADR-052 net stacks, async-data-v1 resources, ADR-067 useResource, ADR-050 services

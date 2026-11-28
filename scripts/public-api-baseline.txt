@@ -365,6 +365,26 @@ class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder
 struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedComponent
 struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateReport
 
+header include/tessera/appfw/secret_store.hpp
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretBackend
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretBytes
+class include/tessera/appfw/secret_store.hpp tessera::appfw::SecretStore
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretError
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretKey
+struct include/tessera/appfw/secret_store.hpp tessera::appfw::SecretStoreConfig
+enum include/tessera/appfw/secret_store.hpp tessera::appfw::SecretErrorCode
+function include/tessera/appfw/secret_store.hpp tessera::appfw::describe_secret_error
+function include/tessera/appfw/secret_store.hpp tessera::appfw::is_valid_secret_key
+function include/tessera/appfw/secret_store.hpp tessera::appfw::secret_error_code_name
+constant include/tessera/appfw/secret_store.hpp tessera::appfw::kMaxSecretKeyPartBytes
+
+header include/tessera/appfw/secret_store_fake.hpp
+class include/tessera/appfw/secret_store_fake.hpp tessera::appfw::FakeSecretBackend
+struct include/tessera/appfw/secret_store_fake.hpp tessera::appfw::FakeSecretCall
+
+header include/tessera/appfw/secret_store_wincred.hpp
+class include/tessera/appfw/secret_store_wincred.hpp tessera::appfw::WinCredSecretBackend
+
 header include/tessera/appfw/service.hpp
 class include/tessera/appfw/service.hpp tessera::appfw::Service
 struct include/tessera/appfw/service.hpp tessera::appfw::ServiceRegistration

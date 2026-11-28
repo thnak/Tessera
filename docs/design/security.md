@@ -134,7 +134,7 @@ case in that stage's tests; it must not be silently dropped.
 ## 6. Services and data
 
 - TLS verification on by default; no insecure fallback.
-- Secrets/tokens in the platform keystore; never in config/logs. Keystore availability per platform and the abstraction over it are not specified (open question, section 11). Auth/session
+- Secrets/tokens in the platform keystore; never in config/logs. The abstraction (an async `SecretStore` over a per-platform keystore, no plaintext fallback, Wasm unavailable) is proposed in [ADR-078](../../decisions/ADR-078-secret-storage-platform-keystore.md). Auth/session
   startup behavior is in [`startup-and-loading.md`](startup-and-loading.md).
 - Redact headers, query params, file paths, and user data in logs/crash dumps.
 - Validate deep links/notification payloads; allowlist schemes/hosts/routes. See
@@ -190,5 +190,5 @@ case in that stage's tests; it must not be silently dropped.
 - Sandboxing the compiler process (Linux seccomp / Windows Job Objects, OS process-restriction features) vs in-process.
 - Signature/verification for project assets and updates.
 - Wasm bridge authentication model for remote preview.
-- Secret storage abstraction across desktop/mobile.
+- Secret storage abstraction across desktop/mobile: proposed in [ADR-078](../../decisions/ADR-078-secret-storage-platform-keystore.md), not yet Accepted.
 - SBOM format and distribution.
