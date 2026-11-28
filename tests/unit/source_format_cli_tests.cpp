@@ -80,6 +80,34 @@ void run_cli_tests() {
               out.find("\"diagnostics\":[]") != std::string::npos,
           "--edits-json prints the edit list: " + out);
     check(run({"--edits-json"}, out, err) == 2, "--edits-json without a file exits 2");
+
+    // CSS and tessera.json (slice 3): walked, formatted, and the nearest tessera.json supplies the
+    // `format` options.
+    fs::create_directories(dir / "proj" / "src", ec);
+    write_file(dir / "proj" / "tessera.json", "{\"format\":{\"indentWidth\":4}}");
+    write_file(dir / "proj" / "src" / "a.css", "a{b:c}");
+    write_file(dir / "proj" / "package.json", "{\"x\":1}");
+    check(run({"--check", (dir / "proj").string()}, out, err) == 1, "--check sees css and json");
+    check(out.find("a.css") != std::string::npos && out.find("tessera.json") != std::string::npos &&
+              out.find("package.json") == std::string::npos,
+          "--check lists .css and tessera.json, not other json: " + out);
+    check(run({(dir / "proj").string()}, out, err) == 0, "a plain run formats css and json");
+    check(read_file(dir / "proj" / "src" / "a.css") == "a {\n    b: c;\n}\n",
+          "the nearest tessera.json's indentWidth applies to css");
+    check(read_file(dir / "proj" / "tessera.json") ==
+              "{\n    \"format\": {\n        \"indentWidth\": 4\n    }\n}\n",
+          "tessera.json is printed with its own options");
+    check(read_file(dir / "proj" / "package.json") == "{\"x\":1}", "other json is left alone");
+    check(run({"--check", (dir / "proj").string()}, out, err) == 0, "css and json are idempotent");
+    write_file(dir / "proj" / "src" / "bad.css", "a{b:c");
+    check(run({"--check", (dir / "proj").string()}, out, err) == 2 &&
+              err.find("bad.css") != std::string::npos,
+          "a refused css file exits 2");
+    fs::remove(dir / "proj" / "src" / "bad.css", ec);
+    write_file(dir / "proj" / "src" / "e.css", "a{b:c}");
+    check(run({"--edits-json", (dir / "proj" / "src" / "e.css").string()}, out, err) == 0 &&
+              out.find("\"edits\":[{") != std::string::npos,
+          "--edits-json takes a css file");
     fs::remove_all(dir, ec);
 }
 
