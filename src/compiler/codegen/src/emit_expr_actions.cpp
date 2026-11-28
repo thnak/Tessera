@@ -213,6 +213,21 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         // ADR-067 item 4: a transition-marked setter starts the transition under the resource's
         // current epoch *before* it assigns, so `isPending` is true from the moment the change is
         // applied. The mark is inert without a `Suspense`/transition surface, which is the default.
+        // An unchanged value starts no fetch, so it starts no transition: the mark would wait for
+        // an epoch that never comes (#960). A record cell is compared per field below, so its
+        // mark is not guarded.
+        bool guarded = false;
+        if (action.transition) {
+            bool record_cell = false;
+            for (const ir::State& state : component.state) {
+                record_cell = record_cell || (state.id == target &&
+                                              find_record_type_for_action(state.type, records));
+            }
+            if (!record_cell) {
+                body += "if (!(" + member_name(target) + " == " + value.text + ")) {\n";
+                guarded = true;
+            }
+        }
         if (action.transition) {
             // A deferred value settles on what the UI showed before the change, so it reads (and
             // remembers) its argument while nothing is pending.
@@ -234,6 +249,9 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
             // `isPending` changed: the bindings that read it (and a resource's status) refresh in
             // the apply_state() this handler ends with.
             body += "dirty_.set(" + dirty_bit_name(std::string(kPendingCell)) + ");\n";
+            if (guarded) {
+                body += "}\n";
+            }
         }
         // A record-typed state cell splits into one bit per read leaf path (ADR-056 decision 1,
         // #834): a `set` of `{...state, name: x}` writes only the changed field's bit, and a

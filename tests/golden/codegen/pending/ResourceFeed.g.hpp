@@ -544,8 +544,10 @@ namespace pending {
     inline void ResourceFeedBase<Self>::handler_search(const tessera::ui::ClickEvent& event) {
       using namespace ResourceFeed_detail;
       (void)event;
+      if (!(state_query_ == "next")) {
       pending_transition_.begin(res_feed_view_.read().epoch + 1);
       dirty_.set(kBit_pending_sync_);
+      }
       state_query_ = "next";
       dirty_.set(kBit_state_query_);
       if (sync_resource_keys()) {

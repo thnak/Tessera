@@ -263,6 +263,14 @@ void test_provider_binding() {
     }
     check(api.requests() == requests, "an unchanged key does not rebind");
 
+    // #960: the marked setter assigns the value the cell already holds, so no fetch starts and
+    // the mark must not wait for one.
+    feed.run_marked_set();
+    check(!feed.pending_is_pending(), "a no-op marked setter leaves isPending false");
+    check(api.requests() == requests, "a no-op marked setter starts no fetch");
+    feed.pending_sync();
+    check(!feed.pending_is_pending(), "isPending stays false after the next sync");
+
     feed.detach_scheduler(scheduler);
 }
 

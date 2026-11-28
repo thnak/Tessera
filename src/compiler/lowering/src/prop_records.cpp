@@ -224,6 +224,23 @@ void fail_type(NodeState& state, std::string_view code, std::string message, std
                                   std::string(file)};
 }
 
+// A prop declared as a string literal or a union of them: its IR type is `string`, so this is the
+// only record that its set of values is closed (#960).
+bool is_string_literal_set(const jsx::TypeNode& type) {
+    if (type.kind == jsx::TypeKind::StringLiteral) {
+        return true;
+    }
+    if (type.kind != jsx::TypeKind::Union || type.children.empty()) {
+        return false;
+    }
+    for (const jsx::TypePtr& child : type.children) {
+        if (!child || child->kind != jsx::TypeKind::StringLiteral) {
+            return false;
+        }
+    }
+    return true;
+}
+
 enum class MembersKind : std::uint8_t { None, Found, Error };
 
 // The declared members of the props type, or `None` when the component declares no props parameter
@@ -308,7 +325,8 @@ MembersKind props_members(NodeState& state, MembersView& view) {
 
 } // namespace
 
-DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& props) {
+DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& props,
+                                       std::vector<std::string>* enum_like) {
     MembersView view;
     const MembersKind kind = props_members(state, view);
     if (kind == MembersKind::None) {
@@ -340,6 +358,9 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
                       "write an IR type, for example `string`, `int`, `T[]`, `optional<...>` or "
                       "a payload record name");
             return DeclaredPropsKind::Error;
+        }
+        if (enum_like != nullptr && *type == "string" && is_string_literal_set(*member.type)) {
+            enum_like->push_back(member.name);
         }
         if (member.name == "children") {
             // Section 3.4: the slot has the `children` type, no default and no `?`.

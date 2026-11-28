@@ -7,6 +7,7 @@
 #include "hook_lowering_internal.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -188,8 +189,8 @@ void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks
         return;
     }
     // The deferred source: a `useState` cell, or a destructured prop (pending-ui-v1.md section 6).
-    // A prop's IR type is `string` for a literal union, so only a bool or a number prop can be
-    // deferred; the union's closed set is not recorded for a prop.
+    // A prop's IR type is `string` for a literal union too, so the lowering of the props type
+    // records which string props are one (#960); a plain `string` prop is rejected like a state.
     std::string source_type;
     if (info->source_is_prop) {
         if (context.declared_props != nullptr) {
@@ -199,12 +200,19 @@ void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks
                 }
             }
         }
-        if (source_type != "bool" && source_type != "int" && source_type != "float") {
+        bool enum_like = false;
+        if (source_type == "string" && context.enum_like_props != nullptr) {
+            enum_like = std::find(context.enum_like_props->begin(), context.enum_like_props->end(),
+                                  info->source_state) != context.enum_like_props->end();
+        }
+        if (source_type != "bool" && source_type != "int" && source_type != "float" && !enum_like) {
             fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                      "`useDeferredValue` holds a bool or number prop; `" + info->source_state +
-                          "` is none of those",
+                      "`useDeferredValue` holds a bool, number or enum-like (string literal "
+                      "union) prop; `" +
+                          info->source_state + "` is none of those",
                       statement.span,
-                      "defer a bool or number prop, or copy the prop into `useState`");
+                      "defer a bool or number prop, type the string as a literal union, or copy "
+                      "the prop into `useState`");
             return;
         }
     } else {

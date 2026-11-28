@@ -271,6 +271,9 @@ const [isPending, startTransition] = useTransition();
 - The mark holds one epoch and one flag. `observe(loading, epoch)` ignores a completion whose epoch is
   not the mark's own, so a late response for a superseded key cannot clear a newer transition.
 - When the read settles (data, or failure keeping the old data), `isPending` becomes false.
+- A marked setter that assigns the value the cell already holds starts no fetch, so it starts no
+  transition (#960): the mark is not begun, in the generated code and in the evaluator alike. A
+  record-typed cell is not guarded (it compares field by field and has no whole-value `==` yet).
 - An `isPending` UI shows a subtle indicator and never clears the screen
   ([`async-data-v1.md`](async-data-v1.md) section 6).
 - `startTransition` is never aliased to "never pending" (ADR-067, alternatives).
@@ -292,7 +295,7 @@ const [isPending, startTransition] = useTransition();
 - Its meaning is weaker than React's: it is the settled value, not a lower-priority render. Ported code
   gets the same result but not the same timing, and the documentation MUST say so.
 - Implemented in #656 slice 3 and #956: `const d = useDeferredValue(x)` takes the name of a `useState`
-  value, or of a destructured bool or number prop (decision 18), and lowers to one `deferred_value` `behaviors` entry whose one arg is `x` and
+  value, or of a destructured bool, number or enum-like string prop (decision 18), and lowers to one `deferred_value` `behaviors` entry whose one arg is `x` and
   whose one output `value` has `x`'s type; `d` reads `beh::d.value`. The generated base keeps one
   `DeferredScalar` member and reads it through an accessor; a marked setter reads it just before it
   assigns, so the settled value is what the UI showed before the change. The evaluator runs the same
@@ -377,7 +380,9 @@ sync first, without scheduling, so an effect that depends on a resource sees thi
 marked setter sets the cell itself. A host with an `UpdateScheduler` attached therefore calls
 `pending_sync()` (or nothing, when a provider drives the views, which still needs the frame boundary
 to call it) and the bindings refresh; without a scheduler the dirty bit waits for the next
-`flush_update()` or `update()`. The signature compares the address and length of a text, not its
+`flush_update()` or `update()` (a known limit, #960: a scheduler-less host must call one of them
+after `pending_sync()`; `pending_sync()` does not run `update()` itself because it is also called inside
+handlers that end in their own `apply_state()`). The signature compares the address and length of a text, not its
 bytes: a source republishes through a new epoch.
 
 ### 10.2 Binding the data store: `ResourceProvider`
@@ -520,9 +525,9 @@ Decisions taken for #956 (2026-11-28), conservative again:
     body reads them; the IR dependency is `res::feed.<field>` and the dependency hash is the status
     word, the typed scalar or the error text. Only the effect rule asks for resource reads: a memo list is
     unchanged.
-18. **`useDeferredValue` over a prop.** A destructured prop of type bool, int or float. A string prop is
-    `TESSERA_IR_UNSUPPORTED` because a literal union is not recorded in a prop's IR type (copy it into
-    `useState` to defer it).
+18. **`useDeferredValue` over a prop.** A destructured prop of type bool, int or float, or a string
+    declared as a literal union (#960: lowering records which string props are one, because the IR
+    type is plain `string`). A plain `string` prop is `TESSERA_IR_UNSUPPORTED`.
 19. **Key against parameters.** One scalar for a one-parameter method, or a record naming each parameter
     once; part types must equal the declared type (an `int` may supply a `float`); a part whose type is
     unknown (a derived expression) is let through. Reported as `TESSERA_REACT_HOOK_ARG`.

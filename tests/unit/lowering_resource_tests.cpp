@@ -401,7 +401,17 @@ void test_deferred_value_over_a_prop() {
     }
     const Lowered text = lower(with_prop("string"), manifest);
     check(text.error.find("TESSERA_IR_UNSUPPORTED") != std::string::npos,
-          "a string prop is rejected (its union is not in the IR): " + text.error);
+          "a plain string prop is rejected (no closed set of values): " + text.error);
+    // #960: a literal union is the closed set a deferred string needs.
+    const Lowered mode = lower(with_prop("\"a\" | \"b\""), manifest);
+    check(mode.module.has_value(), "a string literal union prop lowers: " + mode.error);
+    if (mode.module) {
+        check_eq(mode.codes, "", "the union module validates");
+        const auto& behaviors = mode.module->components.at(0).behaviors;
+        check(behaviors.size() == 1 && behaviors[0].args[0].expr.id == "prop::level" &&
+                  behaviors[0].outputs.at(0).type == "string",
+              "the deferred union prop is a string output");
+    }
 }
 
 void test_key_matches_the_method_parameters() {

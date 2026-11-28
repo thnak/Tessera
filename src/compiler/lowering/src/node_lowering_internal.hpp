@@ -91,8 +91,9 @@ enum class DeclaredPropsKind : std::uint8_t {
     Lowered, // `props` holds one record per declared member, in declaration order
     Error,   // a diagnostic was reported: unsupported type, duplicate name or a malformed slot
 };
-[[nodiscard]] DeclaredPropsKind lower_declared_props(NodeState& state,
-                                                     std::vector<ir::Prop>& props);
+// `enum_like`, when given, receives the names of the string props declared as a literal union.
+[[nodiscard]] DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& props,
+                                                     std::vector<std::string>* enum_like = nullptr);
 
 // Forwarding a callback prop of the component as the handler of an event (issue #286). `matched`
 // is false when `name` is not a prop at all (the caller reports its own "not a handler" error);
