@@ -369,8 +369,7 @@ void test_slider() {
     }
     const ir::Node& root = slider.component->root;
     check_eq(prop_text(root, "role"), "slider", "the slider role");
-    for (const char* name :
-         {"aria-valuenow", "aria-valuemin", "aria-valuemax", "aria-disabled"}) {
+    for (const char* name : {"aria-valuenow", "aria-valuemin", "aria-valuemax", "aria-disabled"}) {
         check(root.props.count(name) == 1, std::string(name) + " is exposed");
     }
     check(slider.component->handlers.size() == 5, "size, three pointer and one key handler");
