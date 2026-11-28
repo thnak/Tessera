@@ -152,7 +152,15 @@
       "target": "Text"
     },
     {
-      "note": "does not focus its control; `htmlFor` is rejected [Q11]",
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "htmlFor",
+          "note": "a static string naming a control's id",
+          "rename": "aria-for"
+        }
+      ],
+      "note": "`htmlFor` forwards focus and activation to the control with that id",
       "status": "mapped",
       "tag": "label",
       "target": "Text"
@@ -261,24 +269,52 @@
     {
       "attrs": [
         {
-          "kind": "reject",
+          "kind": "rename",
           "name": "href",
-          "suggestion": "no `href` in V1; use `onClick`"
+          "note": "a static string of at most 128 bytes",
+          "rename": "aria-href"
         },
         {
-          "kind": "reject",
+          "kind": "valueMap",
           "name": "target",
-          "suggestion": "no `href` in V1; use `onClick`"
+          "note": "must be a string literal",
+          "suggestion": "an external URL always opens through the shell service",
+          "values": [
+            {
+              "value": "_self"
+            },
+            {
+              "value": "_blank"
+            }
+          ]
         },
         {
-          "kind": "reject",
+          "kind": "valueMap",
           "name": "rel",
-          "suggestion": "no `href` in V1; use `onClick`"
+          "note": "must be a string literal",
+          "suggestion": "an external URL always opens through the shell service",
+          "values": [
+            {
+              "value": "noopener"
+            },
+            {
+              "value": "noreferrer"
+            },
+            {
+              "value": "noopener noreferrer"
+            },
+            {
+              "value": "nofollow"
+            },
+            {
+              "value": "external"
+            }
+          ]
         },
         {
           "kind": "reject",
           "name": "download",
-          "suggestion": "no `href` in V1; use `onClick`"
+          "suggestion": "no V1 meaning; use the shell service's save dialog"
         }
       ],
       "inject": [
@@ -287,8 +323,8 @@
           "value": "link"
         }
       ],
-      "note": "`href`, `target`, `rel` and `download` are rejected; use `onClick` [Q11]",
-      "status": "partial",
+      "note": "`href` is an internal route path or an external URL (shell service); `target` and `rel` are dropped",
+      "status": "mapped",
       "tag": "a",
       "target": "Text"
     },
@@ -1066,6 +1102,30 @@
         "Suspense"
       ],
       "note": "the number of a list item; `li value` is rewritten to it (a static integer)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-href",
+      "name": "aria-href",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "where a link goes: an absolute route path or a URL; `a href` is rewritten to it (a static string of at most 128 bytes)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-for",
+      "name": "aria-for",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "the `id` of the control a label belongs to; `label htmlFor` is rewritten to it (a string or an expression)",
       "type": "string",
       "value": "expr"
     },

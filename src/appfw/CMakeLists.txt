@@ -236,6 +236,19 @@ target_compile_features(tessera_appfw_shell PUBLIC cxx_std_23)
 target_link_libraries(tessera_appfw_shell
     PUBLIC tessera_appfw_core tessera_runtime)
 
+# `LinkRouter` (issue #542, ADR-059 group B): what an `a href` does. It joins two optional modules,
+# so it is its own target and an app that links neither navigation nor the shell links none of it.
+add_library(tessera_appfw_link STATIC
+    link_router.cpp)
+
+target_include_directories(tessera_appfw_link PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_link PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_link
+    PUBLIC tessera_appfw_navigation tessera_appfw_shell)
+
 # The Win32 back end (issue #450, section 1's Windows column). It is its own target so the platform
 # libraries are linked only where they exist, and so a Linux or Wasm build never sees a `windows.h`.
 # It depends on the module for the seam types and on `tessera_hal_clipboard` for the clipboard
@@ -549,6 +562,16 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_shell_tests PRIVATE tessera_appfw_shell tessera_runtime)
     add_test(NAME appfw_shell COMMAND appfw_shell_tests)
+
+    # `LinkRouter` (issue #542): internal href through NavController, external URL through the fake
+    # shell, scheme policy. Deterministic like both suites it borrows fixtures from.
+    add_executable(appfw_link_router_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_link_router_tests.cpp)
+    target_include_directories(appfw_link_router_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_link_router_tests PRIVATE
+        tessera_appfw_link tessera_scene tessera_runtime)
+    add_test(NAME appfw_link_router COMMAND appfw_link_router_tests)
 
     # The permissions contract suite (issue #451, docs/specs/permissions-v1.md). Deterministic end to
     # end - `ManualClock` for every instant, `FakePermissionBackend` for the platform, a hand-drained

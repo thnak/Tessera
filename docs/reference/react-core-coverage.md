@@ -96,7 +96,7 @@ corpus did not exercise. As written it is accepted 34.9% at the front end and 4.
 | `e.preventDefault()`, `e.stopPropagation()` | native handlers only (Q3); a native body is `TESSERA_IR_UNSUPPORTED` (measured) | keep | | |
 | Controlled inputs, `value`, `defaultValue`, `placeholder`, `disabled`, `readOnly` | accepted | keep | | `value` without `onChange` is a warning |
 | `checked`, `type="checkbox" / "radio" / "range"`, `select` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: the front end accepts the attributes) | later | M | Provided by the library components Checkbox, RadioList, Switch, Selector (ADR-064 tiers 3 to 5), not as intrinsics. A schema row |
-| `label htmlFor` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: the front end accepts the attribute) | later | M | Becomes the association of `FieldLabel` and its control in the Field stack. A schema row |
+| `label htmlFor` | accepted on a `label` node (issue #542): `aria-for`, focus and activation forwarded to the control by id | keep | | Not on an inline span yet |
 | Callback refs | rejected | no | | Function values |
 | `autoFocus` | rejected (`TESSERA_IR_UNKNOWN_PROP` on `<TextInput>`, measured; `<View>` already declares it) | add | S | A focus request at mount; the behavior is defined with `useFocusTrap` and focus management. A schema row: the prop exists on `View` and not on the input elements |
 

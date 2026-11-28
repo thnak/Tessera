@@ -21,6 +21,8 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `aria-start` | string | E | `""` | `props["aria-start"]` | same | First number of an ordered list; `ol start` is rewritten to it (a static integer) ([`list-style.md`](../../design/list-style.md)) |
 | `aria-reversed` | bool | E | `false` | `props["aria-reversed"]` | same | An ordered list counts down; `ol reversed` is rewritten to it |
 | `aria-value` | string | E | `""` | `props["aria-value"]` | same | The number of a list item; `li value` is rewritten to it (a static integer) |
+| `aria-href` | string | E | `""` | `props["aria-href"]` | same | Where a link goes; `a href` is rewritten to it (a static string of at most 128 bytes, [`html-aliases.md`](html-aliases.md) section 3.5) |
+| `aria-for` | string | E | `""` | `props["aria-for"]` | same | The `id` of the control a label belongs to; `label htmlFor` is rewritten to it (a string or an expression) |
 | `aria-level` | string | E | `""` | `props["aria-level"]` | same | Heading level `"1"`-`"6"`; `h1`-`h6` inject it and the user-agent sheet sizes by it ([`ua-audit.md`](../../reference/ua-audit.md)) |
 | `aria-disabled`, `aria-selected`, `aria-expanded`, `aria-busy`, `aria-invalid`, `aria-readonly`, `aria-required` | bool | E | `false` | `props["aria-..."]` | same | The state of the same name in [`accessibility-v1.md`](../accessibility-v1.md) section 2 |
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |

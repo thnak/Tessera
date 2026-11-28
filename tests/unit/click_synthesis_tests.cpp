@@ -9,6 +9,8 @@
 
 #include <iostream>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace {
 
@@ -20,6 +22,7 @@ using tessera::ui::InputEventType;
 using tessera::ui::InputRouter;
 using tessera::ui::Modifier;
 using tessera::ui::Node;
+using tessera::ui::NodeId;
 using tessera::ui::PointerButton;
 using tessera::ui::PointerKind;
 namespace key = tessera::ui::key;
@@ -278,6 +281,120 @@ bool keyboard_and_invoke() {
                   "invoke clicks with the accessibility source");
 }
 
+// `a href` and `label htmlFor` (issue #542): the default action of a click.
+struct LinkScene {
+    Node root{1};
+    Node* link = nullptr;
+    Node* checkbox = nullptr;
+    Node* field = nullptr;
+    Node* label_box = nullptr;
+    Node* label_field = nullptr;
+    Node* label_missing = nullptr;
+    Node* label_self = nullptr;
+    Counter checkbox_clicks;
+    std::vector<std::string> followed;
+
+    Node& add(NodeId id, float x, float y, std::string_view kind) {
+        auto node = std::make_unique<Node>(id);
+        node->set_bounds({x, y, 60, 20});
+        node->set_element_kind(kind);
+        return root.add_child(std::move(node));
+    }
+
+    LinkScene() {
+        root.set_bounds({0, 0, 400, 200});
+        link = &add(10, 10, 10, "Text");
+        link->set_role("link");
+        link->set_aria("aria-href", "/settings");
+        link->set_focusable(true);
+        checkbox = &add(11, 10, 50, "View");
+        checkbox->set_role("checkbox");
+        checkbox->set_element_id("agree");
+        checkbox->set_focusable(true);
+        checkbox->bind_event(EventType::Click, &on_click, &checkbox_clicks);
+        field = &add(12, 10, 90, "TextInput");
+        field->set_element_id("name");
+        field->set_focusable(true);
+        label_box = &add(13, 100, 50, "Text");
+        label_box->set_aria("aria-for", "agree");
+        label_field = &add(14, 100, 90, "Text");
+        label_field->set_aria("aria-for", "name");
+        label_missing = &add(15, 100, 130, "Text");
+        label_missing->set_aria("aria-for", "nobody");
+        label_self = &add(16, 10, 130, "Text");
+        label_self->set_element_id("self");
+        label_self->set_aria("aria-for", "self");
+    }
+};
+
+bool click_at(InputRouter& router, Node& root, float x, float y) {
+    router.dispatch(root, pointer(InputEventType::PointerDown, x, y));
+    router.dispatch(root, pointer(InputEventType::PointerUp, x, y));
+    return true;
+}
+
+bool links_and_labels() {
+    LinkScene scene;
+    InputRouter router;
+    router.focus_manager().set_root(scene.root);
+
+    // No handler installed: a link click is just a click, never a crash.
+    click_at(router, scene.root, 20, 20);
+    if (!expect(scene.followed.empty(), "no handler, nothing followed")) {
+        return false;
+    }
+
+    router.set_link_handler([&scene](Node& link, std::string_view href) {
+        scene.followed.emplace_back(href);
+        (void)link;
+    });
+    click_at(router, scene.root, 20, 20);
+    if (!expect(scene.followed.size() == 1 && scene.followed[0] == "/settings",
+                "a pointer click follows the link's aria-href")) {
+        return false;
+    }
+
+    router.focus_manager().request_focus(scene.link);
+    router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kEnter));
+    if (!expect(scene.followed.size() == 2, "Enter on a focused link follows it")) {
+        return false;
+    }
+    router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kSpace));
+    router.dispatch(scene.root, keyboard(InputEventType::KeyUp, key::kSpace));
+    if (!expect(scene.followed.size() == 2, "Space does not follow a link")) {
+        return false;
+    }
+
+    // A label forwards focus and the click to a checkbox, and only focus to a text field.
+    click_at(router, scene.root, 110, 60);
+    if (!expect(router.focus_manager().focused() == scene.checkbox,
+                "a label click focuses its control") ||
+        !expect(scene.checkbox_clicks.clicks == 1 &&
+                    scene.checkbox_clicks.last_source == ClickSource::Accessibility,
+                "and activates a checkbox once")) {
+        return false;
+    }
+    click_at(router, scene.root, 110, 100);
+    if (!expect(router.focus_manager().focused() == scene.field, "a label focuses a text field") ||
+        !expect(scene.checkbox_clicks.clicks == 1, "without clicking anything else")) {
+        return false;
+    }
+
+    // Clicking the control itself is not forwarded anywhere, a missing id and a self-reference
+    // are no-ops, and nothing loops.
+    click_at(router, scene.root, 20, 60);
+    if (!expect(scene.checkbox_clicks.clicks == 2, "a direct click on the control is one click")) {
+        return false;
+    }
+    router.focus_manager().request_focus(scene.link);
+    click_at(router, scene.root, 110, 140);
+    click_at(router, scene.root, 20, 140);
+    return expect(router.focus_manager().focused() != scene.checkbox &&
+                      router.focus_manager().focused() != scene.field &&
+                      scene.checkbox_clicks.clicks == 2,
+                  "a missing id and a self-reference change nothing");
+}
+
 } // namespace
 
 int main() {
@@ -289,6 +406,9 @@ int main() {
     }
     if (!keyboard_and_invoke()) {
         return 3;
+    }
+    if (!links_and_labels()) {
+        return 4;
     }
     std::cout << "click_synthesis: ok\n";
     return 0;

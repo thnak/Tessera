@@ -26,6 +26,7 @@ set(_tessera_lowering_core_sources
     src/literal_lowering.cpp
     src/module_css.cpp
     src/module_lowering.cpp
+    src/node_alias_attributes.cpp
     src/node_attributes.cpp
     src/node_children.cpp
     src/node_children_items.cpp

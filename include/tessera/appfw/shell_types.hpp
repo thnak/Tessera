@@ -56,11 +56,13 @@ enum class ShellCapability : std::uint8_t {
     MenuBar,
     Tray,
     GlobalShortcut,
+    // Hands a URL to the system (browser, mail client, dialer): the external form of `a href`.
+    OpenUrl,
 };
 
 // How many bits `ShellCapabilities` can hold. The spec's mask is 64-bit; the enumerator set is
 // deliberately smaller, and this constant is what a `static_assert` below pins.
-inline constexpr std::size_t kShellCapabilityCount = 12;
+inline constexpr std::size_t kShellCapabilityCount = 13;
 
 [[nodiscard]] constexpr std::uint64_t shell_capability_bit(ShellCapability capability) noexcept {
     return std::uint64_t{1} << static_cast<std::uint8_t>(capability);
@@ -93,6 +95,8 @@ shell_capability_name(ShellCapability capability) noexcept {
         return "tray";
     case ShellCapability::GlobalShortcut:
         return "global-shortcut";
+    case ShellCapability::OpenUrl:
+        return "open-url";
     }
     return "unknown";
 }
@@ -136,6 +140,8 @@ struct ClipboardContent {
 // HAL clipboard seam's own cap, so a payload that survives one survives the other and a caller
 // never sees a value the platform would refuse.
 inline constexpr std::size_t kMaxShellClipboardBytes = 64 * 1024;
+// A URL handed to the system handler is bounded like a clipboard write: far beyond any real link.
+inline constexpr std::size_t kMaxShellUrlBytes = 2048;
 
 // Section 5's dialog filters: a display label plus the extensions it accepts. An empty extension
 // list means "any file", which is how a dialog offers its "All files" row.
@@ -327,6 +333,7 @@ struct ShellDiagnostics {
 
     std::uint64_t clipboard_reads = 0;
     std::uint64_t clipboard_writes = 0;
+    std::uint64_t urls_opened = 0;
     std::uint64_t dialogs_opened = 0;
     std::uint64_t dialogs_cancelled = 0;
     std::uint64_t refused_unsupported = 0;

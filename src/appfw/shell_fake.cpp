@@ -15,7 +15,8 @@ ShellCapabilities desktop_shell_capabilities() noexcept {
                              shell_capability_bit(ShellCapability::ContextMenu) |
                              shell_capability_bit(ShellCapability::FileOpen) |
                              shell_capability_bit(ShellCapability::FileSave) |
-                             shell_capability_bit(ShellCapability::FolderPick);
+                             shell_capability_bit(ShellCapability::FolderPick) |
+                             shell_capability_bit(ShellCapability::OpenUrl);
     capabilities.permissioned = capabilities.supported;
     return capabilities;
 }
@@ -131,6 +132,25 @@ bool FakeShell::start_clipboard_write(ClipboardContent content, runtime::Cancell
     return true;
 }
 
+bool FakeShell::start_open_url(std::string url, runtime::CancellationToken token,
+                               OpenUrlCompletion on_done) {
+    if (!available_) {
+        return false;
+    }
+    received_.push_back(FakeShellCall{FakeShellCall::Kind::OpenUrl, DialogKind::Open, url, {}});
+    if (token_cancelled(token)) {
+        ++cancelled_operations_;
+        return true;
+    }
+    // A URL hand-off has no script or delay: it completes on the next queue drain, like the
+    // platform call returning.
+    if (on_done) {
+        completions_->post(runtime::CompletionPriority::Visible,
+                           [on_done = std::move(on_done), ok = open_url_ok_]() { on_done(ok); });
+    }
+    return true;
+}
+
 bool FakeShell::start_dialog(DialogRequest request, runtime::CancellationToken token,
                              DialogCompletion on_done) {
     if (!available_) {
@@ -234,6 +254,8 @@ std::size_t FakeShell::deliver_due() {
             }
             break;
         }
+        case FakeShellCall::Kind::OpenUrl:
+            break;
         case FakeShellCall::Kind::Dialog: {
             auto callback = std::move(entry.on_dialog);
             if (callback) {

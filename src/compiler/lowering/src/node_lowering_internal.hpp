@@ -159,6 +159,15 @@ struct ChildItem {
                                             ir::Node& node);
 
 // Attributes and children of an element already created by make_node.
+// The alias rewrites that carry a static value to the scene as an `aria-*` prop (`ol start`,
+// `li value`, `a href`, `label htmlFor`) and the dropped `a target`/`rel` values (html-aliases.md
+// section 3.5, node_alias_attributes.cpp). nullopt when `attribute` is not such a rewrite;
+// otherwise true on success and false after reporting.
+[[nodiscard]] std::optional<bool> lower_alias_attribute(NodeState& state,
+                                                        const ElementInfo& element,
+                                                        const jsx::JsxAttribute& attribute,
+                                                        ir::Node& node);
+
 [[nodiscard]] bool lower_attributes(NodeState& state, const jsx::JsxNode& element,
                                     const ElementInfo& info, ir::Node& node);
 [[nodiscard]] bool lower_children(NodeState& state, const jsx::JsxNode& element,
