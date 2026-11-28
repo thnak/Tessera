@@ -269,7 +269,7 @@ invalidated, evicted); and the overlay's `layers` line (`OverlayFrame::layers_en
 `layer_*` fields: `layers 3  3072KiB  hit 40  rec 3  refused 1  evicted 2  promoted 2`), omitted
 when the cache is off so the existing overlay is unchanged. `tessera::app::fill_layer_overlay`
 ([`layer_overlay.hpp`](../../../src/app/layer_overlay.hpp)) fills those fields from the two stats
-structs; the window driver draws no overlay yet, so only the helper is wired.
+structs; the window driver calls it when `diagnosticsOverlay` is on (issue #1024).
 
 **Tests.** `paint_layer_promotion` (policy and paint pass: earns the promotion, records then hits,
 a dirty node never hits a stale layer, flat for few draws, small area, glass inside, faded, LCD,
