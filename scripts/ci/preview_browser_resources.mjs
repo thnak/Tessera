@@ -11,11 +11,12 @@
 // from the engine's report, and Resolve, a stale-epoch Resolve, Fetch and Fail change the status, the
 // epoch and the summary sentence exactly as the engine says. The page keeps no copy of the state.
 //
-// Not a repository test: run it from a directory whose node_modules has playwright (like its neighbours).
+// Browser launch and the lost-device SKIP policy come from `browser_gpu.mjs` (#958). Run from a
+// directory whose node_modules has playwright (like its neighbours); wired into pages.yml.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { chromium } from 'playwright';
+import { createGate, launchGpuBrowser, pageLostDevice } from './browser_gpu.mjs';
 import { editEntry, ensureProject, openPanel, tab } from './studio_project.mjs';
 
 const MIME = {
@@ -48,24 +49,6 @@ const server = createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await chromium.launch({
-  args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader'],
-});
-const page = await (await browser.newContext()).newPage();
-const consoleErrors = [];
-page.on('console', (message) => {
-  if (message.type() === 'error') consoleErrors.push(message.text());
-});
-page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error)}`));
-await page.goto(base, { waitUntil: 'load' });
-
-let failures = 0;
-function check(name, ok, detail) {
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? '  -- ' + detail : ''}`);
-  if (!ok) failures += 1;
-}
-const settle = (ms = 500) => page.waitForTimeout(ms);
-
 const SERVICES = JSON.stringify({
   version: 1,
   services: [
@@ -97,53 +80,77 @@ const SOURCE = [
   '',
 ].join('\n');
 
-check('a project with ui/services.json opens', await ensureProject(page, { extraFiles: [['ui/services.json', SERVICES]], force: true }));
-await tab(page, 'canvas');
-await settle(600);
-await editEntry(page, SOURCE);
-await page.locator('#restart-app').click();
-await settle(2500);
+const gate = createGate();
+const { check, section } = gate;
+const browser = await launchGpuBrowser();
 
-check('the Platform events panel opens', await openPanel(page, 'platform-events'));
-await page.locator('#flexlayout-tabbutton-platform-events').click();
-await settle(400);
+try {
+  // The Resources panel is fed by the canvas session's engine report, so a runner that lost its WebGPU
+  // device cannot be judged: the section is retried and then reported as a SKIP, never a pass (#958).
+  await section('the Resources panel (#976)', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const consoleErrors = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error)}`));
+    await page.goto(base, { waitUntil: 'load' });
+    const settle = (ms = 500) => page.waitForTimeout(ms);
+    check('a project with ui/services.json opens', await ensureProject(page, { extraFiles: [['ui/services.json', SERVICES]], force: true }));
+    await tab(page, 'canvas');
+    await settle(600);
+    await editEntry(page, SOURCE);
+    await page.locator('#restart-app').click();
+    await settle(2500);
 
-const panel = page.locator('#resource-panel');
-await panel.waitFor({ state: 'attached', timeout: 8000 }).catch(() => {});
-check('the Resources section appears for a component with useResource', (await panel.count()) === 1);
-const row = page.locator('.resource-row[data-resource="res::feed"]');
-const rowText = async () => ((await row.locator('.resource-status').textContent()) ?? '').trim();
-const summary = async () => ((await page.locator('#resource-summary').textContent()) ?? '').trim();
-const notice = async () => ((await page.locator('#resource-notice').textContent()) ?? '').trim();
-const press = async (action) => {
-  await row.locator(`button[data-action="${action}"]`).click();
-  await settle();
-};
+    check('the Platform events panel opens', await openPanel(page, 'platform-events'));
+    await page.locator('#flexlayout-tabbutton-platform-events').click();
+    await settle(400);
 
-check('it opens on a fetch in flight (epoch 1) and the boundary shows its fallback', /^loading \(epoch 1\)/.test(await rowText()) && /fallback/.test(await summary()), `${await rowText()} | ${await summary()}`);
+    const panel = page.locator('#resource-panel');
+    await panel.waitFor({ state: 'attached', timeout: 8000 }).catch(() => {});
+    check('the Resources section appears for a component with useResource', (await panel.count()) === 1);
+    const row = page.locator('.resource-row[data-resource="res::feed"]');
+    const rowText = async () => ((await row.locator('.resource-status').textContent()) ?? '').trim();
+    const summary = async () => ((await page.locator('#resource-summary').textContent()) ?? '').trim();
+    const notice = async () => ((await page.locator('#resource-notice').textContent()) ?? '').trim();
+    const press = async (action) => {
+      await row.locator(`button[data-action="${action}"]`).click();
+      await settle();
+    };
 
-await row.locator('.resource-value').fill('hello');
-await press('resolve');
-check('Resolve restores the content: status ready, no fallback', /^ready \(epoch 1\)/.test(await rowText()) && /content is showing/.test(await summary()), `${await rowText()} | ${await summary()}`);
+    check('it opens on a fetch in flight (epoch 1) and the boundary shows its fallback', /^loading \(epoch 1\)/.test(await rowText()) && /fallback/.test(await summary()), `${await rowText()} | ${await summary()}`);
 
-await row.locator('.resource-epoch').fill('7');
-await press('resolve');
-check('a Resolve for a stale epoch is dropped and the panel says so', /dropped/.test(await notice()) && /^ready \(epoch 1\)/.test(await rowText()), `${await notice()} | ${await rowText()}`);
-await row.locator('.resource-epoch').fill('');
+    await row.locator('.resource-value').fill('hello');
+    await press('resolve');
+    check('Resolve restores the content: status success, no fallback', /^success \(epoch 1\)/.test(await rowText()) && /content is showing/.test(await summary()), `${await rowText()} | ${await summary()}`);
 
-await press('fetch');
-check('Fetch starts the next epoch and the content is held with isPending', /\(epoch 2\)/.test(await rowText()) && /isPending is true/.test(await summary()), `${await rowText()} | ${await summary()}`);
+    await row.locator('.resource-epoch').fill('7');
+    await press('resolve');
+    check('a Resolve for a stale epoch is dropped and the panel says so', /dropped/.test(await notice()) && /^success \(epoch 1\)/.test(await rowText()), `${await notice()} | ${await rowText()}`);
+    await row.locator('.resource-epoch').fill('');
 
-await row.locator('.resource-value').fill('boom');
-await press('fail');
-check('Fail reports the error and keeps the data on screen', /boom/.test(await rowText()) && /content is showing/.test(await summary()), `${await rowText()} | ${await summary()}`);
+    await press('fetch');
+    check('Fetch starts the next epoch: status refreshing, the content stays on screen', /^refreshing \(epoch 2\)/.test(await rowText()) && /content is showing/.test(await summary()), `${await rowText()} | ${await summary()}`);
 
-await row.locator('.resource-epoch').fill('abc');
-await press('resolve');
-check('a malformed epoch is refused before anything is sent', /whole number/.test(await notice()), await notice());
+    await row.locator('.resource-value').fill('boom');
+    await press('fail');
+    check('Fail reports the error and keeps the data on screen', /boom/.test(await rowText()) && /content is showing/.test(await summary()), `${await rowText()} | ${await summary()}`);
 
-check('No console errors', consoleErrors.filter((entry) => !/Failed to load resource/.test(entry)).length === 0, consoleErrors.slice(0, 3).join(' | ') || 'none');
-console.log(`\n${failures === 0 ? 'all resource panel checks passed' : `${failures} check(s) failed`}`);
-await browser.close();
-server.close();
-process.exit(failures === 0 ? 0 : 1);
+    await row.locator('.resource-epoch').fill('abc');
+    await press('resolve');
+    check('a malformed epoch is refused before anything is sent', /whole number/.test(await notice()), await notice());
+
+    check('No console errors', consoleErrors.filter((entry) => !/Failed to load resource/.test(entry)).length === 0, consoleErrors.slice(0, 3).join(' | ') || 'none');
+
+    const lost = await pageLostDevice(page);
+    await context.close();
+    return lost;
+  });
+} finally {
+  await browser.close();
+  server.close();
+}
+
+process.exit(gate.finish('resource panel'));
