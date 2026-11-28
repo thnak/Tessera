@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// The `compile` service worker (#569, ADR-060, docs/specs/studio-services-v1.md section 13): the page's
+// The `compile` service worker (#569, ADR-060, docs/specs/studio-services-v1.md section 14): the page's
 // compile-and-diagnose view behind the services protocol, so the page never calls a Wasm export itself.
 //
 // Like the format and analysis services it is classic-script source built around an *engine*, so one
