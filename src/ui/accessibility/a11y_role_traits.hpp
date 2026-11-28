@@ -223,6 +223,14 @@ inline constexpr std::array<RoleTraits, static_cast<std::size_t>(Role::kCount)> 
      .uia = UiaControlType::Text,
      .layer = AtspiLayer::Background,
      .textual = true},
+    // Status: a polite live region (ARIA `status`). UIA exposes it as Text so its name is read
+    // like a live region, as it does for alert.
+    {.name = "status",
+     .atspi = AtspiRole::StatusBar,
+     .atspi_name = "status bar",
+     .uia = UiaControlType::Text,
+     .layer = AtspiLayer::Widget,
+     .textual = true},
 }};
 
 static_assert(kRoleTable.size() == static_cast<std::size_t>(Role::kCount),

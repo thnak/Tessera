@@ -2494,6 +2494,9 @@ enum include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Prio
 alias include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Duration
 constant include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::kMaxActions
 
+header include/tessera/ui/capsule/live_capsule_poster.hpp
+class include/tessera/ui/capsule/live_capsule_poster.hpp tessera::ui::capsule::LiveCapsulePoster
+
 header include/tessera/ui/chart/chart_geometry.hpp
 class include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartDamage
 struct include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartPlot

@@ -1429,4 +1429,21 @@ if (TARGET tessera_harness_capture)
     add_test(NAME harness_frame_capture COMMAND harness_frame_capture_tests)
     set_tests_properties(harness_frame_capture PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
+
+    # LiveCapsule lavapipe goldens (issue #968): states x cutouts x themes plus mid-morph frames.
+    # Skips unless the loader selects only lavapipe; baselines under tests/golden/baseline/live_capsule/.
+    if (TARGET tessera_capsule)
+        add_executable(live_capsule_golden_tests
+            live_capsule_golden_tests.cpp)
+        target_compile_definitions(live_capsule_golden_tests PRIVATE
+            TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
+            TESSERA_CAPSULE_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/baseline/live_capsule"
+            TESSERA_CAPSULE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/live-capsule.css"
+            TESSERA_CAPSULE_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+        target_link_libraries(live_capsule_golden_tests PRIVATE tessera_harness_capture
+            tessera_capsule tessera_style)
+        add_test(NAME live_capsule_golden COMMAND live_capsule_golden_tests)
+        set_tests_properties(live_capsule_golden PROPERTIES
+            SKIP_REGULAR_EXPRESSION "skipped")
+    endif()
 endif()

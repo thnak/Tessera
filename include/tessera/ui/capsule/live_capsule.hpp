@@ -15,10 +15,13 @@
 #include "tessera/ui/capsule/live_capsule_host.hpp"
 #include "tessera/ui/overlay/overlay.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <functional>
 #include <string>
+#include <string_view>
 
 namespace tessera::ui::capsule {
 
@@ -59,6 +62,13 @@ public:
         return controller_.take_focus_return();
     }
 
+    // Forgets the overlay without closing it, for a capsule whose OverlayHost is torn down before
+    // it (the destructor would otherwise close a handle on a dead host). After this the component
+    // no longer touches the host and must not be synced again.
+    void abandon() noexcept {
+        handle_ = {};
+    }
+
     [[nodiscard]] CapsuleState state() const noexcept {
         return controller_.state();
     }
@@ -76,6 +86,16 @@ public:
 private:
     void close();
     void rebuild(Node& content, const Activity* front, const Activity* minimal);
+
+    // The scene borrows inline-style text, so each box property owns its text here. Two buffers per
+    // property alternate: a write must not mutate the text the node still points at, or the node
+    // would see "already stored verbatim" and never restyle.
+    struct PxText {
+        std::array<std::array<char, 24>, 2> text{};
+        std::size_t next = 0;
+    };
+    static constexpr std::size_t kBoxProperties = 5;
+    void set_px(Node& node, std::size_t slot, std::string_view property, float value);
 
     LiveCapsuleHost& host_;
     OverlayHost& overlays_;
@@ -95,6 +115,7 @@ private:
     std::uint64_t generation_ = ~std::uint64_t{0};
     CapsuleState built_state_ = CapsuleState::Compact;
     std::string last_name_;
+    std::array<PxText, kBoxProperties> px_;
 };
 
 } // namespace tessera::ui::capsule
