@@ -88,6 +88,14 @@ export function textModifiers(event: {
   return event.shiftKey ? SHIFT : 0;
 }
 
+/**
+ * What the hidden textarea holds while a field is focused. Some soft keyboards send no key and no
+ * `beforeinput` for Backspace in an empty textarea; with one character before the caret there is always
+ * something to delete, so `deleteContentBackward` arrives and is forwarded as Backspace. A zero-width space is
+ * invisible, never reaches the engine (every insert is prevented) and is restored after each commit.
+ */
+export const SENTINEL = "\u200B";
+
 /** The delete a soft keyboard asks for in `beforeinput` when it sent no usable keydown (key 229). */
 function deleteKey(inputType: string): string | null {
   switch (inputType) {
@@ -175,7 +183,10 @@ export function attachCanvasText(options: CanvasTextOptions): CanvasText {
 
   function reset(): void {
     // The textarea is a source, not a store: an empty box means nothing stale can be committed twice.
-    area.value = "";
+    area.value = editing ? SENTINEL : "";
+    if (editing && typeof area.setSelectionRange === "function") {
+      area.setSelectionRange(SENTINEL.length, SENTINEL.length);
+    }
   }
 
   function show(report: TextReport): void {
@@ -183,6 +194,7 @@ export function attachCanvasText(options: CanvasTextOptions): CanvasText {
     place(report);
     if (!editing) {
       editing = true;
+      reset();
       // A pointer press focuses the canvas as its default action, after this handler: focusing now
       // would be undone. A zero timeout lands after it.
       if (focusTimer !== null) {
@@ -207,7 +219,7 @@ export function attachCanvasText(options: CanvasTextOptions): CanvasText {
       clearTimeout(focusTimer);
       focusTimer = null;
     }
-    reset();
+    reset(); // editing is false here: the sentinel goes with the field
     area.style.display = "none";
     if (refocus && doc.activeElement === area) {
       returning = true;

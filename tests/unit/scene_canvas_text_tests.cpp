@@ -40,6 +40,26 @@ constexpr std::string_view kRefusing = R"(export function Refusing(): Node {
 }
 )";
 
+// The TextInput lives in a component the page uses as an instance: its state cell is in the
+// instance's own scope, and onChange must run against it, not the root's.
+constexpr std::string_view kInstance = R"(export function Page(): Node {
+  return (
+    <View>
+      <Field />
+    </View>
+  );
+}
+export function Field(): Node {
+  const [name, setName] = useState<string>("");
+  return (
+    <View>
+      <TextInput value={name} onChange={(e) => setName(e.value)} />
+      <Text>{name}</Text>
+    </View>
+  );
+}
+)";
+
 std::string name_state(const cli::CanvasSceneSession& session) {
     for (const ui::StateCell& cell : session.state()) {
         if (cell.name != "state::name") {
@@ -102,6 +122,28 @@ void test_typing_reaches_the_handler() {
     CanvasHarness canvas;
     expect(canvas.draw(session), "the typed frame paints");
     expect(!session.needs_frame(), "and nothing more is owed");
+}
+
+void test_text_input_inside_a_component_instance() {
+    cli::CanvasSceneSession session;
+    if (!start_focused(session, kInstance, "ui/Instance.tsx")) {
+        return;
+    }
+    const cli::CanvasPointerResult typed = session.text(Kind::Text, "hi");
+    expect(typed.handled && !typed.ran.empty(), "the instance's onChange ran");
+    const ui::Node* label = find_kind(*session.root(), "Text");
+    const auto label_paint = label != nullptr ? label->paint_data() : std::nullopt;
+    expect(label_paint.has_value() && label_paint->text == "hi",
+           "the handler stored the text in the instance's scope and the label shows it");
+    const ui::Node* field = field_of(session);
+    const auto painted = field != nullptr ? field->paint_data() : std::nullopt;
+    expect(painted.has_value() && painted->text == "hi",
+           "the controlled field shows the instance's state after the rebuild");
+    (void)session.text(Kind::Text, "!");
+    const auto again = field_of(session)->paint_data();
+    expect(again.has_value() && again->text == "hi!", "a second edit keeps the instance's state");
+    const cli::CanvasPointerResult back = session.key(Kind::KeyDown, key::kBackspace, 0, false);
+    expect(back.handled && back.field.caret == 2, "editing keys reach the instance's field");
 }
 
 void test_printable_keys_are_left_to_the_text_path() {
@@ -265,6 +307,7 @@ void test_report_and_vocabulary() {
 
 int main() {
     test_typing_reaches_the_handler();
+    test_text_input_inside_a_component_instance();
     test_printable_keys_are_left_to_the_text_path();
     test_backspace_and_caret_movement();
     test_composition();

@@ -37,6 +37,37 @@ std::size_t utf8_prefix(std::string_view text, std::size_t limit) {
     return end;
 }
 
+// 0 whitespace, 1 word (ASCII alphanumerics, underscore and every non-ASCII byte, so a UTF-8
+// sequence never splits), 2 punctuation: a double press selects the run of one class.
+int char_class(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u == ' ' || u == '\t' || u == '\n' || u == '\r') {
+        return 0;
+    }
+    const bool word = u >= 0x80U || u == '_' || (u >= '0' && u <= '9') ||
+                      ((u | 0x20U) >= 'a' && (u | 0x20U) <= 'z');
+    return word ? 1 : 2;
+}
+
+// The byte range a press with `clicks` selects at `offset`: the run of one class (2), or all (3+).
+std::pair<std::size_t, std::size_t> unit_range(std::string_view text, std::size_t offset,
+                                               std::uint32_t clicks) {
+    if (clicks >= 3 || text.empty()) {
+        return {0, text.size()};
+    }
+    const std::size_t at = std::min(offset, text.size() - 1);
+    const int cls = char_class(text[at]);
+    std::size_t start = at;
+    while (start > 0 && char_class(text[start - 1]) == cls) {
+        --start;
+    }
+    std::size_t end = at + 1;
+    while (end < text.size() && char_class(text[end]) == cls) {
+        ++end;
+    }
+    return {start, end};
+}
+
 } // namespace
 
 void fill_text_event(const PreviewInput& input, ui::InputEvent& event) {
@@ -224,7 +255,7 @@ std::string PreviewSession::focused_text_selection() const {
     return {};
 }
 
-bool PreviewSession::move_text_caret(std::size_t byte_offset, bool extend) {
+bool PreviewSession::move_text_caret(std::size_t byte_offset, bool extend, std::uint32_t clicks) {
     const ui::Node* const focused = router_.focus_manager().focused();
     if (focused == nullptr) {
         return false;
@@ -233,7 +264,16 @@ bool PreviewSession::move_text_caret(std::size_t byte_offset, bool extend) {
         if (field->automation_id != focused->automation_id() || field->editor.composing()) {
             continue;
         }
-        const ui::text::TextHit hit{byte_offset, ui::text::CaretAffinity::Downstream};
+        constexpr auto kSide = ui::text::CaretAffinity::Downstream;
+        if (clicks >= 2) {
+            const auto [start, end] =
+                unit_range(field->editor.buffer().text(), byte_offset, clicks);
+            (void)field->editor.place_caret_at({start, kSide});
+            (void)field->editor.extend_selection_to({end, kSide});
+            field->runtime.publish_decoration();
+            return true;
+        }
+        const ui::text::TextHit hit{byte_offset, kSide};
         (void)(extend ? field->editor.extend_selection_to(hit) : field->editor.place_caret_at(hit));
         field->runtime.publish_decoration();
         return true;

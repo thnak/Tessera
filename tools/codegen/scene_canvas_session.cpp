@@ -378,7 +378,8 @@ CanvasPointerResult CanvasSceneSession::blur() {
 }
 
 CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x, float y,
-                                                std::uint32_t button) {
+                                                std::uint32_t button, bool shift,
+                                                std::uint32_t clicks) {
     CanvasPointerResult result;
     if (!started()) {
         return result;
@@ -399,7 +400,7 @@ CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x
     result.dispatched = session_->dispatch(input);
     result.ran = session_->last_ran();
     result.unrun = session_->last_unrun();
-    (void)text_pointer(kind, x, y);
+    (void)text_pointer(kind, x, y, shift, clicks);
 
     if (const ui::Node* hover = session_->router().hovered()) {
         result.hovered_id = hover->automation_id();

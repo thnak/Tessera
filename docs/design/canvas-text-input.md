@@ -26,7 +26,8 @@ is in the browser's gift:
 | What the textarea stores | Nothing: it is emptied after every commit | It is a text *source*. The engine's buffer is the only copy, so there is no second value to drift. |
 | Clipboard | The page's `copy`/`cut`/`paste` events on the textarea, engine owns the selection | The page cannot read the selection, so `copy` and `cut` ask the engine for it (`text` in the report) and the page writes the clipboard; `paste` is a commit. The engine never touches the OS clipboard in the preview. |
 | Where the IME window opens | At the caret | The engine reports `caretBox` (logical pixels, the rectangle paint draws the caret at) and the page makes the textarea one caret-high line that starts there, scaled into layout pixels under the pane zoom. `fieldBox` is the fallback. |
-| Pointer caret and drag selection | The engine, from the press and move it already receives | `tessera_canvas_pointer` places the caret on a press inside the focused field and extends the selection while the press is held. The page adds nothing: pointer capture already delivers the drag. |
+| Pointer caret and selection | The engine, from the press and move it already receives | `tessera_canvas_pointer` places the caret on a press inside the focused field and extends the selection while the press is held (capture delivers the drag). Shift+press extends, a second press selects a word and a third the whole value. The page only reports Shift and a press count: `PointerEvent.detail` is 0, so it counts presses itself (500 ms, 5 px). |
+| Empty-field Backspace on a soft keyboard | The hidden textarea holds a zero-width space (`SENTINEL`) while a field is focused | Some soft keyboards send nothing for Backspace in an empty textarea. With one character before the caret `deleteContentBackward` always arrives and is forwarded as Backspace. Every insert is prevented, so the sentinel never reaches the engine; it is restored after each commit. |
 
 ## 3. Engine side
 
@@ -78,8 +79,11 @@ A press inside the focused field maps its point to the nearest grapheme boundary
 then the point inside that line with the painted advances) and calls `place_caret_at`; the session remembers the
 press (`selecting_text_`), and each move until the release calls `extend_selection_to` with the point clamped to the
 text, so a drag that leaves the field still extends to the ends. A press outside the field starts nothing; a press
-during a composition leaves the caret to the composition. Shift+click is not wired (the pointer call carries no
-modifiers).
+during a composition leaves the caret to the composition. Shift+press (`PointerGesture::shift`) keeps the
+anchor and moves the focus like a drag does. A press with `clicks` 2 selects the run of one class (word,
+whitespace or punctuation; every non-ASCII byte counts as word, so a UTF-8 sequence never splits) under the
+point, 3 or more the whole value (`PreviewSession::select_text_unit`); a drag after either extends from the
+selection's start.
 
 ### The report
 
@@ -145,7 +149,11 @@ the canvas module's `EXPORTED_FUNCTIONS` list in `src/compiler/codegen/CMakeList
 - `tests/unit/scene_canvas_text_caret_tests.cpp` (ctest `scene_canvas_text_caret`): the caret rectangle moves right with
   the offset and stays inside the field, the composition offset, `caretBox` in the report, a press placing the caret
   (nearest boundary, both ends, typing lands there), a drag selecting, extending past the field and collapsing back,
-  and a press outside the field or during a composition leaving the caret alone.
+  and a press outside the field or during a composition leaving the caret alone, Shift+press extending and
+  double and triple press selecting a word, punctuation and the whole value.
+- `scene_canvas_text` also runs a `TextInput` inside a component instance (its `onChange` stores into the
+  instance's own scope; the label and the controlled field follow).
+- `preview_canvas_text.mjs` also covers the sentinel and the page's press counter.
 
 ## 7. Alternatives rejected
 
@@ -161,8 +169,5 @@ the canvas module's `EXPORTED_FUNCTIONS` list in `src/compiler/codegen/CMakeList
   click; type a composition and check the candidate window opens at the caret, not at the field's corner; move the
   caret by click and by arrow keys mid-text and compose again (the window follows); commit, then cancel one with
   Escape; drag-select across the field and copy. Record browser versions in the PR.
-- **Mobile Backspace in an empty field**: some soft keyboards send nothing when the textarea is empty. A
-  sentinel character would fix it and is not done.
-- Components that instantiate a `TextInput` inside an instance frame are built but their `onChange` runs
-  against the instance's scope; the root-component path is the tested one.
-- **Shift+click and double-click word selection** in the field (the pointer call carries no modifiers or click count).
+- The mobile Backspace sentinel, the instance-frame `TextInput` test and Shift+click / double-click selection
+  are done; what a real phone keyboard does with the sentinel is part of the manual pass above.

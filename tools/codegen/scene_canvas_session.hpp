@@ -194,8 +194,8 @@ public:
     // Routes one normalized pointer event in logical viewport coordinates. `button` is the pointer
     // event's `button` (0 = primary); this slice only acts on the primary button, because a
     // secondary press dispatched as a left press would run an `onClick` nobody asked for.
-    CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y,
-                                std::uint32_t button = 0);
+    CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y, std::uint32_t button = 0,
+                                bool shift = false, std::uint32_t clicks = 1);
 
     // What is under `(x, y)` in logical pixels, for the picker overlay (issue #171), by the
     // router's own hit test (`Node::hit_test_deep`). A query: nothing is dispatched and no frame is
@@ -422,7 +422,7 @@ public:
 private:
     // Fills `focused_id` / `focus_visible` from the router's focus manager.
     void fill_focus(CanvasPointerResult& result) const;
-    bool text_pointer(PreviewInput::Kind kind, float x, float y);
+    bool text_pointer(PreviewInput::Kind kind, float x, float y, bool shift, std::uint32_t clicks);
     void fill_caret_box(CanvasPointerResult& result) const;
 
     [[nodiscard]] bool reused_ok(const ProjectInput& project, const std::string& component,

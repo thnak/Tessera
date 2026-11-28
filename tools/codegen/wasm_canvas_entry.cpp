@@ -218,8 +218,12 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* component,
 //
 // Unknown `kind` and a secondary `button` still answer a well-formed report (`dispatched` false,
 // `changed` false), so a page typo costs no frame and no exception at the FFI boundary.
+//
+// `modifiers` (bit 0 = Shift) and `clicks` (consecutive presses, counted by the page) drive text
+// selection in a focused field: Shift+press extends, a second press selects the word, a third the
+// whole value. A caller that passes neither gets a plain press.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float x, float y,
-                                                        int button) {
+                                                        int button, int modifiers, int clicks) {
     cli::CanvasPointerResult result;
     if (g_session == nullptr || !g_session->started()) {
         result.changed = false;
@@ -233,7 +237,9 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
         // somewhere the user never pointed.
         return duplicate_out(cli::canvas_pointer_report_json(result));
     }
-    result = g_session->pointer(parsed, x, y, button > 0 ? static_cast<std::uint32_t>(button) : 0U);
+    result = g_session->pointer(parsed, x, y, button > 0 ? static_cast<std::uint32_t>(button) : 0U,
+                                (modifiers & 1) != 0,
+                                clicks > 1 ? static_cast<std::uint32_t>(clicks) : 1U);
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 
