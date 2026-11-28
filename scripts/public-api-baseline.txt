@@ -2894,6 +2894,10 @@ struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::Subt
 struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreeRecord
 struct include/tessera/ui/paint/subtree_paint_cache.hpp tessera::ui::paint::SubtreeStatsDelta
 
+header include/tessera/ui/paint/text_field_geometry.hpp
+function include/tessera/ui/paint/text_field_geometry.hpp tessera::ui::paint::text_field_caret_box
+function include/tessera/ui/paint/text_field_geometry.hpp tessera::ui::paint::text_field_hit
+
 header include/tessera/ui/paint/text_layout_cache.hpp
 class include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCache
 struct include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCacheConfig

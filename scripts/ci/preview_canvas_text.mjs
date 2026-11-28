@@ -197,6 +197,19 @@ test("under a pane zoom the position is in layout pixels, not screen pixels", ()
   assert.equal(area.style.width, "20px");
 });
 
+test("with a caret box the textarea is one caret-high line starting at the caret (the IME window)", () => {
+  const dom = setup();
+  dom.text.sync({ ...dom.focused, caretBox: { x: 60, y: 19, width: 1, height: 22 } });
+  // canvas offset (10, 20) plus the caret at 1 css px per logical px; it ends at the field's right edge (8 + 180).
+  assert.equal(dom.area.style.left, "70px");
+  assert.equal(dom.area.style.top, "39px");
+  assert.equal(dom.area.style.width, "128px");
+  assert.equal(dom.area.style.height, "22px");
+  assert.equal(dom.area.style.lineHeight, "22px", "one line, so the candidate window sits under the caret");
+  dom.text.sync({ ...dom.focused, caretBox: { x: 100, y: 19, width: 1, height: 22 } });
+  assert.equal(dom.area.style.left, "110px", "it follows the caret as it moves");
+});
+
 test("typed text is committed and its default is prevented", () => {
   const { text, area, engine, focused } = setup();
   text.sync(focused);

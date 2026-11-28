@@ -204,6 +204,8 @@ PreviewTextField PreviewSession::focused_text_field() const {
         info.selection_start = static_cast<std::uint32_t>(buffer.selection_start());
         info.selection_end = static_cast<std::uint32_t>(buffer.selection_end());
         info.box = focused->world_bounds();
+        info.ime_offset = static_cast<std::uint32_t>(
+            info.composing ? field->editor.composition_start() : buffer.caret());
         break;
     }
     return info;
@@ -220,6 +222,23 @@ std::string PreviewSession::focused_text_selection() const {
         }
     }
     return {};
+}
+
+bool PreviewSession::move_text_caret(std::size_t byte_offset, bool extend) {
+    const ui::Node* const focused = router_.focus_manager().focused();
+    if (focused == nullptr) {
+        return false;
+    }
+    for (const auto& field : text_fields_) {
+        if (field->automation_id != focused->automation_id() || field->editor.composing()) {
+            continue;
+        }
+        const ui::text::TextHit hit{byte_offset, ui::text::CaretAffinity::Downstream};
+        (void)(extend ? field->editor.extend_selection_to(hit) : field->editor.place_caret_at(hit));
+        field->runtime.publish_decoration();
+        return true;
+    }
+    return false;
 }
 
 void PreviewSession::sync_text_fields() {
