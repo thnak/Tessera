@@ -28,6 +28,8 @@
   }
   span { flex-shrink: 0; position: relative; margin: 0; min-width: 0; font: inherit; color: inherit; }
   #root { width: 100%; height: 100%; }
+  /* the engine measures text with a stub (line height 1.2): pin the page to it so boxes compare */
+  body { line-height: 1.2; }
 </style>
 <link rel="stylesheet" href="../../packages/tessera-ui/button.css">
 <!-- samples/gallery/form.module.css: scripts/ci/chrome_parity.mjs inlines its scoped text and

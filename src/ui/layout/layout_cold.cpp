@@ -6,6 +6,7 @@
 // the retained tree against.
 
 #include "layout_cold.hpp"
+#include "layout_length.hpp"
 #include "layout_measure.hpp"
 #include "layout_style.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -76,7 +77,7 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
     YGNodeRef node = YGNodeNewWithConfig(unrounded_config());
     apply_style(node, input.style, with_element_font_size(viewport, input.style));
     if (block_parent) {
-        apply_block_child_style(node); // `margin: 0 auto` fill, no shrink (issue #611)
+        apply_block_child_style(node, input.style); // `margin: 0 auto` fill, no shrink (issue #611)
     }
     if (as_grid_item) {
         // The grid engine already positions the item's border box and folds the margins into the
@@ -188,6 +189,13 @@ LayoutResult layout_cold(const LayoutInput& root, const LayoutViewport& viewport
     std::vector<std::unique_ptr<GridContext>> grid_contexts;
     YGNodeRef root_node =
         build_tree(root, viewport, cache, measure_contexts, grid_contexts, as_grid_item);
+    // A grid item that contains its inline size contributes zero when the tracks are sized
+    // (available width unknown), but is stretched to its area when it is placed, like any grid item
+    // with `width: auto`; the zero `apply_size_containment` wrote would pin it to nothing.
+    if (as_grid_item && available_width >= 0.0f && contains_inline_size(root.style) &&
+        has_auto_width(root.style)) {
+        YGNodeStyleSetWidthAuto(root_node);
+    }
     // The root is a page (#611): viewport-wide up to `max-width`, centred, at least viewport tall.
     const bool page = !as_grid_item && available_width >= 0.0f && available_height >= 0.0f;
     if (page) {

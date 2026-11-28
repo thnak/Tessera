@@ -138,6 +138,7 @@ private:
     void parse_tracks();
     void place_items();
     void measure_items();
+    void remeasure_heights_at_column_widths();
     void size_axis(Axis& axis, float container_size, bool definite, bool is_column,
                    GridContentAlign content_align);
     void position_items(float mirror_width);
@@ -157,6 +158,7 @@ private:
     std::vector<LayoutBox> boxes_;
     bool rtl_ = false;
     bool column_flow_ = false;
+    bool heights_measured_ = false;
     GridAlign justify_items_ = GridAlign::Stretch;
     GridAlign align_items_ = GridAlign::Stretch;
     GridContentAlign justify_content_ = GridContentAlign::Start;

@@ -170,7 +170,8 @@ void apply_node_style(RetainedTreeState& state, RetainedNode& retained, const La
     YGNodeCopyStyle(retained.node, state.pristine);
     apply_style(retained.node, input.style, with_element_font_size(state.viewport, input.style));
     if (block_parent) {
-        apply_block_child_style(retained.node); // `margin: 0 auto` fill, no shrink (issue #611)
+        apply_block_child_style(retained.node,
+                                input.style); // `margin: 0 auto` fill, no shrink (issue #611)
     }
     retained.style_digest = style::layout_digest(input.style);
     retained.fit_valid = false; // text style, padding and `display` all feed the text-fit fact
