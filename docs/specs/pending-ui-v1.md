@@ -29,16 +29,19 @@ State of the code at the time of writing, which this spec must not hide:
   pending code, so every committed `.g.hpp` golden is unchanged.
 - The IR already has the `Suspense` kind, the optional `transition` flag on a `set` action and the
   validator rules for both.
-- Implemented (#656, slice 1): `<Suspense fallback={...}>` lowers to the `Suspense` node (sections 4,
-  9), `lazy(() => import(...))` is identity (section 7), and `useTransition()` lowers to a
-  transition-marked `set` action plus the read-only `isPending` (section 5). The tests are
-  `lowering_pending` and the golden `tests/golden/ir/pending-ui.json`. Not yet implemented:
-  `useResource` and the `resources` list (section 3), the evaluator and generated-code wiring of the
-  `transition` behavior, `TESSERA_SUSPENSE_NO_BOUNDARY` and `TESSERA_SUSPENSE_TOO_MANY_READS`, and
-  `useDeferredValue` (section 6). A component that uses `useTransition` therefore lowers and
-  validates but does not generate until the `transition` behavior is registered.
-- The data store (`src/runtime/data_store*`) is not reachable from a generated component and lacks four
-  things (section 3.3).
+- Implemented (#656, slices 1 to 3): `<Suspense fallback={...}>` lowers to the `Suspense` node (sections
+  4, 9), `lazy(() => import(...))` is identity (section 7), `useTransition()` lowers to a
+  transition-marked `set` action plus the read-only `isPending` (section 5), `useResource` lowers to
+  the `resources` list with typed `.data` and `.status` (section 3), `useDeferredValue` lowers to a
+  `deferred_value` behavior (section 6), the boundary holds its old subtree while a transition is
+  pending (section 4.3), and the evaluator and the generated base run all of it; `TESSERA_SUSPENSE_NO_BOUNDARY`
+  and `TESSERA_SUSPENSE_TOO_MANY_READS` surface from TSX with source positions (section 9). The tests are
+  `lowering_pending`, `lowering_resource`, `codegen_pending_tsx` and the model tests of section 11.
+  Still open: `.error` has no generated form, the data-store adapter publishes no typed `.data`, a
+  resource in an effect dependency list is not accepted, and the Studio preview does not show the
+  pending state yet (#657).
+- The data store (`src/runtime/data_store*`) is reached through a `ResourceView` the host binds and lacked
+  four things (section 3.3), now provided.
 - `useDeferredValue` has no spike; its rules here follow the ADR text and the decisions of section 12.
 
 ## 2. The rule in one place
@@ -87,6 +90,11 @@ Rules:
   (section 9). A resource without `suspend` never suspends; the component reads `status` itself.
 - Reading `data` while it is absent yields the IR zero value of its type; code that needs the
   distinction reads `status`.
+- `data` has a type only when the analyzer knows it: the `type` field of the entry (section 3.4) is the
+  `ui/services.json` method's declared return type when that is `int`, `float`, `bool` or `string`, and
+  is omitted for any other result (a record, `void`). A `.data` read of an untyped resource validates
+  but is `TESSERA_CODEGEN_UNSUPPORTED`; `.error` has no generated form yet. The key is not checked
+  against the method's parameters in V1: binding a key to a fetch is the host's job.
 
 ### 3.2 What it reads from the store
 
@@ -124,6 +132,7 @@ empty, so a component without resources writes the bytes it wrote before):
 
 ```json
 { "id": "res::feed", "service": "svc::api", "method": "loadFeed", "suspend": true,
+  "type": "string",
   "key": { "kind": "record", "fields": { "query": { "kind": "ref", "id": "state::query" } } },
   "source": { "file": "ui/Feed.tsx", "offset": 120, "length": 60, "line": 6, "column": 3,
               "endLine": 6, "endColumn": 63 } }
@@ -132,6 +141,8 @@ empty, so a component without resources writes the bytes it wrote before):
 - Reference ids `res::<name>.status`, `res::<name>.data` and `res::<name>.error` resolve in
   expressions; `<name>` is the local binding name, or `res::<method>_<n>` for a bare call, counted from
   1 (the rule of `beh::` in [`behavior-hooks-v1.md`](behavior-hooks-v1.md) section 5).
+- `type` is optional and written only when known (section 3.1); a value other than `int`, `float`,
+  `bool` or `string` is `TESSERA_IR_UNSUPPORTED`.
 - `service` MUST name a declared `svc::` entry; `key` MUST type-check. Entries keep declaration order
   (determinism, [`ir-v1-expr.md`](ir-v1-expr.md) section 11). The field names above are final (decision 2).
 
@@ -184,6 +195,12 @@ live in one generated component, codegen needs no cross-component wiring.
 | Content | no covered read suspends | the child subtree |
 | Fallback | some covered read suspends | the fallback subtree |
 
+- **While a transition is pending the boundary keeps its old subtree.** A boundary that covers a read
+  keyed by a transition-marked setter is held from the first frame the transition is pending: a read
+  that is `Loading` with no data does not replace the content that is live with the fallback, and
+  releasing the hold (the transition settled) applies rule 1 again. A boundary already showing its
+  fallback stays there, because that is the old UI. The component's `pending_sync()` observes the
+  mark first, then holds, then publishes the reads (`SuspenseBoundary::set_hold`).
 - The subtree's **state is kept** while the fallback shows (ADR-067 item 2): it is detached, not
   destroyed, and returns without a rebuild.
 - A boundary tracks at most eight reads (`SuspenseBoundary::kMaxReads`). Eight is a language limit
@@ -268,7 +285,12 @@ const [isPending, startTransition] = useTransition();
   typed as `value`, updates the component like any output, and is allocation-free (one stored scalar).
 - Its meaning is weaker than React's: it is the settled value, not a lower-priority render. Ported code
   gets the same result but not the same timing, and the documentation MUST say so.
-- It has no spike and is not implemented by slice 1 of #656; it is slice 3.
+- Implemented in #656 slice 3: `const d = useDeferredValue(x)` takes the name of a `useState` value (a
+  prop is not accepted yet) and lowers to one `deferred_value` `behaviors` entry whose one arg is `x` and
+  whose one output `value` has `x`'s type; `d` reads `beh::d.value`. The generated base keeps one
+  `DeferredScalar` member and reads it through an accessor; a marked setter reads it just before it
+  assigns, so the settled value is what the UI showed before the change. The evaluator runs the same
+  rule in `PendingSession::deferred`.
 
 ## 7. `lazy` as identity
 
@@ -303,8 +325,8 @@ the pending model.
 
 | Code | Stage | When |
 |---|---|---|
-| `TESSERA_SUSPENSE_NO_BOUNDARY` | analyzer, and validator on hand-built IR | A `useResource` declared `suspend: true` has no `Suspense` ancestor in its own component, including a read in a child `Component` node (ADR-067 item 2, decision 3). Never a blank screen |
-| `TESSERA_SUSPENSE_TOO_MANY_READS` | analyzer, and validator on hand-built IR | More than eight suspending reads under one boundary (decision 6) |
+| `TESSERA_SUSPENSE_NO_BOUNDARY` | validator, on lowered TSX and on hand-built IR (source position of the `useResource` call) | A `useResource` declared `suspend: true` has no `Suspense` ancestor in its own component, including a read in a child `Component` node (ADR-067 item 2, decision 3). Never a blank screen |
+| `TESSERA_SUSPENSE_TOO_MANY_READS` | validator, on lowered TSX and on hand-built IR (source position of the boundary) | More than eight suspending reads under one boundary (decision 6) |
 | `TESSERA_IR_ERROR_BOUNDARY` | validator (exists) | A `Suspense` has no `fallback`, or its fallback is conditional or looped |
 | `TESSERA_IR_TRANSITION` | validator (exists) | A `transition` mark on an action that is not a state setter |
 | `TESSERA_IR_MALFORMED` | validator (exists) | `fallback` on a kind other than `ErrorBoundary`/`Suspense` |
@@ -346,6 +368,9 @@ Every normative rule has a test at one of three layers, plus the usual front-end
 | Generated component | the compiled `pending::Feed` behaves as the model and compiles on MSVC and GCC | `codegen_pending_runtime` |
 | Codegen text | the generated base and the golden `tests/golden/codegen/pending/Feed.g.hpp` | `codegen_pending` |
 | Allocation-free update | after a three-cycle warm-up, 64 transition cycles allocate zero (global `operator new` counter) | `codegen_pending_runtime` |
+| Front end, resources and deferred values (#656 slice 3) | `useResource` (forms, typed `data`, bare-call naming), `useDeferredValue`, the rejected forms, and the two `TESSERA_SUSPENSE_*` codes with source positions | `lowering_resource` |
+| Boundary hold and deferred rule | a held boundary keeps its content, releasing re-applies the rule; `DeferredScalar` | `pending_model`, `pending_behavior` |
+| TSX to generated C++ and the evaluator | one TSX component (resource, `Suspense`, `useTransition`, `useDeferredValue`) agrees with the evaluator after every step, including the held old subtree | `codegen_pending_tsx` |
 | Front end (#656 slice 1) | `<Suspense>`, `lazy` and `useTransition` lower to the IR above; the rejected forms are rejected; the module validates; a component without them is unchanged | `lowering_pending`, `tests/golden/ir/pending-ui.json`, `hook_manifest`, `schema` |
 | Determinism with a fake resource | the fake resource (`include/tessera/ui/pending/fake_resource.hpp`) has the store's status and epoch rules, no clock, no randomness | all of the above |
 
@@ -400,6 +425,30 @@ choice was taken each time; each is folded into the section it changes.
 9. **Interaction with `ErrorBoundary`.** None in V1: an `Error` resource is shown through
    `status`/`error` and is not routed to the nearest `ErrorBoundary` ([`error-boundaries-v1.md`](error-boundaries-v1.md)
    section 10 keeps the interaction as a later question).
+
+Decisions taken in #656 slice 3, conservative and recorded where they bind:
+
+10. **`type` of a resource.** The IR has no result type of its own, so the entry gets an optional `type`
+    (section 3.4): the manifest method's declared return type when it is `int`, `float`, `bool` or
+    `string`, omitted otherwise. Typed `.data` is a scalar in the view (`ResourceState::number` or
+    `text`); an untyped `.data` and every `.error` stay `TESSERA_CODEGEN_UNSUPPORTED`.
+11. **The `transition` behavior is registered, and the generated base does not attach it.**
+    `transition` and `deferred_value` are in the engine registry (the manifest and the registry stay
+    one closed set), but `Instance::attach` takes no target-less behavior and the mark is driven by the
+    marked setter and the subscription, so the generated base reads its own `TransitionMark` and
+    `DeferredScalar`; the registered classes serve a host that drives them by arguments.
+12. **`useDeferredValue` takes a `useState` name** (not a prop or an expression) of a bool, number or
+    string-literal union; any other argument is `TESSERA_REACT_HOOK_FORM` or `TESSERA_REACT_HOOK_ARG`,
+    any other type `TESSERA_IR_UNSUPPORTED` (section 6).
+13. **Where the suspense codes are raised.** `TESSERA_SUSPENSE_NO_BOUNDARY` and
+    `TESSERA_SUSPENSE_TOO_MANY_READS` come from the IR validator over the lowered component, with the
+    source position of the `useResource` call or the boundary; the analyzer does not repeat them, because
+    the boundary tree is only known after lowering.
+14. **Refresh.** `pending_sync()` publishes resource state to the boundary and the mark; bindings that
+    read `res::`, `isPending` or a deferred value are external reads, so a host calls `update()` after a
+    sync, as for every other external value (environment, behavior outputs).
+15. **Key and method parameters.** A key is checked as a pure scalar or record of scalars; its match with
+    the service method's parameters is the host's binding of the fetch in V1.
 
 ## 13. Related documents
 

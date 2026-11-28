@@ -2355,6 +2355,9 @@ header include/tessera/ui/behavior/clipboard_copy.hpp
 class include/tessera/ui/behavior/clipboard_copy.hpp tessera::hal::Clipboard
 class include/tessera/ui/behavior/clipboard_copy.hpp tessera::ui::behavior::ClipboardCopy
 
+header include/tessera/ui/behavior/deferred_value.hpp
+class include/tessera/ui/behavior/deferred_value.hpp tessera::ui::behavior::DeferredValue
+
 header include/tessera/ui/behavior/focus_trap.hpp
 class include/tessera/ui/behavior/focus_trap.hpp tessera::ui::behavior::FocusTrap
 
@@ -2386,6 +2389,9 @@ class include/tessera/ui/behavior/roving_focus.hpp tessera::ui::behavior::Roving
 
 header include/tessera/ui/behavior/scroll_lock.hpp
 class include/tessera/ui/behavior/scroll_lock.hpp tessera::ui::behavior::ScrollLock
+
+header include/tessera/ui/behavior/transition.hpp
+class include/tessera/ui/behavior/transition.hpp tessera::ui::behavior::Transition
 
 header include/tessera/ui/boundary/boundary.hpp
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::BoundaryTable
@@ -2814,6 +2820,9 @@ function include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::resolve_
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxContentRasterExtent
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxContentScale
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMinContentScale
+
+header include/tessera/ui/pending/deferred.hpp
+class include/tessera/ui/pending/deferred.hpp tessera::ui::pending::DeferredScalar
 
 header include/tessera/ui/pending/fake_resource.hpp
 class include/tessera/ui/pending/fake_resource.hpp tessera::ui::pending::FakeResource

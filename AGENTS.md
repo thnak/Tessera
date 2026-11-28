@@ -694,7 +694,14 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       C++ for a reducer state is the next slice: codegen has no record table in its text-value
       typing, so `{state.count}` reports `TESSERA_CODEGEN_UNSUPPORTED` even though the IR is valid.
 - [ ] Pending UI (ADR-067, Accepted 2026-11-28): spec #655, front end and engine behaviors #656
-      (preview support #657 belongs to V1-M4).
+      (preview support #657 belongs to V1-M4). #656 slice 3 landed: `useResource` (typed scalar
+      `.data`, `.status`), `useDeferredValue`, `useTransition` end to end from TSX through the
+      evaluator and generated C++ (`codegen_pending_tsx`), the boundary keeping its old subtree
+      while a transition is pending, and a fix for Suspense fallback ordinals (a binding after a
+      boundary got its neighbour's mask). Left before the box can be ticked: `.error` has no
+      generated form, the data-store adapter publishes no typed `.data`, a resource in an effect
+      dependency list is rejected, and the host (not generated code) binds a `ResourceView` per
+      resource. Decisions 10 to 15 of `docs/specs/pending-ui-v1.md` section 12.
 
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
