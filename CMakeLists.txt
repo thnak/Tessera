@@ -252,6 +252,7 @@ add_subdirectory(src/compiler/codegen)
 # CSS modules (issue #463): the scan that scopes a `.module.css` file's classes and keyframes. It
 # links the scene-free tokenizer only, so it sits beside codegen rather than under `src/ui`.
 add_subdirectory(src/compiler/css_module)
+add_subdirectory(src/compiler/format)
 add_subdirectory(tools/schema_dump)
 # Front-end corpus measurement (spike #660, ADR-066): runs the parser and the Tier-1 rules over a
 # corpus of React/TSX files and reports the frequency of each rejection. A measurement tool, not a
@@ -267,6 +268,7 @@ add_subdirectory(tools/mcp)
 # narrow manifest reader - so it builds on every lane, including a cross-compile where nothing else
 # in tools/ can run.
 add_subdirectory(tools/port-check)
+add_subdirectory(tools/fmt)
 
 # docs/specs/shader-manifest-v1.md sections 1 and 5: the manifest is a repository build input and
 # `tessera_schema` validates it before glslc. The checker target must exist before the Vulkan
