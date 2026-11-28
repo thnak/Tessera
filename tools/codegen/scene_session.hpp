@@ -190,14 +190,14 @@ public:
     // out again) or when this session built no tree; true when a layout pass ran.
     bool set_posture(tessera::hal::FoldPosture posture);
 
-    // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs like
-    // the posture, so a device or orientation change re-lays the tree out and re-resolves `@media`
+    // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs
+    // like the posture, so a device or orientation change re-lays the tree out and re-resolves
+    // `@media`
     // - it never evaluates the source again; hover, focus, state and capture survive.
-    //
     // `@media` is re-resolved only when the move can change an answer
     // (`PreparedStyleSheet::media_answer_can_change`): then the SAME prepared data is resolved
-    // against the new context (ADR-048), counted by `cascade_generation()`. False when nothing moved
-    // (no layout pass ran) or the session built no tree.
+    // against the new context (ADR-048), counted by `cascade_generation()`. False when nothing
+    // moved (no layout pass ran) or the session built no tree.
     bool set_viewport(float width, float height, float dpi_scale);
 
     // One pass for both layout inputs, so a call that changes the size AND the posture costs one
@@ -226,8 +226,8 @@ public:
         return cascade_generation_;
     }
 
-    // The sheet the tree is CURRENTLY laid out with; after `set_viewport` crosses a breakpoint it is a
-    // different sheet, so a painter reads it here rather than keeping a copy.
+    // The sheet the tree is CURRENTLY laid out with; after `set_viewport` crosses a breakpoint it
+    // is a different sheet, so a painter reads it here rather than keeping a copy.
     [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
         return sheet_;
     }
