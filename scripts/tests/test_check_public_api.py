@@ -234,6 +234,18 @@ class ClassifyTests(unittest.TestCase):
             },
         )
 
+    def test_a_one_line_props_literal_records_every_field(self) -> None:
+        # tessera_fmt joins a short type literal onto one line (#1008); the fields must not vanish.
+        found, warnings = surface.component_declarations(
+            "export type IconProps = { name: string; label?: string; onTap: () => void; style: { a: number; b: number } };\n"
+            "export function Icon({ name }: IconProps) { return <View />; }\n"
+        )
+        self.assertEqual(warnings, [])
+        self.assertEqual(
+            {name for kind, name in found if kind == "prop"},
+            {"Icon.name", "Icon.label", "Icon.onTap", "Icon.style"},
+        )
+
     def test_comments_do_not_contribute_surface(self) -> None:
         # Both sources are full of commented-out examples of declarations and of `part="..."`; none of
         # them may leak in, or the baseline would churn on prose edits.
