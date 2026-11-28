@@ -7,6 +7,7 @@
 #include "scene_prepare.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/layout_settle.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
 #include <array>
@@ -22,6 +23,28 @@ namespace {
 namespace eval = tessera::compiler::eval;
 namespace ir = tessera::compiler::ir;
 namespace ui = tessera::ui;
+
+// What one settle round re-runs: the same layout pass, against the layout the previous pass
+// published, so an `@container` rule that the first pass saw as unapplied now resolves.
+struct SettleRound {
+    PreparedScene* scene = nullptr;
+    ui::layout::LayoutEngine* engine = nullptr;
+    const SceneMetrics* metrics = nullptr;
+    std::shared_ptr<const text::TextMeasurer> measurer;
+    ui::layout::LayoutSettle* settle = nullptr;
+};
+
+void relayout_round(void* context) {
+    auto* round = static_cast<SettleRound*>(context);
+    const SceneLayoutResult again =
+        layout_scene(*round->scene->root, *round->scene->sheet, *round->engine, *round->metrics,
+                     round->measurer, round->settle);
+    if (again.error.empty()) {
+        round->scene->nodes = again.nodes;
+        round->scene->applied = again.applied;
+        round->scene->metrics = again.metrics;
+    }
+}
 
 PreparedScene failed(std::string reason) {
     PreparedScene scene;
@@ -146,14 +169,21 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
     metrics.height = options.height;
     metrics.dpi_scale = options.dpi_scale;
     metrics.posture = options.posture;
+    // A one-shot render settles like a session does: the first pass publishes the containers'
+    // boxes, and the rounds that follow resolve `@container` rules against them (issue #693), so
+    // the snapshot, the page-parity harness and the Studio agree on a container-driven layout.
+    ui::layout::LayoutSettle settle;
+    SettleRound round{&scene, &engine, &metrics, measurer, &settle};
+    settle.set_relayout(&relayout_round, &round);
     const SceneLayoutResult laid_out =
-        layout_scene(*scene.root, *scene.sheet, engine, metrics, measurer);
+        layout_scene(*scene.root, *scene.sheet, engine, metrics, measurer, &settle);
     if (!laid_out.error.empty()) {
         return failed(laid_out.error);
     }
     scene.nodes = laid_out.nodes;
     scene.applied = laid_out.applied;
     scene.metrics = laid_out.metrics;
+    (void)settle.run();
     return scene;
 }
 
