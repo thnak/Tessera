@@ -14,6 +14,7 @@ import { EditorView } from "@codemirror/view";
 import { ServiceClient } from "../../services/client.js";
 import { formatServiceSource, wasmEngineSource } from "../../services/format-service.js";
 import { wasmModuleUrl } from "../lib/module-url";
+import { browserWorker } from "../lib/service-worker";
 
 /** What `format` answers (format-service.js). */
 interface FormatAnswer {
@@ -26,20 +27,6 @@ const FILE_ID = 0;
 
 let client: ServiceClient | null = null;
 let starting: Promise<ServiceClient> | null = null;
-
-function browserWorker(source: string) {
-  const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-  const worker = new Worker(url);
-  return {
-    post: (message: object, transfer: ArrayBuffer[] = []) => worker.postMessage(message, transfer),
-    onMessage: (listener: (message: unknown) => void) => worker.addEventListener("message", (event) => listener(event.data)),
-    onError: (listener: (message: string) => void) => worker.addEventListener("error", (event) => listener(event.message || "worker error")),
-    terminate: () => {
-      worker.terminate();
-      URL.revokeObjectURL(url);
-    },
-  };
-}
 
 /** The format worker, started on first use (the Wasm module loads on the first format, not at startup). */
 function formatClient(): Promise<ServiceClient> {
