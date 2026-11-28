@@ -376,7 +376,7 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   switch back above the workspace would fail the "two tablists, one of them `Preview views`" check while
   every old id still resolved.
 - `scripts/ci/preview_studio_smoke.mjs` drives the built `preferences`/`sample-folder` entries and the rendered
-  chrome under a stub browser; the codec is still imported from source.
+  chrome under a stub browser; the codec is still imported from source. `preview_live_edit_wiring.mjs` drives the live-edit controller against a project opened after boot (#865).
 - `scripts/preview_budget_measure.py` walks the built `designer/web/dist/` as a **directory** instead of
   naming files, so an asset that ships is weighed by construction, and measures all three Wasm modules
   the studio loads (section 5.3).

@@ -46,6 +46,7 @@ on:
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
+      - 'scripts/ci/preview_live_edit_wiring.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
@@ -95,6 +96,7 @@ on:
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
+      - 'scripts/ci/preview_live_edit_wiring.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
@@ -346,6 +348,9 @@ jobs:
 
       - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs
+
+      - name: Live edit applies instead of restarting (plain Node)
+        run: node scripts/ci/preview_live_edit_wiring.mjs
 
       - name: Canvas pane states (not applied, nothing to draw; never a silent blank)
         run: node scripts/ci/preview_canvas_pane_states.mjs
