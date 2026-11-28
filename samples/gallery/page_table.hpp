@@ -98,6 +98,8 @@ template<typename Visitor> [[nodiscard]] bool visit_page(std::string_view name, 
         visit(std::type_identity<IconsPage>{});
     } else if (name == "lists") {
         visit(std::type_identity<ListsPage>{});
+    } else if (name == "controls") {
+        visit(std::type_identity<ControlsPage>{});
     } else {
         return false;
     }

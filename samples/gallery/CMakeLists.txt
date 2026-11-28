@@ -95,6 +95,9 @@ if (EMSCRIPTEN)
     set(_gallery_web_files
         button.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css
         icon.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css
+        switch.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/switch.css
+        checkbox.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/checkbox.css
+        radio.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/radio.css
         safe-area.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css
         gallery.css=${CMAKE_CURRENT_SOURCE_DIR}/gallery.css
         form.module.css=${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
@@ -117,6 +120,9 @@ if (EMSCRIPTEN)
         TESSERA_GALLERY_SAFE_AREA_CSS="/gallery/safe-area.css"
         TESSERA_GALLERY_BUTTON_CSS="/gallery/button.css"
         TESSERA_GALLERY_ICON_CSS="/gallery/icon.css"
+        TESSERA_GALLERY_SWITCH_CSS="/gallery/switch.css"
+        TESSERA_GALLERY_CHECKBOX_CSS="/gallery/checkbox.css"
+        TESSERA_GALLERY_RADIO_CSS="/gallery/radio.css"
         TESSERA_GALLERY_CSS="/gallery/gallery.css"
         TESSERA_GALLERY_FORM_CSS="/gallery/form.module.css"
         TESSERA_GALLERY_DASH_CSS="/gallery/dash.css"
