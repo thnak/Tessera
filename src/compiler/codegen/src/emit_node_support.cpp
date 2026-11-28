@@ -88,4 +88,30 @@ std::string node_id_text(const ir::Node& node, NodeEmitState& state, std::string
            state.index_expr + " * kItemIdStride)";
 }
 
+bool reads_prop(const ir::Expr& expr) {
+    if (expr.kind == ir::ExprKind::Ref && expr.id.starts_with("prop::")) {
+        return true;
+    }
+    for (const ir::ExprPtr& operand : expr.operands) {
+        if (operand && reads_prop(*operand)) {
+            return true;
+        }
+    }
+    for (const ir::TemplatePart& part : expr.parts) {
+        if (part.expr && reads_prop(*part.expr)) {
+            return true;
+        }
+    }
+    for (const ir::RecordField& field : expr.fields) {
+        if (field.value && reads_prop(*field.value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string state_seeded_name(std::string_view id) {
+    return member_name(id) + "seeded_";
+}
+
 } // namespace tessera::compiler::codegen::internal
