@@ -149,7 +149,7 @@ the tool's `description` and `inputSchema`; its handler is the same service call
 same rule `tools.json` already has. Existing tool names are never renamed
 ([mcp-server-v1.md](mcp-server-v1.md) section 3); a registry command takes an existing name via
 `mcp.tool`. UI-only commands (panels, layout, menus) are never exposed. This is a proposal because
-it changes who owns tool schemas (open decision 5).
+it changes who owns tool schemas (open decision 5, accepted). Implemented in `designer/web/src/workbench/mcp-projection.js` and `scripts/ci/mcp_commands_tools.mjs` ([mcp-server-v1.md](mcp-server-v1.md) section 3.1).
 
 ### 2.5 Keyboard reality in a browser
 
