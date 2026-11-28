@@ -74,6 +74,10 @@ export default defineConfig({
         // The fold-hinge and safe-area overlay's geometry (issue #433): the band and the inset boxes
         // scaled from the `WindowMetrics` the engine reported. `scripts/ci/preview_fold_overlay.mjs`.
         "canvas-fold": "src/views/canvas-fold.ts",
+        // The hidden text element that gives the canvas typed text and IME (issue #601) and the keyboard
+        // forwarder it cooperates with. `scripts/ci/preview_canvas_text.mjs` drives both against a fake DOM.
+        "canvas-text": "src/views/canvas-text.ts",
+        "canvas-keyboard": "src/views/canvas-keyboard.ts",
       },
       output: {
         format: "es",
