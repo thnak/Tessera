@@ -92,6 +92,13 @@ jobs:
           "$EMSDK_NODE" scripts/ci/web_smoke.mjs build/wasm-webgpu/samples/web_render
           tools/web_budgets.json --app web_render
 
+      # The gallery on the web app driver (issue #1023): same contract, with the preloaded CSS, theme
+      # and font read under Node and the generated page built, styled and laid out without a device.
+      - name: Web gallery smoke and budgets
+        run: >
+          "$EMSDK_NODE" scripts/ci/web_smoke.mjs build/wasm-webgpu/samples/gallery
+          tools/web_budgets.json --app gallery_web
+
   # P0 of the design-time preview (issue #164, docs/design/compiler-wasm.md): the compiler built to
   # Wasm must produce the same output as the native compiler. The Wasm build preset has
   # TESSERA_BUILD_TESTS=OFF, so this is a script invocation rather than a ctest case. The native

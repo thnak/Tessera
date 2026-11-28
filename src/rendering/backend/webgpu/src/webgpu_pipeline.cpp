@@ -110,8 +110,9 @@ WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
     pipeline_desc.layout = layout_;
     pipeline_desc.vertex.module = module;
     pipeline_desc.vertex.entryPoint = wgpu_string(program->vertex_entry);
-    pipeline_desc.vertex.bufferCount = 1;
-    pipeline_desc.vertex.buffers = &vertex_layout;
+    // The empty layout (a fullscreen triangle from the vertex index) binds no vertex buffer at all.
+    pipeline_desc.vertex.bufferCount = attributes.empty() ? 0 : 1;
+    pipeline_desc.vertex.buffers = attributes.empty() ? nullptr : &vertex_layout;
     pipeline_desc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
     pipeline_desc.multisample.count = desc.sample_count;
     pipeline_desc.multisample.mask = 0xFFFFFFFFu;

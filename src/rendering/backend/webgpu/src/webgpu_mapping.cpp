@@ -201,6 +201,11 @@ rhi::Scissor clamp_scissor(const rhi::Scissor& scissor, rhi::Extent2D target) {
 }
 
 VertexLayoutError validate_vertex_layout(const rhi::VertexBufferLayout& layout) {
+    // A vertex-less pipeline (the glass passes draw a fullscreen triangle from the vertex index) is
+    // the empty layout: no stride, no attributes. Anything else without attributes is a mistake.
+    if (layout.attribute_count == 0 && layout.attributes == nullptr && layout.stride == 0) {
+        return VertexLayoutError::None;
+    }
     if (layout.attribute_count == 0 || layout.attributes == nullptr) {
         return VertexLayoutError::MissingAttributes;
     }

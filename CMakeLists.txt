@@ -421,6 +421,9 @@ add_subdirectory(src/rendering/backend/webgpu)
 if (EMSCRIPTEN)
     add_subdirectory(samples/web_smoke)
     add_subdirectory(samples/web_render)
+    # The gallery on the web app driver (issue #1023); its page generation runs the Emscripten (Node)
+    # build of the codegen CLI.
+    add_subdirectory(samples/gallery)
 endif()
 
 # Metal mapping tables are API-free and always built (their unit tests run on every host); the

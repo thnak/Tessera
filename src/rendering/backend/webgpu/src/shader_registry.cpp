@@ -9,6 +9,10 @@ constexpr char kBatched2dWgsl[] =
 #include "batched2d_wgsl.inc"
     ;
 
+constexpr char kGlassBlurWgsl[] =
+#include "glass_blur_wgsl.inc"
+    ;
+
 constexpr char kMipDownsampleWgsl[] =
 #include "mip_downsample_wgsl.inc"
     ;
@@ -49,6 +53,12 @@ WgslProgram batched2d_wgsl_program() {
     return program;
 }
 
+WgslProgram glass_blur_wgsl_program() {
+    WgslProgram program;
+    program.source = kGlassBlurWgsl;
+    return program;
+}
+
 WgslProgram mip_downsample_wgsl_program() {
     WgslProgram program;
     program.source = kMipDownsampleWgsl;
@@ -58,6 +68,9 @@ WgslProgram mip_downsample_wgsl_program() {
 ShaderRegistry builtin_shader_registry() {
     ShaderRegistry registry;
     registry.add(gpu::kBatched2dShaderId, batched2d_wgsl_program());
+    // The glass backdrop blur and its mask/composite passes (issue #1023): the web app driver
+    // builds those pipelines from this id, with the empty vertex layout of a fullscreen triangle.
+    registry.add(gpu::kGlassBlurShaderId, glass_blur_wgsl_program());
     return registry;
 }
 

@@ -112,6 +112,7 @@ void test_parsers() {
                                               .caps = {},
                                               .east_asian = {},
                                               .position = {},
+                                              .alternates = {},
                                               .settings = "'liga' 1, 'tnum' 0"});
     check(value_of(merged, "liga") == 1, "a raw setting overrides the ligature keyword");
     check(value_of(merged, "tnum") == 0, "a raw setting overrides the numeric keyword");
@@ -178,11 +179,11 @@ void test_variant_shorthand() {
         return registry.expand(tessera::ui::style::Declaration{"font-variant", value, false, 0});
     };
     const auto small = expand("small-caps tabular-nums");
-    check(small.diagnostics.empty() && small.declarations.size() == 5,
-          "shorthand yields five longhands");
+    check(small.diagnostics.empty() && small.declarations.size() == 6,
+          "shorthand yields six longhands");
     check(joined(small) == "font-variant-ligatures=normal;font-variant-numeric=tabular-nums;"
                            "font-variant-caps=small-caps;font-variant-east-asian=normal;"
-                           "font-variant-position=normal;",
+                           "font-variant-position=normal;font-variant-alternates=normal;",
           "omitted groups reset to normal: " + joined(small));
     check(joined(expand("none")).find("font-variant-ligatures=none;") == 0,
           "none is ligatures none");
@@ -226,6 +227,64 @@ void test_variants_computed() {
     ComputedStyle normal_spacing;
     normal_spacing.set("letter-spacing", "normal");
     check(text_style_from(normal_spacing).features.value == 0, "zero spacing keeps defaults");
+}
+
+void test_alternates() {
+    FontFeatures f;
+    check(parse_font_variant_alternates(
+              "stylistic(2) historical-forms styleset(1, 3, 20) character-variant(7) swash(4) "
+              "ornaments(1) annotation(3)",
+              f),
+          "every alternates function parses");
+    check(value_of(f, "salt") == 2 && value_of(f, "hist") == 1 && value_of(f, "ss01") == 1 &&
+              value_of(f, "ss03") == 1 && value_of(f, "ss20") == 1 && value_of(f, "cv07") == 1 &&
+              value_of(f, "swsh") == 4 && value_of(f, "cswh") == 4 && value_of(f, "ornm") == 1 &&
+              value_of(f, "nalt") == 3,
+          "alternates tags and values");
+    FontFeatures none;
+    check(parse_font_variant_alternates("normal", none) && none.empty(), "normal adds nothing");
+    check(parse_font_variant_alternates("SWASH(2)", none) && value_of(none, "swsh") == 2,
+          "case-insensitive");
+    FontFeatures bad;
+    check(!parse_font_variant_alternates("swash(1) swash(2)", bad) && bad.empty(),
+          "a repeated function is invalid");
+    check(!parse_font_variant_alternates("swash()", bad), "an empty argument list is invalid");
+    check(!parse_font_variant_alternates("swash(1, 2)", bad), "swash takes one argument");
+    check(!parse_font_variant_alternates("swash(1", bad), "an unbalanced paren is invalid");
+    check(!parse_font_variant_alternates("bogus(1)", bad), "an unknown function is invalid");
+    check(!parse_font_variant_alternates("normal swash(1)", bad), "normal cannot combine");
+    check(!parse_font_variant_alternates("swash(-1)", bad), "a negative index is invalid");
+    FontFeatures range;
+    check(parse_font_variant_alternates("styleset(21, 0) character-variant(100)", range) &&
+              range.empty(),
+          "out-of-range set indices select nothing");
+    FontFeatures alias;
+    check(parse_font_variant_alternates("swash(fancy)", alias) && alias.empty(),
+          "an unresolved feature-value name is valid and selects nothing");
+
+    ComputedStyle computed;
+    computed.set("font-variant-alternates", "swash(2) styleset(1)");
+    computed.set("font-feature-settings", "'swsh' 0");
+    const FontFeatures resolved = resolve_font_features(text_style_from(computed).features);
+    check(value_of(resolved, "cswh") == 2 && value_of(resolved, "ss01") == 1 &&
+              value_of(resolved, "swsh") == 0,
+          "alternates reach text_style_from and font-feature-settings override them");
+
+    const tessera::ui::style::PropertyRegistry registry;
+    const auto expand = [&](const char* property, const char* value) {
+        return registry.expand(tessera::ui::style::Declaration{property, value, false, 0});
+    };
+    check(expand("font-variant-alternates", "swash(1)").declarations.size() == 1,
+          "a valid alternates longhand is kept");
+    check(expand("font-variant-alternates", "swash(1) swash(2)").declarations.empty(),
+          "an invalid alternates longhand is dropped");
+    const auto shorthand = expand("font-variant", "small-caps styleset(1, 2) historical-forms");
+    check(shorthand.diagnostics.empty() &&
+              joined(shorthand).find("font-variant-alternates=styleset(1, 2) historical-forms;") !=
+                  std::string::npos,
+          "the shorthand carries functional alternates: " + joined(shorthand));
+    check(expand("font-variant", "swash(1) swash(2)").declarations.empty(),
+          "a conflicting shorthand alternates drops it whole");
 }
 
 void test_intern_overflow_counter() {
@@ -307,6 +366,23 @@ void test_shaper(const char* path) {
     TextStyle off = tabular;
     off.features = with_feature(off.features, font_feature_tag('t', 'n', 'u', 'm'), 0);
     check(shaper.shape("1", off).advance == one_default, "tnum 0 turns the feature off again");
+
+    // Per-range features (#1011): tnum on the first byte only.
+    const FontFeatureRange first_only{0, 1, {font_feature_tag('t', 'n', 'u', 'm'), 1}};
+    const ShapedRun ranged = shaper.shape_with_ranges("11", plain, {&first_only, 1});
+    check(ranged.glyphs.size() == 2 && ranged.glyphs[0].advance == one_tabular &&
+              ranged.glyphs[1].advance == one_default,
+          "a ranged tnum changes only the glyphs inside its bytes");
+    const FontFeatureRange empty{1, 1, {font_feature_tag('t', 'n', 'u', 'm'), 1}};
+    check(shaper.shape_with_ranges("11", plain, {&empty, 1}).advance == one_default * 2.0f,
+          "an empty range covers nothing");
+    const FontFeatureRange past{0, 99, {font_feature_tag('t', 'n', 'u', 'm'), 1}};
+    check(shaper.shape_with_ranges("11", plain, {&past, 1}).advance == one_tabular * 2.0f,
+          "a range past the end is clamped");
+    const FontFeatureRange override_off{0, 1, {font_feature_tag('t', 'n', 'u', 'm'), 0}};
+    check(shaper.shape_with_ranges("11", tabular, {&override_off, 1}).glyphs[0].advance ==
+              one_default,
+          "a range overrides the run-wide value of its tag");
 }
 
 } // namespace
@@ -318,6 +394,7 @@ int main(int argc, char** argv) {
     test_variant_shorthand();
     test_variants_computed();
     test_cache_keys();
+    test_alternates();
     if (argc > 1) {
         test_shaper(argv[1]);
     } else {

@@ -2,6 +2,7 @@
 
 #include "tessera/app/window.hpp"
 #include "tessera/rendering/rhi/device.hpp"
+#include "tessera/rendering/vulkan/path_raster_pipeline.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -57,7 +58,7 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
                                        glass.mask_out.get(), glass.mask_xor.get()});
     detail::TextStack text(*device, options.font_path, options.extra_font_paths);
     detail::VectorStack vectors(*device, format, options.vector_assets, options.vector_bundles,
-                                false);
+                                rendering::vulkan::path_raster_pipeline_descs(), false);
     ui::paint::Batched2DSink sink(renderer, text.renderer.get(), text.shaper.get(),
                                   vectors.available() ? vectors.config(options.dpi_scale)
                                                       : ui::paint::VectorPaintConfig{});
