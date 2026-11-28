@@ -248,6 +248,7 @@ field	tessera.json	runtime-config-v1::3. Fields::gpuFramesInFlight	integer	-	2
 field	tessera.json	runtime-config-v1::3. Fields::interpolationEpsilonPx	number	-	0.0625
 field	tessera.json	runtime-config-v1::3. Fields::latencyFrames	integer	-	2
 field	tessera.json	runtime-config-v1::3. Fields::layerCacheBudgetMb	integer	-	64
+field	tessera.json	runtime-config-v1::3. Fields::layerPromotion	boolean	-	false
 field	tessera.json	runtime-config-v1::3. Fields::layoutAnimationMaxNodes	integer	-	64
 field	tessera.json	runtime-config-v1::3. Fields::layoutObservationMaxRounds	integer	-	4
 field	tessera.json	runtime-config-v1::3. Fields::maxDamageRects	integer	-	16

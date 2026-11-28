@@ -30,7 +30,7 @@ namespace json = runtime::internal;
 // stack for a config file.
 constexpr std::size_t kMaxDocumentDepth = 16;
 
-constexpr std::array<std::string_view, 46> kKnownKeys = {
+constexpr std::array<std::string_view, 47> kKnownKeys = {
     "fixedTimestepHz",
     "maxFps",
     "vsync",
@@ -74,6 +74,7 @@ constexpr std::array<std::string_view, 46> kKnownKeys = {
     "glassMaxBackdropArea",
     "offscreenMaxMb",
     "offscreenIdleSeconds",
+    "layerPromotion",
     "animationInterpolation",
     "interpolationEpsilonPx",
     "deterministic",
@@ -405,6 +406,7 @@ validate_runtime_object(const json::JsonValue& runtime) {
     // = 0. The idle release is seconds of a settled window; 0 releases at the first idle pass.
     reader.integer("offscreenMaxMb", config.offscreen_max_mb, 1, 4096);
     reader.number("offscreenIdleSeconds", config.offscreen_idle_seconds, 0.0, 3600.0);
+    reader.boolean("layerPromotion", config.layer_promotion);
     reader.boolean("animationInterpolation", config.animation_interpolation);
     reader.number("interpolationEpsilonPx", config.interpolation_epsilon_px, 0.0, 4.0);
     reader.boolean("deterministic", config.deterministic);
