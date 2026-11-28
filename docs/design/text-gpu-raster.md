@@ -40,6 +40,19 @@ dirty-rectangle saving of #681 does not apply to a rebuild: the real coverage is
 roughly 130 KiB, and the other 97% of the upload is empty texels. That is a separate, cheap fix (upload the
 used shelf extent of a new page, not its full extent).
 
+**Fixed by #949 (2026-11-28).** The page texture is created without pixels and its first write is the used
+extent: full-width rows down to the last shelf plus one padding row, which is also what a linear filter can
+read past a glyph. A later glyph that reaches rows the texture never got widens its rectangle to those rows,
+so every row above the used extent is in sync; the #681 rectangle path is otherwise unchanged. Measured with
+`glyph_raster_measure` (the "dirty-rect MiB" column, 1024x1024 page, 4 MiB before):
+
+| Scale | 1.00 | 1.25 | 1.50 | 2.00 | 3.00 |
+|---|---|---|---|---|---|
+| Uploaded MiB | 0.68 | 0.92 | 1.21 | 1.46 | 3.05 |
+
+It scales with the shelves in use, so the saving is 83% at scale 1 and 24% at 3.0 where the page is nearly
+full. The rows are full width (a shelf's unused right side is uploaded), which keeps the invariant simple.
+
 ## 3. Scrolling a text column
 
 A 400-line, 80-column column, 40 lines visible, one line per frame: the cold frame misses 95 glyphs (2.7 ms)

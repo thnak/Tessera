@@ -103,7 +103,6 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
             Page page;
             page.pixels =
                 make_page_pixels(config_.page_width, config_.page_height, config_.aa_mode);
-            page.dirty = {0, 0, config_.page_width, config_.page_height};
             pages_.push_back(std::move(page));
             Page& candidate = pages_.back();
             std::uint32_t x = 0;
@@ -230,7 +229,10 @@ void GlyphAtlas::reset_page(Page& page) {
     page.shelf_height = 0;
     page.shelf_x = 0;
     ++page.generation;
-    page.dirty = {0, 0, config_.page_width, config_.page_height};
+    // Nothing is written yet: the first glyph placed after the reset marks its own rectangle, and
+    // `take_dirty` widens it to the used extent because `synced_rows` is back at zero.
+    page.synced_rows = 0;
+    page.dirty = {};
 }
 
 std::int32_t GlyphAtlas::evict_page() {
@@ -284,9 +286,30 @@ GlyphAtlasRect GlyphAtlas::take_dirty(std::uint16_t page) {
     if (page >= pages_.size()) {
         return {};
     }
-    const GlyphAtlasRect dirty = pages_[page].dirty;
-    pages_[page].dirty = {};
+    Page& target = pages_[page];
+    GlyphAtlasRect dirty = target.dirty;
+    target.dirty = {};
+    if (dirty.empty()) {
+        return {};
+    }
+    const std::uint32_t bottom =
+        std::min(config_.page_height, dirty.y + dirty.height + std::max(config_.padding, 1u));
+    if (bottom > target.synced_rows) {
+        const std::uint32_t top = std::min(dirty.y, target.synced_rows);
+        dirty = {0, top, config_.page_width, bottom - top};
+        target.synced_rows = bottom;
+    }
     return dirty;
+}
+
+GlyphAtlasRect GlyphAtlas::take_used_extent(std::uint16_t page) {
+    if (page >= pages_.size()) {
+        return {};
+    }
+    Page& target = pages_[page];
+    target.synced_rows = 0;
+    target.dirty = {0, 0, config_.page_width, target.shelf_y + target.shelf_height};
+    return take_dirty(page);
 }
 
 void GlyphAtlas::upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y) {

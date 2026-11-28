@@ -100,13 +100,28 @@ int main(int argc, char** argv) {
 
     // Frame 1 creates the page texture from the whole page: creation is not a write.
     draw(renderer, device, *target, text, first_run);
-    ok &= expect(device.texture_uploads().whole_writes == 0 &&
-                     device.texture_uploads().region_writes == 0,
-                 "creating the page texture is not a texture write");
     const CountingTexture* page = page_texture(device);
     if (!expect(page != nullptr, "the renderer made a page texture")) {
         return 3;
     }
+    // Issue #949: the new page uploads its used extent (one region write), not the whole page.
+    const GlyphAtlasEntry* first_glyph =
+        text.atlas().find_glyph(first_run.glyphs[0].id, kCssSize, first_run.glyphs[0].face, 0);
+    ok &= expect(first_glyph != nullptr && first_glyph->has_bitmap,
+                 "the first glyph is in the atlas");
+    ok &= expect(device.texture_uploads().whole_writes == 0 &&
+                     device.texture_uploads().region_writes == 1,
+                 "a new page texture is one region write of its used extent");
+    ok &= expect(device.texture_uploads().region_bytes * 4 < kPageBytes,
+                 "the first upload is a fraction of the page");
+    ok &= expect(page->gpu_bytes().size() == kPageBytes &&
+                     std::equal(page->gpu_bytes().begin(),
+                                page->gpu_bytes().begin() +
+                                    kPage * 4 * (first_glyph->y + first_glyph->height + 1),
+                                text.atlas().page_pixels(first_glyph->page).begin()),
+                 "the used rows of the GPU copy equal the atlas page");
+    const std::size_t first_region_writes = device.texture_uploads().region_writes;
+    const std::size_t first_region_bytes = device.texture_uploads().region_bytes;
 
     // Frame 2 adds one glyph: one region write of exactly that glyph's rectangle, no whole write.
     draw(renderer, device, *target, text, second_run);
@@ -117,15 +132,20 @@ int main(int argc, char** argv) {
     }
     const auto& stats = device.texture_uploads();
     ok &= expect(stats.whole_writes == 0, "adding a glyph does not rewrite the whole page");
-    ok &= expect(stats.region_writes == 1, "adding a glyph is one region write");
-    ok &= expect(stats.region_bytes == static_cast<std::size_t>(added->width) * added->height * 4,
+    ok &= expect(stats.region_writes == first_region_writes + 1,
+                 "adding a glyph is one region write");
+    ok &= expect(stats.region_bytes - first_region_bytes ==
+                     static_cast<std::size_t>(added->width) * added->height * 4,
                  "the region write moves exactly the new glyph's rectangle");
-    ok &= expect(stats.region_bytes * 8 < kPageBytes,
+    ok &= expect((stats.region_bytes - first_region_bytes) * 8 < kPageBytes,
                  "the region write is a small fraction of the page");
-    ok &= expect(page->gpu_bytes().size() == kPageBytes &&
-                     std::equal(page->gpu_bytes().begin(), page->gpu_bytes().end(),
-                                text.atlas().page_pixels(added->page).begin()),
-                 "the GPU copy equals the atlas page after the region write");
+    // Rows below the used extent were never uploaded (issue #949), so compare the synced rows.
+    ok &= expect(
+        page->gpu_bytes().size() == kPageBytes &&
+            std::equal(page->gpu_bytes().begin(),
+                       page->gpu_bytes().begin() + kPage * 4 * (added->y + added->height + 1),
+                       text.atlas().page_pixels(added->page).begin()),
+        "the synced rows of the GPU copy equal the atlas page after the region write");
 
     // Frame 3 draws the same text: every glyph is cached, so nothing is uploaded.
     const std::size_t writes_before = stats.region_writes + stats.whole_writes;
