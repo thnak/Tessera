@@ -112,6 +112,7 @@ void test_parsers() {
                                               .caps = {},
                                               .east_asian = {},
                                               .position = {},
+                                              .alternates = {},
                                               .settings = "'liga' 1, 'tnum' 0"});
     check(value_of(merged, "liga") == 1, "a raw setting overrides the ligature keyword");
     check(value_of(merged, "tnum") == 0, "a raw setting overrides the numeric keyword");
