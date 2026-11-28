@@ -3685,8 +3685,12 @@ header include/tessera/ui/text/glyph_atlas.hpp
 class include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlas
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasConfig
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasEntry
+struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasKey
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasRect
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasStats
+
+header include/tessera/ui/text/glyph_prewarm.hpp
+class include/tessera/ui/text/glyph_prewarm.hpp tessera::ui::text::GlyphPrewarm
 
 header include/tessera/ui/text/glyph_raster.hpp
 class include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphRasterizer

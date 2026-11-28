@@ -6,8 +6,10 @@
 // Three questions: the cost of one glyph-cache miss by pixel size, the cost of rebuilding the atlas
 // when the render scale steps, and the bytes a text column uploads while it scrolls.
 
+#include "tessera/runtime/manual_io_executor.hpp"
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/glyph_atlas.hpp"
+#include "tessera/ui/text/glyph_prewarm.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
 
 #include <algorithm>
@@ -112,6 +114,55 @@ void rebuild_on_scale_step(GlyphRasterizer& rasterizer) {
     }
 }
 
+// Issue #948: the same 380-glyph rebuild with the rasterization on a worker. The executor is
+// manual so the three costs can be timed apart: what the UI thread pays to hand the job over
+// (start), what the worker spends (run_one, off the UI thread in production), and what the UI
+// thread pays to place the finished bitmaps (install).
+void rebuild_off_thread(GlyphRasterizer& rasterizer) {
+    std::cout << "\n[4. The same rebuild with the rasterization on a worker, 1024x1024 pages]\n"
+              << "  scale   glyphs   UI start ms   worker ms   UI install ms   UI total ms\n";
+    for (const double scale : {1.25, 1.5, 2.0, 3.0}) {
+        std::vector<double> starts;
+        std::vector<double> works;
+        std::vector<double> installs;
+        std::uint64_t glyphs = 0;
+        for (int run = 0; run < 5; ++run) {
+            std::vector<GlyphAtlasKey> keys;
+            for (const double css : {12.0, 14.0, 16.0, 20.0}) {
+                const auto px = static_cast<std::uint16_t>(css * scale + 0.5);
+                for (char32_t c = kFirst; c <= kLast; ++c) {
+                    keys.push_back({rasterizer.glyph_index(c), px, 0, 0});
+                }
+            }
+            glyphs = keys.size();
+            GlyphAtlasConfig config;
+            config.page_width = 1024;
+            config.page_height = 1024;
+            config.max_pages = 8;
+            GlyphAtlas atlas(rasterizer, config);
+            tessera::runtime::ManualIoExecutor executor;
+            GlyphPrewarm prewarm;
+            GlyphRasterizer* stack[] = {&rasterizer};
+            auto start = Clock::now();
+            prewarm.start(executor, stack, std::move(keys), GlyphHinting::Font,
+                          GlyphAaMode::Grayscale);
+            starts.push_back(ms_since(start));
+            start = Clock::now();
+            executor.run_one();
+            works.push_back(ms_since(start));
+            executor.run_completion_one();
+            start = Clock::now();
+            prewarm.install(atlas);
+            installs.push_back(ms_since(start));
+        }
+        const double s = median(starts);
+        const double i = median(installs);
+        std::cout << std::fixed << std::setprecision(2) << std::setw(7) << scale << std::setw(9)
+                  << glyphs << std::setprecision(3) << std::setw(14) << s << std::setw(12)
+                  << median(works) << std::setw(16) << i << std::setw(14) << s + i << "\n";
+    }
+}
+
 void scrolling_column(GlyphRasterizer& rasterizer) {
     std::cout
         << "\n[3. Atlas upload while scrolling a text column, 16 px, 512x512 pages]\n"
@@ -180,6 +231,7 @@ int main(int argc, char** argv) {
     std::cout << "glyph_raster_measure: FreeType on one CPU thread, " << argv[1] << "\n";
     miss_cost(rasterizer);
     rebuild_on_scale_step(rasterizer);
+    rebuild_off_thread(rasterizer);
     scrolling_column(rasterizer);
     return 0;
 }

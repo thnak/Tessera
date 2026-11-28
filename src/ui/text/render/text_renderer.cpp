@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/scale/render_scale.hpp"
+#include "tessera/ui/text/glyph_prewarm.hpp"
 #include "tessera/ui/text/scale_glyph_atlas.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
 #include "text_contrast_lut.hpp"
@@ -38,6 +39,7 @@ struct TextRenderer::Impl {
     Impl(rendering::rhi::Device& device, std::vector<GlyphRasterizer*> rasterizers,
          GlyphAtlasConfig config)
         : device(&device),
+          rasterizers(rasterizers),
           scale_atlas(std::move(rasterizers), config) {
         select(scale::kMinRenderScale);
     }
@@ -66,6 +68,7 @@ struct TextRenderer::Impl {
         if (hinting == scale_atlas.hinting()) {
             return;
         }
+        prewarm.cancel();
         scale_atlas.set_hinting(hinting);
         for (std::vector<PageTexture>& step : textures) {
             step.clear();
@@ -79,6 +82,7 @@ struct TextRenderer::Impl {
         if (aa_mode == scale_atlas.aa_mode()) {
             return;
         }
+        prewarm.cancel();
         scale_atlas.set_aa_mode(aa_mode);
         for (std::vector<PageTexture>& step : textures) {
             step.clear();
@@ -87,6 +91,8 @@ struct TextRenderer::Impl {
     }
 
     rendering::rhi::Device* device = nullptr;
+    // The same stack the scale atlases draw from; the prewarm clones its faces on the worker.
+    std::vector<GlyphRasterizer*> rasterizers;
     bool subpixel_position = false;
     std::vector<std::uint8_t> subpixels;
     ScaleGlyphAtlas scale_atlas;
@@ -97,6 +103,8 @@ struct TextRenderer::Impl {
     std::array<std::vector<PageTexture>, scale::kRenderScaleStepCount> textures;
     std::vector<GlyphAtlasEntry> entries;
     std::vector<std::uint16_t> used_pages;
+    GlyphPrewarm prewarm;
+    float pending_scale = scale::kMinRenderScale;
 };
 
 TextRenderer::TextRenderer(rendering::rhi::Device& device, GlyphRasterizer& rasterizer,
@@ -114,7 +122,65 @@ void TextRenderer::begin_frame() {
 }
 
 void TextRenderer::set_render_scale(float render_scale) {
+    if (scale::quantize_render_scale(render_scale) != impl_->render_scale) {
+        impl_->prewarm.cancel();
+    }
     impl_->select(render_scale);
+}
+
+bool TextRenderer::begin_render_scale_step(float render_scale, runtime::IoTaskExecutor& executor) {
+    const float target = scale::quantize_render_scale(render_scale);
+    if (target == impl_->render_scale) {
+        impl_->prewarm.cancel();
+        return true;
+    }
+    if (impl_->prewarm.pending() && impl_->pending_scale == target) {
+        return true;
+    }
+    // The working set of the step being left, mapped to the device sizes the new step needs. The
+    // CSS size is recovered from the device size by the inverse of draw()'s rounding, which is
+    // exact for a ladder at or above 1.0; a miss here only means one glyph is rasterized on demand.
+    std::vector<GlyphAtlasKey> keys = impl_->active->working_set();
+    for (GlyphAtlasKey& key : keys) {
+        const long css =
+            std::max(1L, std::lround(static_cast<float>(key.pixel_size) / impl_->render_scale));
+        key.pixel_size =
+            detail::device_pixel_size(static_cast<std::uint16_t>(std::min(css, 65535L)), target);
+    }
+    keys.erase(std::unique(keys.begin(), keys.end(),
+                           [](const GlyphAtlasKey& lhs, const GlyphAtlasKey& rhs) {
+                               return lhs.face == rhs.face && lhs.pixel_size == rhs.pixel_size &&
+                                      lhs.glyph_index == rhs.glyph_index &&
+                                      lhs.x_subpixel == rhs.x_subpixel;
+                           }),
+               keys.end());
+    if (keys.empty()) {
+        // Nothing drawn yet, so there is nothing to rebuild: switching costs nothing.
+        impl_->prewarm.cancel();
+        impl_->select(target);
+        return true;
+    }
+    if (!impl_->prewarm.start(executor, impl_->rasterizers, std::move(keys),
+                              impl_->scale_atlas.hinting(), impl_->scale_atlas.aa_mode())) {
+        return false;
+    }
+    impl_->pending_scale = target;
+    return true;
+}
+
+bool TextRenderer::poll_render_scale_step() {
+    if (!impl_->prewarm.ready()) {
+        return false;
+    }
+    // Selecting releases the step being left, so this belongs between frames like every other
+    // scale change. The new atlas starts empty and the prewarmed glyphs are placed into it.
+    impl_->select(impl_->pending_scale);
+    static_cast<void>(impl_->prewarm.install(*impl_->active));
+    return true;
+}
+
+bool TextRenderer::render_scale_step_pending() const {
+    return impl_->prewarm.pending();
 }
 
 float TextRenderer::render_scale() const {
@@ -132,6 +198,9 @@ void TextRenderer::set_aa_policy(const scale::AaPolicy& policy) {
     // run. An ineligible run draws from the same atlas through the LCD pipeline reading the
     // per-pixel maximum the upload stores in alpha, because the ordinary pipeline would multiply
     // the page's RGB coverage into the ink.
+    if (scale::quantize_render_scale(policy.render_scale) != impl_->render_scale) {
+        impl_->prewarm.cancel();
+    }
     impl_->apply_aa_mode(policy.text_mode == scale::TextAaMode::LcdWhenEligible
                              ? GlyphAaMode::Lcd
                              : GlyphAaMode::Grayscale);
@@ -207,8 +276,8 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             rendering::rhi::TextureDesc desc;
             desc.extent = {atlas.page_width(), atlas.page_height()};
             desc.format = rendering::rhi::TextureFormat::R8G8B8A8Unorm;
-            desc.pixels = pixels.data();
-            desc.row_pitch = static_cast<std::size_t>(atlas.page_width()) * 4;
+            // No pixels: creating from the page would upload every texel, 97% of them empty
+            // (issue #949). The used extent is written right below.
             desc.filter = rendering::rhi::Filter::Linear;
             // The atlas is a bounded pool with its own budget row, so it is charged to its own
             // category rather than to `Texture` (RHI 1.14, issue #703).
@@ -216,9 +285,15 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             slot.texture = impl_->device->create_texture(desc);
             slot.generation = generation;
             slot.created = true;
-            // The texture was created from the whole page, so whatever the atlas had marked dirty
-            // is already on the GPU.
-            static_cast<void>(atlas.take_dirty(page));
+            const GlyphAtlasRect used = atlas.take_used_extent(page);
+            if (!used.empty()) {
+                const std::size_t page_pitch = static_cast<std::size_t>(atlas.page_width()) * 4;
+                slot.texture->write_region(
+                    rendering::rhi::TextureRegion{used.x, used.y, used.width, used.height},
+                    pixels.data() + static_cast<std::size_t>(used.y) * page_pitch +
+                        static_cast<std::size_t>(used.x) * 4,
+                    page_pitch);
+            }
         } else if (slot.generation != generation) {
             // Only the texels written since the last upload: a glyph that adds a few KB to a
             // 2048x2048 page uploads those KB, not 16 MiB (issue #681). An empty rectangle with a

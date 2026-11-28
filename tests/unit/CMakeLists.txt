@@ -2026,7 +2026,7 @@ add_test(NAME glyph_raster COMMAND glyph_raster_tests "${TESSERA_FONT_FIXTURE}")
 add_executable(glyph_raster_measure
     glyph_raster_measure.cpp)
 
-target_link_libraries(glyph_raster_measure PRIVATE tessera_text)
+target_link_libraries(glyph_raster_measure PRIVATE tessera_text tessera_runtime)
 
 add_executable(glyph_atlas_tests
     glyph_atlas_tests.cpp)

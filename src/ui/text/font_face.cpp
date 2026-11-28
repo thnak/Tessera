@@ -89,6 +89,7 @@ std::expected<FontFace, FontError> FontFace::load_owned(std::vector<std::uint8_t
 
     auto state = std::make_shared<detail::FontFaceState>();
     state->owned_bytes = std::move(bytes);
+    state->face_index = face_index;
     FT_Error error = FT_Init_FreeType(&state->library);
     if (error != 0) {
         return std::unexpected(
@@ -106,6 +107,16 @@ std::expected<FontFace, FontError> FontFace::load_owned(std::vector<std::uint8_t
         return std::unexpected(FontError{FontErrorCode::not_scalable, "font face is not scalable"});
     }
     return FontFace(std::move(state));
+}
+
+std::expected<FontFace, FontError> FontFace::clone_independent() const {
+    if (!valid()) {
+        return std::unexpected(
+            FontError{FontErrorCode::invalid_font, "cannot clone an empty face"});
+    }
+    // Reads only the immutable byte buffer and index, never the FreeType objects, so it is safe
+    // on a worker while the owning thread keeps rasterizing from the original.
+    return load_owned(state_->owned_bytes, state_->face_index);
 }
 
 bool FontFace::valid() const noexcept {
