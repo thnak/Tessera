@@ -267,6 +267,7 @@ set(_tessera_canvas_session_sources
     # session's tree, advanced by the page's frame clock.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_motion.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_text.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_session_caret.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
     # The override operations the page calls (issue #536) and their reports.
@@ -1218,6 +1219,8 @@ if (TESSERA_BUILD_TESTS)
     #                         through the scripted run
     #   scene_canvas_text     typed text into a `TextInput` (issue #601): commit, caret keys, IME
     #                         composition, selection with copy and cut, the controlled-field rule
+    #   scene_canvas_text_caret  the caret's painted rectangle (the IME window's place) and the
+    #                         pointer placing the caret and dragging a selection (issue #980)
     #   scene_canvas_motion   the preview animates (issue #603): @keyframes and `:hover` transitions
     #                         advance with the page's frame timestamps, idle is zero frames, reduced
     #                         motion settles at once, state survives the animation's frames
@@ -1227,7 +1230,7 @@ if (TESSERA_BUILD_TESTS)
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
             scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change
-            scene_canvas_text scene_canvas_motion)
+            scene_canvas_text scene_canvas_text_caret scene_canvas_motion)
         add_executable(${_canvas_test}_tests
             ${PROJECT_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -1236,7 +1239,8 @@ if (TESSERA_BUILD_TESTS)
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
-        if (_canvas_test STREQUAL "scene_canvas_pointer" OR _canvas_test STREQUAL "scene_canvas_text")
+        if (_canvas_test STREQUAL "scene_canvas_pointer" OR _canvas_test STREQUAL "scene_canvas_text"
+                OR _canvas_test STREQUAL "scene_canvas_text_caret")
             # The key vocabulary the page sends (issue #388, focus) is pure over its arguments.
             target_sources(${_canvas_test}_tests PRIVATE
                 ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)

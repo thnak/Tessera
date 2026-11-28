@@ -29,6 +29,10 @@ struct FlexTextCentering {
                               const paint::PaintTextMetricsSource& metrics,
                               const text::TextStyle& style, float content_height);
 
+// The resolved horizontal alignment of a text node's lines (`text-align`, logical keywords mirrored
+// under RTL).
+[[nodiscard]] PaintTextAlign computed_text_align(const style::ComputedStyle& style);
+
 [[nodiscard]] FlexTextCentering flex_text_centering(std::string_view element_kind,
                                                     const style::ComputedStyle& style);
 

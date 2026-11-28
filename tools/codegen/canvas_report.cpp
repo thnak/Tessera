@@ -31,9 +31,8 @@ void append_text(std::string& out, std::string_view name, std::string_view text)
     out += quoted(text);
 }
 
-// One escaped JSON string, with no field name. The state cells and the array elements need this and
-// `append_text` is the same encoder plus `"name":`, so they share `quoted()` rather than a second
-// copy of the escape table.
+// One escaped JSON string with no field name (state cells, array elements); `append_text` is the
+// same encoder plus `"name":`.
 void append_escaped(std::string& out, std::string_view text) {
     out += quoted(text);
 }
@@ -61,13 +60,27 @@ void append_float(std::string& out, float value) {
     const std::to_chars_result result = std::to_chars(
         buffer, buffer + sizeof buffer, static_cast<double>(value), std::chars_format::general);
     if (result.ec != std::errc{}) {
-        // A non-finite edge cannot be serialized as JSON; `0` is the only value that keeps the
-        // document parseable, and a box with a non-finite edge is a layout bug the page will show
-        // as a zero-size outline rather than as a parse failure.
+        // A non-finite edge is not JSON; `0` keeps the document parseable (a layout bug shows as a
+        // zero-size box, not a parse failure).
         out.push_back('0');
         return;
     }
     out.append(buffer, result.ptr);
+}
+
+// `,"name":{"x":..,"y":..,"width":..,"height":..}`, a box in logical pixels.
+void append_rect(std::string& out, std::string_view name, const ui::rhi::Rect& box) {
+    out += ",\"";
+    out += name;
+    out += "\":{";
+    for (const auto& [key, value] : {std::pair<const char*, float>{"\"x\":", box.x},
+                                     {",\"y\":", box.y},
+                                     {",\"width\":", box.width},
+                                     {",\"height\":", box.height}}) {
+        out += key;
+        append_float(out, value);
+    }
+    out += "}";
 }
 
 // One state scalar as JSON. `u8string` is the JSON spelling this serializer already uses for string
@@ -82,15 +95,10 @@ void append_scalar(std::string& out, const ui::StateScalar& value) {
         return;
     }
     if (const auto* decimal = std::get_if<double>(&value)) {
-        // A whole-valued double prints without a decimal point, so `2` reads as `2` and not
-        // `2.000000`
-        // -- the same choice `snapshot_state()` makes when it prints a cell.
-        const bool whole = *decimal == static_cast<double>(static_cast<long long>(*decimal));
-        if (whole) {
-            out += std::to_string(static_cast<long long>(*decimal));
-        } else {
-            out += std::to_string(*decimal);
-        }
+        // A whole-valued double prints as `2`, not `2.000000`, as `snapshot_state()` does.
+        const auto whole = static_cast<long long>(*decimal);
+        out += *decimal == static_cast<double>(whole) ? std::to_string(whole)
+                                                      : std::to_string(*decimal);
         return;
     }
     append_escaped(out, std::get<std::string>(value));
@@ -217,17 +225,12 @@ std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
         append_bool(out, "multiline", result.field.multiline);
         out += ",\"caret\":" + std::to_string(result.field.caret) +
                ",\"selectionStart\":" + std::to_string(result.field.selection_start) +
-               ",\"selectionEnd\":" + std::to_string(result.field.selection_end) +
-               ",\"fieldBox\":{\"x\":";
-        const ui::rhi::Rect& box = result.field.box;
-        for (const auto& [name, value] : {std::pair<const char*, float>{"", box.x},
-                                          {",\"y\":", box.y},
-                                          {",\"width\":", box.width},
-                                          {",\"height\":", box.height}}) {
-            out += name;
-            append_float(out, value);
+               ",\"selectionEnd\":" + std::to_string(result.field.selection_end);
+        append_rect(out, "fieldBox", result.field.box);
+        // The caret's painted rectangle: where the page opens the IME's window (issue #980).
+        if (result.field.has_caret_box) {
+            append_rect(out, "caretBox", result.field.caret_box);
         }
-        out += "}";
     }
     if (result.has_text) {
         append_text(out, "text", result.text);

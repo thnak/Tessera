@@ -23,6 +23,9 @@ namespace tessera::compiler::codegen::cli {
 // decide whether to paint text; a null stack is the documented degraded preview (boxes painted,
 // runs counted), not an error state.
 [[nodiscard]] PreviewTextStack* canvas_text_stack() noexcept;
+// The face's paint metrics (the caret box and a pointer caret measure with them), or null with no
+// font, which is the stub paint uses.
+[[nodiscard]] const paint::PaintTextMetricsSource* canvas_paint_metrics() noexcept;
 
 // The running evaluation's text-measurement seam: the loaded face's measurer, or null when no font
 // has been accepted. A caller passes it to `prepare_scene`/`PreviewSession` so the boxes a frame is

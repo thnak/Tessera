@@ -182,6 +182,7 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     cutouts_ = source.cutouts;
     measurer_ = source.measurer;
     fresh_ = true;
+    selecting_text_ = false;
     // A new evaluation is a new animation run: node ids and the style baseline belong to the tree
     // just built, so the previous driver (and what it animated) goes with the previous tree. Its
     // baseline is recorded by its first frame (`animate()`), which is what makes the first hover a
@@ -280,6 +281,7 @@ void CanvasSceneSession::fill_focus(CanvasPointerResult& result) const {
             ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
     }
     result.field = session_->focused_text_field();
+    fill_caret_box(result);
 }
 
 CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32_t key,
@@ -368,6 +370,7 @@ CanvasPointerResult CanvasSceneSession::blur() {
         (void)session_->dispatch(end);
     }
     focus.clear_focus();
+    selecting_text_ = false;
     session_->sync_text_fields();
     result.focus_moved = had_focus;
     result.changed = needs_frame();
@@ -396,6 +399,7 @@ CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x
     result.dispatched = session_->dispatch(input);
     result.ran = session_->last_ran();
     result.unrun = session_->last_unrun();
+    (void)text_pointer(kind, x, y);
 
     if (const ui::Node* hover = session_->router().hovered()) {
         result.hovered_id = hover->automation_id();
