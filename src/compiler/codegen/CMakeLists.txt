@@ -1781,6 +1781,27 @@ if (TESSERA_BUILD_TESTS)
         add_test(NAME library_button_runtime COMMAND library_button_runtime_tests)
     endif ()
 
+    if (EXISTS ${_tessera_codegen_golden_dir}/icon/IconDemo.g.hpp)
+        # Issue #530: the library Icon inside a Button, over the committed bases generated from
+        # packages/tessera-ui/Icon.tsx and icons/IconGlyph.g.tsx by library_icon_lowering_tests.
+        add_executable(library_icon_runtime_tests
+            ${PROJECT_SOURCE_DIR}/tests/unit/library_icon_runtime_tests.cpp)
+
+        target_include_directories(library_icon_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}/icon
+            ${PROJECT_SOURCE_DIR}/tests/unit
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/fixtures/icon)
+        target_link_libraries(library_icon_runtime_tests PRIVATE
+            tessera_scene
+            tessera_text_edit
+            tessera_animation
+            tessera_style
+            tessera_accessibility)
+        target_compile_features(library_icon_runtime_tests PRIVATE cxx_std_23)
+
+        add_test(NAME library_icon_runtime COMMAND library_icon_runtime_tests)
+    endif ()
+
     if (EXISTS ${_tessera_codegen_golden_dir}/SafeArea.g.hpp AND
         EXISTS ${_tessera_codegen_golden_dir}/SafeAreaDemo.g.hpp AND TARGET tessera_app)
         # ADR-040 (#218): the developer classes (tests/unit/codegen_base/fixtures/SafeArea*.hpp)

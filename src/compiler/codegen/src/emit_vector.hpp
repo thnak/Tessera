@@ -28,6 +28,9 @@ struct VectorPayload {
     std::string svg;
     std::string label;
     bool has_label = false;
+    // Every paint was `currentColor` (or none): the document is white and the paint pass tints it
+    // with the node's `color`.
+    bool tint_current_color = false;
 };
 
 // Resolves one `Path` node's payload. `ordinal` is the node's pre-order index, used only when the

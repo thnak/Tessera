@@ -1,0 +1,51 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Icon look (issue #530, ADR-047 item 5). The glyph is a currentColor Path, so it takes the
+   inherited `color`: nothing here names a color. `ticon-mirror` marks a directional icon; it flips
+   by `--icon-flip`, which is 1 unless the host sets it to -1 where `direction: rtl` applies (the
+   stylesheet engine has no direction selector, so the flip is a token the direction root sets). */
+
+.ticon {
+  display: flex;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ticon-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.ticon-md {
+  width: 20px;
+  height: 20px;
+}
+
+.ticon-mirror {
+  transform: scaleX(var(--icon-flip,1));
+}
+
+.ticon-box {
+  display: flex;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+}
+
+.ticon-glyph {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+}
+
+.ticon-path {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+}

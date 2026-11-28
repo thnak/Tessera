@@ -98,11 +98,15 @@ struct PaintVectorStyle {
     float scale = 0.0f;
     std::optional<rendering::rhi::Color> tint;
     float opacity = 1.0f;
+    // The document paints in white and the node's computed `color` is the tint (an explicit `tint`
+    // wins). This is how a `currentColor` `Path` follows its text color (issue #530): ThorVG has no
+    // current color of its own, so the synthesized document carries white and the tint colors it.
+    bool tint_current_color = false;
 
     bool operator==(const PaintVectorStyle& other) const {
         if (asset != other.asset || raster_width != other.raster_width ||
             raster_height != other.raster_height || scale != other.scale ||
-            opacity != other.opacity) {
+            opacity != other.opacity || tint_current_color != other.tint_current_color) {
             return false;
         }
         if (tint.has_value() != other.tint.has_value()) {

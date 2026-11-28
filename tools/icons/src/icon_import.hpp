@@ -7,6 +7,7 @@
 //   <out>/icons/<prefix>/<name>.svg   the vector asset (the PaintKind::Vector payload)
 //   <out>/icons.manifest              ready for tessera_embed_assets(MANIFEST ...)
 //   <out>/icons.g.hpp                 generated accessors: name -> asset, size, monochrome
+//   <out>/IconGlyph.g.tsx             the path-only icons as `Path` nodes (Icon selects by name)
 //   <out>/ICON_LICENSES.txt           attribution for every imported set
 //
 // Tree-shaking is inherent: only the icons named by the reference list are emitted, whatever else

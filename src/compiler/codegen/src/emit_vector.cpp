@@ -172,6 +172,21 @@ bool reject_var_reference(std::string_view prop_name, std::string_view value, st
                            "against, so use a literal color");
 }
 
+bool is_current_color(std::string_view value) {
+    constexpr std::string_view kName = "currentcolor";
+    if (value.size() != kName.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < kName.size(); ++i) {
+        const char c = value[i];
+        const char lower = (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+        if (lower != kName[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool build_svg(std::string_view view_box, std::string_view d, std::string_view fill,
                std::string_view stroke, std::string_view stroke_width, std::string& svg) {
     // Fixed attribute order and no optional attributes: the bytes are a pure function of the IR.
@@ -254,7 +269,27 @@ bool build_vector_payload(std::string_view component_name, const ir::Node& node,
         }
     }
 
+    // `currentColor` is a tint, not a document color: the document paints it white and the paint
+    // pass multiplies by the node's `color`. A tint colors the whole document, so it cannot be
+    // mixed with a literal color on the same node.
+    const bool fill_current = is_current_color(fill);
+    const bool stroke_current = is_current_color(stroke);
+    const bool literal_paint =
+        (!fill_current && fill != "none") || (!stroke_current && stroke != "none");
+    if ((fill_current || stroke_current) && literal_paint) {
+        return fail(error, "`Path` node `" + node.id +
+                               "` mixes `currentColor` with a literal color; split it into two "
+                               "`Path` nodes (the tint colors a whole document)");
+    }
+    if (fill_current) {
+        fill = "#ffffff";
+    }
+    if (stroke_current) {
+        stroke = "#ffffff";
+    }
+
     payload = VectorPayload{};
+    payload.tint_current_color = fill_current || stroke_current;
     payload.asset_name = asset_name_of(component_name, node, ordinal);
     build_svg(*view_box, *d, fill, stroke, stroke_width, payload.svg);
     if (const ir::Expr* label = prop_of(node, "label")) {
@@ -418,6 +453,9 @@ bool emit_vector_paint(CppWriter& writer, const ir::Node& node, std::string_view
     writer.line("tessera::ui::PaintData " + paint + ";");
     writer.line(paint + ".kind = tessera::ui::PaintKind::Vector;");
     writer.line(paint + ".vector.asset = \"" + payload.asset_name + "\";");
+    if (payload.tint_current_color) {
+        writer.line(paint + ".vector.tint_current_color = true;");
+    }
     writer.line(std::string(variable) + "->set_paint_data(std::move(" + paint + "));");
     return true;
 }

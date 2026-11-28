@@ -82,8 +82,8 @@ int main() {
                 "an unreferenced icon was emitted") &&
          ok;
     const auto tabler = icons::load_icon_set(TESSERA_ICONS_FIXTURE_DIR, "tabler");
-    ok = expect(tabler.has_value() && tabler->icons.size() == 7,
-                "the pinned tabler fixture should hold 6 icons plus 1 alias") &&
+    ok = expect(tabler.has_value() && tabler->icons.size() == 8,
+                "the pinned tabler fixture should hold 7 icons plus 1 alias") &&
          ok;
     ok =
         expect(find_file(*basic, "icons/tabler/home.svg") != nullptr, "home was not emitted") && ok;
