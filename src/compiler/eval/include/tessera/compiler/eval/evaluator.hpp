@@ -111,6 +111,13 @@ private:
     }
     [[nodiscard]] std::expected<void, EvalError> run_host_action(const ir::Action& action,
                                                                  const Scope& scope);
+    // A `ref` the scope does not hold: a resource `.status` the bound pending session knows
+    // (#656), otherwise `TESSERA_IR_EVAL_UNKNOWN_REF` (evaluator_service.cpp).
+    [[nodiscard]] std::expected<Value, EvalError> unresolved_ref(const ir::Expr& expr,
+                                                                 const Scope& scope);
+    // A marked setter starts its transition before it assigns: each `useDeferredValue` first
+    // settles on the value it shows now, then the mark begins.
+    void start_transition(const std::string& target, const Scope& scope);
     [[nodiscard]] std::expected<Value, EvalError> eval(const ir::Expr& expr, const Scope& scope,
                                                        std::size_t depth);
     [[nodiscard]] std::expected<Value, EvalError>

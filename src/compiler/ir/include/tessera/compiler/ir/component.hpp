@@ -141,6 +141,29 @@ struct Service {
     std::string registry_id{};
 };
 
+// One `const <name> = useResource(service.method, key, { suspend })` read (ADR-067 item 1;
+// docs/specs/pending-ui-v1.md section 3.4). The resource is the typed, keyed record of
+// async-data-v1.md section 1; its fetch goes through the declared service, never a URL.
+//
+// `key` is a scalar expression or a `record` of scalar expressions of state, props and environment
+// values; two keys are the same key when they are equal by value, and a key change starts a new
+// epoch. `res::<name>.status`, `.data` and `.error` are the reference ids that read it. Additive:
+// a component without resources writes the bytes it wrote before.
+struct Resource {
+    std::string id;      // `res::<name>`
+    std::string service; // the `svc::` id of a declared service of this component
+    std::string method;  // the service method that fetches
+    // A suspending read: the Suspense boundary above its `.data` reads shows its fallback while
+    // the status is Loading with no data. False never suspends.
+    bool suspend = false;
+    // The IR type of `.data`, taken from the service method's declared return type when the
+    // analyzer knows it (pending-ui-v1.md section 3.4, slice 3). Empty when it does not: then a
+    // `.data` read validates but is not generated (TESSERA_CODEGEN_UNSUPPORTED).
+    std::string type;
+    Expr key;
+    SourceSpan source;
+};
+
 // Inline setter handler (section 2.1).
 struct Handler {
     std::string id;
@@ -169,6 +192,9 @@ struct Component {
     // Empty for every component that does not call `useService`, which is what keeps the generated
     // base (and every committed golden) free of service code.
     std::vector<Service> services;
+    // ADR-067 item 1: the `useResource` reads, in declaration order. Empty for every component that
+    // calls none, which keeps the IR JSON and the generated base byte-identical to before.
+    std::vector<Resource> resources;
     Node root;
 };
 

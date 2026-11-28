@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "emit_behaviors.hpp"
+#include "emit_suspense.hpp"
 
 #include <algorithm>
 #include <string>
@@ -9,11 +10,57 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
+// `useTransition` and `useDeferredValue` are registered engine behaviors, but the generated base
+// reads the component's own pending model for them (a `TransitionMark`, a `DeferredScalar`) because
+// the marked setter and the resource subscription already drive that state; there is no scene
+// target to attach to and nothing for an `Instance` slot to own.
+bool model_backed_behavior(const ir::Behavior& behavior) {
+    return behavior.behavior == "transition" || behavior.behavior == "deferred_value";
+}
+
+std::string deferred_member(const ir::Behavior& behavior) {
+    return member_name(behavior.id) + "deferred_";
+}
+
 // The C++ member name of a behavior: its IR id without the `beh::` prefix, so `beh::press` becomes
 // `press_`. The trailing underscore is what makes it a private field under the ADR-040
 // partitioning.
 std::string behavior_member(const ir::Behavior& behavior) {
     return member_name(behavior.id);
+}
+
+// The C++ type a deferred value stores, or empty when the IR type has none (a record or a list).
+std::string deferred_cpp_type(const ir::Behavior& behavior) {
+    if (behavior.outputs.empty()) {
+        return {};
+    }
+    const std::optional<std::string> type = cpp_type(behavior.outputs.front().type);
+    return type ? *type : std::string();
+}
+
+bool emit_deferred_accessor(CppWriter& writer, const ir::Component& component,
+                            const ir::Behavior& behavior, std::string& error) {
+    const std::string type = deferred_cpp_type(behavior);
+    if (type.empty() || behavior.args.empty() || behavior.outputs.empty()) {
+        error = "behavior `" + behavior.id + "` is not a scalar deferred value";
+        return false;
+    }
+    const ExprEmission current = emit_expr(behavior.args.front().expr, component);
+    if (!current.error.empty()) {
+        error = "behavior `" + behavior.id + "` value: " + current.error;
+        return false;
+    }
+    // `useDeferredValue` alone is never pending (pending-ui-v1.md decision 4): the lane is the
+    // component's own transition mark, so without one the value is its argument.
+    const std::string held =
+        has_transition_surface(component) ? "pending_transition_.pending()" : "false";
+    writer.line("[[nodiscard]] " +
+                std::string(type == "std::string" ? "const std::string&" : type) + " " +
+                member_name(behavior.id) + behavior.outputs.front().name + "() const {");
+    writer.line("    return " + member_name(behavior.id) + "deferred_.read(" + current.text + ", " +
+                held + ");");
+    writer.line("}");
+    return true;
 }
 
 // The engine header a behavior's registry name lives in. The registry is one header, so this is the
@@ -25,22 +72,53 @@ std::string behavior_header(const ir::Behavior& /*behavior*/) {
 
 } // namespace
 
+std::vector<std::string> deferred_accessor_calls(const ir::Component& component) {
+    std::vector<std::string> calls;
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "deferred_value" && !behavior.outputs.empty()) {
+            calls.push_back(member_name(behavior.id) + behavior.outputs.front().name + "()");
+        }
+    }
+    return calls;
+}
+
 bool uses_behaviors(const ir::Component& component) {
-    return !component.behaviors.empty();
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (!model_backed_behavior(behavior)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::vector<std::string> behavior_headers(const ir::Component& component) {
     std::vector<std::string> headers;
     for (const ir::Behavior& behavior : component.behaviors) {
-        headers.push_back(behavior_header(behavior));
+        if (!model_backed_behavior(behavior)) {
+            headers.push_back(behavior_header(behavior));
+        }
     }
     std::sort(headers.begin(), headers.end());
     headers.erase(std::unique(headers.begin(), headers.end()), headers.end());
     return headers;
 }
 
-bool emit_behavior_fields(CppWriter& writer, const ir::Component& component,
-                          std::string& /*error*/) {
+bool emit_behavior_fields(CppWriter& writer, const ir::Component& component, std::string& error) {
+    // A `useDeferredValue` keeps one settled scalar (pending-ui-v1.md section 6); a
+    // `useTransition` keeps nothing, it reads the component's `TransitionMark`.
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior != "deferred_value") {
+            continue;
+        }
+        const std::string type = deferred_cpp_type(behavior);
+        if (type.empty()) {
+            error = "behavior `" + behavior.id + "` defers a value with no scalar C++ type";
+            return false;
+        }
+        writer.line("// `" + behavior.id + "` (useDeferredValue): the last settled value.");
+        writer.line("mutable tessera::ui::pending::DeferredScalar<" + type + "> " +
+                    deferred_member(behavior) + ";");
+    }
     if (!uses_behaviors(component)) {
         return true;
     }
@@ -49,6 +127,9 @@ bool emit_behavior_fields(CppWriter& writer, const ir::Component& component,
     writer.line("// exists, updated when its hashed value options change, and detached in reverse");
     writer.line("// order at unmount. The rules live in the engine, not here.");
     for (const ir::Behavior& behavior : component.behaviors) {
+        if (model_backed_behavior(behavior)) {
+            continue; // read from the component's pending model, see the accessors
+        }
         const std::string member = behavior_member(behavior);
         // The slot is the shared `Instance`, not the engine `Behavior`: the instance owns the
         // options hash and the attach/update/refresh/detach rules, so the generated base and the
@@ -64,11 +145,13 @@ bool emit_behavior_fields(CppWriter& writer, const ir::Component& component,
 
 bool claim_behavior_names(const ir::Component& component, std::set<std::string>& names,
                           std::string& error) {
-    if (!uses_behaviors(component)) {
-        return true;
-    }
     for (const ir::Behavior& behavior : component.behaviors) {
         const std::string member = behavior_member(behavior);
+        if (behavior.behavior == "deferred_value" &&
+            !names.insert(deferred_member(behavior)).second) {
+            error = "behavior `" + behavior.id + "` collides with another generated member";
+            return false;
+        }
         if (!names.insert(member).second) {
             error = "behavior `" + behavior.id + "` collides with another generated member";
             return false;
@@ -88,14 +171,27 @@ bool claim_behavior_names(const ir::Component& component, std::set<std::string>&
 }
 
 bool emit_behavior_accessors(CppWriter& writer, const ir::Component& component,
-                             std::string& /*error*/) {
-    if (!uses_behaviors(component)) {
+                             std::string& error) {
+    if (component.behaviors.empty()) {
         return true;
     }
     writer.line("// The behavior outputs, read by the expressions that reference them. Before the");
     writer.line("// first attach and after detach each holds its manifest default.");
     for (const ir::Behavior& behavior : component.behaviors) {
         const std::string member = behavior_member(behavior);
+        if (behavior.behavior == "transition") {
+            // pending-ui-v1.md section 5: `isPending` is the component's own transition mark.
+            writer.line("[[nodiscard]] bool " + member + "isPending() const {");
+            writer.line("    return pending_transition_.pending();");
+            writer.line("}");
+            continue;
+        }
+        if (behavior.behavior == "deferred_value") {
+            if (!emit_deferred_accessor(writer, component, behavior, error)) {
+                return false;
+            }
+            continue;
+        }
         for (std::size_t index = 0; index < behavior.outputs.size(); ++index) {
             const ir::BehaviorOutput& output = behavior.outputs[index];
             const bool is_bool = output.type == "bool";
@@ -129,6 +225,9 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
     writer.open("void " + component.name + "::attach_behaviors(tessera::ui::InputRouter& router)");
     writer.line("const tessera::ui::behavior::Services services{&router};");
     for (const ir::Behavior& behavior : component.behaviors) {
+        if (model_backed_behavior(behavior)) {
+            continue;
+        }
         const std::string member = behavior_member(behavior);
         // The target nodes, in manifest order. A ref member is a `Node*` the build pass assigned.
         std::string nodes = "const std::array<tessera::ui::Node*, " +
@@ -170,6 +269,9 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
     // (behavior-hooks-v1.md section 8, the `refresh` trigger).
     writer.open("void " + component.name + "::refresh_behaviors()");
     for (const ir::Behavior& behavior : component.behaviors) {
+        if (model_backed_behavior(behavior)) {
+            continue;
+        }
         const std::string member = behavior_member(behavior);
         writer.line("if (this->" + member + ".attached()) {");
         ++writer.indent;
@@ -183,7 +285,9 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
     // Detach in reverse declaration order, as the spec requires (section 8, "order").
     writer.open("void " + component.name + "::detach_behaviors()");
     for (std::size_t index = component.behaviors.size(); index-- > 0;) {
-        writer.line("this->" + behavior_member(component.behaviors[index]) + ".detach();");
+        if (!model_backed_behavior(component.behaviors[index])) {
+            writer.line("this->" + behavior_member(component.behaviors[index]) + ".detach();");
+        }
     }
     writer.close("");
     writer.line("");

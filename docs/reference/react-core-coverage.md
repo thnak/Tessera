@@ -45,7 +45,9 @@ corpus did not exercise. As written it is accepted 34.9% at the front end and 4.
 | `useId` | rejected | add | S | A stable id from the instance key and the call ordinal (the automation id rules of `ir-v1.md` section 3.1.1) |
 | `useLayoutEffect` | rejected | add as `useEffect` | S | There is no browser paint to order against; document that it has `useEffect` timing |
 | `useSyncExternalStore` | rejected | no (use `useObservable`, `useService`) | | `docs/design/observable.md`, ADR-050; external state belongs to services |
-| `useTransition`, `useDeferredValue` | rejected | later | L | Needs the async and scheduling model (`async-data-v1.md`); an alias returning "never pending" would hide that |
+| `useTransition` | accepted (issue #656, ADR-067): `const [isPending, startTransition] = useTransition();`; `startTransition(() => setX(v))` marks the setter; `isPending` is a read-only bool that is true from the marked change until the resource the setter keys settles | done | M | [`pending-ui-v1.md`](../specs/pending-ui-v1.md) section 5; never aliased to "never pending". Generated base: the component's own `TransitionMark` (the `transition` engine behavior is registered for hosts that drive it by hand) |
+| `useDeferredValue` | accepted (issue #656): `const d = useDeferredValue(x);` for a `useState` name holding a bool, number or string-literal union | done | M | The last settled value; equals `x` unless a transition of the same component is pending (no `useTransition` means never pending). Other types are `TESSERA_IR_UNSUPPORTED`; the timing is weaker than React's, [`pending-ui-v1.md`](../specs/pending-ui-v1.md) section 6 |
+| `useResource` | accepted (issue #656, ADR-067): `const feed = useResource(api.method, key, { suspend: true });` over a `useService` binding | done (`.error` not generated) | M | A keyed typed resource; `feed.status`, `feed.data` (scalar, typed from the manifest) and `feed.error`; `suspend: true` needs a `Suspense` above it (`TESSERA_SUSPENSE_NO_BOUNDARY`). Never fetches in render; the host binds a `ResourceView`, [`pending-ui-v1.md`](../specs/pending-ui-v1.md) section 3 |
 | React 19 `use`, `useActionState`, `useFormStatus`, `useOptimistic` | rejected | no | | Forms have their own spec (`forms-and-validation-v1.md`) |
 | `useImperativeHandle`, `forwardRef` | rejected | no | | Function values; a component exposes a callback prop instead |
 | `useInsertionEffect`, `useDebugValue` | rejected | no | | No use in this model |
@@ -66,7 +68,8 @@ corpus did not exercise. As written it is accepted 34.9% at the front end and 4.
 | `StrictMode`, `Profiler` | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the tag) | add as pass-through | S | No development double-render in this model |
 | Spread props `{...props}` | rejected | no | | Keys must be known at compile time; pass named props |
 | Render props, function as a child | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the call) | no | | Function values; use `children` slots or named element props (later, ADR-064) |
-| `lazy`, `Suspense` | rejected | later | L | Needs code splitting and an async data model; there are no JS bundles |
+| `lazy` | accepted as identity: `const X = lazy(() => import("./X"))` is the import of `X` (issue #656, ADR-067) | done | S | A native app is one binary; no splitting occurs. Other forms stay `UNSUPPORTED_API` |
+| `Suspense` | accepted: `<Suspense fallback={<X />}>` lowers to the IR `Suspense` node (issue #656) | done | M | One unconditional fallback, one child; shows the fallback while a covered `suspend: true` read has no data, keeps the old subtree while a transition is pending (section 4.3). Eight reads per boundary (`TESSERA_SUSPENSE_TOO_MANY_READS`) |
 | Portals | rejected | no | | The Layer host (ADR-064 tier 0) and `Overlay` cover it |
 | Class components, `async` components | rejected | no | | By design (ADR-036) |
 | Error boundaries | `ErrorBoundary` intrinsic with `fallback` | keep | | Not the class lifecycle API |
@@ -151,7 +154,7 @@ because they are the first rejection of more files than any single React row.
 5. **List and string expressions (M):** `filter`, `slice`, `length`, the string allowlist, object spread.
    Real (the first rejection of 3 of 50 files) but not dominant, so it follows the parser gaps.
 6. **`useReducer` limited, `useContext` static (M).**
-7. **Later (L):** `useTransition`, `Suspense` and `lazy`, raw gesture events.
+7. **Later (L):** raw gesture events. `useTransition`, `useDeferredValue`, `useResource`, `Suspense` and `lazy` are accepted (issue #656, ADR-067).
 
 Items 4 and 5 change the IR allowlist and the handler IR, so each needs a short ADR or a spec change
 before code; items 1, 2, 3 and 6 do not change the IR except `Environment` for context.

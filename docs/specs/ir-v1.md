@@ -98,6 +98,7 @@ agree. `hash` stays the hash of the file bytes — it identifies the source file
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
 | `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1), and `useContext` (ADR-066 item 5, issue #802). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme`, `breakpoint` or `context:<CtxName>` for a static context), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1). A `context:` provider's value is not host-pushed: the providing ancestor pushes it, and a consumer under no provider reads the context's default |
+| `resources` | Resource[] | no | ADR-067 item 1 (`useResource`). Additive and omitted when empty. A Resource has `id` (`res::<name>`), `service` (a declared `svc::` id), `method`, optional `suspend` (boolean, written only when true), optional `type` (the IR type of `.data`: `int`, `float`, `bool` or `string`, taken from the service method's declared return type; omitted when it is not a scalar), `key` (a scalar expression or an anonymous `record` of scalars, compared by value) and `source`. `res::<name>.status`, `.data` and `.error` are the reference ids that read it ([`ir-v1-expr.md`](ir-v1-expr.md) section 4.4) |
 | `services` | Service[] | no | ADR-050 section 3.1 (`useService<T>()`). Additive and omitted when empty. A Service has `id` (`svc::<name>`), `name` (the TSX binding the generated accessor is named after), `type` (the C++ service interface, fully qualified, from the project's service manifest), `header` (the header declaring `type`) and `source`. Codegen resolves each entry once at mount; `service<T>()` for a `T` not in this list is `TESSERA_CG_SERVICE_UNDECLARED` |
 | `root` | Node | yes | Exactly one root node |
 
@@ -231,7 +232,7 @@ declares no record writes exactly the bytes it wrote before this section existed
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement`, `Component`, `Slot` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `Suspense`, `CustomElement`, `Component`, `Slot` |
 | `component` | string | for `Component` | Id of the referenced component (section 3.4) |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
@@ -441,6 +442,7 @@ Sections 4-14 live in [`ir-v1-expr.md`](ir-v1-expr.md); numbering is unchanged.
 | 4 | Expressions (including the `record` value, section 4.3) |
 | 5 | Loop |
 | 5.1 | ErrorBoundary |
+| 5.2 | Suspense |
 | 6 | Binding |
 | 7 | Stylesheet references |
 | 8 | Source spans |

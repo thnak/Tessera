@@ -313,6 +313,34 @@ void check_environment(Context& ctx, std::size_t index, const Statement& stateme
     ctx.out.environment.push_back(std::move(info));
 }
 
+// `useTransition` (ADR-067 item 4, docs/specs/pending-ui-v1.md section 5): the pair
+// `[isPending, startTransition]`. The hook has no arguments and no target. It is recorded as a
+// behavior of the `transition` engine behavior whose one output is `isPending`; the second name is
+// a function value whose calls the arrow rules (arrows.cpp) and the lowering understand.
+void check_transition(Context& ctx, std::size_t index, const Statement& statement, const Expr& call,
+                      const jsx::HookEntry& hook) {
+    const bool ok = statement.kind == StatementKind::Const && statement.array_pattern &&
+                    statement.names.size() == 2 && call.operands.size() == 1;
+    if (!ok) {
+        form_error(ctx, hook.name, statement,
+                   "const [isPending, startTransition] = useTransition();");
+        return;
+    }
+    add_symbol(ctx, statement.names[0], SymbolKind::TransitionPending, statement.span, index);
+    add_symbol(ctx, statement.names[1], SymbolKind::TransitionStart, statement.span, index);
+    BehaviorInfo info;
+    info.statement = index;
+    info.name = statement.names[0];
+    info.value_name = statement.names[0];
+    info.hook = hook.name;
+    info.behavior = hook.provider;
+    for (const jsx::HookOutput& output : hook.outputs) {
+        info.outputs.push_back(output.name);
+        info.output_types.push_back(output.ir);
+    }
+    ctx.out.behaviors.push_back(std::move(info));
+}
+
 // `useId` (ADR-066 item 1): a stable id from the instance key and the call ordinal. It takes no
 // arguments and binds one name, which is a string the component can use for an `id`/`aria-*`
 // association. The value is engine-owned like an environment hook, so it is recorded as one: the
@@ -372,6 +400,14 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_effect(ctx, index, statement, call);
     } else if (name == "useLayoutEffect") {
         check_layout_effect(ctx, index, statement, call);
+    } else if (const jsx::HookEntry* transition = ctx.manifest.find(name);
+               name == "useTransition" && transition != nullptr) {
+        check_transition(ctx, index, statement, call, *transition);
+    } else if (name == "useResource") {
+        check_resource(ctx, index, statement, call);
+    } else if (const jsx::HookEntry* deferred = ctx.manifest.find(name);
+               name == "useDeferredValue" && deferred != nullptr) {
+        check_deferred_value(ctx, index, statement, call, *deferred);
     } else if (name == "useId") {
         check_id(ctx, index, statement, call);
     } else if (const jsx::HookEntry* behavior = ctx.manifest.find(name);

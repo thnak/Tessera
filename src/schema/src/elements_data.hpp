@@ -75,6 +75,17 @@ inline constexpr ElementRow kElements[] = {
     {"ErrorBoundary", "ErrorBoundary", ChildrenKind::One, "", "", false, false,
      data::kErrorBoundaryProps, data::kErrorBoundaryEvents, data::kErrorBoundaryConstraints,
      "not painted, no layout effect"},
+    {"Suspense",
+     "Suspense",
+     ChildrenKind::One,
+     "",
+     "",
+     false,
+     false,
+     data::kSuspenseProps,
+     {},
+     data::kSuspenseConstraints,
+     "not painted, no layout effect; shows fallback while a read loads"},
     {"CustomElement",
      "CustomElement",
      ChildrenKind::None,
@@ -117,7 +128,7 @@ constexpr bool element_rows_are_valid(std::span<const ElementRow> list) {
     return true;
 }
 
-static_assert(std::size(kElements) == 13, "the intrinsic list of README section 3 has 13 tags");
+static_assert(std::size(kElements) == 14, "the intrinsic list of README section 3 has 14 tags");
 
 static_assert(element_rows_are_valid(kElements), "element rows have names and lowering targets");
 

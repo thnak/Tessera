@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/compiler/eval/pending.hpp"
+#include "tessera/compiler/ir/suspense_reads.hpp"
 
 namespace tessera::compiler::eval {
 
@@ -30,6 +31,122 @@ void PendingSession::sync_read(std::size_t slot) noexcept {
 
 void PendingSession::begin_transition() noexcept {
     transition_.begin(resource_.epoch());
+}
+
+void PendingSession::begin_transition(std::string_view target) noexcept {
+    if (component_ == nullptr) {
+        begin_transition();
+        return;
+    }
+    const std::optional<std::size_t> keyed =
+        tessera::compiler::ir::resource_keyed_by(*component_, target);
+    if (!keyed || *keyed >= views_.size()) {
+        return; // codegen rejects a marked set that writes no resource key; the preview ignores it
+    }
+    watched_ = *keyed;
+    transition_.begin(views_[*keyed].read().epoch + 1);
+}
+
+void PendingSession::configure(const tessera::compiler::ir::Component& component) {
+    component_ = &component;
+    views_.assign(component.resources.size(), tessera::ui::pending::ResourceView{});
+    const tessera::compiler::ir::SuspenseReads reads =
+        tessera::compiler::ir::collect_suspense_reads(component);
+    slots_.clear();
+    boundaries_.assign(reads.boundaries.size(), tessera::ui::pending::SuspenseBoundary{});
+    for (std::size_t boundary = 0; boundary < reads.boundaries.size(); ++boundary) {
+        slots_.push_back(reads.boundaries[boundary].resources);
+        boundaries_[boundary].reset_reads(slots_.back().size());
+    }
+    watched_ = static_cast<std::size_t>(-1);
+    transition_.clear();
+    deferred_.clear();
+}
+
+Value PendingSession::deferred(std::string_view id, const Value& current) {
+    const bool held = transition_.pending();
+    for (Settled& entry : deferred_) {
+        if (entry.id == id) {
+            if (!held) {
+                entry.value = current;
+            }
+            return entry.value;
+        }
+    }
+    deferred_.push_back(Settled{std::string(id), current});
+    return current;
+}
+
+void PendingSession::bind_resource(std::size_t index,
+                                   const tessera::ui::pending::ResourceView& view) {
+    if (index < views_.size()) {
+        views_[index] = view;
+    }
+}
+
+void PendingSession::sync() noexcept {
+    // The mark observes first, so a boundary above the transition's read holds its content only
+    // while the transition is pending (pending-ui-v1.md section 4.3): the same order as the
+    // generated `pending_sync()`.
+    if (transition_.started() && watched_ < views_.size()) {
+        const tessera::ui::pending::ResourceState state = views_[watched_].read();
+        (void)transition_.observe(state.loading, state.epoch);
+    }
+    for (std::size_t boundary = 0; boundary < boundaries_.size(); ++boundary) {
+        if (watched_ < views_.size()) {
+            for (const std::size_t resource : slots_[boundary]) {
+                if (resource == watched_) {
+                    boundaries_[boundary].set_hold(transition_.pending());
+                    break;
+                }
+            }
+        }
+        for (std::size_t slot = 0; slot < slots_[boundary].size(); ++slot) {
+            const tessera::ui::pending::ResourceState state = views_[slots_[boundary][slot]].read();
+            (void)boundaries_[boundary].set_read(slot, state.loading, state.has_data, state.epoch);
+        }
+    }
+}
+
+tessera::ui::pending::ResourceState
+PendingSession::resource_state(std::size_t index) const noexcept {
+    return index < views_.size() ? views_[index].read() : tessera::ui::pending::ResourceState{};
+}
+
+std::optional<std::string_view> PendingSession::status_of(std::string_view resource_id) const {
+    if (component_ == nullptr) {
+        return std::nullopt;
+    }
+    for (std::size_t index = 0; index < component_->resources.size(); ++index) {
+        if (component_->resources[index].id == resource_id) {
+            return std::string_view(views_[index].read().status());
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<Value> PendingSession::data_of(std::string_view resource_id) const {
+    if (component_ == nullptr) {
+        return std::nullopt;
+    }
+    for (std::size_t index = 0; index < component_->resources.size(); ++index) {
+        const tessera::compiler::ir::Resource& resource = component_->resources[index];
+        if (resource.id != resource_id || resource.type.empty()) {
+            continue;
+        }
+        const tessera::ui::pending::ResourceState state = views_[index].read();
+        if (resource.type == "string") {
+            return Value::of_string(std::string(state.text));
+        }
+        if (resource.type == "bool") {
+            return Value::of_bool(state.number != 0.0);
+        }
+        if (resource.type == "int") {
+            return Value::of_int(static_cast<std::int32_t>(state.number));
+        }
+        return Value::of_float(state.number);
+    }
+    return std::nullopt;
 }
 
 bool PendingSession::observe_transition() noexcept {

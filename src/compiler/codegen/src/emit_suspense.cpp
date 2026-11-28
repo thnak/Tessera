@@ -17,6 +17,7 @@
 
 #include "emit_events.hpp"
 #include "emit_node_groups.hpp"
+#include "emit_resources.hpp"
 #include "emit_suspense.hpp"
 
 #include <string>
@@ -64,6 +65,13 @@ std::string live_fallback_member(unsigned ordinal) {
 }
 
 bool has_transition(const ir::Component& component) {
+    // `useTransition` always owns a mark, even when nothing is marked yet, because `isPending` is
+    // read from it (pending-ui-v1.md section 5).
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "transition") {
+            return true;
+        }
+    }
     for (const ir::Handler& handler : component.handlers) {
         for (const ir::Action& action : handler.actions) {
             if (action.transition) {
@@ -76,12 +84,22 @@ bool has_transition(const ir::Component& component) {
 
 } // namespace
 
+bool has_transition_surface(const ir::Component& component) {
+    return has_transition(component);
+}
+
 bool uses_pending(const ir::Component& component, const DynamicPlan& plan) {
-    return !plan.suspenses.empty() || has_transition(component);
+    return !plan.suspenses.empty() || has_transition(component) || uses_resources(component);
 }
 
 std::vector<std::string> pending_headers(const ir::Component& component, const DynamicPlan& plan) {
     std::vector<std::string> headers;
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "deferred_value") {
+            headers.emplace_back("tessera/ui/pending/deferred.hpp");
+            break;
+        }
+    }
     if (!uses_pending(component, plan)) {
         return headers; // no pending surface: no include, so the golden stays byte-identical
     }
@@ -90,6 +108,11 @@ std::vector<std::string> pending_headers(const ir::Component& component, const D
     }
     if (has_transition(component)) {
         headers.emplace_back("tessera/ui/pending/transition.hpp");
+    }
+    if (uses_resources(component)) {
+        // #656: the boundary reads the resources through the narrow view; no fake resource member.
+        headers.emplace_back("tessera/ui/pending/resource_view.hpp");
+        return headers;
     }
     // The fake resource backs both halves of the spike: the boundary reads it and a marked setter
     // starts a transition under its epoch.
@@ -105,7 +128,11 @@ void emit_pending_fields(CppWriter& writer, const ir::Component& component,
     writer.line("// ADR-067 spike #661 (off by default): the pending-UI model. The boundary is a");
     writer.line("// static node, so it owns no scene node: the component owns both subtrees and");
     writer.line("// attaches whichever one the model says is live.");
-    writer.line("tessera::ui::pending::FakeResource pending_resource_;");
+    if (uses_resources(component)) {
+        emit_resource_fields(writer, component);
+    } else {
+        writer.line("tessera::ui::pending::FakeResource pending_resource_;");
+    }
     if (has_transition(component)) {
         writer.line("// The transition mark of a `startTransition` setter (ADR-067 item 4).");
         writer.line("tessera::ui::pending::TransitionMark pending_transition_;");
@@ -135,6 +162,10 @@ void emit_pending_declarations(CppWriter& writer, const ir::Component& component
         writer.line("// Attaches the subtree the boundary's model says is live, at the boundary's");
         writer.line("// source position. Idempotent: an unchanged phase touches no node.");
         writer.line("void apply_suspense_" + ordinal_text(site.ordinal) + "();");
+    }
+    if (uses_resources(component)) {
+        emit_resource_declarations(writer, component);
+        return;
     }
     writer.line("// The fake resource seams (spike #661): the same operations the evaluator's");
     writer.line("// PendingSession exposes, so the differential test plays one script on both.");
@@ -214,6 +245,9 @@ bool emit_pending_sources(CppWriter& writer, const ir::Component& component,
         writer.close("");
         writer.line("");
     }
+    if (uses_resources(component)) {
+        return emit_resource_sources(writer, component, plan, error);
+    }
     writer.open("std::uint64_t " + component.name + "::pending_begin_fetch()");
     writer.line("return pending_resource_.begin_fetch();");
     writer.close("");
@@ -282,6 +316,11 @@ bool emit_pending_sources(CppWriter& writer, const ir::Component& component,
     }
     writer.close("");
     writer.line("");
+    return emit_run_marked_set(writer, component, true, error);
+}
+
+bool emit_run_marked_set(CppWriter& writer, const ir::Component& component, bool fake_resource,
+                         std::string& error) {
     // The marked setter, callable without a scene event: the differential test drives the same
     // generated handler body the Button's click binding runs. The payload is the handler's own
     // typed record, converted from a bare event exactly as the scene adapter does it.
@@ -313,7 +352,9 @@ bool emit_pending_sources(CppWriter& writer, const ir::Component& component,
         emitted = true;
     }
     if (!emitted) {
-        writer.line("(void)pending_resource_;");
+        if (fake_resource) {
+            writer.line("(void)pending_resource_;");
+        }
     }
     writer.close("");
     writer.line("");
@@ -358,9 +399,16 @@ bool emit_suspense_children(NodeEmitContext& context) {
                         context.state.parent_variable + ".get();");
     context.writer.line("this->" + index_member(site->ordinal) + " = " +
                         context.state.parent_variable + "->children().size();");
+    const std::size_t read_count = uses_resources(context.state.component)
+                                       ? boundary_reads(context.state.component, node).size()
+                                       : site->read_count;
     context.writer.line("this->" + boundary_member(site->ordinal) + ".reset_reads(" +
-                        std::to_string(site->read_count) + ");");
-    context.writer.line("this->apply_suspense_" + ordinal_text(site->ordinal) + "();");
+                        std::to_string(read_count) + ");");
+    // A resource-driven component publishes the bound views first (a host may bind before build()),
+    // which also applies this boundary; the others have nothing to read yet.
+    context.writer.line(uses_resources(context.state.component)
+                            ? "this->pending_sync();"
+                            : "this->apply_suspense_" + ordinal_text(site->ordinal) + "();");
     context.variable.clear(); // the caller attaches nothing: the boundary attached its subtree
     return true;
 }

@@ -340,6 +340,10 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             // ADR-050 section 3.1 (issue #177): one `services[]` entry; the analyzer resolved the
             // interface against the project manifest and recorded its C++ type and header.
             internal::lower_service_hook(state, index, out);
+        } else if (hook == "useResource") {
+            internal::lower_resource_hook(state, index, out, names);
+        } else if (hook == "useDeferredValue") {
+            internal::lower_deferred_value_hook(state, index, out, names);
         } else if (hook == "useContext") {
             // ADR-066 item 5 (issue #802): an environment entry naming the context, so the
             // provider walk in codegen resolves the value per instance.

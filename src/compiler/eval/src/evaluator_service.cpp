@@ -7,10 +7,66 @@
 #include "tessera/compiler/eval/evaluator.hpp"
 
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace tessera::compiler::eval {
+
+void Evaluator::start_transition(const std::string& target, const Scope& scope) {
+    if (const ir::Component* component = pending_->component(); component != nullptr) {
+        for (const ir::Behavior& behavior : component->behaviors) {
+            if (behavior.behavior != "deferred_value" || behavior.args.empty()) {
+                continue;
+            }
+            if (auto current = eval(behavior.args.front().expr, scope, 0)) {
+                (void)pending_->deferred(behavior.id, *current);
+            }
+        }
+    }
+    pending_->begin_transition(target);
+}
+
+std::expected<Value, EvalError> Evaluator::unresolved_ref(const ir::Expr& expr,
+                                                          const Scope& scope) {
+    // pending-ui-v1.md sections 5 and 6: `useTransition` and `useDeferredValue` are behaviors whose
+    // output the pending session owns, so a bound session answers their `beh::` reads.
+    if (pending_ != nullptr && pending_->component() != nullptr && expr.id.rfind("beh::", 0) == 0) {
+        for (const ir::Behavior& behavior : pending_->component()->behaviors) {
+            if (behavior.outputs.empty() ||
+                behavior.id + "." + behavior.outputs.front().name != expr.id) {
+                continue;
+            }
+            if (behavior.behavior == "transition") {
+                return Value::of_bool(pending_->is_pending());
+            }
+            if (behavior.behavior == "deferred_value" && !behavior.args.empty()) {
+                auto current = eval(behavior.args.front().expr, scope, 0);
+                if (!current) {
+                    return std::unexpected(std::move(current.error()));
+                }
+                return pending_->deferred(behavior.id, *current);
+            }
+        }
+    }
+    // #656: a resource's status comes from the pending session when the host bound one.
+    const std::size_t dot = expr.id.rfind('.');
+    if (pending_ != nullptr && dot != std::string::npos) {
+        const std::string_view base = std::string_view(expr.id).substr(0, dot);
+        const std::string_view member = std::string_view(expr.id).substr(dot + 1);
+        if (member == "status") {
+            if (const auto status = pending_->status_of(base)) {
+                return Value::of_string(std::string(*status));
+            }
+        } else if (member == "data") {
+            if (auto data = pending_->data_of(base)) {
+                return std::move(*data);
+            }
+        }
+    }
+    return std::unexpected(
+        EvalError{"TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id + "` is not in scope"});
+}
 
 std::expected<void, EvalError> Evaluator::run_host_action(const ir::Action& action,
                                                           const Scope& scope) {

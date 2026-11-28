@@ -399,6 +399,9 @@ bool Parser::parse_const_item(ModuleItem& item) {
     if (!expect_punct("=", LexMode::Code)) {
         return false;
     }
+    if (cur_.kind == TokenKind::Identifier && cur_.text == "lazy") {
+        return parse_lazy_import(item);
+    }
     // ADR-066 item 1: `const Avatar = ({ initials }: Props) => { ... return <div/>; };` is an
     // arrow-function component, the most common spelling in ported code. It is tried first and
     // rewound when it is not one, because the two forms share the `const Name = (` prefix: a

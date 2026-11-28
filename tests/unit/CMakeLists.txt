@@ -113,6 +113,7 @@ add_test(NAME ir_json_value COMMAND ir_json_value_tests)
 add_executable(ir_json_tests
     ir_json_tests.cpp
     ir_samples.cpp
+    ir_samples_resource.cpp
     ir_samples_rich.cpp)
 
 target_link_libraries(ir_json_tests PRIVATE tessera_ir)
@@ -151,6 +152,17 @@ add_executable(ir_validate_expr_tests
 target_link_libraries(ir_validate_expr_tests PRIVATE tessera_ir)
 
 add_test(NAME ir_validate_expr COMMAND ir_validate_expr_tests)
+
+add_executable(ir_validate_resource_tests
+    ir_validate_resource_tests.cpp
+    ir_samples.cpp
+    ir_samples_resource.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_validate_resource_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_validate_resource COMMAND ir_validate_resource_tests)
 
 add_executable(ir_construct_tests
     ir_construct_tests.cpp
@@ -2416,6 +2428,25 @@ target_link_libraries(lowering_behaviors_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_behaviors COMMAND lowering_behaviors_tests)
 
+# Issue #656 (ADR-067): the front end of pending UI, <Suspense>, lazy and useTransition.
+add_executable(lowering_pending_tests
+    lowering_pending_tests.cpp)
+
+target_link_libraries(lowering_pending_tests PRIVATE tessera_lowering tessera_ir_ids)
+
+target_compile_definitions(lowering_pending_tests PRIVATE
+    TESSERA_IR_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/ir")
+
+add_test(NAME lowering_pending COMMAND lowering_pending_tests)
+
+# Issue #656 slice 3: `useResource` and `useDeferredValue` from TSX (analysis, lowering, validator).
+add_executable(lowering_resource_tests
+    lowering_resource_tests.cpp)
+
+target_link_libraries(lowering_resource_tests PRIVATE tessera_lowering tessera_ir_ids)
+
+add_test(NAME lowering_resource COMMAND lowering_resource_tests)
+
 add_executable(lowering_hooks_reject_tests
     lowering_hooks_reject_tests.cpp)
 
@@ -3241,6 +3272,14 @@ add_executable(pending_model_tests
 target_include_directories(pending_model_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 add_test(NAME pending_model COMMAND pending_model_tests)
+
+# #656: the ResourceView seam a Suspense boundary reads, over the fake resource and the data store.
+add_executable(pending_resource_tests
+    pending_resource_tests.cpp)
+
+target_link_libraries(pending_resource_tests PRIVATE tessera_runtime)
+
+add_test(NAME pending_resource COMMAND pending_resource_tests)
 
 # StateCell helpers behind generated snapshot_state() (issue #7).
 add_executable(state_snapshot_tests

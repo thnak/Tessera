@@ -4,11 +4,37 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/data_store.hpp"
 
+#include <atomic>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <new>
 #include <string>
 #include <thread>
 #include <vector>
+
+namespace {
+
+// Counts every global allocation, so the test can prove the published-now read allocates nothing.
+std::atomic<std::size_t> g_allocations{0};
+
+} // namespace
+
+void* operator new(std::size_t size) {
+    g_allocations.fetch_add(1, std::memory_order_relaxed);
+    if (void* memory = std::malloc(size == 0 ? 1 : size)) {
+        return memory;
+    }
+    throw std::bad_alloc();
+}
+
+void operator delete(void* memory) noexcept {
+    std::free(memory);
+}
+
+void operator delete(void* memory, std::size_t) noexcept {
+    std::free(memory);
+}
 
 namespace {
 
@@ -323,6 +349,72 @@ int main() {
         queue.run(1);
         if (!expect(second == 1, "no observer callbacks after store destruction")) {
             return 71;
+        }
+    }
+
+    // Pending-UI predicates and the published-now read (pending-ui-v1.md section 3.3 items 2-3).
+    {
+        ManualClock clock;
+        CompletionQueue queue(16);
+        DataStore store(queue, clock, 8);
+        const DataKey k = key("feed");
+        tessera::runtime::PublishedState state;
+        if (!expect(store.try_published(k, state), "an uncontended read succeeds") ||
+            !expect(state.status == DataStatus::Idle && !state.has_value && state.epoch == 0,
+                    "a never-written key reads as Idle with no data") ||
+            !expect(!state.suspends() && !state.refreshing() && !state.fetching(),
+                    "an idle key neither suspends nor refreshes")) {
+            return 80;
+        }
+
+        FetchHandle first = store.begin_fetch(k);
+        (void)store.try_published(k, state);
+        if (!expect(state.status == DataStatus::Loading && state.suspends() &&
+                        !state.refreshing() && state.fetching() && state.epoch == 1,
+                    "a fetch with no data suspends") ||
+            !expect(store.snapshot(k).suspends() && !store.snapshot(k).refreshing(),
+                    "the snapshot predicates agree")) {
+            return 81;
+        }
+        first.resolve(value(7));
+        (void)store.try_published(k, state);
+        if (!expect(state.status == DataStatus::Success && state.has_value && !state.suspends() &&
+                        state.version == 1,
+                    "the completion publishes data and stops suspending")) {
+            return 82;
+        }
+
+        FetchHandle second = store.begin_fetch(k);
+        (void)store.try_published(k, state);
+        if (!expect(state.refreshing() && !state.suspends() && state.fetching() &&
+                        state.has_value && state.epoch == 2,
+                    "a key change with data refreshes and does not suspend") ||
+            !expect(store.snapshot(k).refreshing() && !store.snapshot(k).suspends(),
+                    "the snapshot predicates agree on a refresh")) {
+            return 83;
+        }
+        second.fail(DataError{"E_NET", "offline"});
+        (void)store.try_published(k, state);
+        if (!expect(state.status == DataStatus::Error && state.has_error && state.has_value &&
+                        !state.fetching(),
+                    "a failed refresh keeps the data and reports the error")) {
+            return 84;
+        }
+
+        // The read allocates nothing, so a frame can poll it freely.
+        const std::size_t before = g_allocations.load();
+        for (int i = 0; i < 1000; ++i) {
+            (void)store.try_published(k, state);
+        }
+        if (!expect(g_allocations.load() == before, "try_published allocates nothing")) {
+            return 85;
+        }
+
+        // A moved-from store has no core: the read reports "nothing read" instead of crashing.
+        DataStore moved(std::move(store));
+        if (!expect(!store.try_published(k, state), "a moved-from store reports no read") ||
+            !expect(moved.try_published(k, state), "the moved-to store still reads")) {
+            return 86;
         }
     }
 

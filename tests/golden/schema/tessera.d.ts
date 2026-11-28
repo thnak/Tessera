@@ -352,6 +352,10 @@ export interface ErrorBoundaryProps extends CommonProps {
   onError?: (e: ErrorInfo) => void;
 }
 
+export interface SuspenseProps extends CommonProps {
+  fallback: JSX.Element;
+}
+
 export interface CustomElementProps extends CommonProps {
   ref?: ElementRef<CustomElement>;
   element: string;
@@ -538,6 +542,7 @@ declare global {
       VirtualList: VirtualListProps;
       VirtualGrid: VirtualGridProps;
       ErrorBoundary: ErrorBoundaryProps;
+      Suspense: SuspenseProps;
       CustomElement: CustomElementProps;
       div: divProps;
       section: sectionProps;

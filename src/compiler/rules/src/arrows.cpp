@@ -21,6 +21,28 @@ void add_arrow(Context& ctx, const Expr& arrow, ArrowRole role, std::string bind
     }
 }
 
+// ADR-067 item 4: `startTransition(() => setX(v))`. The argument is one parameterless arrow whose
+// whole body is one state-setter call: a transition mark belongs to a state write (the validator's
+// `TESSERA_IR_TRANSITION`), so a dispatch, an animated `.set` or a service call has nothing to
+// mark.
+bool is_transition_start_call(const Context& ctx, const Expr& call) {
+    if (call.operands.size() != 2 || !call.operands[1] ||
+        call.operands[1]->kind != ExprKind::Arrow) {
+        return false;
+    }
+    const Expr& arrow = *call.operands[1];
+    if (!arrow.params.empty() || arrow.operands.size() != 1 || !arrow.operands[0]) {
+        return false;
+    }
+    const Expr& body = *arrow.operands[0];
+    if (body.kind != ExprKind::Call || body.operands.empty() || !body.operands[0] ||
+        body.operands[0]->kind != ExprKind::Identifier) {
+        return false;
+    }
+    const Symbol* setter = ctx.out.find(body.operands[0]->text);
+    return setter != nullptr && setter->kind == SymbolKind::StateSetter;
+}
+
 bool is_setter_call(const Context& ctx, const Expr& expr) {
     // `guard && call(...)` (issue #236): the guard is a pure expression, the call is checked below.
     if (expr.kind == ExprKind::Binary && expr.text == "&&" && expr.operands.size() == 2) {
@@ -37,6 +59,9 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
             return true;
         }
         const Symbol* symbol = ctx.out.find(callee.text);
+        if (symbol != nullptr && symbol->kind == SymbolKind::TransitionStart) {
+            return is_transition_start_call(ctx, expr);
+        }
         return symbol != nullptr && symbol->kind == SymbolKind::StateSetter;
     }
     // Checked before the animated `.set` form so a service method named `set` is not shadowed by

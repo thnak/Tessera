@@ -175,9 +175,10 @@ bool apply_expression_attribute(NodeState& state, const ElementInfo& element, st
         if (info.prop->value != schema::ValueKind::Element) {
             return apply_prop_value(state, *info.prop, value, span, node);
         }
-        // The one element-valued attribute in V1 is ErrorBoundary's `fallback`, which has its own
-        // IR node field (`Node::fallback`).
-        if (element.row->tag != "ErrorBoundary" || info.prop->name != "fallback") {
+        // The one element-valued attribute in V1 is the `fallback` of ErrorBoundary and Suspense,
+        // which has its own IR node field (`Node::fallback`).
+        if ((element.row->tag != "ErrorBoundary" && element.row->tag != "Suspense") ||
+            info.prop->name != "fallback") {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "`" + std::string(info.prop->name) + "` has no IR field", span);
             return false;

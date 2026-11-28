@@ -11,6 +11,7 @@ add_library(tessera_ir STATIC
     # Per-kind facts (god-type audit section 4.3). Header-only for the table; this TU carries the
     # compile-time checks that keep it aligned with the enum.
     src/node_kind_traits.cpp
+    src/suspense_reads.cpp
     src/types.cpp
     src/validate.cpp
     src/validate_component.cpp
@@ -18,7 +19,8 @@ add_library(tessera_ir STATIC
     src/validate_expr.cpp
     src/validate_node.cpp
     src/validate_record.cpp
-    src/validate_record_value.cpp)
+    src/validate_record_value.cpp
+    src/validate_resource.cpp)
 
 target_include_directories(tessera_ir
     PUBLIC

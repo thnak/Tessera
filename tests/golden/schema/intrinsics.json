@@ -882,7 +882,8 @@
       "name": "ref",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "T must equal the element type; callback and object refs are rejected",
       "type": "name of a useRef<T>",
@@ -893,7 +894,8 @@
       "name": "className",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "space-separated class names",
       "type": "string",
@@ -904,7 +906,8 @@
       "name": "style",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "keys are literal camelCase; values are literals or expressions",
       "type": "object literal",
@@ -915,7 +918,8 @@
       "name": "id",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "selector target and label target; an expression since ADR-066 item 1, so `id={useId()}` and `aria-labelledby={id}` can pair a label with its field",
       "type": "string",
@@ -926,7 +930,8 @@
       "name": "role",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "one of the role tokens; an explicit role replaces the implied role",
       "type": "enum literal",
@@ -937,7 +942,8 @@
       "name": "tag",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "the HTML tag an alias was written as; the `h1`-style aliases inject it and a type selector (`h1 { }`) matches it (issue #610)",
       "type": "string",
@@ -948,7 +954,8 @@
       "name": "aria-label",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "accessible name; overrides a derived name",
       "type": "string",
@@ -959,7 +966,8 @@
       "name": "aria-labelledby",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "the `id` of the node that names this one; the usual partner of `useId` (ADR-066 item 1)",
       "type": "string",
@@ -970,7 +978,8 @@
       "name": "aria-describedby",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "the `id` of the node that describes this one",
       "type": "string",
@@ -981,7 +990,8 @@
       "name": "aria-controls",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "the `id` of the node this one controls",
       "type": "string",
@@ -992,7 +1002,8 @@
       "name": "aria-level",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "heading level 1-6; `h1`-`h6` inject it and the user-agent sheet sizes by it",
       "type": "string",
@@ -1004,7 +1015,8 @@
       "name": "aria-hidden",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "leaves the node and its subtree out of the accessibility tree",
       "type": "bool",
@@ -1016,7 +1028,8 @@
       "name": "aria-disabled",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1027,7 +1040,8 @@
       "name": "aria-selected",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1038,7 +1052,8 @@
       "name": "aria-expanded",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1049,7 +1064,8 @@
       "name": "aria-busy",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1060,7 +1076,8 @@
       "name": "aria-invalid",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1071,7 +1088,8 @@
       "name": "aria-readonly",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1082,7 +1100,8 @@
       "name": "aria-required",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "type": "bool",
       "value": "expr"
@@ -1092,7 +1111,8 @@
       "name": "aria-checked",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "checked/mixed state",
       "type": "\"true\" | \"false\" | \"mixed\"",
@@ -1103,7 +1123,8 @@
       "name": "aria-valuenow",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "slider current value",
       "type": "int",
@@ -1114,7 +1135,8 @@
       "name": "aria-valuemin",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "slider lower bound",
       "type": "int",
@@ -1125,7 +1147,8 @@
       "name": "aria-valuemax",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "slider upper bound",
       "type": "int",
@@ -1143,7 +1166,8 @@
       "name": "part",
       "notOn": [
         "Spacer",
-        "ErrorBoundary"
+        "ErrorBoundary",
+        "Suspense"
       ],
       "note": "space-separated part names that expose the element to its component host (`::part()`, stylesheet-v1 section 6.3)",
       "type": "string",
@@ -2395,6 +2419,32 @@
         }
       ],
       "tag": "ErrorBoundary"
+    },
+    {
+      "acceptsClassName": false,
+      "acceptsStyle": false,
+      "children": "one",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_CHILDREN_COUNT",
+          "kind": "custom",
+          "note": "exactly one element child; wrap siblings in a View"
+        }
+      ],
+      "events": [],
+      "irKind": "Suspense",
+      "note": "not painted, no layout effect; shows fallback while a read loads",
+      "props": [
+        {
+          "lowersTo": "node.fallback",
+          "name": "fallback",
+          "note": "intrinsic or component element; not conditional, loop, fragment or text",
+          "required": true,
+          "type": "one element",
+          "value": "element"
+        }
+      ],
+      "tag": "Suspense"
     },
     {
       "acceptsClassName": true,

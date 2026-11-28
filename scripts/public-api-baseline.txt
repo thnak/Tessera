@@ -1802,6 +1802,7 @@ struct include/tessera/runtime/data_store.hpp tessera::runtime::DataError
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKey
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKeyHash
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataSnapshot
+struct include/tessera/runtime/data_store.hpp tessera::runtime::PublishedState
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::DataStoreCore
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::FetchState
 enum include/tessera/runtime/data_store.hpp tessera::runtime::DataStatus
@@ -2354,6 +2355,9 @@ header include/tessera/ui/behavior/clipboard_copy.hpp
 class include/tessera/ui/behavior/clipboard_copy.hpp tessera::hal::Clipboard
 class include/tessera/ui/behavior/clipboard_copy.hpp tessera::ui::behavior::ClipboardCopy
 
+header include/tessera/ui/behavior/deferred_value.hpp
+class include/tessera/ui/behavior/deferred_value.hpp tessera::ui::behavior::DeferredValue
+
 header include/tessera/ui/behavior/focus_trap.hpp
 class include/tessera/ui/behavior/focus_trap.hpp tessera::ui::behavior::FocusTrap
 
@@ -2385,6 +2389,9 @@ class include/tessera/ui/behavior/roving_focus.hpp tessera::ui::behavior::Roving
 
 header include/tessera/ui/behavior/scroll_lock.hpp
 class include/tessera/ui/behavior/scroll_lock.hpp tessera::ui::behavior::ScrollLock
+
+header include/tessera/ui/behavior/transition.hpp
+class include/tessera/ui/behavior/transition.hpp tessera::ui::behavior::Transition
 
 header include/tessera/ui/boundary/boundary.hpp
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::BoundaryTable
@@ -2814,8 +2821,18 @@ constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxCont
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxContentScale
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMinContentScale
 
+header include/tessera/ui/pending/deferred.hpp
+class include/tessera/ui/pending/deferred.hpp tessera::ui::pending::DeferredScalar
+
 header include/tessera/ui/pending/fake_resource.hpp
 class include/tessera/ui/pending/fake_resource.hpp tessera::ui::pending::FakeResource
+
+header include/tessera/ui/pending/resource_view.hpp
+class include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceView
+struct include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceState
+
+header include/tessera/ui/pending/store_resource.hpp
+class include/tessera/ui/pending/store_resource.hpp tessera::ui::pending::StoreResource
 
 header include/tessera/ui/pending/suspense.hpp
 class include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspenseBoundary

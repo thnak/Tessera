@@ -157,6 +157,13 @@ void Walk::node(const ir::Node& node, Template* enclosing) {
     if (node.item_template) {
         this->node(*node.item_template, active);
     }
+    // A Suspense boundary's fallback is numbered right after its content subtree, the order the
+    // dynamic plan and emit_node use (ADR-067). Without this every later ordinal drifted by the
+    // fallback's size, so a binding after a boundary got the mask and the node pointer of its
+    // neighbour.
+    if (node.fallback) {
+        this->node(*node.fallback, active);
+    }
 
     if (active == &started) {
         put(BindingKind::ListItem, started.ordinal, {}, started.items->finish());

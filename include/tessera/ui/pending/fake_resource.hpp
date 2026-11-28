@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "tessera/ui/pending/resource_view.hpp"
+
 #include <cstdint>
+#include <string_view>
 
 namespace tessera::ui::pending {
 
@@ -26,6 +29,7 @@ public:
     constexpr std::uint64_t begin_fetch() noexcept {
         ++epoch_;
         loading_ = true;
+        failed_ = false;
         return epoch_;
     }
 
@@ -37,8 +41,28 @@ public:
             return false;
         }
         value_ = value;
+        number_ = static_cast<double>(value);
+        text_ = {};
         has_data_ = true;
         loading_ = false;
+        failed_ = false;
+        return true;
+    }
+
+    // A completion that carries a float or a string (a typed resource of another scalar kind). The
+    // text view must outlive the next publish; the fake never copies it.
+    constexpr bool resolve_number(std::uint64_t epoch, double value) noexcept {
+        if (!resolve(epoch, 0)) {
+            return false;
+        }
+        number_ = value;
+        return true;
+    }
+    constexpr bool resolve_text(std::uint64_t epoch, std::string_view value) noexcept {
+        if (!resolve(epoch, 0)) {
+            return false;
+        }
+        text_ = value;
         return true;
     }
 
@@ -69,6 +93,11 @@ public:
         return value_;
     }
 
+    // The state a `ResourceView` reads.
+    [[nodiscard]] constexpr ResourceState state() const noexcept {
+        return ResourceState{epoch_, loading_, has_data_, failed_, number_, text_};
+    }
+
     // A suspending read: a fetch is in flight and there is nothing to show yet.
     [[nodiscard]] constexpr bool suspends() const noexcept {
         return loading_ && !has_data_;
@@ -81,6 +110,8 @@ public:
 private:
     std::uint64_t epoch_ = 0;
     int value_ = 0;
+    double number_ = 0.0;
+    std::string_view text_{};
     bool loading_ = false;
     bool has_data_ = false;
     bool failed_ = false;
