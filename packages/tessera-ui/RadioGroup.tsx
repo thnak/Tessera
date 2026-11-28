@@ -10,5 +10,7 @@ import { Children } from "tessera";
 export type RadioGroupProps = { label: string; children: Children };
 
 export function RadioGroup({ label, children }: RadioGroupProps) {
-  return <View role="radiogroup" aria-label={label} focusGroup="both" className="trg">{children}</View>;
+  return (
+    <View role="radiogroup" aria-label={label} focusGroup="both" className="trg">{children}</View>
+  );
 }
