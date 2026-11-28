@@ -8,7 +8,8 @@
 add_library(tessera_web_hal STATIC
     web_frame_scheduler.cpp
     web_host.cpp
-    web_input_translation.cpp)
+    web_input_translation.cpp
+    web_surface_extent.cpp)
 
 # The headers are private to the web HAL (the app target reaches them through this library), like
 # the other src/platform headers; tests add the directory by linking the target.
@@ -21,6 +22,12 @@ target_compile_features(tessera_web_hal PUBLIC cxx_std_23)
 if (EMSCRIPTEN)
     add_library(tessera_web_exports STATIC web_exports.cpp)
     target_link_libraries(tessera_web_exports PUBLIC tessera_web_hal)
+
+    # The web app driver's GPU half (issue #1013): the preinitialized WebGPU device wrapped as an
+    # rhi::Device and the canvas surface that hands out one render target per frame. Apps that draw
+    # link it; web_smoke does not, so its download budget is unchanged.
+    add_library(tessera_web_gpu STATIC web_canvas_surface.cpp)
+    target_link_libraries(tessera_web_gpu PUBLIC tessera_web_hal tessera_webgpu)
 
     # The host page and glue that ship beside every web app (static folder, ADR-046 item 10).
     set(TESSERA_WEB_HOST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/host CACHE INTERNAL "Web host page sources")
@@ -50,7 +57,7 @@ endif ()
 if (TESSERA_BUILD_TESTS AND NOT EMSCRIPTEN)
     enable_testing()
 
-    foreach (_web_test web_input_translation web_frame_scheduler web_host)
+    foreach (_web_test web_input_translation web_frame_scheduler web_host web_surface_extent)
         add_executable(${_web_test}_tests ${PROJECT_SOURCE_DIR}/tests/unit/${_web_test}_tests.cpp)
         target_link_libraries(${_web_test}_tests PRIVATE tessera_web_hal)
         add_test(NAME ${_web_test} COMMAND ${_web_test}_tests)

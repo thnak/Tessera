@@ -1,7 +1,8 @@
 # Web target: running an app in the browser
 
-Status: first slice (issue [#290](https://github.com/thnak/Tessera/issues/290)); the Wasm app build of
-the gallery and the CI publish job are not done. Normative decisions are in
+Status: first slice (issue [#290](https://github.com/thnak/Tessera/issues/290)) plus the web app driver
+(issue [#1013](https://github.com/thnak/Tessera/issues/1013)); the Wasm app build of the gallery and the CI
+publish job are not done. Normative decisions are in
 [ADR-046](../../decisions/ADR-046-web-target-for-demos.md); this note records how the code is cut.
 
 ## 1. Shape
@@ -22,7 +23,9 @@ Only `web_exports.cpp` (the `extern "C"` surface and two JS imports) needs the E
 | `web_frame_scheduler.*` | When a `requestAnimationFrame` may be requested (item 5) |
 | `web_host.*` | Queue, scheduler, resize and visibility lifecycle, overflow counter |
 | `web_exports.*` | `tessera_web_pointer/wheel/key/focus/resize/visibility/wake/frame`; Emscripten only |
-| `host/tessera_web_host.js` | WebGPU check, DOM listeners, frame bridge; ES module, no build step |
+| `web_surface_extent.*` | The canvas backing-store size rule (css size times device pixel ratio, clamped) |
+| `web_canvas_surface.*` | The web app driver's GPU half: the page's device as an `rhi::Device`, the canvas surface, one render target per frame; Emscripten only |
+| `host/tessera_web_host.js` | WebGPU check, device request, DOM listeners, frame bridge; ES module, no build step |
 | `host/index.html` | Canvas plus the "unsupported browser" page (item 4) |
 | `host/library_tessera_web.js` | The two imports C++ calls, forwarded to the frame bridge |
 
@@ -57,6 +60,24 @@ COOP/COEP), `index.html` and `tessera_web_host.js`. The app's `main` creates a `
 `js_callbacks()`, calls `attach_global_host`, registers its frame step with `set_frame_fn` and
 returns; the browser drives the rest.
 
+### The web app driver (issue #1013)
+
+The Vulkan window driver's job on the web is split between the page and `WebCanvasSurface`. `boot`
+requests the adapter and device *before* instantiating the module and passes it as
+`Module.preinitializedWebGPUDevice` (a refused adapter or device shows the unsupported page), so the
+C++ side only wraps a ready handle and never waits (ADR-021). `WebCanvasSurface::create("#tessera-canvas")`
+wraps that device as an `rhi::Device`, binds the canvas through an emdawnwebgpu surface and reads the
+preferred canvas format (BGRA8 or RGBA8, never a guess); `configure(backing_extent(metrics))` follows
+resizes; `acquire()` returns the current canvas texture as a presentable render target. The browser
+presents it when the task ends, so there is no present call. A WebGPU command list is single-use and
+cannot be submitted synchronously: the app records a fresh list per frame, `submit_async()`s it and keeps
+at most two in flight, polling `is_complete()`. When both are in flight the frame stays owed and a
+due timer asks for the next callback.
+
+`samples/web_render` is the minimal app on that driver: a batched 2D card with a hover and press button,
+painted only when the pointer changes it. Without a device (Node) it runs the host contract and draws
+nothing.
+
 ## 5. Tests
 
 ctest `web_input_translation`, `web_frame_scheduler`, `web_host` (C++, no browser) and
@@ -70,12 +91,23 @@ pending callback. The same script enforces the gzip download budgets and the Nod
 `tools/web_budgets.json`. `web_exports.cpp`, `library_tessera_web.js` and `tessera_web_app` compiled
 and linked on emsdk 7.0.0 on the first try.
 
+`web_render` goes through the same script (`--app web_render`; Node has no device, so it asserts zero
+canvas frames) and has its own budget entry. `web_surface_extent` is a host ctest; `host_glue_tests.mjs`
+covers the device request and the refusal paths.
+
+`tools/webgpu_browser/run_web_app.mjs` drives the built `web_render` folder in a real Chromium through
+Playwright (software WebGPU is enough, verified on thnak-server): the first canvas frame is submitted
+at the backing-store size, a hover, press, release and leave are one canvas frame each, no-change moves
+are none, no page error, and an idle page requests no `requestAnimationFrame`. Headless software
+WebGPU screenshots show a blank canvas, so the pixel check (`--pixels`) is for a machine with a GPU.
+
 ## 6. Not done (tracked in #969's follow-ups)
 
-- The gallery does not build for the web: it links the Vulkan window driver (`tessera_app_window`). A
-  web app driver (WebGPU device, canvas surface, `WebHost` frame step) must replace it first; the
-  gallery then gets a budget entry.
-- No real browser has run the page (Button page pointer/keyboard, the zero-callback check in a tab);
-  Node proves the C++ side only.
+- The gallery does not build for the web: it links the Vulkan window driver (`tessera_app_window`) and
+  its text, vector and glass stacks. The driver pieces now exist (device, surface, frame step); wiring
+  `gallery` to them and giving it a budget entry is the remaining slice.
+- Pixels on a real GPU (`run_web_app.mjs --pixels`) and keyboard input in a tab have not been run; the
+  software-WebGPU run covers frame accounting and the idle rule. Device loss and surface re-creation are
+  not recovered: a lost device leaves the app idle.
 - CI: building the gallery on every PR and publishing from `main`; the hidden-textarea IME bridge, ARIA
   mirror, clipboard, files and persistence.

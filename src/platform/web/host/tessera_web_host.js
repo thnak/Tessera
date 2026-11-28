@@ -73,6 +73,20 @@ export function createFrameBridge({ raf, caf, setTimer, clearTimer, onFrame }) {
   return bridge;
 }
 
+// Requests the adapter and device before the module starts, so the C++ driver only wraps a ready
+// handle (`Module.preinitializedWebGPUDevice`) and never waits on the UI thread (ADR-021). Returns
+// null when WebGPU has no adapter or refuses the device; boot then shows the unsupported page.
+export async function acquireDevice(nav) {
+  try {
+    const adapter = await nav.gpu.requestAdapter();
+    if (!adapter) return null;
+    const device = await adapter.requestDevice();
+    return device || null;
+  } catch (error) {
+    return null;
+  }
+}
+
 export function showUnsupported(doc) {
   const page = doc.getElementById('unsupported');
   const canvas = doc.getElementById('tessera-canvas');
@@ -130,9 +144,14 @@ export async function boot({ createModule, win = globalThis.window, doc = global
     showUnsupported(doc);
     return { supported: false };
   }
+  const device = await acquireDevice(win.navigator);
+  if (!device) {
+    showUnsupported(doc);
+    return { supported: false };
+  }
   const canvas = doc.getElementById('tessera-canvas');
   canvas.tabIndex = 0;
-  const module = { canvas };
+  const module = { canvas, preinitializedWebGPUDevice: device };
   let exports = null;
   const bridge = createFrameBridge({
     raf: (callback) => win.requestAnimationFrame(callback),
