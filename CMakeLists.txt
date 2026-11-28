@@ -405,6 +405,9 @@ if (TESSERA_BUILD_SERVICE_RESOLVE_BENCH)
     add_subdirectory(tools/poc/service_resolve)
 endif()
 
+# The streaming dashboard sample (issue #184): GPU-free, so it builds on every lane.
+add_subdirectory(samples/stream_dashboard)
+
 if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
     add_subdirectory(tools/poc/thorvg_spike)
 endif()

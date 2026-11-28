@@ -7,11 +7,11 @@
 //
 // Accessibility: a Radio is a focusable `radio` named by `label` with `aria-checked` and
 // `aria-disabled`; a click and Space select it. Selecting an already selected Radio calls
-// `onSelect` again (idempotent for a caller that stores the value). Arrow-key roving between
-// Radios needs group state a component cannot read from its siblings today and is tracked as a
-// follow-up; until then each Radio is a tab stop.
+// `onSelect` again (idempotent for a caller that stores the value). Arrow keys rove inside the
+// enclosing `RadioGroup` (a `focusGroup`, one Tab stop, the runtime skips `aria-disabled` radios
+// and selects the one an arrow lands on); Space is a synthesized keyboard click (issue #1035).
 
-import { Children, KeyEvent } from "tessera";
+import { Children } from "tessera";
 
 export type RadioProps = {
   label: string;
@@ -36,7 +36,6 @@ export function Radio({
       aria-checked={selected ? "true" : "false"}
       aria-disabled={disabled}
       className={`trad ${selected ? "trad-on" : "trad-off"} ${disabled ? "trad-disabled" : "trad-enabled"}`}
-      onKeyDown={(e: KeyEvent) => e.key === " " && !disabled && onSelect()}
       onClick={() => !disabled && onSelect()}
     >
       <View className="trad-dot">{selected && <View className="trad-mark"></View>}</View>

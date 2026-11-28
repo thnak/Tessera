@@ -435,6 +435,32 @@ target_link_libraries(cpu_wide_golden_tests PRIVATE
     tessera_stb)
 add_test(NAME cpu_wide_golden COMMAND cpu_wide_golden_tests)
 
+# The streaming dashboard sample (issue #184): scripted sustained load, CPU-rasterizer goldens
+# (bit-exact, tests/golden/baseline/stream_dashboard/), the damage-only == full-paint equivalence at
+# every sampled frame, and the frame-budget accounting. Vulkan-free. Regenerate:
+# `stream_dashboard_golden_tests --update-goldens`.
+add_executable(stream_dashboard_golden_tests
+    stream_dashboard_golden_tests.cpp)
+target_include_directories(stream_dashboard_golden_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_compile_definitions(stream_dashboard_golden_tests PRIVATE
+    TESSERA_STREAM_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/baseline/stream_dashboard")
+target_link_libraries(stream_dashboard_golden_tests PRIVATE
+    tessera_stream_dashboard
+    tessera_software
+    tessera_golden
+    tessera_diagnostics
+    tessera_stb)
+add_test(NAME stream_dashboard_golden COMMAND stream_dashboard_golden_tests)
+
+# Zero allocations on the dashboard's sustained per-frame path, measured by replaced global
+# operator new/delete (the chart_node_allocation technique), so it is its own executable.
+add_executable(stream_dashboard_allocation
+    stream_dashboard_allocation.cpp)
+target_link_libraries(stream_dashboard_allocation PRIVATE tessera_stream_dashboard)
+tessera_allow_allocator_override(stream_dashboard_allocation)
+add_test(NAME stream_dashboard_allocation COMMAND stream_dashboard_allocation)
+
 # The CPU twin of isolated layers and layer masks through `CpuPaintSink` (issue #617): the sink calls,
 # the mask's refusals and the paint pass's group opacity. Vulkan-free.
 add_executable(cpu_layer_sink_tests

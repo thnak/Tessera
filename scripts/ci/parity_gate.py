@@ -65,6 +65,8 @@ EXIT_CANNOT_RUN = 2
 PAGES = {
     "form": {"module_css": True},
     "dash": {"module_css": False},
+    # Plain CSS; the golden size is 640x360, so pass `--width 640 --height 360` (issue #1035).
+    "controls": {"module_css": False},
 }
 
 

@@ -4,6 +4,7 @@
 // nodes (`Node::focus_trap`, `Node::focus_group`) that the JSX props `focusTrap` and `focusGroup`
 // set, so a behavior primitive in TSX needs no handler code for them.
 
+#include "focus_internal.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -43,7 +44,7 @@ void collect_items(Node& node, std::vector<Node*>& items) {
     if (!node.rendered()) {
         return;
     }
-    if (node.focusable()) {
+    if (node.focusable() && !aria_disabled(node)) {
         items.push_back(&node);
     }
     for (const auto& child : node.children()) {

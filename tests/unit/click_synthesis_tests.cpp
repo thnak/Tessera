@@ -281,6 +281,34 @@ bool keyboard_and_invoke() {
                   "invoke clicks with the accessibility source");
 }
 
+// Issue #1035: a focused switch, checkbox or radio is activated from the keyboard; Enter is a
+// button/switch key only, as on the web.
+bool role_keyboard() {
+    struct Case {
+        const char* role;
+        bool enter;
+    };
+    for (const Case& c : {Case{"switch", true}, Case{"checkbox", false}, Case{"radio", false},
+                          Case{"button", true}}) {
+        Scene scene;
+        InputRouter router;
+        scene.plain->set_role(c.role);
+        router.focus_manager().set_root(scene.root);
+        router.focus_manager().request_focus(scene.plain);
+        router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kEnter));
+        if (!expect(scene.plain_counter.clicks == (c.enter ? 1 : 0), "Enter follows the role")) {
+            return false;
+        }
+        router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kSpace));
+        router.dispatch(scene.root, keyboard(InputEventType::KeyUp, key::kSpace));
+        if (!expect(scene.plain_counter.clicks == (c.enter ? 2 : 1), "Space clicks every role") ||
+            !expect(scene.plain_counter.last_source == ClickSource::Keyboard, "keyboard source")) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // `a href` and `label htmlFor` (issue #542): the default action of a click.
 struct LinkScene {
     Node root{1};
@@ -398,6 +426,9 @@ bool links_and_labels() {
 } // namespace
 
 int main() {
+    if (!role_keyboard()) {
+        return 20;
+    }
     if (!pointer_clicks()) {
         return 1;
     }

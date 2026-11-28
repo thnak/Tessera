@@ -63,9 +63,11 @@ public:
     // The deepest node that is `a` or an ancestor of both; null when either is null or the nodes
     // live in different trees.
     [[nodiscard]] static Node* common_ancestor(Node* a, Node* b);
-    // True for nodes Enter/Space activate: element kind `Button` or role `button`; a role `link`
-    // takes Enter only.
+    // True for nodes the keyboard activates: element kind `Button` or role `button`, `switch`,
+    // `checkbox`, `radio` (issue #1035) or `link` (Enter only).
     [[nodiscard]] static bool keyboard_activatable(const Node& node);
+    // True when Enter (not only Space) activates the node: a button, a switch or a link.
+    [[nodiscard]] static bool enter_activates(const Node& node);
 
     // Feeds one key event for the focused node. Returns true when it completes an activation:
     // Enter key-down, or Space key-up following Space key-down on the same node.

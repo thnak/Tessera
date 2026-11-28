@@ -218,7 +218,53 @@ void test_typeahead() {
 
 } // namespace
 
+void count_click(void* context, const tessera::ui::Event&) {
+    ++*static_cast<int*>(context);
+}
+
+// Issue #1035: a radiogroup is a "both" roving group; arrows land on and select the next enabled
+// radio (wrapping, skipping aria-disabled), Home/End only move, and the group is one Tab stop that
+// skips a disabled first radio.
+void test_radio_roving() {
+    Node root(1);
+    root.set_bounds({0, 0, 200, 200});
+    Node& group = add(root, 2, false);
+    group.set_role("radiogroup");
+    group.set_focus_group(Node::FocusGroup::Both);
+    Node& off = add(group, 3);
+    Node& a = add(group, 4);
+    Node& b = add(group, 5);
+    Node& gone = add(group, 6);
+    Node& c = add(group, 7);
+    int selected[5] = {};
+    Node* radios[5] = {&off, &a, &b, &gone, &c};
+    for (int i = 0; i < 5; ++i) {
+        radios[i]->set_role("radio");
+        radios[i]->bind_event(tessera::ui::EventType::Click, &count_click, &selected[i]);
+    }
+    off.set_aria("aria-disabled", "true");
+    gone.set_aria("aria-disabled", "true");
+    InputRouter router;
+    FocusManager& focus = router.focus_manager();
+    focus.set_root(root);
+
+    press(router, root, key::kTab);
+    check(focus.focused() == &a, "Tab enters the group at the first enabled radio");
+    press(router, root, key::kArrowDown);
+    check(focus.focused() == &b && selected[2] == 1, "ArrowDown moves to and selects the next");
+    press(router, root, key::kArrowRight);
+    check(focus.focused() == &c && selected[4] == 1, "the disabled radio is skipped");
+    press(router, root, key::kArrowDown);
+    check(focus.focused() == &a && selected[1] == 1, "the arrow wraps past the disabled first");
+    press(router, root, key::kArrowUp);
+    check(focus.focused() == &c && selected[4] == 2, "ArrowUp wraps to the last enabled radio");
+    press(router, root, key::kHome);
+    check(focus.focused() == &a && selected[1] == 1, "Home moves without selecting");
+    check(selected[0] == 0 && selected[3] == 0, "a disabled radio is never selected");
+}
+
 int main() {
+    test_radio_roving();
     test_typeahead();
     test_trap_confines_tab_and_restores_focus();
     test_nested_scopes();
