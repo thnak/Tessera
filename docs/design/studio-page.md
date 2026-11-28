@@ -385,7 +385,7 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and almost all of it is
   developer-run: `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
-  `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence),
+  `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence), `scripts/ci/preview_browser_editor_tabs.mjs` (#562: the italic preview tab, pinning, breadcrumbs),
   `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
   the count survives it, a syntax error keeps the frame, Restart app resets it, a static scene draws zero
   frames, and a burst is one frame), `scripts/ci/preview_browser_author_css.mjs` (#390's acceptance: the

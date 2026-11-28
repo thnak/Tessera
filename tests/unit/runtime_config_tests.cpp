@@ -326,6 +326,12 @@ bool check_section_2_sample() {
     // `cullDraws` (issue #474) is the renderer's CPU cull switch: on by default, and an explicit
     // `false` must read through so the two can be compared.
     const auto cull_off = parse_one("cullDraws", "false");
+    const auto promo_on = parse_one("layerPromotion", "true");
+    if (!expect(!sample->layer_promotion, "layerPromotion defaults to off") ||
+        !expect(promo_on.has_value() && promo_on->layer_promotion,
+                "layerPromotion=true reads through")) {
+        return false;
+    }
     return expect(sample->cull_draws, "cullDraws defaults to on") &&
            expect(cull_off.has_value() && !cull_off->cull_draws,
                   "cullDraws=false turns the renderer cull off");

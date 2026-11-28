@@ -51,6 +51,12 @@ frame(16);
 const firstFrameMs = performance.now() - started;
 assert.equal(call('tessera_smoke_frames', [], []), 1, 'the frame step ran once');
 assert.equal(call('tessera_smoke_events', [], []), 1, 'the queued pointer event was consumed');
+// The renderer-backed app (web_render) also reports whether a WebGPU device drove it. Node has none,
+// so it must have run the host contract and drawn nothing; the browser run is the one that draws.
+if (typeof instance._tessera_render_gpu === 'function') {
+  assert.equal(call('tessera_render_gpu', [], []), 0, 'Node provides no WebGPU device');
+  assert.equal(call('tessera_render_presents', [], []), 0, 'no device means no canvas frames');
+}
 const afterFrame = rafCallbacks;
 assert.equal(pending, null, 'an idle app holds no pending frame callback');
 assert.equal(rafCallbacks, afterFrame, 'no further callbacks without a wake');

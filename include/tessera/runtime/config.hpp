@@ -84,6 +84,11 @@ struct RuntimeConfig {
     // positional aggregate initialization of older fields keeps its meaning.
     std::uint32_t offscreen_max_mb = 256;
     double offscreen_idle_seconds = 2.0;
+    // Generic layer promotion (issue #1014, offscreen-layers-retention.md section 11): a clean,
+    // big, expensive container is kept as a retained layer too. Off by default; read where the
+    // window builds its pipeline config. Last in the struct so positional aggregate initialization
+    // of the older fields keeps its meaning.
+    bool layer_promotion = false;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;
 };

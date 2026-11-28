@@ -94,6 +94,10 @@ public:
         ++misses;
         return false;
     }
+    void release_layer(std::uint64_t owner) override {
+        released += held.erase(owner) != 0 ? 1 : 0;
+        ++release_calls;
+    }
     void push_layer(const LayerDraw&) override {
         ++layers;
     }
@@ -104,12 +108,14 @@ public:
         }
     }
     void reset_counts() {
-        hits = misses = dirty = layers = 0;
+        hits = misses = dirty = layers = released = release_calls = 0;
     }
     int hits = 0;
     int misses = 0;
     int dirty = 0;
     int layers = 0;
+    int released = 0;      // retained entries dropped by release_layer
+    int release_calls = 0; // release_layer calls, held or not
     std::map<std::uint64_t, std::uint64_t> held;
 
 private:
@@ -204,6 +210,12 @@ bool dirty_node_never_hits_a_stale_layer() {
     bool ok = expect(run.sink.layers == 0 && run.sink.hits + run.sink.misses == 0 &&
                          stats.promoted_layers == 0,
                      "a dirty subtree paints flat, no layer");
+    // Issue #1014: the entry recorded for the promoted node goes the frame it turns dirty.
+    ok = expect(run.sink.released == 1 && run.sink.held.count(2) == 0,
+                "the stale retained entry is released at once, not left to eviction") &&
+         ok;
+    run.frame(scene); // still dirty: nothing left to release
+    ok = expect(run.sink.release_calls == 0, "a node already demoted does not notify again") && ok;
     clear_tree(scene.root);
     for (int index = 0; index < 3; ++index) {
         run.frame(scene);
@@ -336,7 +348,7 @@ bool the_table_is_bounded() {
     seen.area = 1.0e6f;
     seen.clean = true;
     for (NodeId id = 1; id <= 5; ++id) {
-        policy.observe(id, seen);
+        (void)policy.observe(id, seen);
     }
     const LayerPromotionStats stats = policy.stats();
     const std::uint64_t before = policy.key_epoch(5, 0);

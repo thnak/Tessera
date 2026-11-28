@@ -55,6 +55,14 @@
 
 .editor-tab.is-selected .editor-tab-select { color: var(--text); font-weight: 600; }
 
+/* A preview tab (#562) is italic until an edit or a double click pins it. */
+.editor-tab.is-preview .editor-tab-name { font-style: italic; }
+
+.breadcrumbs { flex: none; padding: 2px 10px; font-size: 11px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+.breadcrumbs ol { display: flex; gap: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; white-space: nowrap; }
+.breadcrumbs li + li::before { content: "\203a"; padding: 0 6px; opacity: 0.6; }
+.breadcrumbs li[aria-current="page"] { color: var(--text); }
+
 .editor-tab-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 .editor-tab-kind {

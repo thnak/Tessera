@@ -420,6 +420,7 @@ add_subdirectory(src/rendering/backend/webgpu)
 # The minimal web app that proves the Emscripten web-app path end to end (issue #969).
 if (EMSCRIPTEN)
     add_subdirectory(samples/web_smoke)
+    add_subdirectory(samples/web_render)
 endif()
 
 # Metal mapping tables are API-free and always built (their unit tests run on every host); the

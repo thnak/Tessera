@@ -307,6 +307,10 @@ bool Batched2DSink::retain_layer(const LayerRetention& retention) {
     return renderer_->retain_layer(retention.owner, retention.key, retention.clean);
 }
 
+void Batched2DSink::release_layer(std::uint64_t owner) {
+    renderer_->release_retained_layer(owner);
+}
+
 bool Batched2DSink::begin_layer_mask() {
     return renderer_->begin_layer_mask();
 }

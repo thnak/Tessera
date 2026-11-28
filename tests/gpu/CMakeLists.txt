@@ -790,6 +790,14 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(layer_retain_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
     add_test(NAME layer_retain_gpu COMMAND layer_retain_gpu_tests)
     set_tests_properties(layer_retain_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    # Generic layer promotion (issue #1014) on a real device: a promoted frame is byte-identical to the
+    # flat frame (AA off) and within one rounding step with AA on; the stale entry is released the frame
+    # the node turns dirty. Skips without a Vulkan device.
+    add_executable(layer_promotion_gpu_tests
+        batched2d/layer_promotion_gpu_tests.cpp)
+    target_link_libraries(layer_promotion_gpu_tests PRIVATE tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME layer_promotion_gpu COMMAND layer_promotion_gpu_tests)
+    set_tests_properties(layer_promotion_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
     # Frame cost of retained layers, retained vs uncached on the null backend and Vulkan. A tool for the
     # measurements in docs/design/gpu/offscreen-layers-retention.md, not a test.
     add_executable(layer_retain_bench

@@ -468,7 +468,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const bool held = detail::promote_now(pass, node, node.bounds(), scope.opacity, scope.in_layer);
     const PaintStats before = stats;
     paint_node_body(node, styles, sink, stats, context, frame, scope, clip_scope, pass);
-    detail::observe_promotion(pass, node, scope.opacity, scope.in_layer, held, before, stats);
+    detail::observe_promotion(pass, sink, node, scope.opacity, scope.in_layer, held, before, stats);
 }
 
 } // namespace
