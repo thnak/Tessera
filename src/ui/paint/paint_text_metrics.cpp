@@ -2,7 +2,7 @@
 
 #include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/text/freetype_metrics.hpp"
-#include "tessera/ui/text/harfbuzz_shaper.hpp"
+#include "tessera/ui/text/weighted_shaper.hpp"
 
 #include <string>
 #include <string_view>
@@ -12,24 +12,33 @@ namespace tessera::ui::paint {
 namespace {
 
 float harfbuzz_advance(std::string_view text, const text::TextStyle& style, const void* user) {
-    return static_cast<const text::HarfBuzzShaper*>(user)->shape(text, style).advance;
+    return static_cast<const text::WeightedShaper*>(user)->shape(text, style).advance;
 }
 
 } // namespace
 
 struct FontPaintTextMetrics::Impl {
-    Impl(text::FontFace face, std::uint32_t source_id)
+    Impl(std::vector<text::FontFace> faces, std::uint32_t source_id)
         : id(source_id),
-          shaper(face),
-          metrics_provider(std::move(face)) {}
+          shaper(faces) {
+        for (text::FontFace& face : faces) {
+            if (face.valid()) {
+                metrics_providers.emplace_back(std::move(face));
+            }
+        }
+    }
 
     std::uint32_t id = 0;
-    text::HarfBuzzShaper shaper;
-    text::FreeTypeFontMetricsProvider metrics_provider;
+    text::WeightedShaper shaper;
+    // One per valid face in the shaper's order, so `shaper.index_for(weight)` indexes both.
+    std::vector<text::FreeTypeFontMetricsProvider> metrics_providers;
 };
 
 FontPaintTextMetrics::FontPaintTextMetrics(text::FontFace face, std::uint32_t id)
-    : impl_(std::make_unique<Impl>(std::move(face), id)) {}
+    : FontPaintTextMetrics(std::vector<text::FontFace>{std::move(face)}, id) {}
+
+FontPaintTextMetrics::FontPaintTextMetrics(std::vector<text::FontFace> faces, std::uint32_t id)
+    : impl_(std::make_unique<Impl>(std::move(faces), id)) {}
 
 FontPaintTextMetrics::~FontPaintTextMetrics() = default;
 
@@ -41,7 +50,10 @@ std::uint32_t FontPaintTextMetrics::id() const {
 }
 
 text::FontMetrics FontPaintTextMetrics::metrics(const text::TextStyle& style) const {
-    return impl_->metrics_provider.metrics(style);
+    if (impl_->metrics_providers.empty()) {
+        return {};
+    }
+    return impl_->metrics_providers[impl_->shaper.index_for(style.font_weight)].metrics(style);
 }
 
 float FontPaintTextMetrics::advance(std::string_view text, const text::TextStyle& style) const {

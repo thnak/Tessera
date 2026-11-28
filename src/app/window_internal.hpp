@@ -19,8 +19,8 @@
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/font_text_measurer.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
-#include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
+#include "tessera/ui/text/weighted_shaper.hpp"
 
 #include <array>
 #include <cstdint>
@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tessera::app::detail {
 
@@ -52,22 +53,36 @@ inline rhi::SurfacePlatform surface_platform_for(hal::WindowSystem window_system
     return rhi::SurfacePlatform::Auto;
 }
 
-// One loaded font face plus the rasterizer/shaper/TextRenderer trio. Member order matters: the
-// renderer borrows the rasterizer, so the face is constructed first and never moved afterwards.
+// The loaded font faces plus the rasterizer/shaper/TextRenderer trio. `font_path` is the primary
+// face; each `extra_font_paths` entry is another face of the family (a bold file, say), picked per
+// run by CSS `font-weight` from the weight each file declares (`WeightedShaper`). Member order
+// matters: the renderer borrows the rasterizers, so the faces are constructed first and never moved
+// afterwards.
 class TextStack final {
 public:
-    TextStack(rhi::Device& device, const std::string& font_path)
+    TextStack(rhi::Device& device, const std::string& font_path,
+              const std::vector<std::string>& extra_font_paths = {})
         : face(load(font_path)) {
-        rasterizer = std::make_unique<ui::text::GlyphRasterizer>(face);
-        shaper = std::make_unique<ui::text::HarfBuzzShaper>(face);
+        faces.push_back(face);
+        for (const std::string& extra : extra_font_paths) {
+            faces.push_back(load(extra));
+        }
+        std::vector<ui::text::GlyphRasterizer*> raster_stack;
+        rasterizers.reserve(faces.size());
+        for (const ui::text::FontFace& loaded : faces) {
+            rasterizers.push_back(std::make_unique<ui::text::GlyphRasterizer>(loaded));
+            raster_stack.push_back(rasterizers.back().get());
+        }
+        rasterizer = rasterizers.front().get();
+        shaper = std::make_unique<ui::text::WeightedShaper>(faces);
         renderer = std::make_unique<ui::text::TextRenderer>(
-            device, *rasterizer, ui::text::GlyphAtlasConfig{1024, 1024, 2, 1});
+            device, std::move(raster_stack), ui::text::GlyphAtlasConfig{1024, 1024, 2, 1});
         // Layout and paint must measure with the face that is actually drawn (issue #314): the
         // deterministic stub advance is a fixed 0.5 em per code point and does not track the font,
         // so a content-sized box would be narrower or wider than its painted ink by a
         // string-dependent amount. These two seams and the glyph renderer now share one face.
-        measurer = std::make_shared<ui::text::FontTextMeasurer>(face);
-        paint_metrics = std::make_unique<ui::paint::FontPaintTextMetrics>(face, kPaintMetricsId);
+        measurer = std::make_shared<ui::text::FontTextMeasurer>(faces);
+        paint_metrics = std::make_unique<ui::paint::FontPaintTextMetrics>(faces, kPaintMetricsId);
     }
 
     ~TextStack() = default;
@@ -75,8 +90,10 @@ public:
     TextStack& operator=(const TextStack&) = delete;
 
     ui::text::FontFace face;
-    std::unique_ptr<ui::text::GlyphRasterizer> rasterizer;
-    std::unique_ptr<ui::text::HarfBuzzShaper> shaper;
+    std::vector<ui::text::FontFace> faces; // primary first, then the extras
+    std::vector<std::unique_ptr<ui::text::GlyphRasterizer>> rasterizers;
+    ui::text::GlyphRasterizer* rasterizer = nullptr; // the primary face's
+    std::unique_ptr<ui::text::WeightedShaper> shaper;
     std::unique_ptr<ui::text::TextRenderer> renderer;
     // The same face as a layout measurer and as paint's wrapping metrics source (issue #314): the
     // stub advance is a fixed 0.5 em per code point and does not track the font, so a content-sized

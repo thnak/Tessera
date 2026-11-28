@@ -6,6 +6,7 @@
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <memory>
+#include <vector>
 
 namespace tessera::ui::text {
 
@@ -31,6 +32,10 @@ namespace tessera::ui::text {
 class FontTextMeasurer final : public TextMeasurer {
 public:
     explicit FontTextMeasurer(FontFace face);
+    // The faces of one family: each run measures with the face `WeightedShaper` picks for its
+    // `font-weight`, so bold text is as wide as the bold glyphs the renderer draws. The first face
+    // is the primary one; invalid faces are dropped.
+    explicit FontTextMeasurer(std::vector<FontFace> faces);
     ~FontTextMeasurer() override;
 
     FontTextMeasurer(const FontTextMeasurer&) = delete;

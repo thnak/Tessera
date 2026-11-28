@@ -32,6 +32,7 @@
 //                                 rewrites)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
+#include "args.hpp"
 #include "form_module.hpp"
 #include "gallery_vector_assets.hpp"
 #include "golden.hpp"
@@ -59,36 +60,12 @@
 #include <string_view>
 #include <vector>
 
-#ifndef TESSERA_GALLERY_FONT
-#define TESSERA_GALLERY_FONT "tests/fixtures/fonts/NotoSans-Regular.ttf"
-#endif
-
 namespace {
 
 namespace style = tessera::ui::style;
 using tessera::ui::Node;
 
-struct Args {
-    std::string capture;
-    std::string golden;
-    std::string artifact_dir = "gallery-artifacts";
-    bool update_goldens = false;
-    std::string font = TESSERA_GALLERY_FONT;
-    std::string theme = "instrument-light";
-    std::string density = "comfortable";
-    std::string state = "none";
-    std::string click;
-    std::string emit_module_css;
-    int advance_ms = 0;
-    int text_scale = 100;
-    bool rtl = false;
-    bool hidden = false;
-    int frames = 0;
-    std::string page = "buttons";
-    std::string device = "none";
-    int width = 0;
-    int height = 0;
-};
+using gallery::Args;
 
 // The scene root is the window's content node; the id is outside the generated id range.
 // `kRootId` and `Scene` live in page_table.hpp now (issue #528): the table builds every page, so
@@ -327,7 +304,8 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     tessera::app::CaptureOptions options;
     options.width = static_cast<std::uint32_t>(args.width);
     options.height = static_cast<std::uint32_t>(args.height);
-    options.font_path = args.font;
+    options.font_path = args.fonts.front();
+    options.extra_font_paths.assign(args.fonts.begin() + 1, args.fonts.end());
     options.scheduler = &scene.scheduler;
     const tessera::ui::assets::AssetBundle vector_bundle = gallery::gen::vector_assets::bundle();
     options.vector_assets = &vector_bundle;
@@ -366,7 +344,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     options.height = static_cast<std::uint32_t>(args.height);
     options.visible = !args.hidden;
     options.vsync = true;
-    options.font_path = args.font;
+    options.font_path = args.fonts.front();
+    options.extra_font_paths.assign(args.fonts.begin() + 1, args.fonts.end());
     tessera::app::WindowHost host(scene.root, make_sheet(resources), options, &scene.scheduler);
     if (!host.available()) {
         std::cout << "gallery: skipped (no window backend or presentation surface)\n";
@@ -387,7 +366,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
            "               [--page buttons|safe-area|form|dash|swatch|icons] [--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
-           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";
+           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]... "
+           "(repeat for more weights)\n";
     std::exit(code);
 }
 
@@ -424,7 +404,7 @@ Args parse_args(int argc, char** argv) {
         } else if (arg == "--text-scale" && has_value) {
             args.text_scale = std::stoi(argv[++index]);
         } else if (arg == "--font" && has_value) {
-            args.font = argv[++index];
+            args.fonts.emplace_back(argv[++index]);
         } else if (arg == "--width" && has_value) {
             args.width = std::stoi(argv[++index]);
         } else if (arg == "--height" && has_value) {
@@ -441,6 +421,9 @@ Args parse_args(int argc, char** argv) {
             std::cerr << "gallery: unknown argument " << arg << "\n";
             usage(2);
         }
+    }
+    if (args.fonts.empty()) {
+        args.fonts.emplace_back(TESSERA_GALLERY_FONT);
     }
     const bool density_ok = args.density == "comfortable" || args.density == "compact";
     const bool scale_ok =

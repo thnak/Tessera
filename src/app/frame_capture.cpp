@@ -55,7 +55,7 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
         *device, *pipeline, *white, rendering::gpu::Batched2DConfig{4096, true, false},
         rendering::gpu::GlassPipelines{glass.blur.get(), glass.composite.get(), glass.mask.get(),
                                        glass.mask_out.get(), glass.mask_xor.get()});
-    detail::TextStack text(*device, options.font_path);
+    detail::TextStack text(*device, options.font_path, options.extra_font_paths);
     detail::VectorStack vectors(*device, format, options.vector_assets, options.vector_bundles,
                                 false);
     ui::paint::Batched2DSink sink(renderer, text.renderer.get(), text.shaper.get(),

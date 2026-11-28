@@ -5,6 +5,7 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_TRUETYPE_TABLES_H
 
 #include <cstdint>
 #include <fstream>
@@ -155,6 +156,18 @@ std::string FontFace::family_name() const {
         return {};
     }
     return state_->face->family_name;
+}
+
+int FontFace::weight() const noexcept {
+    if (!valid()) {
+        return 400;
+    }
+    // FreeType owns the table; it stays valid for the life of the face.
+    const auto* os2 = static_cast<const TT_OS2*>(FT_Get_Sfnt_Table(state_->face, FT_SFNT_OS2));
+    if (os2 != nullptr && os2->usWeightClass >= 1 && os2->usWeightClass <= 1000) {
+        return static_cast<int>(os2->usWeightClass);
+    }
+    return (state_->face->style_flags & FT_STYLE_FLAG_BOLD) != 0 ? 700 : 400;
 }
 
 std::span<const std::uint8_t> FontFace::data() const noexcept {

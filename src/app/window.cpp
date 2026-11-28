@@ -265,6 +265,7 @@ WindowHost::WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, Wind
     device_options.validation = options.validation;
     device_options.surface = rhi::SurfacePlatform::Auto;
     device_options.font_path = options.font_path;
+    device_options.extra_font_paths = options.extra_font_paths;
     auto group = std::make_unique<WindowDevice>(device_options);
     impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler, *group,
                                    *this);

@@ -291,7 +291,8 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
     renderer_->set_lcd_pipeline(lcd_pipeline_.get());
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation
     // instead of reusing an atlas whose images died with the old device.
-    text_ = std::make_unique<detail::TextStack>(*device_, options.font_path);
+    text_ =
+        std::make_unique<detail::TextStack>(*device_, options.font_path, options.extra_font_paths);
     // The vector stack is built against this device and format, so it lives and dies with them: a
     // device generation change rebuilds it (and its GPU pipelines) with the rest.
     vector_ = std::make_unique<detail::VectorStack>(*device_, format, options.vector_assets,

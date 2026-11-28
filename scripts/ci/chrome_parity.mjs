@@ -62,12 +62,19 @@ if (!tokens) {
   console.error(`unknown theme ${themeName}`);
   process.exit(2);
 }
-const fontUrl = pathToFileURL(join(root, 'packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf')).href;
-// The theme names IBM Plex and the engine is handed the pack's Plex Sans Regular (parity_gate.py), so
-// the browser is too. Only the regular weight is declared: the engine loads one face, so a bold run
-// would be synthesized by Chrome and not by the engine.
+const fontFile = (name) => pathToFileURL(join(root, `packages/tessera-fonts/ibm-plex/fonts/${name}.ttf`)).href;
+// The theme names IBM Plex and the engine is handed the pack's Plex Sans Regular, SemiBold and Bold
+// (parity_gate.py, #973) and picks one per run by weight, so the browser declares the same three
+// files at the weights they carry: neither side synthesizes a bold.
+const fontFaces = [
+  [400, 'IBMPlexSans-Regular'],
+  [600, 'IBMPlexSans-SemiBold'],
+  [700, 'IBMPlexSans-Bold'],
+]
+  .map(([weight, name]) => `@font-face { font-family: "ParityPlex"; font-weight: ${weight}; src: url("${fontFile(name)}"); }\n`)
+  .join('');
 const tokenCss =
-  `@font-face { font-family: "ParityPlex"; src: url("${fontUrl}"); }\n` +
+  fontFaces +
   `:root {\n${Object.entries(tokens).map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n  --font-sans: "ParityPlex", sans-serif;\n}\n` +
   `html, body { background: ${tokens['--window-background']}; color: ${tokens['--window-foreground']}; font-family: "ParityPlex", sans-serif; }\n`;
 

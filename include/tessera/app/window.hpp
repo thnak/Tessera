@@ -48,8 +48,7 @@ class TextInputRuntime;
 namespace tessera::app {
 
 // Window creation and presentation options for WindowHost. `font_path` is required: the 2D sink
-// shapes text through the loaded face (apps ship the font in their asset bundle; tools pass a
-// file path).
+// shapes text through the loaded face (apps bundle the font; tools pass a file path).
 struct WindowOptions {
     std::string title = "Tessera";
     std::uint32_t width = 900;
@@ -69,6 +68,7 @@ struct WindowOptions {
     // documented deadline pacing (runtime-config-v1.md section 5.2).
     double refresh_hz = 0.0;
     std::string font_path;
+    std::vector<std::string> extra_font_paths; // more weights, picked per run by `font-weight`
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // The embedded assets a `Path` / SVG node names (the generated `vector_assets()` bundle, the
     // project manifest bundle, or both composed). Borrowed: they must outlive the window group.
@@ -464,6 +464,7 @@ struct CaptureOptions {
     std::uint32_t height = 260;
     float dpi_scale = 1.0f;
     std::string font_path;
+    std::vector<std::string> extra_font_paths; // as WindowOptions
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // Optional update scheduler (generated components flush their state changes at its flush).
     ui::UpdateScheduler* scheduler = nullptr;

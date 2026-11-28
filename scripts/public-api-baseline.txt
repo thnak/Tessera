@@ -3785,6 +3785,10 @@ class include/tessera/ui/text/text_shaper.hpp tessera::ui::text::TextShaper
 struct include/tessera/ui/text/text_shaper.hpp tessera::ui::text::Glyph
 struct include/tessera/ui/text/text_shaper.hpp tessera::ui::text::ShapedRun
 
+header include/tessera/ui/text/weighted_shaper.hpp
+class include/tessera/ui/text/weighted_shaper.hpp tessera::ui::text::WeightedShaper
+function include/tessera/ui/text/weighted_shaper.hpp tessera::ui::text::match_font_weight
+
 header include/tessera/ui/virtual/collection_semantics.hpp
 class include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::CollectionSemantics
 struct include/tessera/ui/virtual/collection_semantics.hpp tessera::ui::virtualization::Announcement
