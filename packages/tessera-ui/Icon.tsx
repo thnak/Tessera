@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // `Icon`, the vector icon of the Instrument library (issue #530, ADR-047). It draws one icon of the
-// emitted set (`icons/IconGlyph.g.tsx`, produced by `tessera icons add`) by `<set>:<name>`, in size
+// emitted set (`icons/IconGlyph.tsx`, produced by `tessera icons add`) by `<set>:<name>`, in size
 // `sm` (16 px) or `md` (20 px). The glyph takes the text color of its parent: it is a `currentColor`
 // `Path` tinted with the node's computed `color`, so there is no per-icon color prop.
 //
@@ -10,7 +10,7 @@
 // (a chevron, an arrow): it flips in right-to-left layouts through `--icon-flip` (icon.css), and a
 // non-directional icon never flips. An unknown name draws nothing and keeps its box.
 
-import { IconGlyph } from "./icons/IconGlyph.g";
+import { IconGlyph } from "./icons/IconGlyph";
 
 export type IconProps = {
   name: string;

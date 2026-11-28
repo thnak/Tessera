@@ -3852,8 +3852,8 @@ prop packages/tessera-ui/SafeArea.tsx SafeArea.minimum
 prop packages/tessera-ui/SafeArea.tsx SafeArea.mode
 prop packages/tessera-ui/SafeArea.tsx SafeArea.sources
 
-component packages/tessera-ui/icons/IconGlyph.g.tsx IconGlyph
-prop packages/tessera-ui/icons/IconGlyph.g.tsx IconGlyph.name
+component packages/tessera-ui/icons/IconGlyph.tsx IconGlyph
+prop packages/tessera-ui/icons/IconGlyph.tsx IconGlyph.name
 
 component packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.children

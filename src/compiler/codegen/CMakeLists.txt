@@ -1783,7 +1783,7 @@ if (TESSERA_BUILD_TESTS)
 
     if (EXISTS ${_tessera_codegen_golden_dir}/icon/IconDemo.g.hpp)
         # Issue #530: the library Icon inside a Button, over the committed bases generated from
-        # packages/tessera-ui/Icon.tsx and icons/IconGlyph.g.tsx by library_icon_lowering_tests.
+        # packages/tessera-ui/Icon.tsx and icons/IconGlyph.tsx by library_icon_lowering_tests.
         add_executable(library_icon_runtime_tests
             ${PROJECT_SOURCE_DIR}/tests/unit/library_icon_runtime_tests.cpp)
 

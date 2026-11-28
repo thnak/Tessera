@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // `packages/tessera-ui/Icon.tsx` (issue #530) lowers with the generated glyph table
-// (`icons/IconGlyph.g.tsx`), gets identity under a salt, validates and generates C++. Its IR
+// (`icons/IconGlyph.tsx`), gets identity under a salt, validates and generates C++. Its IR
 // carries the accessibility contract (a named icon is an `img` with its label; an unnamed one is
 // hidden), the glyph table holds a `currentColor` `Path` per imported path icon, and a demo that
 // puts an Icon inside a Button generates the committed goldens the runtime test compiles.
@@ -105,7 +105,7 @@ std::size_t count_of(std::string_view text, std::string_view needle) {
 int main(int argc, char** argv) {
     write_goldens = argc > 1 && std::string_view(argv[1]) == "--write";
     const std::string icon_source = read("Icon.tsx");
-    const std::string glyph_source = read("icons/IconGlyph.g.tsx");
+    const std::string glyph_source = read("icons/IconGlyph.tsx");
     const std::string button_source = read("Button.tsx");
     check(!icon_source.empty() && !glyph_source.empty(),
           "Icon.tsx and the glyph table are readable");
@@ -120,12 +120,12 @@ int main(int argc, char** argv) {
     check(glyph_source.find("name === \"tabler:search\"") == std::string::npos,
           "an icon the tool could not represent is absent, not redrawn");
 
-    auto glyph_fixture = parse_file("ui/icons/IconGlyph.g.tsx", glyph_source);
+    auto glyph_fixture = parse_file("ui/icons/IconGlyph.tsx", glyph_source);
     auto glyph = lowering::lower_module(glyph_fixture->module_source(), "icon_glyph");
     check(glyph.has_value(), "the glyph table lowers: " + first_message(glyph));
 
     Project project;
-    project.add(parse_file("ui/icons/IconGlyph.g.tsx", glyph_source));
+    project.add(parse_file("ui/icons/IconGlyph.tsx", glyph_source));
     project.add(parse_file("ui/Icon.tsx", icon_source));
     project.add(parse_file("ui/Button.tsx", button_source));
     project.add(parse_file("ui/IconDemo.tsx", kDemo));

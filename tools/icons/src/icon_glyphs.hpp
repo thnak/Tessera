@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// `IconGlyph.g.tsx`: the imported icons as `Path` intrinsics, selected by name (issue #530).
+// `IconGlyph.tsx`: the imported icons as `Path` intrinsics, selected by name (issue #530).
 //
 // **Why TSX and not the embedded SVG assets alone.** The Icon component is TSX, and a `Path`'s `d`
 // and `viewBox` must be literals (jsx-intrinsics-v1 section 1), so a component that takes a

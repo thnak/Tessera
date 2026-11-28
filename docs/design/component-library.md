@@ -120,7 +120,7 @@ pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel`
   `tests/fixtures/icons/`; the deterministic end-to-end output is the checked-in golden
   `tests/golden/icons/`.
 - **Implemented (issue #530):** the `Icon` component ([spec](../specs/components/Icon.md)). The tool also
-  emits `IconGlyph.g.tsx` (one `currentColor` `Path` per path of each path-only icon), which `Icon`
+  emits `IconGlyph.tsx` (one `currentColor` `Path` per path of each path-only icon), which `Icon`
   selects by name; `currentColor` is a tint (white document, `tint_current_color`, node `color`).
 - **Still to come:** the AnimatedIcon SMIL/keyframe converter below, stroke caps/joins on `Path`, and
   shape-to-path conversion in the importer.

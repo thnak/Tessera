@@ -70,7 +70,7 @@ An Icon is a small vector glyph. It is not a button (IconButton), an image (Imag
 ## 7. Relationships
 
 - **Composed by:** IconButton, Link, Banner, EmptyState, Chip (planned), Button (`icon`).
-- **Pipeline:** `tessera icons add` emits the SVG assets, `icons.g.hpp` and `IconGlyph.g.tsx` (one
+- **Pipeline:** `tessera icons add` emits the SVG assets, `icons.g.hpp` and `IconGlyph.tsx` (one
   `currentColor` `Path` per path of each path-only icon). `Path` takes literal `d`, so the component
   selects among them by `name`. `currentColor` is a tint: codegen paints the document white and sets
   `PaintVectorStyle::tint_current_color`; mixing `currentColor` with a literal color on one `Path` is
@@ -82,7 +82,7 @@ An Icon is a small vector glyph. It is not a button (IconButton), an image (Imag
 |---|---|---|---|
 | FR1 | `codegen_vector_payload`, `library_icon_runtime` (tint flag on every glyph path), `gallery_golden_icons_*` | rest | Wrong color |
 | FR2 | `library_icon_style` (flip token), `library_icon_runtime` (class on directional only), `gallery_golden_icons_rtl` | LTR, RTL | Flip on a plain icon |
-| FR3 | `icons_import` (golden `IconGlyph.g.tsx` header lists `tabler:search`) | n/a | Icon redrawn |
+| FR3 | `icons_import` (golden `IconGlyph.tsx` header lists `tabler:search`) | n/a | Icon redrawn |
 | AR1, AR2 | `library_icon_runtime` (snapshot: one image named Home, no decorative nodes), `library_icon_lowering` | named, decorative | Unnamed image in the tree |
 | Press in a Button | `library_icon_runtime` | rest | Click swallowed |
 | Parity | Evidence gap: no Chrome twin yet | n/a | n/a |

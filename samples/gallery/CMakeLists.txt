@@ -12,7 +12,7 @@ set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_gallery_button ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
 set(_gallery_safe_area ${PROJECT_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
 set(_gallery_icon ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Icon.tsx)
-set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.g.tsx)
+set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.tsx)
 set(_gallery_outputs
     ${_gallery_gen}/Button.g.hpp ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
     ${_gallery_gen}/Gallery.g.hpp ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp
@@ -38,7 +38,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_gen}/src/SwatchPage.tsx
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src/icons
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon} ${_gallery_gen}/src/Icon.tsx
-    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon_glyph} ${_gallery_gen}/src/icons/IconGlyph.g.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon_glyph} ${_gallery_gen}/src/icons/IconGlyph.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx ${_gallery_gen}/src/IconsPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
@@ -46,7 +46,7 @@ add_custom_command(
             ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
             ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
             ${_gallery_gen}/src/SwatchPage.tsx ${_gallery_gen}/src/Icon.tsx
-            ${_gallery_gen}/src/icons/IconGlyph.g.tsx ${_gallery_gen}/src/IconsPage.tsx
+            ${_gallery_gen}/src/icons/IconGlyph.tsx ${_gallery_gen}/src/IconsPage.tsx
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
