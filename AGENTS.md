@@ -1300,7 +1300,11 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       pinning, WCAG contrast tests (evidence: `packages/tessera-ui/themes/instrument.theme.json`,
       `tests/unit/{instrument_theme_tests.cpp,theme_version_tests.cpp}`). The bundled font pack and
       swatch goldens moved to #280.
-- [ ] #280: Library stage 0: IBM Plex bundled font pack, theme pin of the pack, token swatch goldens.
+- [x] #280: Library stage 0: IBM Plex bundled font pack, exact theme pin of the pack, token swatch goldens
+      (evidence: `packages/tessera-fonts/ibm-plex/` + `font-pack.json` hashes, `tests/unit/font_pack_tests.cpp`,
+      `docs/specs/theme-versions-v1.md` section 5, lavapipe goldens `tests/golden/gallery/swatch_*.png`
+      via `gallery_golden_swatch_*`). Not done: the pin check is not wired into `tools/codegen`; `tnum`
+      is not applied by the shaper (#966, Plex figures are tabular by default).
 - [ ] #286: Callback props on user components. Step 1 (forwarding `onClick={onPress}`) done: `src/compiler/lowering/src/callback_forward.cpp`, IR `callProp`, codegen `emit_call_prop`, tests `lowering_callback_forward`, `codegen_callback_forward_runtime`, spec `jsx-subset-v1.md` section 9.5. Step 2 (calling a callback from a handler body, `callback_forward.cpp` + `handler_actions.cpp` `check_callback_calls`) done in the stacked PR. Step 3 (performance gate: zero allocations per forwarded event, depth bounded by IR cycle check, `dispatch_event_to` no longer allocates its path) done in its own PR.
 - [x] #238: Library stage 0: `tessera icons add` (Iconify import tool with the license gate) —
       `tools/icons/` (`tessera_icons_core` + the CLI), license gate per ADR-047 item 8 with a unit
