@@ -99,7 +99,7 @@ Exiting --cond true--> Present      (reverse; section 3.5)
 Entering --cond false--> Exiting    (retarget from the current visual value)
 ```
 
-Without `presence`, lowering is unchanged: a false condition destroys the node at once.
+Without `presence`, lowering is unchanged: a false condition detaches the node from its branch slot, which stays alive and keeps its state, for a component instance as for an element (proposed in [ADR-079](../../decisions/ADR-079-conditional-instance-keeps-state.md), #283).
 
 ### 3.3 Styling states
 

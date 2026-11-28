@@ -294,7 +294,7 @@ bindings stay in the caller's file; the callee receives it through a generated
 attaches it in source order at its `Slot` node. An empty child list is a valid instantiation and
 renders nothing at the Slot. `Slot` and `Component` nodes still take their pre-order ordinal (the
 Slot consumes one, nothing is created for it), so generated node ids, dynamic text and damage
-tracking stay aligned with the collectors. A conditional instance keeps its instance in a branch
+tracking stay aligned with the collectors. A conditional instance keeps its instance (and its state across toggles, a documented divergence from React's destroy-on-false, ADR-079) in a branch
 slot, a list template owns one instance per item, and a conditional inside a list item is per-item
 presence state: the model is [`compiler-node-state.md`](compiler-node-state.md). Deferred loudly with
 `TESSERA_CODEGEN_UNSUPPORTED`: slot children of an instance inside a template, and a conditional list
