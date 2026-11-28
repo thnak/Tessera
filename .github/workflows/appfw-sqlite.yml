@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: MIT
+
+# Exercises the opt-in SQLite module (-DTESSERA_APPFW_SQLITE=ON, issue #837 / #983) on GCC. Builds
+# and runs only the appfw_sql target, so it is cheap and path-filtered; the default lanes never
+# configure the option.
+name: AppFw SQLite
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/appfw/**'
+      - 'include/tessera/appfw/**'
+      - 'tests/unit/appfw_sql_tests.cpp'
+      - 'CMakeLists.txt'
+      - '.github/workflows/appfw-sqlite.yml'
+  pull_request:
+    paths:
+      - 'src/appfw/**'
+      - 'include/tessera/appfw/**'
+      - 'tests/unit/appfw_sql_tests.cpp'
+      - 'CMakeLists.txt'
+      - '.github/workflows/appfw-sqlite.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - uses: ./.github/actions/ccache
+        with:
+          name: appfw-sqlite
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_APPFW_SQLITE=ON \
+            -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build appfw_sql_tests
+        run: cmake --build build --target appfw_sql_tests
+
+      - name: Test
+        run: ctest --test-dir build -R appfw_sql --output-on-failure
