@@ -270,6 +270,10 @@ void ProjectIndex::resolve_project() {
     }
 }
 
+const Symbol* ProjectIndex::declaration_of(std::string_view id) const {
+    return follow(symbol(id));
+}
+
 std::optional<Located> ProjectIndex::locate(FileId file, std::uint32_t offset) const {
     const FileIndex* index = this->file(file);
     if (index == nullptr) {

@@ -206,8 +206,25 @@ std::string diagnostics_to_json(const ProjectIndex& index, std::optional<FileId>
     return out;
 }
 
+std::string_view wire_name(SymbolKind kind) {
+    return name_of(kind);
+}
+
+std::string_view wire_name(ReferenceKind kind) {
+    return name_of(kind);
+}
+
+std::string_view wire_name(Unresolved reason) {
+    return name_of(reason);
+}
+
+void append_json_string(std::string& out, std::string_view text) {
+    quote(out, text);
+}
+
 std::string analysis_capabilities_json() {
-    return "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\"]}";
+    return "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\","
+           "\"definition\",\"references\",\"hover\"]}";
 }
 
 } // namespace tessera::compiler::analysis

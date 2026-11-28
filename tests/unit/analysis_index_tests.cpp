@@ -264,7 +264,9 @@ void test_determinism_and_recovery() {
     check_eq(symbols_to_json(one, 0).substr(0, 20), "{\"files\":[{\"file\":0,",
              "single file selection");
     check_eq(analysis_capabilities_json(),
-             "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\"]}",
+             "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\","
+             "\"definition\","
+             "\"references\",\"hover\"]}",
              "capabilities");
 }
 

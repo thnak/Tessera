@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "analysis_entry.h"
+#include "tessera/compiler/analysis/language.hpp"
 #include "tessera/compiler/analysis/project_index.hpp"
 #include "tessera/compiler/analysis/symbol_json.hpp"
 
@@ -84,6 +85,25 @@ const char* tessera_analysis_query_json(const char* type, int file) {
     }
     if (kind == "capabilities") {
         return duplicate_out(analysis_capabilities_json());
+    }
+    return nullptr;
+}
+
+const char* tessera_analysis_request_json(const char* type, int file, int offset, int flag) {
+    if (file < 0 || offset < 0) {
+        return nullptr;
+    }
+    const std::string kind = text_of(type);
+    const auto id = static_cast<FileId>(file);
+    const auto at = static_cast<std::uint32_t>(offset);
+    if (kind == "definition") {
+        return duplicate_out(definition_to_json(state().index, id, at));
+    }
+    if (kind == "references") {
+        return duplicate_out(references_to_json(state().index, id, at, flag != 0));
+    }
+    if (kind == "hover") {
+        return duplicate_out(hover_to_json(state().index, id, at));
     }
     return nullptr;
 }

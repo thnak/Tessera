@@ -28,7 +28,8 @@ function tesseraAnalysisEdits(edits) {
   }
   return true;
 }
-function tesseraAnalysisQuery(type, file) {
+function tesseraAnalysisQuery(type, file, offset, flag) {
+  if (offset !== undefined) return JSON.stringify({ echo: [type, file, offset, flag] });
   const files = [...project.keys()].sort((a, b) => a - b).filter((id) => file < 0 || id === file);
   const burn = [...project.values()].some((t) => t.includes('@@slow'));
   if (burn) { const end = Date.now() + 150; while (Date.now() < end) { /* a long parse */ } }
@@ -70,7 +71,7 @@ async function protocolCases(label, engine, sample) {
 
   await t('the handshake names the analysis service and its features', async () => {
     const client = make(engine);
-    assert.deepEqual(await client.start(), { name: 'analysis', protocol: 1, features: ['symbols', 'diagnostics'] });
+    assert.deepEqual(await client.start(), { name: 'analysis', protocol: 1, features: ['symbols', 'diagnostics', 'definition', 'references', 'hover'] });
     assert.equal(client.supports('diagnostics'), true);
     client.dispose();
   });
@@ -122,12 +123,25 @@ async function protocolCases(label, engine, sample) {
     client.dispose();
   });
 
+  await t('position requests validate file and offset before the engine is asked', async () => {
+    const client = await started(engine, sample.files);
+    for (const type of ['definition', 'references', 'hover']) {
+      assert.equal(await code(client.request(type, { offset: 0 })), 'TESSERA_STUDIO_MALFORMED', type + ' needs a file');
+      assert.equal(await code(client.request(type, { file: sample.cleanFile })), 'TESSERA_STUDIO_MALFORMED', type + ' needs an offset');
+      assert.equal(await code(client.request(type, { file: sample.cleanFile, offset: -1 })), 'TESSERA_STUDIO_MALFORMED');
+      assert.equal(await code(client.request(type, { file: sample.cleanFile, offset: 1.5 })), 'TESSERA_STUDIO_MALFORMED');
+      assert.equal(await code(client.request(type, { file: 99, offset: 0 })), 'TESSERA_ANALYSIS_NO_FILE');
+    }
+    assert.equal(await code(client.request('references', { file: sample.cleanFile, offset: 0, includeDeclaration: 'yes' })), 'TESSERA_STUDIO_MALFORMED');
+    client.dispose();
+  });
+
   await t('a request before any snapshot is refused, and an unknown type too', async () => {
     const client = make(engine);
     await client.start();
     assert.equal(await code(client.request('diagnostics')), 'TESSERA_STUDIO_NO_SNAPSHOT');
     await client.setSnapshot(sample.files);
-    assert.equal(await code(client.request('hover', {})), 'TESSERA_STUDIO_UNKNOWN_TYPE');
+    assert.equal(await code(client.request('rename', {})), 'TESSERA_STUDIO_UNKNOWN_TYPE');
     client.dispose();
   });
 }
@@ -186,6 +200,21 @@ await test('a crashed engine is an error response, and the worker keeps answerin
   client.dispose();
 });
 
+await test('stand-in engine: position requests reach the engine with file, offset and includeDeclaration', async () => {
+  const client = await started(STANDIN_ENGINE, [[0, 'x\n', 'a.tsx']]);
+  assert.deepEqual(await client.request('hover', { file: 0, offset: 1 }), { echo: ['hover', 0, 1, 1] });
+  assert.deepEqual(await client.request('references', { file: 0, offset: 2, includeDeclaration: false }), { echo: ['references', 0, 2, 0] });
+  client.dispose();
+});
+
+await test('stand-in engine: a hover answered for an older version is dropped as stale', async () => {
+  const client = await started(STANDIN_ENGINE, [[0, '@@slow\n', 'a.tsx']]);
+  const slow = code(client.request('hover', { file: 0, offset: 0 }));
+  await client.applyEdits([{ file: 0, offset: 0, length: 0, newText: 'x' }]);
+  assert.equal(await slow, 'TESSERA_STUDIO_STALE');
+  client.dispose();
+});
+
 // The C++ library through the page's engine, when a Wasm module is built.
 const wasm = process.env.TESSERA_ANALYSIS_WASM;
 const emoji = '\u{1F600}';
@@ -214,6 +243,35 @@ if (wasm) {
     assert.equal(text.slice(gone.from, gone.to), 'Gone', 'the span is in UTF-16 units: the emoji counts twice');
     const dup = result.files[1].diagnostics[0];
     assert.equal(dup.related.file, 0);
+    client.dispose();
+  });
+
+  await test('tessera_analysis.wasm: definition, references and hover across files, in UTF-16 offsets', async () => {
+    const card = '/** A card. */\nexport function Card({ title }) { return <p>{title}</p>; }\n';
+    const app = `// ${emoji}\nimport { Card } from "./Card";\nexport function App() { return <Card title="a" />; }\n`;
+    const client = await started(engine, [[0, app, 'App.tsx'], [1, card, 'Card.tsx']]);
+    const tag = app.indexOf('<Card') + 2;
+    const def = await client.request('definition', { file: 0, offset: tag });
+    assert.equal(def.definitions.length, 1);
+    assert.equal(def.definitions[0].file, 1);
+    assert.equal(card.slice(def.definitions[0].from, def.definitions[0].to), 'Card');
+    const prop = await client.request('definition', { file: 0, offset: app.indexOf('title=') });
+    assert.equal(card.slice(prop.definitions[0].from, prop.definitions[0].to), 'title');
+    const refs = await client.request('references', { file: 1, offset: card.indexOf('Card(') + 1 });
+    assert.equal(refs.symbol, 'f1:Card');
+    assert.deepEqual(refs.references.map((r) => [r.file, app.slice(r.from, r.to) === 'Card' || card.slice(r.from, r.to) === 'Card']), [[0, true], [0, true], [1, true]]);
+    const noDecl = await client.request('references', { file: 1, offset: card.indexOf('Card(') + 1, includeDeclaration: false });
+    assert.equal(noDecl.references.length, 1);
+    const tip = (await client.request('hover', { file: 0, offset: tag })).hover;
+    assert.equal(tip.kind, 'component');
+    assert.equal(tip.doc, 'A card.');
+    assert.equal(tip.declaration.file, 1);
+    assert.equal(app.slice(tip.from, tip.to), 'Card', 'the hover range is in UTF-16 units: the emoji counts twice');
+    assert.equal((await client.request('hover', { file: 0, offset: 1 })).hover, null);
+    // An edit moves every answer with it.
+    await client.applyEdits([{ file: 1, offset: 0, length: 0, newText: '// pad\n' }]);
+    const moved = await client.request('definition', { file: 0, offset: tag });
+    assert.equal(moved.definitions[0].from, def.definitions[0].from + 7);
     client.dispose();
   });
 
