@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tessera app</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #101114; color: #e8e8ea; font: 16px system-ui, sans-serif; }
+    #tessera-canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
+    #unsupported { max-width: 36rem; margin: 12vh auto; padding: 0 1.25rem; }
+    #unsupported[hidden], #tessera-canvas[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="tessera-canvas" aria-label="Tessera application"></canvas>
+  <section id="unsupported" hidden>
+    <h1>This browser cannot run this app</h1>
+    <p>Tessera draws with WebGPU, and this browser does not provide it. Try a current version of
+    Chrome, Edge or Safari, or Firefox where WebGPU is enabled.</p>
+  </section>
+  <script type="module">
+    import { boot, showUnsupported, webgpuAvailable } from './tessera_web_host.js';
+    if (!webgpuAvailable(navigator)) {
+      showUnsupported(document);
+    } else {
+      // The Emscripten MODULARIZE output of the app target (EXPORT_NAME=createTesseraApp). It is
+      // imported only after the WebGPU check, so an unsupported browser never downloads the Wasm.
+      const { default: createModule } = await import('./app.js');
+      await boot({ createModule });
+    }
+  </script>
+</body>
+</html>
