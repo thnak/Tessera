@@ -156,6 +156,10 @@ struct Resource {
     // A suspending read: the Suspense boundary above its `.data` reads shows its fallback while
     // the status is Loading with no data. False never suspends.
     bool suspend = false;
+    // The IR type of `.data`, taken from the service method's declared return type when the
+    // analyzer knows it (pending-ui-v1.md section 3.4, slice 3). Empty when it does not: then a
+    // `.data` read validates but is not generated (TESSERA_CODEGEN_UNSUPPORTED).
+    std::string type;
     Expr key;
     SourceSpan source;
 };

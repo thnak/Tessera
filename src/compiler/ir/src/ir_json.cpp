@@ -211,6 +211,9 @@ JsonValue to_json(const Component& component) {
         if (resource.suspend) {
             entry.set("suspend", JsonValue::boolean(true));
         }
+        if (!resource.type.empty()) {
+            entry.set("type", JsonValue::string(resource.type));
+        }
         entry.set("key", expr_to_json(&resource.key));
         entry.set("source", to_json(resource.source));
         resources.push(std::move(entry));

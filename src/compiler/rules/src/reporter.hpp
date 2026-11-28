@@ -105,6 +105,19 @@ void check_contexts(Context& ctx);
 // then checks every use of a service symbol (method, arity, handler-only) once the symbols exist.
 void check_services(Context& ctx);
 void check_service_calls(Context& ctx);
+// resource.cpp: ADR-067 (issue #656). `check_resource` is the form of one `useResource` statement
+// and declares its symbol (called from the hook pass, so the order checks see it);
+// `check_resource_services` resolves each recorded call against the `useService` bindings and the
+// services manifest, run after `check_services`. `check_deferred_value` is the form of
+// `useDeferredValue(x)`.
+void check_resource(Context& ctx, std::size_t index, const jsx::Statement& statement,
+                    const jsx::Expr& call);
+void check_resource_services(Context& ctx);
+void check_deferred_value(Context& ctx, std::size_t index, const jsx::Statement& statement,
+                          const jsx::Expr& call, const jsx::HookEntry& hook);
+// Whether `call` is `useResource(...)`; the service pass skips its first argument, which names a
+// service method as a value.
+[[nodiscard]] bool is_resource_call(const jsx::Expr& call);
 // Whether `expr` is `svc.method(...)` on a service symbol of a known method, which a handler body
 // may hold like a setter call. Defined in service.cpp, which owns the form.
 [[nodiscard]] bool is_service_call(const Context& ctx, const jsx::Expr& expr);

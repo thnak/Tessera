@@ -102,6 +102,14 @@ public:
             scan_children(expr, true);
             return;
         }
+        if (is_resource_call(expr)) {
+            // The first argument names a service method as a value (`useResource(api.load, ...)`);
+            // resource.cpp checks it. Only the key and the options are scanned here.
+            for (std::size_t i = 2; i < expr.operands.size(); ++i) {
+                scan(*expr.operands[i], in_function);
+            }
+            return;
+        }
         if (const ServiceUseInfo* use = service_receiver(ctx_.out, expr); use != nullptr) {
             check_call(expr, *use, in_function);
             // The receiver is not a value use; only the arguments are scanned further.

@@ -65,8 +65,13 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
             }
             break;
         case rules::SymbolKind::TransitionPending:
-            // Resolved by the behavior loop below: the value is the `transition` behavior's output,
-            // `beh::<name>.isPending`, not an entry of its own.
+        case rules::SymbolKind::DeferredValue:
+            // Resolved by the behavior loop below: the value is the behavior's one output
+            // (`beh::<name>.isPending`, `beh::<name>.value`), not an entry of its own.
+            break;
+        case rules::SymbolKind::Resource:
+            // `feed.status`, `feed.data` and `feed.error` resolve through `resource_names_`
+            // below; the bare `feed` is a record, not a value.
             break;
         case rules::SymbolKind::TransitionStart:
         case rules::SymbolKind::StateSetter:
@@ -83,6 +88,13 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
     // (behavior-hooks-v1.md section 6). Recorded here rather than in `entries_` because the
     // reference is dotted: the base name alone is not a value, so `press` on its own must stay
     // unresolved while `press.pressed` resolves.
+    // ADR-067 item 1: a bound `useResource` result is read as `feed.<member>`. A bare call has no
+    // name, so nothing can read it and it is not recorded here.
+    for (const rules::ResourceInfo& resource : analysis.resources) {
+        if (!resource.name.empty()) {
+            resource_names_.push_back(resource.name);
+        }
+    }
     for (const rules::BehaviorInfo& behavior : analysis.behaviors) {
         if (behavior.name.empty() || behavior.outputs.empty()) {
             continue;
@@ -162,6 +174,19 @@ std::optional<std::string> ComponentNames::resolve(std::string_view source_name)
             if (output == field) {
                 return "beh::" + behavior.name + "." + std::string(field);
             }
+        }
+    }
+    // A resource member: `feed.status` resolves to `res::feed.status`. Only the three members of
+    // pending-ui-v1.md section 3.1 resolve; `feed.nope` stays unresolved for the validator.
+    for (const std::string& resource : resource_names_) {
+        if (source_name.size() <= resource.size() + 1 ||
+            source_name.compare(0, resource.size(), resource) != 0 ||
+            source_name[resource.size()] != '.') {
+            continue;
+        }
+        const std::string_view member = source_name.substr(resource.size() + 1);
+        if (member == "status" || member == "data" || member == "error") {
+            return "res::" + resource + "." + std::string(member);
         }
     }
     // `props.x` of a non-destructured parameter is a prop reference (decision 8). Nested fields

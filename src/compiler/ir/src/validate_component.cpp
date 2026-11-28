@@ -178,6 +178,9 @@ void ComponentChecker::check_declarations() {
     for (const auto& resource : component.resources) {
         declare(resource.id, "res::", resource.source);
         scope.declared_types.emplace(resource.id + ".status", "string");
+        if (!resource.type.empty()) {
+            scope.declared_types.emplace(resource.id + ".data", resource.type);
+        }
     }
     for (const auto& ref : component.refs) {
         declare(ref.id, "ref::", where);
@@ -290,6 +293,9 @@ ComponentScope make_scope(const Component& component) {
     for (const auto& resource : component.resources) {
         scope.ids.insert(resource.id);
         scope.declared_types.emplace(resource.id + ".status", "string");
+        if (!resource.type.empty()) {
+            scope.declared_types.emplace(resource.id + ".data", resource.type);
+        }
     }
     for (const auto& handler : component.handlers) {
         scope.handlers.insert(handler.id);

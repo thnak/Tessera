@@ -2439,6 +2439,14 @@ target_compile_definitions(lowering_pending_tests PRIVATE
 
 add_test(NAME lowering_pending COMMAND lowering_pending_tests)
 
+# Issue #656 slice 3: `useResource` and `useDeferredValue` from TSX (analysis, lowering, validator).
+add_executable(lowering_resource_tests
+    lowering_resource_tests.cpp)
+
+target_link_libraries(lowering_resource_tests PRIVATE tessera_lowering tessera_ir_ids)
+
+add_test(NAME lowering_resource COMMAND lowering_resource_tests)
+
 add_executable(lowering_hooks_reject_tests
     lowering_hooks_reject_tests.cpp)
 

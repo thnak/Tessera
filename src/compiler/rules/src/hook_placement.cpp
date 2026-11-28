@@ -76,7 +76,7 @@ private:
 
     void report(const Expr& call, Where where) {
         const std::string name(callee_name(call));
-        if (!is_core_hook(name)) {
+        if (!is_known_hook(name, ctx_.manifest)) {
             report_unknown_hook(ctx_, name, call.operands[0]->span);
             return;
         }
@@ -99,7 +99,8 @@ bool is_hook_symbol(SymbolKind kind) {
            // ADR-050 section 3.1: the binding of a `useService<T>()`, so a statement that calls it
            // before its declaration is an order error like any other hook.
            kind == SymbolKind::Service || kind == SymbolKind::TransitionPending ||
-           kind == SymbolKind::TransitionStart;
+           kind == SymbolKind::TransitionStart || kind == SymbolKind::Resource ||
+           kind == SymbolKind::DeferredValue;
 }
 
 void check_nesting(Context& ctx) {

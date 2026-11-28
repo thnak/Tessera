@@ -135,6 +135,13 @@ void validate_resources(ValidationContext& context, const ComponentScope& scope,
                                "`, which this component does not declare",
                            resource.source);
         }
+        if (!resource.type.empty() && resource.type != "int" && resource.type != "float" &&
+            resource.type != "bool" && resource.type != "string") {
+            context.report("TESSERA_IR_UNSUPPORTED",
+                           "resource `" + resource.id + "` has data type `" + resource.type +
+                               "`; V1 types a resource's data as int, float, bool or string",
+                           resource.source);
+        }
         if (resource.method.empty()) {
             context.report("TESSERA_IR_MALFORMED",
                            "resource `" + resource.id + "` names no service method",

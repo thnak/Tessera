@@ -403,6 +403,11 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
     } else if (const jsx::HookEntry* transition = ctx.manifest.find(name);
                name == "useTransition" && transition != nullptr) {
         check_transition(ctx, index, statement, call, *transition);
+    } else if (name == "useResource") {
+        check_resource(ctx, index, statement, call);
+    } else if (const jsx::HookEntry* deferred = ctx.manifest.find(name);
+               name == "useDeferredValue" && deferred != nullptr) {
+        check_deferred_value(ctx, index, statement, call, *deferred);
     } else if (name == "useId") {
         check_id(ctx, index, statement, call);
     } else if (const jsx::HookEntry* behavior = ctx.manifest.find(name);

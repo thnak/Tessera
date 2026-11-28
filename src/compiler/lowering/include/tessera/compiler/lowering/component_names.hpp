@@ -91,6 +91,8 @@ private:
         std::vector<std::string> outputs;
     };
     std::vector<BehaviorOutputs> behavior_outputs_;
+    // The local names of bound `useResource` calls (`feed`), for `feed.status|data|error`.
+    std::vector<std::string> resource_names_;
     // Decision 8: the `const` locals of the body, in declaration order. A local is inlined, never
     // referenced, so it is kept apart from `entries_`.
     std::vector<ConstLocal> const_locals_;

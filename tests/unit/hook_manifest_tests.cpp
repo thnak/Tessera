@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 14, "the manifest declares fourteen hooks");
+    bool ok = expect(manifest->hooks.size() == 16, "the manifest declares sixteen hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;

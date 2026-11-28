@@ -88,6 +88,14 @@ void lower_context_use(HookState& state, std::size_t index, LoweredHooks& out,
 // entry. The analyzer resolved `T` against the manifest, so the entry takes its C++ type and
 // header.
 void lower_service_hook(HookState& state, std::size_t index, LoweredHooks& out);
+// ADR-067 item 1 (issue #656): one `useResource(service.method, key, options)` call, lowered to an
+// IR `resources[]` entry. The analyzer resolved the service binding and the method.
+void lower_resource_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                         const NameResolver& names);
+// ADR-067 item 5 (issue #656): one `useDeferredValue(x)` call, lowered to a `deferred_value`
+// behavior whose one arg is the state it defers and whose output has that state's scalar type.
+void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                               const NameResolver& names);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 // One `const [state, dispatch] = useReducer(reduce, initial)` in its accepted form (ADR-066 item
