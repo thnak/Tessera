@@ -14,6 +14,7 @@
 // body still ran, the slot is still released, and no store state stays reserved.
 
 #include "storage_envelope.hpp"
+#include "storage_paths.hpp"
 #include "storage_settings.hpp"
 #include "tessera/appfw/storage.hpp"
 
@@ -33,35 +34,9 @@ namespace {
     return token.cancelled();
 }
 
-[[nodiscard]] std::string join_path(std::string_view root, std::string_view name) {
-    if (root.empty()) {
-        return std::string(name);
-    }
-    std::string path(root);
-    if (path.back() != '/' && path.back() != '\\') {
-        path.push_back('/');
-    }
-    path.append(name);
-    return path;
-}
-
-[[nodiscard]] StorageError from_file_error(std::string_view step, const hal::FileError& error) {
-    StorageErrorCode code = StorageErrorCode::Io;
-    if (error.code == hal::FileErrorCode::NotFound) {
-        code = StorageErrorCode::NotFound;
-    } else if (error.code == hal::FileErrorCode::TooLarge) {
-        code = StorageErrorCode::TooLarge;
-    } else if (error.code == hal::FileErrorCode::Unsupported) {
-        code = StorageErrorCode::Unsupported;
-    }
-    return StorageError{code, step, error.native};
-}
-
-// The temp-file suffix `atomic_replace` uses. A listing filters these out, so a crashed process
-// cannot make a half-written file look like an entry.
-[[nodiscard]] bool is_temp_name(std::string_view name) noexcept {
-    return name.size() > 4 && name.substr(name.size() - 4) == ".tmp";
-}
+using detail::from_file_error;
+using detail::is_temp_name;
+using detail::join_path;
 
 } // namespace
 
@@ -99,6 +74,11 @@ struct Storage::Impl {
             step == "replace" || step == "flush-dir") {
             ++diagnostics.aborted_writes;
         }
+    }
+
+    void note_migration() {
+        std::lock_guard<std::mutex> lock(diagnostics_mutex);
+        ++diagnostics.migrations;
     }
 
     void note_temp_removed() {
@@ -181,6 +161,68 @@ bool Storage::load(std::string name, runtime::CancellationToken token, ValueCall
             return;
         }
         *outcome = StoredValue{std::move(decoded->payload), decoded->version};
+    };
+    task.completion = [outcome, completion = std::move(completion)]() mutable {
+        if (completion) {
+            completion(std::move(*outcome));
+        }
+    };
+    return impl_->executor.post(std::move(task));
+}
+
+bool Storage::load_migrated(std::string name, std::shared_ptr<const MigrationChain> chain,
+                            runtime::CancellationToken token, ValueCallback completion) {
+    if (!chain || !is_valid_entry_name(name) || already_cancelled(token)) {
+        return false;
+    }
+    const std::string path = join_path(impl_->config.root, name);
+    auto outcome = std::make_shared<std::expected<StoredValue, StorageError>>();
+    std::shared_ptr<Impl> impl = impl_;
+
+    runtime::IoTask task;
+    task.work = [impl, path, name, token, chain = std::move(chain), outcome] {
+        if (token.cancelled()) {
+            *outcome = std::unexpected(StorageError{StorageErrorCode::Cancelled, "cancelled"});
+            return;
+        }
+        auto bytes =
+            impl->files.read(path, impl->config.max_entry_bytes + detail::kEnvelopeHeaderBytes);
+        if (!bytes) {
+            *outcome = std::unexpected(from_file_error("read", bytes.error()));
+            return;
+        }
+        // Decode with the widest version the header can hold: the version policy is the chain's
+        // here, not the envelope's, so a future version gets its own name instead of `Corrupted`.
+        auto decoded = detail::decode_envelope(*bytes, detail::EnvelopeKind::Document, 0xFFFFu,
+                                               impl->config.max_entry_bytes);
+        if (!decoded) {
+            impl->record(decoded.error().code, name, decoded.error().step, 0);
+            *outcome = std::unexpected(decoded.error());
+            return;
+        }
+        MigrationResult result =
+            chain->run(decoded->version, decoded->payload, impl->config.format_version);
+        if (!result.usable()) {
+            const StorageErrorCode code = result.outcome == MigrationOutcome::FutureVersion
+                                              ? StorageErrorCode::FutureVersion
+                                              : StorageErrorCode::MigrationFailed;
+            const std::string_view step = migration_outcome_name(result.outcome);
+            impl->record(code, name, step, static_cast<std::int64_t>(result.failed_at));
+            *outcome = std::unexpected(StorageError{code, step, result.failed_at});
+            return;
+        }
+        const bool migrated = result.outcome == MigrationOutcome::Migrated;
+        if (migrated) {
+            auto encoded =
+                detail::encode_envelope(detail::EnvelopeKind::Document, impl->config.format_version,
+                                        result.data, impl->config.max_entry_bytes);
+            // Best effort: the caller has usable data either way, and the next load migrates again.
+            if (encoded && !token.cancelled()) {
+                (void)impl->write_entry(name, path, *encoded, token);
+            }
+            impl->note_migration();
+        }
+        *outcome = StoredValue{std::move(result.data), impl->config.format_version, migrated};
     };
     task.completion = [outcome, completion = std::move(completion)]() mutable {
         if (completion) {
