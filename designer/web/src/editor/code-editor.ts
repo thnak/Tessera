@@ -230,6 +230,8 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       const next = kept !== undefined && kept.doc.toString() === text && kept.readOnly === readOnly ? kept : stateFor(path, text, readOnly);
       current = path;
       view.setState(next);
+      // The workbench's editor commands find the view from the DOM; this is how they learn which file it shows.
+      view.contentDOM.dataset.path = path;
       applyMarks(path);
       reportCaret(view.state);
     },

@@ -1,13 +1,14 @@
 # Source format v1: the compiler-owned formatter
 
-- Status: slice 1 implemented (`.tsx`, whole file, CLI). Slices 2 to 4 of
-  [ADR-061](../../decisions/ADR-061-compiler-owned-formatter.md) (edit list, CSS and `tessera.json`,
-  range formatting) are not in this version and are listed in section 10.
+- Status: slices 1 and 2 implemented (`.tsx`: whole file, CLI, edit list, the studio format worker and
+  Format Document). Slices 3 and 4 of [ADR-061](../../decisions/ADR-061-compiler-owned-formatter.md)
+  (CSS and `tessera.json`, range formatting) are not in this version and are listed in section 10.
 - Normative for: what `format_source` and `tessera fmt` guarantee, the comment attachment rules and
   the style table. The grammar being printed is
   [`jsx-subset-v1.md`](jsx-subset-v1.md) and [`jsx-subset-v1-jsx.md`](jsx-subset-v1-jsx.md).
-- Code: `src/compiler/format/` (library `tessera_source_format`), `tools/fmt/` (the CLI),
-  tests in `tests/unit/source_format_*.cpp`.
+- Code: `src/compiler/format/` (library `tessera_source_format`), `tools/fmt/` (the CLI and the Wasm
+  entry), `designer/web/services/format-service.js` (the worker), tests in
+  `tests/unit/source_format_*.cpp` and `scripts/ci/preview_format_service.mjs`.
 
 ## 1. Why a token printer
 
@@ -140,9 +141,42 @@ spelling works on either.
 
 ## 10. Known limits of slice 1
 
-- Whole-file replacement only; the edit list of ADR-061 section 3 is slice 2.
+- The CLI rewrites whole files; the edit list (section 11) is the editor-facing form.
 - `.css` and `tessera.json` are not formatted (slice 3); `format.printWidth` and
   `format.indentWidth` are not read from `tessera.json` yet.
 - Range formatting and recovery from recoverable errors (slice 4).
 - Layout is greedy and local: ternaries and arithmetic do not break, there is no member-chain
   breaking, and assignments do not break after `=`.
+
+## 11. Edit list and the studio (slice 2)
+
+```cpp
+FormatEditsResult format_edits(FileKind kind, std::string_view text, const FormatOptions& options = {});
+std::vector<TextEdit> diff_text_edits(std::string_view before, std::string_view after);
+std::string format_edits_json(FileKind kind, std::string_view text, const FormatOptions& options = {});
+```
+
+- `format_edits` is `format_source` followed by a diff against the input. A refusal carries the
+  diagnostics and no edits, so a file is never half-edited.
+- `TextEdit` is `{ offset, length, new_text }`: `offset` and `length` count **UTF-16 code units** of the
+  input (a JavaScript string, CodeMirror), `new_text` is UTF-8. The list is in the coordinates of the
+  input, ascending and non-overlapping, so it applies in any order; `designer/web/services/protocol.js`
+  `toSequentialEdits` reverses it for `delta`, which applies one edit after another.
+- **Minimal:** the diff runs over atoms (identifier runs, whitespace runs, single punctuation
+  characters) after trimming the common prefix and suffix, with Myers' shortest edit script. A
+  `'x'` to `"x"` change is two one-unit edits and an already canonical file is an empty list. A diff
+  longer than 1500 edits falls back to one edit over the changed region (still correct, not minimal).
+- Applying the list equals `format_source`'s text (tested on goldens, CRLF, a BOM, astral characters and
+  random pairs). Line endings and the BOM follow section 2 because the diff is against the printed text.
+- Wire form (`format_edits_json`, also `tessera_fmt --edits-json FILE` and the Wasm export
+  `tessera_format_edits_json`): `{"edits":[{"offset","length","newText"}],"diagnostics":[{"code","message","line","column"}]}`.
+- **Studio:** the `format` service ([studio-services-v1.md](studio-services-v1.md) section 8) answers
+  `format` with those edits (`file` added). Format Document (`edit.format`, Shift+Alt+F) applies the list as
+  one CodeMirror transaction: one undo step restores the text, the caret and selection map through the
+  changes, and a text change while the worker was busy drops the answer. A refused file leaves the text
+  untouched and the failure toast names `path:line:column code message`. Only `.tsx` is formatted until
+  slice 3.
+- **Format on save:** on by default (ADR-061 question 3). `file.save` formats the open `.tsx` file first;
+  a refusal or a worker failure never blocks the save. The setting is the local preference
+  `tessera.studio.formatOnSave` (`off` disables it; `designer/web/src/lib/format-prefs.ts`). A settings
+  surface for the toggle is not in this slice.

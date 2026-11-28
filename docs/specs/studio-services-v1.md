@@ -62,7 +62,9 @@ A worker holds only a cache keyed by that version.
 
 - `snapshot`: `{ files: [{ file, bytes }] }` where `bytes` is a UTF-8 `ArrayBuffer` in the transfer
   list. It replaces the whole cache and sets the cached version to the request's `version`.
-- `delta`: `{ baseVersion, edits: [TextEdit] }`. It is applied only when `baseVersion` equals the
+- `delta`: `{ baseVersion, edits: [TextEdit] }`. The edits apply one after another, each against the text
+  the previous one produced (an edit list in the coordinates of one text goes through
+  `toSequentialEdits` first). It is applied only when `baseVersion` equals the
   cached version, and sets the cached version to the request's `version`. Otherwise the worker
   answers `TESSERA_STUDIO_VERSION` and the page sends a snapshot.
 - Any other request before the first snapshot is answered `TESSERA_STUDIO_NO_SNAPSHOT`. A request
@@ -101,7 +103,7 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
 | `analysis` | Defined by the analysis issues (#568 and following) |
-| `format` | Defined with ADR-061 |
+| `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
 Error codes: `TESSERA_STUDIO_MALFORMED`, `_VERSION`, `_NO_SNAPSHOT`, `_UNKNOWN_TYPE`, `_CANCELLED`,
@@ -116,4 +118,7 @@ checks the handshake, versioned answers, cancellation, the stale drop, restart f
 the refusal of a function or DOM-like value. The worker handle is the one of
 [studio-mock-services-v1.md](studio-mock-services-v1.md) (`post`, `onMessage`, `onError`,
 `terminate`), so the same client drives a blob `Worker` in a browser. Real services reuse the gate by
-swapping the stub's source.
+swapping the stub's source: `scripts/ci/preview_format_service.mjs` does it for the `format` worker
+(`designer/web/services/format-service.js`, built around an engine; the page's engine is
+`tessera_format.wasm`). With `TESSERA_FMT_BIN` set to a built `tessera_fmt` the gate also runs every case
+against the real printer.

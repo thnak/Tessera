@@ -116,7 +116,8 @@ await test('commands: only live, runnable, palette-surface commands as Category:
   assert.ok(byId['view.cycleTheme'], 'a palette-and-toolbar command is offered');
   assert.ok(byId['device.setViewport'], 'a command with arguments is offered (the prompt asks for them)');
   assert.equal(byId['go.definition'], undefined, 'reserved commands are not offered');
-  assert.equal(byId['edit.format'], undefined);
+  assert.equal(byId['edit.format'].label, 'Edit: Format Document', 'Format Document is live (ADR-061 slice 2)');
+  assert.equal(byId['edit.format'].chord, 'Alt+Shift+F');
   assert.equal(commandItems(bootRegistry({ 'project.source': 'sample' })).some((item) => item.id === 'file.save'), false, 'a command that is not runnable now is not offered');
   assert.equal(items.every((item) => /^[A-Z][a-z]+: /.test(item.label)), true);
 });

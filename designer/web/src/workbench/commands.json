@@ -274,11 +274,12 @@
       "keybinding": {
         "default": "Shift+Alt+F"
       },
+      "enabled": "project.open",
       "services": [
         "format"
       ],
-      "note": "reserved: format service (ADR-061)",
-      "status": "reserved"
+      "note": "format service (ADR-061); .tsx only until slice 3",
+      "status": "live"
     },
     {
       "id": "edit.renameSymbol",

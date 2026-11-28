@@ -11,6 +11,8 @@
 import { selectAll, toggleComment } from "@codemirror/commands";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
+import { formatOnSave } from "../lib/format-prefs";
+import { formatView, isFormattable } from "./format-document";
 
 function viewOf(): EditorView | null {
   const content = document.getElementById("source");
@@ -43,6 +45,21 @@ export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
   "edit.replace": () => withView((view) => void openSearchPanel(view)),
   "edit.findNext": () => withView((view) => void findNext(view)),
   "edit.findPrevious": () => withView((view) => void findPrevious(view)),
+  "edit.format": async () => {
+    const view = viewOf();
+    if (view === null) {
+      throw new Error("no editor is open");
+    }
+    view.focus();
+    const report = await formatView(view);
+    if (report.outcome === "refused") {
+      // A thrown error becomes the command's failure toast; the text was left untouched.
+      throw new Error(`Format Document refused the file: ${report.message}`);
+    }
+    if (report.outcome === "skipped" && !isFormattable(view.contentDOM.dataset.path ?? "")) {
+      throw new Error("Format Document formats .tsx files; CSS and tessera.json follow");
+    }
+  },
   "edit.toggleComment": () => withView((view) => void toggleComment(view)),
   "edit.cut": () => withView(() => void document.execCommand("cut")),
   "edit.copy": () => withView(() => void document.execCommand("copy")),
@@ -56,6 +73,26 @@ export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
     view.dispatch({ ...view.state.replaceSelection(text), userEvent: "input.paste", scrollIntoView: true });
   },
 };
+
+/**
+ * Format-on-save (#577): formats the open file before it is written when the setting is on. A refusal or a
+ * worker failure never blocks the save; the text is saved as the person left it.
+ */
+export async function formatBeforeSave(): Promise<void> {
+  const view = viewOf();
+  if (view === null || !formatOnSave()) {
+    return;
+  }
+  try {
+    if ((await formatView(view)).outcome === "formatted") {
+      // Let the editor's change reach the page state (React) before the save reads it.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  } catch {
+    // The save goes on with the unformatted text.
+  }
+}
 
 /** The editor's line count, for the go-to-line prompt's range; `0` with no editor. */
 export function editorLineCount(): number {
