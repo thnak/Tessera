@@ -59,6 +59,7 @@ on:
       - 'scripts/ci/workbench_dock_core.mjs'
       - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_project_folder_ops.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
       - 'scripts/ci/preview_project_package.mjs'
@@ -107,6 +108,7 @@ on:
       - 'scripts/ci/workbench_dock_core.mjs'
       - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_project_folder_ops.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
       - 'scripts/ci/preview_project_package.mjs'
@@ -294,6 +296,10 @@ jobs:
       # file that changed on disk. The browser half is `preview_browser_project_io.mjs`, run by hand.
       - name: Project load and save (limits, locked files, conflicts)
         run: node scripts/ci/preview_project_load.mjs
+
+      # Folder move and folder delete plans: every file under the prefix, locked files and escapes refused.
+      - name: Project folder operations
+        run: node scripts/ci/preview_project_folder_ops.mjs
 
       # A generated header older than its source gets a "may be out of date" hint (heuristic, advisory).
       - name: Generated-file staleness advice
