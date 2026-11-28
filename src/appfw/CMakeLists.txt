@@ -114,6 +114,7 @@ add_library(tessera_appfw_navigation STATIC
     navigation_restore_encode.cpp
     navigation_restore_store.cpp
     navigation_route.cpp
+    navigation_router_service.cpp
     navigation_stack.cpp)
 
 target_include_directories(tessera_appfw_navigation PUBLIC
@@ -438,6 +439,17 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(appfw_navigation_tests PRIVATE
         tessera_appfw_navigation tessera_scene tessera_runtime)
     add_test(NAME appfw_navigation COMMAND appfw_navigation_tests)
+
+    # The router shim's service (docs/specs/router-shim-v1.md, issue #549): `navigate` over the real
+    # controller, so route match, params, back and a deep link are asserted through the service the
+    # TSX shim lowers to.
+    add_executable(appfw_router_service_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_router_service_tests.cpp)
+    target_include_directories(appfw_router_service_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_router_service_tests PRIVATE
+        tessera_appfw_navigation tessera_scene tessera_runtime)
+    add_test(NAME appfw_router_service COMMAND appfw_router_service_tests)
 
     # Networking (issue #197, docs/specs/networking-v1.md): the contract suite of section 5, one TU
     # per acceptance group so a failure names the group. Deterministic end to end - `ManualClock` for
