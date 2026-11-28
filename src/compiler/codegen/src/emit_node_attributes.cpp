@@ -108,7 +108,8 @@ NodeEmitContext::Outcome emit_node_prelude(NodeEmitContext& context) {
         }
         if (node.kind == ir::NodeKind::Path &&
             (name == "d" || name == "viewBox" || name == "fill" || name == "stroke" ||
-             name == "strokeWidth" || name == "label")) {
+             name == "strokeWidth" || name == "strokeLinecap" || name == "strokeLinejoin" ||
+             name == "fillRule" || name == "label")) {
             continue;
         }
         if (value) {

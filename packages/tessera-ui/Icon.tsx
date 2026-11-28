@@ -7,7 +7,7 @@
 //
 // Accessibility: an icon that carries meaning takes a `label` and is an `img` with that name; an icon
 // without one is decorative (a `presentation` box with `aria-hidden`), hidden from the accessibility tree. `mirror` marks a directional icon
-// (a chevron, an arrow): it flips in right-to-left layouts through `--icon-flip` (icon.css), and a
+// (a chevron, an arrow): it flips in right-to-left layouts through the engine's `--tessera-dir-sign` (icon.css), and a
 // non-directional icon never flips. An unknown name draws nothing and keeps its box.
 
 import { IconGlyph } from "./icons/IconGlyph";

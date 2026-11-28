@@ -2,8 +2,8 @@
 
 /* The Icon look (issue #530, ADR-047 item 5). The glyph is a currentColor Path, so it takes the
    inherited `color`: nothing here names a color. `ticon-mirror` marks a directional icon; it flips
-   by `--icon-flip`, which is 1 unless the host sets it to -1 where `direction: rtl` applies (the
-   stylesheet engine has no direction selector, so the flip is a token the direction root sets). */
+   by `--tessera-dir-sign`, the engine's direction signal: -1 where the computed `direction` is rtl
+   and absent (so 1 here) otherwise. No host has to set a flip token. */
 
 .ticon {
   display: flex;
@@ -22,7 +22,7 @@
 }
 
 .ticon-mirror {
-  transform: scaleX(var(--icon-flip,1));
+  transform: scaleX(var(--tessera-dir-sign,1));
 }
 
 .ticon-box {

@@ -1,23 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// `Path` -> `PaintKind::Vector` (V1-M2; docs/design/compiler.md section 11).
-// `PaintVectorStyle::asset` is an embedded-asset name while the intrinsic carries inline
-// `d`/`viewBox`, so codegen synthesizes one SVG document per `Path` node from the literal props,
-// embeds the exact bytes as a generated asset bundle, and emits a vector payload naming that asset.
-// The existing asset -> SVG decode -> path rasterizer chain paints it; no new paint payload and no
-// new RHI path.
-//
-// This test pins:
-// - the emitted shape: the `PaintData` lines (kind + asset name), the accessible name from `label`,
-//   and the synthesized-asset registration in `<module>_vector_assets.hpp`;
-// - the exact SVG bytes: fixed attribute order, spec defaults (`fill`/`stroke` `"none"`,
-//   `strokeWidth` `1`), explicit values, and byte-identical regeneration;
-// - loud rejection of every non-literal prop and of a malformed `viewBox` / `var()` color;
-// - the committed golden under tests/golden/codegen/vector/ and, when it is compiled by the build,
-//   the runtime payload: kind, asset name and resolution through the generated bundle + SVG decode.
-//
-// Deliberate golden update path: `codegen_vector_payload_tests --write` rewrites
-// tests/golden/codegen/vector/VectorIcon.g.hpp and vicon_vector_assets.hpp.
+// `Path` -> `PaintKind::Vector` (V1-M2; docs/design/compiler.md section 11). Codegen synthesizes
+// one SVG document per `Path` node from the literal props, embeds the exact bytes as a generated
+// asset bundle and emits a vector payload naming that asset; the existing SVG decode -> path
+// rasterizer chain paints it. This test pins: the emitted `PaintData` lines, the `label` name and
+// the asset registration; the exact SVG bytes (fixed attribute order, spec defaults, explicit
+// values, the optional cap, join and fill rule, byte-identical regeneration); loud rejection of
+// every non-literal prop, a malformed `viewBox` and a `var()` color; the committed golden under
+// tests/golden/codegen/vector/ and, when built, the runtime payload. Golden update:
+// `codegen_vector_payload_tests --write`.
 
 #include "codegen_vector_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -301,6 +292,27 @@ void test_svg_bytes_are_exact() {
              "the bundle data blob is the two documents in sorted name order");
 }
 
+// Cap, join and fill rule are optional: set, they land after `stroke-width` in a fixed order.
+void test_stroke_extras_are_exact() {
+    ir::IrModule module = make_vector_module();
+    ir::Node& node = explicit_node(module);
+    node.props["strokeLinecap"] = ir::make_literal(std::string("round"));
+    node.props["strokeLinejoin"] = ir::make_literal(std::string("bevel"));
+    node.props["fillRule"] = ir::make_literal(std::string("evenodd"));
+    const auto result = generate(module);
+    const codegen::GeneratedFile* assets =
+        result ? find_file(*result, "vicon_vector_assets.hpp") : nullptr;
+    check(assets != nullptr, "a `Path` with cap, join and fill rule generates");
+    if (assets != nullptr) {
+        check_eq(
+            asset_bytes(assets->text, "vector/VectorIcon/2.svg"),
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M4 4 L20 "
+            "4 L20 20 Z\" fill=\"#2e8b57\" stroke=\"#102030\" stroke-width=\"2\" "
+            "stroke-linecap=\"round\" stroke-linejoin=\"bevel\" fill-rule=\"evenodd\"/></svg>",
+            "cap, join and fill rule are synthesized in a fixed order");
+    }
+}
+
 void test_regeneration_is_byte_identical() {
     const auto first = generate(make_vector_module());
     const auto second = generate(make_vector_module());
@@ -365,6 +377,12 @@ void test_rejections() {
         {"strokeWidth", [] { return ir::make_ref("prop::width"); },
          "a non-literal `strokeWidth` is rejected"},
         {"label", [] { return ir::make_ref("prop::label"); }, "a non-literal `label` is rejected"},
+        {"strokeLinecap", [] { return ir::make_ref("state::cap"); },
+         "a non-literal cap is rejected"},
+        {"strokeLinejoin", [] { return ir::make_literal(std::string("curve")); },
+         "an unknown join is rejected"},
+        {"fillRule", [] { return ir::make_literal(std::string("even-odd")); },
+         "an unknown fill rule is rejected"},
         {"viewBox", [] { return ir::make_literal(std::string("0 0 24")); },
          "a three-number `viewBox` is rejected"},
         {"viewBox", [] { return ir::make_literal(std::string("0 0 0 24")); },
@@ -466,6 +484,7 @@ int main(int argc, char** argv) {
     test_fixture_is_valid();
     test_emitted_payload_lines();
     test_svg_bytes_are_exact();
+    test_stroke_extras_are_exact();
     test_regeneration_is_byte_identical();
     test_goldens(false);
     test_rejections();

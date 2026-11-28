@@ -110,15 +110,16 @@ int main(int argc, char** argv) {
     check(!icon_source.empty() && !glyph_source.empty(),
           "Icon.tsx and the glyph table are readable");
 
-    // The glyph table: one currentColor Path per path of every representable icon, none for the
-    // icon the tool listed as not representable (tabler:search has a circle).
-    check(count_of(glyph_source, "<Path") == 9, "the glyph table holds nine Path nodes");
+    // The glyph table: one currentColor Path per path or basic shape of every representable icon
+    // (tabler:search is a circle plus a line, converted to path data by the importer).
+    check(count_of(glyph_source, "<Path") == 11, "the glyph table holds eleven Path nodes");
     check(count_of(glyph_source, "fill=\"currentColor\"") +
                   count_of(glyph_source, "stroke=\"currentColor\"") ==
-              9,
+              11,
           "every glyph path paints with currentColor");
-    check(glyph_source.find("name === \"tabler:search\"") == std::string::npos,
-          "an icon the tool could not represent is absent, not redrawn");
+    check(count_of(glyph_source, "name === \"tabler:search\"") == 2,
+          "a shape icon is in the table as two paths");
+    check(count_of(glyph_source, "strokeLinecap=\"round\"") > 0, "round caps reach the table");
 
     auto glyph_fixture = parse_file("ui/icons/IconGlyph.tsx", glyph_source);
     auto glyph = lowering::lower_module(glyph_fixture->module_source(), "icon_glyph");

@@ -6,6 +6,7 @@
 // matches the checked-in golden. The license/subset gate contract is covered by
 // icons_gate_tests.cpp.
 
+#include "icon_glyphs.hpp"
 #include "icon_import.hpp"
 #include "icon_set.hpp"
 #include "icons_test_support.hpp"
@@ -50,10 +51,62 @@ using namespace tessera::icons::test_support;
     return ok;
 }
 
+// Shapes become path data in the glyph table, root presentation attributes are inherited, and an
+// icon the table cannot carry (a group, a malformed shape) stays absent.
+bool glyph_shape_contract() {
+    const auto make = [](const std::string& name, const std::string& svg) {
+        icons::ImportResult result;
+        result.icons.push_back({"t", name, "icons/t/" + name + ".svg", 24, 24, false});
+        result.files.push_back({"icons/t/" + name + ".svg", svg});
+        return icons::build_icon_glyphs_tsx(result);
+    };
+    const std::string root =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" "
+        "viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" "
+        "stroke-linecap=\"round\" stroke-linejoin=\"round\">";
+    bool ok = true;
+    const std::string circle = make("c", root + "<circle cx=\"12\" cy=\"12\" r=\"5\"/></svg>");
+    ok = expect(contains(circle, "d=\"M7 12 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 z\""),
+                "a circle becomes two arcs") &&
+         ok;
+    ok = expect(contains(circle, "strokeLinecap=\"round\"") &&
+                    contains(circle, "strokeLinejoin=\"round\"") &&
+                    contains(circle, "stroke=\"currentColor\""),
+                "root presentation attributes are inherited by the shape") &&
+         ok;
+    const std::string rect = make("r", root + "<rect x=\"2\" y=\"3\" width=\"10\" height=\"8\" "
+                                              "rx=\"2\" fill-rule=\"evenodd\"/></svg>");
+    ok = expect(contains(rect,
+                         "d=\"M4 3 h6 a2 2 0 0 1 2 2 v4 a2 2 0 0 1 -2 2 h-6 a2 2 0 0 1 -2 -2 v-4 "
+                         "a2 2 0 0 1 2 -2 z\""),
+                "a rounded rect becomes four lines and four arcs") &&
+         ok;
+    ok = expect(contains(rect, "fillRule=\"evenodd\""), "fill-rule reaches the Path") && ok;
+    const std::string plain = make("p", root + "<rect width=\"4\" height=\"6\"/></svg>");
+    ok = expect(contains(plain, "d=\"M0 0 h4 v6 h-4 z\""), "a square rect is a closed box") && ok;
+    const std::string lines = make(
+        "l", root + "<line x1=\"1\" y1=\"2\" x2=\"3\" y2=\"4\"/>"
+                    "<polyline points=\"0,0 4,4 8,0\"/><polygon points=\"0 0 4 0 4 4\"/></svg>");
+    ok = expect(contains(lines, "d=\"M1 2 L3 4\"") && contains(lines, "d=\"M0 0 L4 4 L8 0\"") &&
+                    contains(lines, "d=\"M0 0 L4 0 L4 4 z\""),
+                "line, polyline and polygon become path data") &&
+         ok;
+    for (const char* bad :
+         {"<g><circle cx=\"1\" cy=\"1\" r=\"1\"/></g>", "<circle cx=\"1\" r=\"0\"/>",
+          "<circle cx=\"1%\" cy=\"1\" r=\"1\"/>", "<polyline points=\"1 2 3\"/>",
+          "<path d=\"M0 0\" stroke-linecap=\"flat\"/>"}) {
+        const std::string text = make("b", root + bad + "</svg>");
+        ok = expect(!contains(text, "name === \"t:b\"") && contains(text, "//   t:b"),
+                    std::string("an unrepresentable icon stays absent: ") + bad) &&
+             ok;
+    }
+    return ok;
+}
+
 } // namespace
 
 int main() {
-    bool ok = true;
+    bool ok = glyph_shape_contract();
     const fs::path golden_root = TESSERA_ICONS_GOLDEN_DIR;
     const fs::path out_a = fs::temp_directory_path() / "tessera_icons_out_a";
     const fs::path out_b = fs::temp_directory_path() / "tessera_icons_out_b";

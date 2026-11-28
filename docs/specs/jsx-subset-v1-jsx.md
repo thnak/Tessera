@@ -169,6 +169,9 @@ element (section 10.5). These props were decided by the project owner.
 | `fill` | CSS color literal, `var(--name)` literal, or `"none"` | no | Default `"none"`. `"currentColor"` tints the path with the node's `color`; it cannot be mixed with a literal color on one `Path` |
 | `stroke` | same as `fill` | no | Default `"none"` |
 | `strokeWidth` | number literal | no | In viewBox units. Default `1`. Ignored when `stroke` is `"none"` |
+| `strokeLinecap` | `"butt"`, `"round"` or `"square"` (literal) | no | Stroke end caps (SVG `stroke-linecap`). Default `"butt"`. Ignored when `stroke` is `"none"` |
+| `strokeLinejoin` | `"miter"`, `"round"` or `"bevel"` (literal) | no | Stroke corner joins (SVG `stroke-linejoin`). Default `"miter"` |
+| `fillRule` | `"nonzero"` or `"evenodd"` (literal) | no | Which regions of a self-overlapping path the fill covers (SVG `fill-rule`). Default `"nonzero"` |
 | `label` | string, pure expression | no | The accessible name. Without it the path is decorative and left out of the accessibility tree |
 | `className`, `style` | as section 10.3 | no | Same as `Image` |
 

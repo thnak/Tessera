@@ -43,6 +43,7 @@ add_library(tessera_codegen STATIC
     src/emit_record_hash.cpp
     src/emit_types_header.cpp
     src/emit_vector.cpp
+    src/emit_vector_stroke.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_item_props.cpp

@@ -46,7 +46,7 @@ An Icon is a small vector glyph. It is not a button (IconButton), an image (Imag
 | Id | Rule | Reason |
 |---|---|---|
 | FR1 | The glyph MUST paint with the node's computed `color` (a `currentColor` `Path`, tinted by the paint pass). There is no per-icon color prop. | An icon follows its parent's text color in every theme. |
-| FR2 | `mirror` MUST flip the icon only where the host sets `--icon-flip: -1` (the direction root); a non-directional icon MUST never flip. | The engine has no direction selector, so the flip is a token the direction root sets. |
+| FR2 | `mirror` MUST flip the icon only where the computed `direction` is `rtl` (the engine's `--tessera-dir-sign` is `-1`); a non-directional icon MUST never flip. | The engine sets the signal itself, so no host sets a flip token. |
 | FR3 | An icon the tool could not express as paths (shapes, groups, unknown attributes) MUST be absent from the glyph table, never redrawn differently. | Matches the importer's rule. |
 | AV1 | A theme may not change which sizes exist. | Layout portability. |
 
@@ -64,7 +64,7 @@ An Icon is a small vector glyph. It is not a button (IconButton), an image (Imag
 | `icon` | target | The sized host box (`ticon`); carries size and mirror classes. |
 | glyph | none (reason: intentional) | Drawing, not content; hidden from the tree. |
 
-- **Variables:** `--icon-flip` (default `1`; `-1` in a right-to-left root).
+- **Variables:** `--tessera-dir-sign` (engine-provided: `-1` where `direction` is `rtl`, absent otherwise; read with fallback `1`).
 - **Tokens read:** none; the color is inherited.
 
 ## 7. Relationships
@@ -93,14 +93,14 @@ Implemented: the component, the emitted set (`packages/tessera-ui/icons/`, from 
 fixture subset in `tests/fixtures/icons` until a real Iconify pin is vendored), the gallery page
 (`--page icons`) and goldens per theme plus RTL. Gaps:
 
-- **Stroke caps and joins.** `Path` has no cap, join or fill-rule props, so Tabler-style rounded strokes
-  draw with butt caps. Extend `Path` before shipping a real Tabler pin.
+- **Stroke caps and joins** are done: `Path` takes `strokeLinecap`, `strokeLinejoin` and `fillRule`, and
+  the importer passes the SVG attributes (own or inherited from the root `<svg>`) through.
 - **Chrome parity page** (`structure_diff_pct` under 0.5 %) is not done; the gate (#529) needs an HTML
   twin of the icon page.
-- **Icons with shapes** (`<circle>`, `<rect>`, groups) are emitted as assets only; convert them to
-  path data in the importer to include them in the glyph table.
-- **Direction.** `--icon-flip` must be set by the direction root; a `direction` pseudo-class or hook would
-  remove that step.
+- **Icons with shapes** are done for `circle`, `ellipse`, `rect` (with radii), `line`, `polyline` and
+  `polygon`: the importer converts them to path data. Groups and transforms stay absent (FR3).
+- **Direction** is done: the cascade sets `--tessera-dir-sign` from the computed `direction`, so the
+  direction root sets nothing (`--icon-flip` is gone).
 
 ## 10. Decisions and open questions
 

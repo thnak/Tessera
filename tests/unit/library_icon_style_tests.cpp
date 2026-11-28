@@ -2,8 +2,8 @@
 
 // The Icon look (issue #530): `packages/tessera-ui/icon.css` compiles with no diagnostics, names no
 // color (the glyph takes the inherited `color`), gives both sizes a box, and flips only a
-// directional icon: `ticon-mirror` scales by `--icon-flip` (1 by default, -1 where the direction
-// root sets it), and `ticon-fixed` has no transform.
+// directional icon: `ticon-mirror` scales by `--tessera-dir-sign` (1 by default, -1 where the
+// computed `direction` is rtl, set by the engine), and `ticon-fixed` has no transform.
 
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -66,12 +66,19 @@ int main() {
     check(width_of(sheet, "ticon-md") == "20px", "md is 20px: " + width_of(sheet, "ticon-md"));
 
     style::ComputedStyle rtl_root;
-    rtl_root.set("--icon-flip", "-1");
+    rtl_root.set("direction", "rtl");
+    // An ltr island inside an rtl root: the parent still carries the inherited signal.
+    style::ComputedStyle ltr_island;
+    ltr_island.set("direction", "ltr");
+    ltr_island.set("--tessera-dir-sign", "-1");
+    check(transform_of(sheet, "ticon-mirror", &ltr_island) == "scaleX(1)",
+          "an ltr island inside an rtl root does not flip: " +
+              transform_of(sheet, "ticon-mirror", &ltr_island));
     check(transform_of(sheet, "ticon-mirror", nullptr) == "scaleX(1)",
           "a directional icon is not flipped by default: " +
               transform_of(sheet, "ticon-mirror", nullptr));
     check(transform_of(sheet, "ticon-mirror", &rtl_root) == "scaleX(-1)",
-          "a directional icon flips where --icon-flip is -1: " +
+          "a directional icon flips where direction is rtl: " +
               transform_of(sheet, "ticon-mirror", &rtl_root));
     check(transform_of(sheet, "ticon-fixed", &rtl_root) == "none" ||
               transform_of(sheet, "ticon-fixed", &rtl_root) == "<none>",
