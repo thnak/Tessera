@@ -21,7 +21,6 @@
 #include "SafeAreaPage.hpp"
 #include "SwatchPage.hpp"
 #include "TablesPage.hpp"
-#include "TablesPage.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 
