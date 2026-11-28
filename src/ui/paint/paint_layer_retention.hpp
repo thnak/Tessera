@@ -46,8 +46,10 @@ namespace tessera::ui::paint::detail {
 // After the node painted: reports what its subtree emitted so the policy can decide the next
 // frame. `held` is `promote_now` as it was before the paint; a held node whose layer was
 // composited from retained pixels painted nothing, so it is not observed (its history stands).
-void observe_promotion(const PassState& pass, const Node& node, float inherited_opacity,
-                       bool in_layer, bool held, const PaintStats& before, const PaintStats& after);
+// A promoted node that turned dirty has its retained layer released through `sink` at once.
+void observe_promotion(const PassState& pass, PaintSink& sink, const Node& node,
+                       float inherited_opacity, bool in_layer, bool held, const PaintStats& before,
+                       const PaintStats& after);
 
 // The epoch folded into the retained-layer key of `node`; a promoted node's moves when it turns
 // dirty while painted flat, so a layer recorded before that never matches the next promotion.

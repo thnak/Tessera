@@ -90,6 +90,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         dirty={workspace.state.dirty}
         stale={projectIo.state.stale}
         onSelect={workspace.selectRow}
+        onPin={workspace.pinTab}
         onToggleDir={workspace.toggleDir}
         toolbar={<ProjectBar io={projectIo} />}
       />
@@ -103,6 +104,8 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         files={workspace.state.files}
         dirty={workspace.state.dirty}
         textOf={workspace.textOf}
+        preview={workspace.state.preview}
+        onPinTab={workspace.pinTab}
         revision={props.revision}
         sourceRef={refs.source}
         onSelectTab={props.onSelectTab}

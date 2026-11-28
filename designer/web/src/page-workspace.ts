@@ -26,6 +26,7 @@ import {
   type TreeRow,
 } from "./lib/project";
 import { bootProject } from "./page-boot";
+import { closeTabIn, openPreview, pinTab as pinIn } from "./lib/editor-tabs";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
 import { planFolderDelete, planFolderMove } from "../project-folder-ops.js";
 import { activeAfterClose, joinGroups, moveTab as moveGroupTab, settle, splitActive } from "../editor-groups.js";
@@ -36,13 +37,14 @@ export interface WorkspaceState {
   files: ProjectFile[];
   /** The open tabs, in tab order (the order they were opened). */
   open: string[];
+  /** The open tab that is still a replaceable preview (#562), or `null`; an edit or a double click pins it. */
+  preview: string | null;
   /** The file the editor shows; always one of `open` (or `""` before the seed settles). With a split, the focused group's file. */
   active: string;
   /** The open tabs shown in the second editor group (a subset of `open`; empty = not split), see `editor-groups.js`. */
   side: string[];
   /** What the main / second group shows while the other group has focus. */
-  mainActive: string;
-  sideActive: string;
+  mainActive: string; sideActive: string;
   /** The tree's selection, which may be a directory. */
   selected: string;
   /** The directories whose children are hidden. */
@@ -67,13 +69,15 @@ export interface Workspace {
   selectRow: (row: TreeRow) => void;
   /** Opens or closes a directory row's children (`ArrowRight`/`ArrowLeft` in the tree). */
   toggleDir: (path: string) => void;
+  /** Pins a preview tab so the next single click opens beside it instead of replacing it. */
+  pinTab: (path: string) => void;
   /** Opens (or focuses) a file, adding it to the project when the path is new. */
   openFile: (file: ProjectFile) => void;
   /** Closes a tab; the next tab becomes active, and the active file stays active when it is not the one. */
   closeTab: (path: string) => void;
   /** Splits the editor area: the focused tab moves to a second group (needs two open tabs). */
   splitEditor: () => void;
-  /** Moves a tab to a group at an index (a drag between groups, or a reorder); the moved tab gets focus. */
+  /** Moves a tab to a group at an index (a drag, or a reorder); the moved tab gets focus. */
   moveTab: (path: string, group: "main" | "side", index?: number) => void;
   /** Focus moved into the group showing `path`: it becomes active (no revision bump, no text change). */
   focusTab: (path: string) => void;
@@ -121,6 +125,7 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
   return {
     files,
     open: path ? [path] : [],
+    preview: null,
     active: path,
     side: [],
     mainActive: path,
@@ -180,12 +185,18 @@ export function useWorkspace(): Workspace {
         // generated header) does: it opens read-only.
         return { ...previous, selected: row.path };
       }
-      return {
-        ...previous,
-        selected: row.path,
-        active: row.path,
-        open: previous.open.includes(row.path) ? previous.open : [...previous.open, row.path],
-      };
+      // A single click is a preview: it replaces the previous preview tab rather than adding one (#562).
+      const tabs = openPreview({ open: previous.open, preview: previous.preview }, row.path, previous.dirty);
+      const side = previous.side.map((tab) => (tab === previous.preview && !tabs.open.includes(tab) ? row.path : tab));
+      // The new preview takes the replaced one's place, in its editor group too.
+      return { ...previous, selected: row.path, active: row.path, open: [...tabs.open], side, preview: tabs.preview };
+    });
+  }, []);
+
+  const pinTab = useCallback((path: string) => {
+    setState((previous) => {
+      const tabs = pinIn({ open: previous.open, preview: previous.preview }, path);
+      return tabs.preview === previous.preview ? previous : { ...previous, preview: tabs.preview };
     });
   }, []);
 
@@ -252,19 +263,16 @@ export function useWorkspace(): Workspace {
       if (!previous.open.includes(path)) {
         return previous;
       }
-      const open = previous.open.filter((candidate) => candidate !== path);
+      const { open, preview } = closeTabIn({ open: previous.open, preview: previous.preview }, path);
       const active = activeAfterClose(previous, path);
       const dirty = previous.dirty.filter((candidate) => candidate !== path);
       buffers.current.delete(path);
-      return { ...previous, open, active, dirty, selected: active === "" ? previous.selected : active };
+      return { ...previous, open: [...open], preview, active, dirty, selected: active === "" ? previous.selected : active };
     });
   }, []);
 
   const splitEditor = useCallback(() => setState((previous) => splitActive(previous)), [setState]);
-  const focusTab = useCallback(
-    (path: string) => setState((previous) => (previous.open.includes(path) ? { ...previous, active: path, selected: path } : previous)),
-    [setState],
-  );
+  const focusTab = useCallback((path: string) => setState((p) => (p.open.includes(path) ? { ...p, active: path, selected: path } : p)), [setState]);
   const moveTab = useCallback(
     (path: string, group: "main" | "side", index?: number) => {
       setState((previous) => moveGroupTab(previous, path, group, index));
@@ -282,11 +290,14 @@ export function useWorkspace(): Workspace {
       // state update that changes nothing, so React re-renders the page once per dirty transition.
       const dirty = original !== null && (original.text !== text || previous.added.includes(path));
       const was = previous.dirty.includes(path);
-      if (dirty === was) {
+      // An edit pins a preview tab (#562): the file is no longer something to look at in passing.
+      const preview = previous.preview === path && dirty ? null : previous.preview;
+      if (dirty === was && preview === previous.preview) {
         return previous;
       }
       return {
         ...previous,
+        preview,
         dirty: dirty
           ? [...previous.dirty, path]
           : previous.dirty.filter((candidate) => candidate !== path),
@@ -356,6 +367,7 @@ export function useWorkspace(): Workspace {
         ...previous,
         files: previous.files.filter((candidate) => candidate.path !== path),
         open,
+        preview: previous.preview === path ? null : previous.preview,
         active,
         selected: previous.selected === path ? active : previous.selected,
         dirty: previous.dirty.filter((candidate) => candidate !== path),
@@ -423,7 +435,9 @@ export function useWorkspace(): Workspace {
         ...previous,
         files: [...previous.files.filter((file) => !gone(file.path)), ...moved.map((entry) => entry.file)].sort(byPath),
         open,
+        preview: previous.preview === null ? null : renamed(previous.preview),
         active: renamed(previous.active),
+        side: previous.side.map(renamed),
         selected: byOld.has(previous.selected) ? renamed(previous.selected) : previous.selected === from ? to : previous.selected,
         collapsed: previous.collapsed.map((dir) => (dir === from || dir.startsWith(`${from}/`) ? to + dir.slice(from.length) : dir)),
         dirty: [...previous.dirty.filter((path) => !gone(path)), ...moved.map((entry) => entry.move.to)],
@@ -459,6 +473,7 @@ export function useWorkspace(): Workspace {
     selectRow,
     toggleDir,
     openFile,
+    pinTab,
     closeTab,
     splitEditor,
     focusTab,

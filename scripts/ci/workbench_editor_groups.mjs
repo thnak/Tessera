@@ -64,7 +64,11 @@ page.on('console', (message) => message.type() === 'error' && errors.push(messag
 page.on('pageerror', (error) => errors.push('pageerror: ' + String(error)));
 await page.goto(base, { waitUntil: 'load' });
 await ensureProject(page, { extraFiles: [[EXTRA, 'Text { color: #ff0000; }\n']], force: true });
-for (const path of [ENTRY, SHEET, EXTRA]) await selectFile(page, path);
+// A single tree click opens a replaceable preview tab (#562), so the three files are pinned with a double click.
+for (const path of [ENTRY, SHEET, EXTRA]) {
+  await page.locator('#project-tree [role="treeitem"][data-path="' + path + '"]').dblclick();
+  await page.waitForTimeout(150);
+}
 await page.waitForFunction((path) => window.__tesseraEditor?.path === path, EXTRA);
 
 const group = (name) => page.locator('.editor-group[data-group="' + name + '"]');
@@ -127,6 +131,26 @@ check('still dirty after the round trip', (await dirtyOf(typedPath)) === 1);
 await group('side').locator('.editor-tab-close').first().click();
 await page.waitForTimeout(250);
 check('closing the last second-group tab ends the split', (await page.locator('.editor-group').count()) === 1);
+
+// Preview tabs (#562) live in a group: a preview in the second group is replaced there, and pins in place.
+const row = (path) => page.locator('#project-tree [role="treeitem"][data-path="' + path + '"]');
+const previewTabs = (name) => group(name).locator('.editor-tab.is-preview').evaluateAll((nodes) => nodes.map((node) => node.dataset.path));
+await row('tessera.json').click();
+await page.waitForTimeout(200);
+check('a single click opens a preview tab', JSON.stringify(await previewTabs('main')) === '["tessera.json"]', JSON.stringify(await previewTabs('main')));
+await page.locator('#editor-split').click();
+await page.waitForSelector('.editor-group[data-group="side"]');
+check('the preview tab moved to the second group and is still a preview', JSON.stringify(await previewTabs('side')) === '["tessera.json"]' && (await previewTabs('main')).length === 0);
+const open = [...(await tabsOf('main')), ...(await tabsOf('side'))];
+const closed = [ENTRY, SHEET, EXTRA].find((path) => !open.includes(path));
+await row(closed).click();
+await page.waitForTimeout(200);
+check('the next single click replaces the preview inside the second group', JSON.stringify(await previewTabs('side')) === JSON.stringify([closed]) && !(await tabsOf('side')).includes('tessera.json') && !(await tabsOf('main')).includes(closed), JSON.stringify([await tabsOf('main'), await tabsOf('side')]));
+await group('side').locator('.editor-tab.is-preview').dblclick();
+await page.waitForTimeout(150);
+check('a double click pins it in place', (await previewTabs('side')).length === 0 && (await tabsOf('side')).includes(closed));
+await page.locator('#editor-join').click();
+await page.waitForTimeout(200);
 
 // Split again, then Merge.
 await selectFile(page, SHEET);

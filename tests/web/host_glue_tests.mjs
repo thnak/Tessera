@@ -77,6 +77,41 @@ assert.deepEqual(canvasPoint({ clientX: 110, clientY: 70 }, { left: 100, top: 50
   assert.equal(elements.unsupported.hidden, false);
 }
 
+// Device acquisition: boot hands the module a ready device, and a refused adapter or device is the
+// unsupported page, never a module that waits.
+{
+  const doc = () => {
+    const elements = { 'tessera-canvas': { hidden: false, getBoundingClientRect: () => ({ left: 0, top: 0, width: 10, height: 10 }), addEventListener() {}, removeEventListener() {} },
+      unsupported: { hidden: true } };
+    return { elements, getElementById: (id) => elements[id], addEventListener() {}, removeEventListener() {} };
+  };
+  const device = { name: 'fake device' };
+  let moduleArgs = null;
+  const ok = doc();
+  const result = await boot({
+    createModule: async (module) => { moduleArgs = module; return { ccall() {} }; },
+    win: { navigator: { gpu: { requestAdapter: async () => ({ requestDevice: async () => device }) } },
+      devicePixelRatio: 1, requestAnimationFrame() {}, cancelAnimationFrame() {}, setTimeout() {}, clearTimeout() {},
+      performance: { now: () => 0 } },
+    doc: ok,
+  });
+  assert.equal(result.supported, true);
+  assert.equal(moduleArgs.preinitializedWebGPUDevice, device, 'the module receives the requested device');
+
+  for (const gpu of [
+    { requestAdapter: async () => null },
+    { requestAdapter: async () => ({ requestDevice: async () => { throw new Error('refused'); } }) },
+    { requestAdapter: async () => { throw new Error('no adapter'); } },
+  ]) {
+    let created = false;
+    const bad = doc();
+    const refused = await boot({ createModule: async () => { created = true; }, win: { navigator: { gpu } }, doc: bad });
+    assert.equal(refused.supported, false);
+    assert.equal(created, false, 'no module without a device');
+    assert.equal(bad.elements.unsupported.hidden, false);
+  }
+}
+
 // Input wiring: pointer, wheel and key events reach the exports with the flattened numbers.
 {
   const listeners = new Map();

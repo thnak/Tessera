@@ -34,7 +34,7 @@ std::uint64_t LayerPromotion::key_epoch(NodeId node, std::uint64_t epoch) const 
     return epoch * kEpochMix + (generation + 1u) * kGenerationMix + table_epoch_ * kTableMix;
 }
 
-void LayerPromotion::observe(NodeId node, const LayerPromotionObservation& observation) {
+bool LayerPromotion::observe(NodeId node, const LayerPromotionObservation& observation) {
     auto found = entries_.find(node);
     if (found == entries_.end()) {
         if (entries_.size() >= config_.max_entries) {
@@ -75,6 +75,7 @@ void LayerPromotion::observe(NodeId node, const LayerPromotionObservation& obser
     } else if (!entry.promoted && was_promoted) {
         ++stats_.demotions;
     }
+    return was_promoted && !observation.clean;
 }
 
 void LayerPromotion::clear() {

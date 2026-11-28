@@ -47,7 +47,9 @@ export function EditorTabs({
   files,
   active,
   dirty,
+  preview,
   onSelect,
+  onPin,
   onClose,
   onMove,
   actions = null,
@@ -60,7 +62,10 @@ export function EditorTabs({
   files: readonly ProjectFile[];
   active: string;
   dirty: readonly string[];
+  /** The tab that is a replaceable preview (italic, #562), if it is in this group. */
+  preview: string | null;
   onSelect: (path: string) => void;
+  onPin: (path: string) => void;
   onClose: (path: string) => void;
   /** A tab was dropped (or Alt+Arrow'd) into `target` at `index` (the end when omitted). */
   onMove: (path: string, target: GroupId, index?: number) => void;
@@ -106,7 +111,9 @@ export function EditorTabs({
         return (
           <div
             key={path}
-            className={"editor-tab" + (selected ? " is-selected" : "")}
+            className={"editor-tab" + (selected ? " is-selected" : "") + (path === preview ? " is-preview" : "")}
+            data-preview={path === preview ? "true" : undefined}
+            onDoubleClick={() => onPin(path)}
             data-path={path}
             draggable
             onDragStart={(event) => {

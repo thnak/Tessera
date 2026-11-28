@@ -75,7 +75,9 @@ public:
     // the key of the next promotion.
     [[nodiscard]] std::uint64_t key_epoch(NodeId node, std::uint64_t epoch) const;
 
-    void observe(NodeId node, const LayerPromotionObservation& observation);
+    // True when a promoted node turned dirty with this observation: the layer retained for it is
+    // stale, and the caller tells its sink so the entry goes at once (issue #1014).
+    [[nodiscard]] bool observe(NodeId node, const LayerPromotionObservation& observation);
 
     // Forgets everything (a tree swap); entries re-earn their promotion.
     void clear();

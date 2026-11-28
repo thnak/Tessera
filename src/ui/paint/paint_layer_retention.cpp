@@ -117,8 +117,8 @@ bool promote_now(const PassState& pass, const Node& node, const rhi::Rect& rect,
            pass.promotion->promotes(node.id(), pass.retain_epoch);
 }
 
-void observe_promotion(const PassState& pass, const Node& node, float inherited_opacity,
-                       bool in_layer, bool held, const PaintStats& before,
+void observe_promotion(const PassState& pass, PaintSink& sink, const Node& node,
+                       float inherited_opacity, bool in_layer, bool held, const PaintStats& before,
                        const PaintStats& after) {
     const rhi::Rect box = node.bounds();
     if (pass.promotion == nullptr || !pass.retain_layers || pass.lcd_text || in_layer ||
@@ -136,7 +136,9 @@ void observe_promotion(const PassState& pass, const Node& node, float inherited_
     observation.nested_layer = after.layers != before.layers;
     observation.clean = node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean;
     observation.epoch = pass.retain_epoch;
-    pass.promotion->observe(node.id(), observation);
+    if (pass.promotion->observe(node.id(), observation)) {
+        sink.release_layer(node.id());
+    }
 }
 
 std::uint64_t layer_key_epoch(const PassState& pass, const Node& node, bool promoted) {

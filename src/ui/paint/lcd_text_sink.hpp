@@ -102,6 +102,9 @@ public:
     [[nodiscard]] bool retain_layer(const LayerRetention& retention) override {
         return target_->retain_layer(retention);
     }
+    void release_layer(std::uint64_t owner) override {
+        target_->release_layer(owner);
+    }
     [[nodiscard]] bool begin_layer_mask() override {
         return target_->begin_layer_mask();
     }

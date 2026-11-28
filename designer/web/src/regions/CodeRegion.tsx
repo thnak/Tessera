@@ -25,6 +25,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
+import { breadcrumbs } from "../lib/editor-tabs";
 import { STALE_TEXT, type ProjectFile } from "../lib/project";
 import { activeOf, canSplit, groupTabs } from "../../editor-groups.js";
 import { EditorTabs, tabIdOf, type GroupId } from "./EditorTabs";
@@ -55,7 +56,9 @@ function EditorGroup({
   revision,
   handlers,
   onReady,
+  preview,
   onSelect,
+  onPin,
   onClose,
   onMove,
   onFocus,
@@ -73,7 +76,9 @@ function EditorGroup({
   revision: number;
   handlers: React.MutableRefObject<GroupHandlers>;
   onReady: (group: GroupId, editor: CodeEditor | null) => void;
+  preview: string | null;
   onSelect: (path: string) => void;
+  onPin: (path: string) => void;
   onClose: (path: string) => void;
   onMove: (path: string, target: GroupId, index?: number) => void;
   onFocus: (path: string) => void;
@@ -149,11 +154,24 @@ function EditorGroup({
           files={files}
           active={active}
           dirty={dirty}
+          preview={preview}
           onSelect={onSelect}
+          onPin={onPin}
           onClose={onClose}
           onMove={onMove}
           actions={actions}
         />
+      )}
+      {disabled || active === "" ? null : (
+        <nav className="breadcrumbs" id={"editor-breadcrumbs" + suffix} aria-label="Breadcrumbs">
+          <ol>
+            {breadcrumbs(active).map((crumb) => (
+              <li key={crumb.path} aria-current={crumb.file ? "page" : undefined} title={crumb.path}>
+                {crumb.name}
+              </li>
+            ))}
+          </ol>
+        </nav>
       )}
       <div
         className="editor"
@@ -179,6 +197,8 @@ export function CodeRegion({
   files,
   dirty,
   textOf,
+  preview = null,
+  onPinTab = () => {},
   revision,
   sourceRef,
   onSelectTab,
@@ -201,6 +221,9 @@ export function CodeRegion({
   dirty: readonly string[];
   /** The text of a file: what an editor shows after a tab switch, a move or a programmatic replace. */
   textOf: (path: string) => string;
+  /** The open tab that is a replaceable preview (italic); a double click pins it (#562). */
+  preview?: string | null;
+  onPinTab?: (path: string) => void;
   /**
    * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample).
    *
@@ -281,7 +304,7 @@ export function CodeRegion({
         &#x2715;
       </button>
     ) : null;
-  const shared = { files, dirty, textOf, revision, handlers, onReady: onReady.current, onSelect: onSelectTab, onClose: onCloseTab, onMove: onMoveTab, onFocus: onFocusTab, caretRef };
+  const shared = { files, dirty, textOf, revision, handlers, preview, onPin: onPinTab, onReady: onReady.current, onSelect: onSelectTab, onClose: onCloseTab, onMove: onMoveTab, onFocus: onFocusTab, caretRef };
 
   return (
     <section className="region region-code" aria-label="Code">

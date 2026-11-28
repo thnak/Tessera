@@ -85,6 +85,13 @@ jobs:
           "$EMSDK_NODE" scripts/ci/web_smoke.mjs build/wasm-webgpu/samples/web_smoke
           tools/web_budgets.json
 
+      # The renderer-backed app (issue #1013): same contract under Node, where it has no WebGPU
+      # device and must run the host without drawing; the drawing run is a real browser (manual).
+      - name: Web render app smoke and budgets
+        run: >
+          "$EMSDK_NODE" scripts/ci/web_smoke.mjs build/wasm-webgpu/samples/web_render
+          tools/web_budgets.json --app web_render
+
   # P0 of the design-time preview (issue #164, docs/design/compiler-wasm.md): the compiler built to
   # Wasm must produce the same output as the native compiler. The Wasm build preset has
   # TESSERA_BUILD_TESTS=OFF, so this is a script invocation rather than a ctest case. The native

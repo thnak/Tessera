@@ -473,17 +473,17 @@ public:
     virtual void push_layer(const LayerDraw& /*layer*/) {}
     virtual void pop_layer() {}
 
-    // Retained layers (#617), asked right before push_layer(). True: the sink holds the finished
-    // layer, so push/pop only composite it and nothing is emitted between. False: draw it.
-    [[nodiscard]] virtual bool retain_layer(const LayerRetention& /*retention*/) {
+    // Retained layers (#617), asked before push_layer(). True: the sink holds the finished layer,
+    // so push/pop only composite it and nothing is emitted between. False: draw it.
+    [[nodiscard]] virtual bool retain_layer(const LayerRetention&) {
         return false;
     }
+    virtual void release_layer(std::uint64_t) {} // #1014: a promoted node turned dirty
 
     // Layer mask (issue #617). After a layer's content and before its pop_layer(), the pass calls
-    // begin_layer_mask(); true means every draw until end_layer_mask() is the mask image (alpha is
-    // the mask). False (the default): the pass skips the mask draws and the group paints unmasked;
-    // the sink must be left as it was and end_layer_mask() must not follow. Only gradient fills are
-    // emitted between the two calls.
+    // begin_layer_mask(); true: every draw until end_layer_mask() is the mask image (alpha is the
+    // mask). False (the default): the pass skips the mask draws and the group paints unmasked;
+    // the sink must be left as it was and end_layer_mask() must not follow. Only gradients between.
     [[nodiscard]] virtual bool begin_layer_mask() {
         return false;
     }
