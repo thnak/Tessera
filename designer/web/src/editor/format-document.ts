@@ -20,6 +20,8 @@ interface FormatAnswer {
   changed: boolean;
   edits: { offset: number; length: number; newText: string }[];
   diagnostics: { code: string; message: string; line: number; column: number }[];
+  /** .tsx regions left as written because they do not parse (slice 4). */
+  skipped?: { code: string; message: string; line: number; column: number }[];
 }
 
 const FILE_ID = 0;
@@ -65,11 +67,22 @@ export interface FormatReport {
   outcome: FormatOutcome;
   /** The refusal, as `line:column code message`; empty otherwise. */
   message: string;
+  /** How many broken regions a formatted file kept as written (slice 4); 0 when none. */
+  skippedRegions?: number;
 }
 
-/** Whether the studio formats a file of this path (`.tsx` only until CSS and tessera.json arrive, slice 3). */
+/** The format service's file kind for a path (0 .tsx, 1 .css, 2 tessera.json), or null when it is not ours. */
+export function formatKind(path: string): 0 | 1 | 2 | null {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (name === "tessera.json") return 2;
+  if (name.endsWith(".tsx")) return 0;
+  if (name.endsWith(".css")) return 1;
+  return null;
+}
+
+/** Whether the studio formats a file of this path: `.tsx`, `.css` and a file named `tessera.json`. */
 export function isFormattable(path: string): boolean {
-  return path.endsWith(".tsx");
+  return formatKind(path) !== null;
 }
 
 /**
@@ -87,7 +100,7 @@ export async function formatView(view: EditorView): Promise<FormatReport> {
   await service.setSnapshot([[FILE_ID, text]]);
   let answer: FormatAnswer;
   try {
-    answer = (await service.request("format", { file: FILE_ID })) as FormatAnswer;
+    answer = (await service.request("format", { file: FILE_ID, kind: formatKind(path) ?? 0 })) as FormatAnswer;
   } catch (error) {
     if ((error as { code?: string }).code === "TESSERA_STUDIO_STALE" || (error as { code?: string }).code === "TESSERA_STUDIO_CANCELLED") {
       return { outcome: "skipped", message: "" };
@@ -108,7 +121,7 @@ export async function formatView(view: EditorView): Promise<FormatReport> {
   // Validates the list against the document before dispatching: a bad range throws here, not mid-transaction.
   ChangeSet.of(changes, text.length);
   view.dispatch({ changes, userEvent: "format", scrollIntoView: true });
-  return { outcome: "formatted", message: "" };
+  return { outcome: "formatted", message: "", skippedRegions: answer.skipped?.length ?? 0 };
 }
 
 /** Releases the worker (tests and teardown). */

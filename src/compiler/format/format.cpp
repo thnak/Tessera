@@ -9,6 +9,7 @@
 #include "tessera/compiler/format/format.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
+#include "tsx_format.hpp"
 
 #include <utility>
 
@@ -78,11 +79,16 @@ std::string excerpt(std::string_view text) {
     return text.size() > kMax ? out + "..." : out;
 }
 
+} // namespace
+
 // The TSX printer proper: `source` is LF-normalised and has no BOM.
 FormatResult format_tsx_text(const std::string& source, const jsx::SourceMap& map,
                              const FormatOptions& options) {
     FormatResult result;
     jsx::ModuleParseResult parsed = jsx::parse_module(source);
+    if (parsed.root != nullptr && parsed.has_errors() && options.recover) {
+        return format_tsx_recovering(source, map, parsed, options);
+    }
     if (parsed.root == nullptr || parsed.has_errors()) {
         std::string message = "the file does not parse, so it is not formatted";
         for (const jsx::Diagnostic& diagnostic : parsed.diagnostics) {
@@ -158,6 +164,8 @@ FormatResult format_tsx_text(const std::string& source, const jsx::SourceMap& ma
     return result;
 }
 
+namespace {
+
 FormatResult format_plain(FileKind kind, const std::string& source, const jsx::SourceMap& map,
                           const FormatOptions& options) {
     Problem problem;
@@ -191,6 +199,7 @@ FormatResult format_source(FileKind kind, std::string_view text, const FormatOpt
         return inner;
     }
     FormatResult result;
+    result.skipped = std::move(inner.skipped);
     std::string formatted = std::move(inner.text);
     if (crlf) {
         std::string converted;

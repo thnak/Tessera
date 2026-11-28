@@ -232,6 +232,7 @@ int main() {
     run_corpus_tests();
     run_edits_tests();
     run_css_json_tests();
+    run_recover_tests();
     run_cli_tests();
     return failures() == 0 ? 0 : 1;
 }

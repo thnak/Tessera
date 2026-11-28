@@ -103,7 +103,7 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
 | `analysis` | `symbols` (section 10, #570), `diagnostics` (section 11, #568), `definition`, `references` and `hover` (section 12, #571, #572); completions and rename are the analysis issues that follow |
-| `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
+| `format` | Feature `format`: request `{ file, kind?, printWidth?, indentWidth? }` (`kind` 0 tsx, 1 css, 2 tessera.json), result `{ file, changed, edits: [TextEdit], diagnostics, skipped }` (`skipped`: broken `.tsx` regions left as written, source-format-v1 section 14). The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
 Error codes: `TESSERA_STUDIO_MALFORMED`, `_VERSION`, `_NO_SNAPSHOT`, `_UNKNOWN_TYPE`, `_CANCELLED`,

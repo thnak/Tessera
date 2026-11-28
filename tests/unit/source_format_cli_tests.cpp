@@ -108,6 +108,20 @@ void run_cli_tests() {
     check(run({"--edits-json", (dir / "proj" / "src" / "e.css").string()}, out, err) == 0 &&
               out.find("\"edits\":[{") != std::string::npos,
           "--edits-json takes a css file");
+
+    // Slice 4: --recover formats around a broken item and warns; without it the file is refused.
+    const std::string broken = "export function Bad() {\n  return <div>oops </span>;\n}\n";
+    write_file(dir / "r.tsx", "const  a=1;\n\n" + broken);
+    check(run({"--check", (dir / "r.tsx").string()}, out, err) == 2,
+          "a broken item refuses without --recover");
+    check(run({"--recover", (dir / "r.tsx").string()}, out, err) == 0 &&
+              err.find("warning[TESSERA_FMT_SKIPPED]") != std::string::npos,
+          "--recover succeeds and warns about the region: " + err);
+    check(read_file(dir / "r.tsx") == "const a = 1;\n\n" + broken,
+          "--recover keeps the broken item byte for byte");
+    check(run({"--edits-json", (dir / "r.tsx").string(), "--recover"}, out, err) == 0 &&
+              out.find("\"skipped\":[{") != std::string::npos,
+          "--recover applies to --edits-json wherever it is written");
     fs::remove_all(dir, ec);
 }
 

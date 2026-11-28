@@ -29,7 +29,7 @@ else ()
         -sEXPORT_NAME=createTesseraFormat
         -sENVIRONMENT=web,worker,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_format_edits_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_format_edits_json","_tessera_format_edits_json_kind","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
@@ -42,6 +42,7 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_corpus_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_edits_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_css_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/source_format_recover_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/source_format_cli_tests.cpp)
     target_link_libraries(source_format_tests PRIVATE tessera_fmt_core tessera_style)
     target_include_directories(source_format_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

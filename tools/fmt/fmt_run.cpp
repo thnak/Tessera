@@ -29,6 +29,8 @@ constexpr std::string_view kUsage =
     "  the current directory is used.\n"
     "\n"
     "  --check   change nothing; list the files that would change and exit 1 if there are any\n"
+    "  --recover   format a .tsx file around the top-level items that do not parse, keeping each\n"
+    "            broken item byte for byte (reported on stderr), instead of refusing the file\n"
     "  --edits-json FILE   print the minimal edit list for one file as JSON (UTF-16 offsets,\n"
     "            the form the studio format worker answers with); changes nothing\n"
     "\n"
@@ -81,6 +83,11 @@ format::FormatOptions options_for(const fs::path& file,
     return found;
 }
 
+format::FormatOptions with_recover(format::FormatOptions options, bool recover) {
+    options.recover = recover;
+    return options;
+}
+
 void collect(const fs::path& root, std::vector<fs::path>& files, std::ostream& err, bool& failed) {
     std::error_code ec;
     if (fs::is_regular_file(root, ec)) {
@@ -107,6 +114,7 @@ void collect(const fs::path& root, std::vector<fs::path>& files, std::ostream& e
 
 int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {
     bool check = false;
+    const bool recover = std::find(args.begin(), args.end(), "--recover") != args.end();
     std::vector<std::string> paths;
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
@@ -120,12 +128,15 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
             std::map<fs::path, format::FormatOptions> cache;
             out << format::format_edits_json(format::file_kind_for_path(target.generic_string())
                                                  .value_or(format::FileKind::Tsx),
-                                             text, options_for(target, cache))
+                                             text,
+                                             with_recover(options_for(target, cache), recover))
                 << "\n";
             return 0;
         }
         if (arg == "--check") {
             check = true;
+        } else if (arg == "--recover") {
+            continue; // read before the loop, so it also applies to --edits-json
         } else if (arg == "--help" || arg == "-h") {
             out << kUsage;
             return 0;
@@ -158,7 +169,7 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
         }
         const format::FormatResult result = format::format_source(
             format::file_kind_for_path(path.generic_string()).value_or(format::FileKind::Tsx), text,
-            options_for(path, options_cache));
+            with_recover(options_for(path, options_cache), recover));
         if (!result.ok()) {
             for (const format::FormatDiagnostic& d : result.diagnostics) {
                 err << path.generic_string() << ":" << d.line << ":" << d.column << ": error["
@@ -166,6 +177,10 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
             }
             failed = true;
             continue;
+        }
+        for (const format::FormatDiagnostic& d : result.skipped) {
+            err << path.generic_string() << ":" << d.line << ":" << d.column << ": warning["
+                << d.code << "]: " << d.message << "\n";
         }
         if (!result.changed) {
             continue;

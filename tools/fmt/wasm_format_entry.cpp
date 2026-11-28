@@ -4,7 +4,8 @@
 // worker loads this module and calls
 //   const char* tessera_format_edits_json(const char* text, int print_width, int indent_width)
 //       the minimal edit list of `format_edits_json` for one .tsx file: UTF-8 JSON
-//       {"edits":[{offset,length,newText}],"diagnostics":[...]}, offsets in UTF-16 code units.
+//       {"edits":[{offset,length,newText}],"diagnostics":[...],"skipped":[...]}, offsets in UTF-16
+//       code units.
 //   void tessera_free(const char* text)
 //       releases a document returned above (the same matching-free convention as the other preview
 //       modules, see designer/web/src/lib/wasm-call.ts).
@@ -43,6 +44,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_format_edits_json(const char* text, int
                                                            int indent_width) {
     namespace format = tessera::compiler::format;
     format::FormatOptions options;
+    options.recover = true; // a file mid-edit is formatted around its broken items (slice 4)
     if (print_width > 0) {
         options.print_width = print_width;
     }
@@ -53,11 +55,13 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_format_edits_json(const char* text, int
         format::format_edits_json(format::FileKind::Tsx, text == nullptr ? "" : text, options));
 }
 
-// `kind`: 0 = .tsx, 1 = .css, 2 = tessera.json (the studio format worker still asks for .tsx only).
+// `kind`: 0 = .tsx, 1 = .css, 2 = tessera.json (the studio format worker sends the kind of the open
+// file).
 EMSCRIPTEN_KEEPALIVE const char* tessera_format_edits_json_kind(int kind, const char* text,
                                                                 int print_width, int indent_width) {
     namespace format = tessera::compiler::format;
     format::FormatOptions options;
+    options.recover = true; // a file mid-edit is formatted around its broken items (slice 4)
     if (print_width > 0) {
         options.print_width = print_width;
     }

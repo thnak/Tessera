@@ -114,8 +114,8 @@ Whitespace in JSX text is meaning. The printer breaks only where JSX itself drop
 | `TESSERA_FMT_UNSUPPORTED` | the file kind is not formatted, or the scanner cannot read the structure |
 | `TESSERA_FMT_VERIFY` | the printed output does not parse, or differs in meaning or comments: a formatter bug, reported instead of written |
 
-A refusal carries line and column and no text. A file with recoverable errors is not formatted in
-slice 1 (range formatting is slice 4).
+A refusal carries line and column and no text. A file with recoverable errors is refused unless the
+caller opts in to recovery (`FormatOptions::recover`, `--recover`, section 14).
 
 ## 8. Command line
 
@@ -148,7 +148,7 @@ spelling works on either.
 
 - The CLI rewrites whole files; the edit list (section 11) is the editor-facing form.
 - (`.css` and `tessera.json` are slice 3, sections 12 and 13.)
-- Range formatting and recovery from recoverable errors (slice 4).
+- (Recovery from recoverable errors is slice 4, section 14.)
 - Layout is greedy and local: ternaries and arithmetic do not break, there is no member-chain
   breaking, and assignments do not break after `=`.
 
@@ -173,14 +173,15 @@ std::string format_edits_json(FileKind kind, std::string_view text, const Format
 - Applying the list equals `format_source`'s text (tested on goldens, CRLF, a BOM, astral characters and
   random pairs). Line endings and the BOM follow section 2 because the diff is against the printed text.
 - Wire form (`format_edits_json`, also `tessera_fmt --edits-json FILE` and the Wasm export
-  `tessera_format_edits_json`): `{"edits":[{"offset","length","newText"}],"diagnostics":[{"code","message","line","column"}]}`.
+  `tessera_format_edits_json`): `{"edits":[{"offset","length","newText"}],"diagnostics":[{"code","message","line","column"}],"skipped":[...]}`
+  (`skipped` has the shape of a diagnostic and is empty unless recovery left a region as written).
 - **Studio:** the `format` service ([studio-services-v1.md](studio-services-v1.md) section 8) answers
   `format` with those edits (`file` added). Format Document (`edit.format`, Shift+Alt+F) applies the list as
   one CodeMirror transaction: one undo step restores the text, the caret and selection map through the
   changes, and a text change while the worker was busy drops the answer. A refused file leaves the text
-  untouched and the failure toast names `path:line:column code message`. The worker still sends `.tsx` only; the
-  Wasm module also exports `tessera_format_edits_json_kind(kind, ...)` (0 tsx, 1 css, 2 tessera.json) for
-  the studio to adopt.
+  untouched and the failure toast names `path:line:column code message`. The worker sends the kind of the open file
+  (`kind` 0 tsx, 1 css, 2 tessera.json, from the path: `.tsx`, `.css`, a file named `tessera.json`) to the
+  Wasm export `tessera_format_edits_json_kind`, which formats with `recover` on (section 14).
 - **Size:** `tessera_format.wasm` is 374 KB raw, 144 KB gzip-9 (plus a 3 KB loader), loaded lazily on the
   first format and not on the first-paint path, so `download_gzip_bytes` does not weigh it; a lazy-module
   entry in `tests/golden/perf/preview_budget.json` (like the mock transpiler's) is not added yet.
@@ -241,3 +242,28 @@ a CI step yet, for the same reason as the samples in section 9.
 `tools/reference/`, `tools/wiki/src/` and `designer/web/src/` and every `tessera.json` there: each must
 format, be idempotent and (CSS) mean the same to `parse_stylesheet` with no comment lost, with a floor on
 the number found.
+
+## 14. Recovery and range formatting (slice 4)
+
+`FormatOptions::recover` (default off; CLI `--recover`; always on in the studio's Wasm entry) formats a
+`.tsx` file that has errors, when they are confined to top-level items. The parser recovers per item
+(jsx-subset-v1 section 14): an item with an error is invalid and parsing resumes at the next item start.
+The formatter reuses that boundary instead of inventing one:
+
+- A **broken region** runs from an invalid item's first token to the next item's first token (or the end
+  of the file), trimmed of surrounding whitespace. It is copied **byte for byte**, comments and all.
+- Each stretch of valid items between regions is formatted as a file of its own, with every property of
+  section 3 (a stretch that does not format cleanly on its own is also left as written).
+- Pieces are joined by one newline, or one blank line when the input had at least one; the file ends with one
+  newline. A comment between a region and the next item stays with the region, so no comment can be lost or
+  moved across a region. CRLF and the BOM follow section 2.
+- The result is `ok()` and carries `skipped`: one `TESSERA_FMT_SKIPPED` entry (line and column of the region,
+  the parser's first error in the message) per region or stretch left as written. The edit list never touches
+  a region (offsets in UTF-16 units as in section 11), and `--recover` prints each as a warning.
+- Idempotent: a second pass finds the same regions and changes nothing. After printing, the output is parsed
+  again and must have the same items in the same valid/invalid state, else `TESSERA_FMT_VERIFY`.
+
+**Still refused** (`TESSERA_FMT_SYNTAX`, no edits): a file with no tree (over the size limit), an error outside every
+invalid item, and a file with nothing but broken items (nothing recovered, and a silent no-op would hide the
+errors). CSS and `tessera.json` are never recovered: an unbalanced brace or a JSON syntax error leaves no
+boundary that can be trusted. Format-on-type and an editor selection range are not planned.

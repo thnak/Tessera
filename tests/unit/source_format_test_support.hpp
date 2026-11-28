@@ -37,6 +37,8 @@ void run_corpus_tests();
 void run_edits_tests();
 // Defined in source_format_css_tests.cpp.
 void run_css_json_tests();
+// Defined in source_format_recover_tests.cpp.
+void run_recover_tests();
 // Defined in source_format_cli_tests.cpp.
 void run_cli_tests();
 

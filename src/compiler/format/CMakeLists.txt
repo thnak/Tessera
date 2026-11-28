@@ -13,6 +13,7 @@ add_library(tessera_source_format STATIC
     doc.cpp
     edits.cpp
     format.cpp
+    recover.cpp
     scan.cpp)
 
 target_include_directories(tessera_source_format
