@@ -168,8 +168,8 @@ public:
     // Publishes every field's caret, selection and preedit into its paint data (idempotent; an
     // unchanged decoration marks nothing dirty); `dispatch()` and `rebuild()` call it.
     void sync_text_fields();
-    // A press (caret) or drag (`extend`: selection focus) in the focused field, unless composing.
-    bool move_text_caret(std::size_t byte_offset, bool extend);
+    // A press or drag (`extend`) in the focused field; `clicks` 2 selects a word, 3+ the value.
+    bool move_text_caret(std::size_t byte_offset, bool extend, std::uint32_t clicks = 1);
 
     // Every state and animated cell in declaration order, in the existing `ui::StateCell`
     // representation: what generated `snapshot_state()` returns and the parity runner compares.

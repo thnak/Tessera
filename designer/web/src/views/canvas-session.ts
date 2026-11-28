@@ -787,11 +787,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     canvas,
     viewport: () => requestedViewport(options.environment),
     onChanged: requestFrame,
-    send: (kind, x, y, button) => {
+    send: (kind, x, y, button, modifiers, clicks) => {
       if (gpu === null || !visible || typeof gpu.module._tessera_canvas_pointer !== "function") {
         return null;
       }
-      const report = JSON.parse(callExport(gpu.module, "_tessera_canvas_pointer", [kind], [x, y, button])) as TextReport;
+      const report = JSON.parse(callExport(gpu.module, "_tessera_canvas_pointer", [kind], [x, y, button, modifiers, clicks])) as TextReport;
       canvasText.sync(report);
       return report as { changed: boolean };
     },

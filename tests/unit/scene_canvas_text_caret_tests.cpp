@@ -187,12 +187,71 @@ void test_press_elsewhere_and_composition_leave_the_caret() {
            "a drag that began outside the field does not select inside it");
 }
 
+void test_shift_click_extends_the_selection() {
+    cli::CanvasSceneSession session;
+    if (!start_with(session, "hello world")) {
+        return;
+    }
+    const cli::PreviewTextField two = caret_at(session, 2);
+    const float seven = caret_at(session, 7).caret_box.x;
+    (void)caret_at(session, 2);
+    const float y = two.box.y + two.box.height / 2.0f;
+    const cli::CanvasPointerResult shifted =
+        session.pointer(Kind::PointerDown, seven + 0.25f, y, 0, true, 1);
+    (void)session.pointer(Kind::PointerUp, seven + 0.25f, y, 0, true, 1);
+    expect(shifted.field.selection_start == 2 && shifted.field.selection_end == 7,
+           "Shift+press keeps the anchor and moves the focus to the press");
+    expect(session.text_clipboard(false).text == "llo w",
+           "the extended selection is what copy reads");
+
+    // A plain press afterwards collapses it again.
+    const cli::CanvasPointerResult plain =
+        session.pointer(Kind::PointerDown, seven + 0.25f, y, 0, false, 1);
+    (void)session.pointer(Kind::PointerUp, seven + 0.25f, y, 0, false, 1);
+    expect(plain.field.selection_start == 7 && plain.field.selection_end == 7,
+           "a press without Shift collapses the selection");
+}
+
+void test_double_and_triple_click_select_word_and_value() {
+    cli::CanvasSceneSession session;
+    if (!start_with(session, "hello, world")) {
+        return;
+    }
+    const cli::PreviewTextField start = caret_at(session, 0);
+    const float y = start.box.y + start.box.height / 2.0f;
+    const float in_world = caret_at(session, 9).caret_box.x + 0.25f;
+    const float in_hello = caret_at(session, 2).caret_box.x + 0.25f;
+    const float on_comma = caret_at(session, 5).caret_box.x + 0.25f;
+
+    const auto press = [&](float x, std::uint32_t clicks) {
+        (void)session.pointer(Kind::PointerDown, x, y, 0, false, clicks);
+        return session.pointer(Kind::PointerUp, x, y, 0, false, clicks);
+    };
+    cli::CanvasPointerResult word = press(in_world, 1);
+    word = press(in_world, 2);
+    expect(word.field.selection_start == 7 && word.field.selection_end == 12,
+           "a double press selects the word under it");
+    expect(session.text_clipboard(false).text == "world", "and copy reads the word");
+    word = press(in_hello, 2);
+    expect(word.field.selection_start == 0 && word.field.selection_end == 5, "the first word");
+    word = press(on_comma, 2);
+    expect(word.field.selection_start == 5 && word.field.selection_end == 6,
+           "punctuation is a run of its own");
+    word = press(in_world, 3);
+    expect(word.field.selection_start == 0 && word.field.selection_end == 12,
+           "a triple press selects the whole value");
+    (void)session.text(Kind::Text, "x");
+    expect(session.text(Kind::Text, "").field.caret == 1, "typing replaces the selection");
+}
+
 } // namespace
 
 int main() {
     test_caret_box_follows_the_caret();
     test_press_places_the_caret();
     test_drag_selects();
+    test_shift_click_extends_the_selection();
+    test_double_and_triple_click_select_word_and_value();
     test_press_elsewhere_and_composition_leave_the_caret();
     if (failures() != 0) {
         std::cerr << "scene_canvas_text_caret: " << failures() << " failure(s)\n";

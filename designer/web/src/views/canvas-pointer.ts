@@ -37,7 +37,16 @@ export interface CanvasPointerOptions {
    * Sends one event to the module, or returns `null` when the view cannot take input (no device yet, a
    * hidden pane, a session that has not applied a project).
    */
-  send: (kind: PointerKind, x: number, y: number, button: number) => PointerReport | null;
+  send: (
+    kind: PointerKind,
+    x: number,
+    y: number,
+    button: number,
+    /** Bit 0 is Shift. */
+    modifiers: number,
+    /** Consecutive primary presses at about the same place (1, 2, 3, ...). */
+    clicks: number,
+  ) => PointerReport | null;
   /** The logical viewport the running session was laid out at (the toolbar's device). */
   viewport: () => { width: number; height: number };
   /** The engine changed something that must be painted: request one frame. */
@@ -63,9 +72,27 @@ export function toLogical(
   };
 }
 
+/** A second press counts as a double press within this time and distance (CSS pixels). */
+const MULTI_CLICK_MS = 500;
+const MULTI_CLICK_PX = 5;
+
+/** Counts consecutive presses: `PointerEvent.detail` is 0 for pointer events, so the page counts. */
+export function createClickCounter(): (time: number, x: number, y: number) => number {
+  let count = 0;
+  let last = { time: -Infinity, x: 0, y: 0 };
+  return (time, x, y) => {
+    const near = Math.abs(x - last.x) <= MULTI_CLICK_PX && Math.abs(y - last.y) <= MULTI_CLICK_PX;
+    count = time - last.time <= MULTI_CLICK_MS && near ? count + 1 : 1;
+    last = { time, x, y };
+    return count;
+  };
+}
+
 /** Attaches the listeners; the returned function removes them. */
 export function attachCanvasPointer(options: CanvasPointerOptions): () => void {
   const { canvas } = options;
+  const countClicks = createClickCounter();
+  let clicks = 1;
 
   function forward(kind: PointerKind, event: PointerEvent): void {
     // Only the primary pointer drives hover and press (the router's rule): a second finger is ignored
@@ -86,7 +113,11 @@ export function attachCanvasPointer(options: CanvasPointerOptions): () => void {
       height: canvas.clientHeight * zoom,
     };
     const { x, y } = toLogical(event, box, options.viewport());
-    const report = options.send(kind, x, y, event.button > 0 ? event.button : 0);
+    if (kind === "down") {
+      clicks = countClicks(event.timeStamp, event.clientX, event.clientY);
+    }
+    const modifiers = event.shiftKey ? 1 : 0;
+    const report = options.send(kind, x, y, event.button > 0 ? event.button : 0, modifiers, kind === "down" ? clicks : 1);
     if (report?.changed) {
       options.onChanged();
     }
@@ -96,7 +127,7 @@ export function attachCanvasPointer(options: CanvasPointerOptions): () => void {
     // page owns that: it sends the move again so the control under the pointer keeps its hover look. The
     // frame is the one already requested above, coalesced.
     if (kind === "up" && (report?.ran?.length ?? 0) > 0) {
-      const again = options.send("move", x, y, 0);
+      const again = options.send("move", x, y, 0, 0, 1);
       if (again?.changed) {
         options.onChanged();
       }
@@ -124,7 +155,7 @@ export function attachCanvasPointer(options: CanvasPointerOptions): () => void {
     if (event.buttons !== 0 || !event.isPrimary) {
       return;
     }
-    const report = options.send("move", -1, -1, 0);
+    const report = options.send("move", -1, -1, 0, 0, 1);
     if (report?.changed) {
       options.onChanged();
     }
