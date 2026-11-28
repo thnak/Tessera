@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <span>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,22 @@ namespace {
 std::size_t ladder_index(float render_scale) noexcept {
     const std::int32_t index = scale::render_scale_index(render_scale);
     return static_cast<std::size_t>(index > 0 ? index : 0);
+}
+
+GlyphHinting hinting_of(const scale::AaPolicy& policy) noexcept {
+    return policy.hinting == scale::TextHinting::Light  ? GlyphHinting::Light
+           : policy.hinting == scale::TextHinting::None ? GlyphHinting::None
+                                                        : GlyphHinting::Font;
+}
+
+// `LcdWhenEligible` is the window-level permission, not a per-run decision: the atlas is
+// rasterized for LCD and the paint pass's predicate (`TextDraw::lcd`) picks the pipeline per
+// run. An ineligible run draws from the same atlas through the LCD pipeline reading the
+// per-pixel maximum the upload stores in alpha, because the ordinary pipeline would multiply
+// the page's RGB coverage into the ink.
+GlyphAaMode aa_mode_of(const scale::AaPolicy& policy) noexcept {
+    return policy.text_mode == scale::TextAaMode::LcdWhenEligible ? GlyphAaMode::Lcd
+                                                                  : GlyphAaMode::Grayscale;
 }
 
 } // namespace
@@ -68,7 +85,6 @@ struct TextRenderer::Impl {
         if (hinting == scale_atlas.hinting()) {
             return;
         }
-        prewarm.cancel();
         scale_atlas.set_hinting(hinting);
         for (std::vector<PageTexture>& step : textures) {
             step.clear();
@@ -82,7 +98,6 @@ struct TextRenderer::Impl {
         if (aa_mode == scale_atlas.aa_mode()) {
             return;
         }
-        prewarm.cancel();
         scale_atlas.set_aa_mode(aa_mode);
         for (std::vector<PageTexture>& step : textures) {
             step.clear();
@@ -105,6 +120,14 @@ struct TextRenderer::Impl {
     std::vector<std::uint16_t> used_pages;
     GlyphPrewarm prewarm;
     float pending_scale = scale::kMinRenderScale;
+    // The hinting, AA mode and glyph-origin rule the pending step switches to when it lands. A
+    // plain scale step carries the current ones, so it changes nothing but the scale.
+    GlyphHinting pending_hinting = GlyphHinting::Font;
+    GlyphAaMode pending_aa_mode = GlyphAaMode::Grayscale;
+    bool pending_subpixel = false;
+
+    bool begin_step(float target, runtime::IoTaskExecutor& executor, GlyphHinting hinting,
+                    GlyphAaMode aa_mode, bool subpixel);
 };
 
 TextRenderer::TextRenderer(rendering::rhi::Device& device, GlyphRasterizer& rasterizer,
@@ -129,23 +152,41 @@ void TextRenderer::set_render_scale(float render_scale) {
 }
 
 bool TextRenderer::begin_render_scale_step(float render_scale, runtime::IoTaskExecutor& executor) {
-    const float target = scale::quantize_render_scale(render_scale);
-    if (target == impl_->render_scale) {
-        impl_->prewarm.cancel();
+    return impl_->begin_step(scale::quantize_render_scale(render_scale), executor,
+                             impl_->scale_atlas.hinting(), impl_->scale_atlas.aa_mode(),
+                             impl_->subpixel_position);
+}
+
+bool TextRenderer::Impl::begin_step(float target, runtime::IoTaskExecutor& executor,
+                                    GlyphHinting hinting, GlyphAaMode aa_mode, bool subpixel) {
+    if (target == render_scale) {
+        prewarm.cancel();
         return true;
     }
-    if (impl_->prewarm.pending() && impl_->pending_scale == target) {
+    if (prewarm.pending() && pending_scale == target && pending_hinting == hinting &&
+        pending_aa_mode == aa_mode && pending_subpixel == subpixel) {
         return true;
     }
     // The working set of the step being left, mapped to the device sizes the new step needs. The
     // CSS size is recovered from the device size by the inverse of draw()'s rounding, which is
     // exact for a ladder at or above 1.0; a miss here only means one glyph is rasterized on demand.
-    std::vector<GlyphAtlasKey> keys = impl_->active->working_set();
+    std::vector<GlyphAtlasKey> keys = active->working_set();
     for (GlyphAtlasKey& key : keys) {
         const long css =
-            std::max(1L, std::lround(static_cast<float>(key.pixel_size) / impl_->render_scale));
+            std::max(1L, std::lround(static_cast<float>(key.pixel_size) / render_scale));
         key.pixel_size =
             detail::device_pixel_size(static_cast<std::uint16_t>(std::min(css, 65535L)), target);
+    }
+    if (!subpixel) {
+        // Whole-pixel origins at the new step: a quarter-pixel variant would never be drawn, and
+        // collapsing them lets the duplicate removal below see the keys that became equal.
+        for (GlyphAtlasKey& key : keys) {
+            key.x_subpixel = 0;
+        }
+        std::sort(keys.begin(), keys.end(), [](const GlyphAtlasKey& lhs, const GlyphAtlasKey& rhs) {
+            return std::tie(lhs.face, lhs.pixel_size, lhs.glyph_index, lhs.x_subpixel) <
+                   std::tie(rhs.face, rhs.pixel_size, rhs.glyph_index, rhs.x_subpixel);
+        });
     }
     keys.erase(std::unique(keys.begin(), keys.end(),
                            [](const GlyphAtlasKey& lhs, const GlyphAtlasKey& rhs) {
@@ -156,16 +197,44 @@ bool TextRenderer::begin_render_scale_step(float render_scale, runtime::IoTaskEx
                keys.end());
     if (keys.empty()) {
         // Nothing drawn yet, so there is nothing to rebuild: switching costs nothing.
-        impl_->prewarm.cancel();
-        impl_->select(target);
+        prewarm.cancel();
+        apply_hinting(hinting);
+        apply_aa_mode(aa_mode);
+        select(target);
+        subpixel_position = subpixel;
         return true;
     }
-    if (!impl_->prewarm.start(executor, impl_->rasterizers, std::move(keys),
-                              impl_->scale_atlas.hinting(), impl_->scale_atlas.aa_mode())) {
+    if (!prewarm.start(executor, rasterizers, std::move(keys), hinting, aa_mode)) {
         return false;
     }
-    impl_->pending_scale = target;
+    pending_scale = target;
+    pending_hinting = hinting;
+    pending_aa_mode = aa_mode;
+    pending_subpixel = subpixel;
     return true;
+}
+
+bool TextRenderer::begin_aa_policy_step(const scale::AaPolicy& policy,
+                                        runtime::IoTaskExecutor& executor) {
+    const float target = scale::quantize_render_scale(policy.render_scale);
+    if (target != impl_->render_scale &&
+        impl_->begin_step(target, executor, hinting_of(policy), aa_mode_of(policy),
+                          policy.subpixel_position)) {
+        return true;
+    }
+    if (target == impl_->render_scale) {
+        // No scale step to hide: a hinting or mode change releases the atlases and refills them
+        // lazily, exactly like set_aa_policy, so there is nothing to prewarm. A step toward some
+        // other scale that is still pending is stale now.
+        impl_->prewarm.cancel();
+        set_aa_policy(policy);
+        return true;
+    }
+    return false;
+}
+
+void TextRenderer::cancel_render_scale_step() noexcept {
+    impl_->prewarm.cancel();
 }
 
 bool TextRenderer::poll_render_scale_step() {
@@ -173,7 +242,12 @@ bool TextRenderer::poll_render_scale_step() {
         return false;
     }
     // Selecting releases the step being left, so this belongs between frames like every other
-    // scale change. The new atlas starts empty and the prewarmed glyphs are placed into it.
+    // scale change. The new atlas starts empty and the prewarmed glyphs are placed into it. A
+    // hinting or mode change that came with the step releases every atlas first, because the
+    // prewarmed bitmaps were rasterized in the new mode.
+    impl_->apply_hinting(impl_->pending_hinting);
+    impl_->apply_aa_mode(impl_->pending_aa_mode);
+    impl_->subpixel_position = impl_->pending_subpixel;
     impl_->select(impl_->pending_scale);
     static_cast<void>(impl_->prewarm.install(*impl_->active));
     return true;
@@ -188,22 +262,17 @@ float TextRenderer::render_scale() const {
 }
 
 void TextRenderer::set_aa_policy(const scale::AaPolicy& policy) {
-    // Hinting and AA mode first: select() releases the step being left, and apply_*() re-create the
-    // active atlas, so doing it in this order never leaves `active` pointing at a released slot.
-    impl_->apply_hinting(policy.hinting == scale::TextHinting::Light  ? GlyphHinting::Light
-                         : policy.hinting == scale::TextHinting::None ? GlyphHinting::None
-                                                                      : GlyphHinting::Font);
-    // `LcdWhenEligible` is the window-level permission, not a per-run decision: the atlas is
-    // rasterized for LCD and the paint pass's predicate (`TextDraw::lcd`) picks the pipeline per
-    // run. An ineligible run draws from the same atlas through the LCD pipeline reading the
-    // per-pixel maximum the upload stores in alpha, because the ordinary pipeline would multiply
-    // the page's RGB coverage into the ink.
-    if (scale::quantize_render_scale(policy.render_scale) != impl_->render_scale) {
+    const GlyphHinting hinting = hinting_of(policy);
+    const GlyphAaMode aa_mode = aa_mode_of(policy);
+    // Any change of what the pending step would land on abandons it. Hinting and AA mode first:
+    // select() releases the step being left, and apply_*() re-create the active atlas, so doing it
+    // in this order never leaves `active` pointing at a released slot.
+    if (scale::quantize_render_scale(policy.render_scale) != impl_->render_scale ||
+        hinting != impl_->scale_atlas.hinting() || aa_mode != impl_->scale_atlas.aa_mode()) {
         impl_->prewarm.cancel();
     }
-    impl_->apply_aa_mode(policy.text_mode == scale::TextAaMode::LcdWhenEligible
-                             ? GlyphAaMode::Lcd
-                             : GlyphAaMode::Grayscale);
+    impl_->apply_hinting(hinting);
+    impl_->apply_aa_mode(aa_mode);
     impl_->select(policy.render_scale);
     impl_->subpixel_position = policy.subpixel_position;
 }

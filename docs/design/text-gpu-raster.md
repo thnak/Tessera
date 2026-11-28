@@ -68,6 +68,17 @@ change abandons the job. A glyph that was not prewarmed is rasterized on demand 
 |---|---|---|---|---|
 | Before: rasterize on the UI thread (ms) | 10.9 | 10.9 | 11.0 | 11.4 |
 | After: hand the job over (ms) | 0.010 | 0.013 | 0.008 | 0.012 |
+
+**Window host (#993).** The window host no longer calls `set_aa_policy` for a scale change: `WindowHost` hands the
+resolved policy to `TextRenderer::begin_aa_policy_step`, which posts the prewarm and keeps the old scale, hinting,
+AA mode and subpixel rule until `poll_render_scale_step` lands them together (the glyphs were rasterized in the
+new mode, so a hinting change must not apply early). The `TextStack` owns a `WorkerIoExecutor` (one worker, one
+slot) and its `CompletionQueue`; each loop iteration (`run` and `pump_once`) drains that queue with a bounded
+budget and polls the renderer, a flag read. While a step is in flight the loop keeps requesting frames so it lands
+on the first tick after the worker finishes; a landed step repaints. Teardown cancels the step and joins the worker
+before the faces die (no `wait_idle`, nothing detached). A refused task falls back to the synchronous
+`set_aa_policy`. Subpixel origin fractions depend on the device grid, so with subpixel positioning on at the new
+step only glyphs whose fraction is unchanged are prewarmed exactly; the rest rasterize on demand as before.
 | After: place the finished glyphs (ms) | 0.63 | 0.86 | 0.89 | 0.97 |
 | After: UI thread total (ms) | 0.64 | 0.88 | 0.90 | 0.98 |
 | Worker time, off the UI thread (ms) | 10.9 | 14.6 | 15.0 | 15.3 |

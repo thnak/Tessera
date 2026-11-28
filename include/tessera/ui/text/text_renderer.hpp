@@ -62,6 +62,17 @@ public:
     // True once the pending step was installed by this call (the active scale changed).
     bool poll_render_scale_step();
     [[nodiscard]] bool render_scale_step_pending() const;
+    // Abandons a pending step (the worker stops at its next glyph). Teardown calls it before the
+    // executor joins, so shutdown never waits out a full rasterization.
+    void cancel_render_scale_step() noexcept;
+
+    // `set_aa_policy` without the UI-thread rasterization (issue #993): when the policy moves to a
+    // different render-scale step, the new step's glyphs (and its hinting, AA mode and subpixel
+    // rule) are prepared on `executor` and all of it lands in `poll_render_scale_step`, so the old
+    // policy keeps drawing until then. When the scale is unchanged the policy is applied directly,
+    // exactly as `set_aa_policy` does (nothing to hide). False when the executor refused the
+    // step; nothing changed then and the caller may fall back to `set_aa_policy`.
+    bool begin_aa_policy_step(const scale::AaPolicy& policy, runtime::IoTaskExecutor& executor);
 
     // Applies the per-window AA policy (display-aware-rendering.md sections 3.2, 3.3 and 3.4): the
     // policy's render scale, its glyph hinting, whether glyph origins keep a quarter-pixel
