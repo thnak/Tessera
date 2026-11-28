@@ -7,7 +7,8 @@
 //
 // Three W0 gaps are closed here: real separator `aria-valuemin/max/now`, splitter Shift+arrow and Home/End,
 // and keyboard moves of panels (Alt+Shift+Arrow). Delete closes the focused tab; double-clicking a tab
-// strip maximizes or restores its group.
+// strip maximizes or restores its group. Sash snap, double-click reset and collapse below `minSize` are
+// `use-sash.ts` and `CollapsedEdges.tsx` (issue #589).
 
 import { Layout, Model } from "flexlayout-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
@@ -24,7 +25,9 @@ import {
 import { gestureOf } from "./actions";
 import { toLibrary } from "./codec";
 import { PanelSlot } from "./PanelSlot";
+import { CollapsedEdges } from "./CollapsedEdges";
 import { panelOfTab } from "./tab-id";
+import { useSashGestures } from "./use-sash";
 import { minFractionsOf, parseSplitterPath, separatorValues, sizesForKey, splitAtPath } from "./separators";
 
 export interface FlexDockProps {
@@ -57,10 +60,15 @@ export function FlexDock({ layout, defs, phone, activeGroup, onOperation, announ
   const wrapper = useRef<HTMLDivElement>(null);
   const focusAfter = useRef<string | null>(null);
 
+  const sash = useSashGestures(wrapper, layoutRef, onOperation);
+
   const factory = useCallback((node: { getId(): string }) => <PanelSlot panelId={node.getId()} />, []);
 
   const onAction = useCallback(
     (action: Parameters<NonNullable<React.ComponentProps<typeof Layout>["onAction"]>>[0]) => {
+      if (sash.intercept(action)) {
+        return undefined;
+      }
       const gesture = gestureOf(action, layoutRef.current, (groupId) => findGroup(layoutRef.current, groupId)?.active ?? null);
       if (gesture.kind === "pass") {
         return action;
@@ -73,7 +81,7 @@ export function FlexDock({ layout, defs, phone, activeGroup, onOperation, announ
       }
       return undefined;
     },
-    [onOperation, phone],
+    [onOperation, phone, sash],
   );
 
   // ARIA for the splitters: the library reports 0..100 for every separator; the model knows the limits.
@@ -189,6 +197,9 @@ export function FlexDock({ layout, defs, phone, activeGroup, onOperation, announ
     if (phone) {
       return;
     }
+    if (sash.doubleClick(event.target as Element)) {
+      return;
+    }
     const panelId = panelOfTab(event.target as Element);
     if (panelId !== null) {
       const maximized = layoutRef.current.maximized;
@@ -205,6 +216,9 @@ export function FlexDock({ layout, defs, phone, activeGroup, onOperation, announ
         supportsPopout={false}
         keyMap={{ closeTab: "Alt+W" }}
       />
+      {phone || layout.maximized !== null ? null : (
+        <CollapsedEdges layout={layout} defs={defs} host={wrapper} version={key} onOperation={onOperation} />
+      )}
     </div>
   );
 }

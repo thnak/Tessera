@@ -216,6 +216,34 @@ await page.keyboard.press('F6');
 const f6b = await page.evaluate(() => document.activeElement?.closest('[role=menubar],[role=toolbar],.flexlayout__tabset,.page-footer')?.getAttribute('role') ?? document.activeElement?.className ?? '');
 check('F6 moves focus between regions', f6a !== f6b, `${f6a} -> ${f6b}`);
 await page.keyboard.press('Shift+F6');
+{
+  // The whole ring: every region is reachable with F6 alone, the ring wraps, and Shift+F6 walks it back (#564).
+  const regionOf = () => page.evaluate(() => {
+    const el = document.activeElement?.closest('[role=menubar],[role=toolbar],.flexlayout__tabset,.page-footer');
+    if (!el) return null;
+    return el.getAttribute('role') ?? (el.classList.contains('page-footer') ? 'status' : `tabset:${el.querySelector('[role=tab][aria-selected=true]')?.id ?? ''}`);
+  });
+  await page.locator('[role=menubar] [tabindex="0"]').first().focus();
+  const start = await regionOf();
+  const ring = [start];
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press('F6');
+    const here = await regionOf();
+    if (here === start) break;
+    ring.push(here);
+  }
+  const kinds = new Set(ring.map((r) => String(r).split(':')[0]));
+  check('F6 alone reaches every region (menu bar, toolbar, every dock group, status bar) and wraps', ['menubar', 'toolbar', 'tabset', 'status'].every((k) => kinds.has(k)) && ring.filter((r) => String(r).startsWith('tabset')).length >= 3 && new Set(ring).size === ring.length, ring.join(' > '));
+  await page.keyboard.press('Shift+F6');
+  check('Shift+F6 from the first region lands on the last one', (await regionOf()) === ring.at(-1));
+  await page.locator('[role=menubar] [tabindex="0"]').first().focus();
+  // Into Group is a command with a live-region message, not a drag.
+  await page.evaluate(() => window.__tesseraWorkbench.run('view.movePanelToGroup', { id: 'canvas', group: 'g-editor' }));
+  await page.waitForTimeout(300);
+  check('Move Into Group joins the group as a tab and announces it', groupOf(await layout(page), 'canvas').id === 'g-editor' && /Canvas moved into/.test(await page.locator('#workbench-live').textContent()));
+  await page.evaluate(() => window.__tesseraWorkbench.run('view.resetLayout'));
+  await page.waitForTimeout(300);
+}
 
 // Palette: the same commands with arguments.
 await page.keyboard.press('F1');
@@ -224,6 +252,16 @@ await page.keyboard.type('Reset Layout');
 await page.keyboard.press('Enter');
 await page.waitForTimeout(300);
 check('palette: Reset Layout restores the default arrangement', JSON.stringify((await layout(page)).root) === JSON.stringify((await page.evaluate(async () => (await window.__tesseraWorkbench.layout()).root))) && groupOf(await layout(page), 'canvas').id === 'g-preview');
+
+// Zen is transient: a reload never starts in it, and the stored layout has no zen flag (#564).
+await page.keyboard.press('Control+k');
+await page.keyboard.press('z');
+await page.waitForTimeout(700);
+check('zen: nothing about it is stored', JSON.parse(await page.evaluate(() => localStorage.getItem('tessera.studio.layout') ?? '{}')).shell?.zen !== true);
+await page.goto(base, { waitUntil: 'load' });
+await page.waitForSelector('.flexlayout__layout');
+await page.waitForTimeout(500);
+check('zen: a reload never starts in zen mode', (await page.locator('.toolbar-row').isVisible()) && (await page.locator('.page-footer').isVisible()));
 
 // Persistence.
 await page.evaluate(() => window.__tesseraWorkbench.run('view.layoutPreset', { preset: 'editor-only' }));

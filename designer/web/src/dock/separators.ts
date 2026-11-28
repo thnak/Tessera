@@ -5,12 +5,13 @@
 // functions over fractions; the DOM glue is `FlexDock.tsx`. The result of a key is an ordinary `resize`
 // operation, so a keyboard resize and a pointer drag end in the same place.
 
-import { canonicalSizes, type Layout, type LayoutNode, type PanelDef } from "../workbench/layout";
+import { canonicalSizes, minFractionsOf, type Layout, type LayoutNode } from "../workbench/layout";
 import { visibleLayout } from "./codec";
 
 export const ARROW_STEP_PX = 16;
 export const SHIFT_STEP_PX = 64;
-const FALLBACK_MIN_PX = 48;
+
+export { minFractionsOf };
 
 export interface SeparatorValues {
   /** Percent of the split's extent where the splitter sits. */
@@ -84,30 +85,6 @@ export function splitAtPath(layout: Layout, path: readonly number[]): Extract<La
     node = node.children[index];
   }
   return node.type === "split" ? node : null;
-}
-
-/** Minimum size of each child in CSS px along the split's axis. */
-export function childMinPx(node: LayoutNode, dir: "row" | "column", defs: readonly PanelDef[]): number {
-  if (node.type === "group") {
-    return Math.max(
-      FALLBACK_MIN_PX,
-      ...node.panels.map((id) => {
-        const size = defs.find((def) => def.id === id)?.minSize;
-        return (dir === "row" ? size?.w : size?.h) ?? FALLBACK_MIN_PX;
-      }),
-    );
-  }
-  return FALLBACK_MIN_PX;
-}
-
-export function minFractionsOf(
-  split: Extract<LayoutNode, { type: "split" }>,
-  extentPx: number,
-  defs: readonly PanelDef[],
-): number[] {
-  const fractions = split.children.map((child) => (extentPx > 0 ? childMinPx(child, split.dir, defs) / extentPx : 0.05));
-  // Never ask for more than an even share, or a narrow dock could not be resized at all.
-  return fractions.map((fraction) => Math.min(fraction, 0.9 / split.children.length));
 }
 
 /** `data-layout-path` of a library splitter: the row's path (`/r1/ts0`) plus `/s<index>`. */
