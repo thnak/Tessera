@@ -176,9 +176,7 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                 property == "list-style-type"
                     ? "list-style-type takes none, disc, circle, square, decimal, lower-alpha, "
                       "upper-alpha, lower-roman or upper-roman; other counter styles are not drawn"
-                    : "only list-style-position: outside is supported; inside would flow the "
-                      "marker "
-                      "into the first line"});
+                    : "list-style-position takes outside or inside"});
         }
         return ok;
     }

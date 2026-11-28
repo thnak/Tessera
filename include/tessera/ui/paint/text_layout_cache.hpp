@@ -84,6 +84,7 @@ private:
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
         text::FontFeaturesId features{};
+        float first_line_indent = 0.0f;
     };
 
     struct Key {
@@ -101,6 +102,7 @@ private:
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
         text::FontFeaturesId features{};
+        float first_line_indent = 0.0f;
     };
 
     struct KeyLess {
@@ -133,6 +135,9 @@ private:
             // OpenType features change glyph choice and advances, so they isolate entries.
             if (lhs.features != rhs.features) {
                 return lhs.features < rhs.features;
+            }
+            if (bits(lhs.first_line_indent) != bits(rhs.first_line_indent)) {
+                return bits(lhs.first_line_indent) < bits(rhs.first_line_indent);
             }
             if (lhs.max_lines != rhs.max_lines) {
                 return lhs.max_lines < rhs.max_lines;

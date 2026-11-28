@@ -40,10 +40,9 @@ are measured and drawn at a fraction of the paragraph size.
 Tests: `tests/unit/text_size_runs_tests.cpp` (`text_size_runs`), `test_shrunk_span` in
 `tests/unit/paint_text_span_tests.cpp`.
 
-## 3. Not done: the first-line inline-start box
+## 3. The first-line inline-start box
 
-`list-style-position: inside` and `list-style: url()` need a box at the start of the first line (a
-marker flowed into the text). The size runs do not provide it: `li` is a `View`, so the first line
-belongs to a descendant `Text`, and the marker needs a first-line indent in the wrap plus a way for the
-item to reach that descendant. Tracked as a follow-up; both stay rejected
+`list-style-position: inside` needed a box at the start of the first line; it is
+`TextStyle::first_line_indent` and the item-to-first-Text resolver, in
+[`list-style-inside.md`](list-style-inside.md). `list-style: url()` is still rejected
 ([`list-style.md`](list-style.md) section 3).

@@ -105,6 +105,12 @@ struct TextStyle {
     // measures each run at font_size * scale; paint draws the slices of a run at that size. Part of
     // every cache key because it changes advances and line breaks.
     TextSizeRunsId size_runs{};
+    // Inline-start box of the first line, in px (docs/design/list-style-inside.md): the wrap starts
+    // the first line of the text this far from the line origin and measures it as part of that
+    // line, so `list-style-position: inside` can flow a marker into the text. Zero is no box. Not
+    // read from a computed style: the list-item marker is the only source. It changes line breaks,
+    // so it is part of every cache key and the layout signature.
+    float first_line_indent = 0.0f;
     WhiteSpace white_space = WhiteSpace::Normal;
     TextTransform text_transform = TextTransform::None;
     // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.

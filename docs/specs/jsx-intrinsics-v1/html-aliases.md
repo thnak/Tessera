@@ -43,7 +43,7 @@ against it.
 | `div`, `section`, `article`, `main`, `header`, `footer`, `nav`, `aside`, `figure` | `View` | - | mapped | Landmark roles are not in the accessibility role list, so none is injected |
 | `ul`, `ol` | `View` | `role="list"` | mapped | The user-agent sheet gives the list its marker type (`disc`, `circle`, `square` by depth; `decimal` for `ol`); the items draw it ([`list-style.md`](../../design/list-style.md)). `ol start` and `reversed` become `aria-start` and `aria-reversed` (section 3.7) |
 | `p` | `Text` | `role="paragraph"` | mapped | the role lets the user-agent sheet give it a margin ([`ua-audit.md`](../../reference/ua-audit.md)) |
-| `li` | `View` | `role="listitem"` | mapped | Draws the inherited `list-style-type` marker outside its box; numbered by position among the list's items, moved by `ol start`/`reversed` and reset by `value` (section 3.7) |
+| `li` | `View` | `role="listitem"` | mapped | Draws the inherited `list-style-type` marker outside its box, or inside the first line of its first `Text` for `list-style-position: inside` ([`list-style-inside.md`](../../design/list-style-inside.md)); numbered by position among the list's items, moved by `ol start`/`reversed` and reset by `value` (section 3.7) |
 | `span`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |

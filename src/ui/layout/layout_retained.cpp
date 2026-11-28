@@ -283,6 +283,10 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
         retained->text_style.size_runs = input.text_runs;
         text_changed = true;
     }
+    if (retained->text_style.first_line_indent != input.text_indent_px()) {
+        retained->text_style.first_line_indent = input.text_indent_px();
+        text_changed = true;
+    }
     if (retained->text_wrap != input.text_wrap) {
         retained->text_wrap = input.text_wrap;
         text_changed = true;

@@ -129,6 +129,13 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     const ListNumber number = list_item_number(node);
     signature.list_ordinal = number.value;
     signature.list_item = number.item;
+    // The first Text of an item draws the item's inside marker, so the item's counter is part of
+    // that Text's record; inserting a sibling before the item renumbers it without dirtying it.
+    if (!number.item) {
+        if (const Node* host = marker_host_item(node)) {
+            signature.list_ordinal = list_item_number(*host).value;
+        }
+    }
     return signature;
 }
 

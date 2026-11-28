@@ -185,7 +185,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         }
         line_x = std::max(content.x, line_x);
 
-        float x = line_x;
+        float x = line_x + line.indent;
         // The layout already trims the line edges; the cursor is asked to trim only at the real
         // line edges so a collapsed run stays one space.
         text::PaintedSegmentCursor cursor(data->text, line.begin, line.end, base_style.white_space,

@@ -2840,6 +2840,12 @@ struct include/tessera/ui/paint/layer_promotion.hpp tessera::ui::paint::LayerPro
 header include/tessera/ui/paint/layer_retention.hpp
 struct include/tessera/ui/paint/layer_retention.hpp tessera::ui::paint::LayerRetention
 
+header include/tessera/ui/paint/list_marker_inside.hpp
+struct include/tessera/ui/paint/list_marker_inside.hpp tessera::ui::paint::InsideMarker
+function include/tessera/ui/paint/list_marker_inside.hpp tessera::ui::paint::first_item_text
+function include/tessera/ui/paint/list_marker_inside.hpp tessera::ui::paint::inside_marker
+function include/tessera/ui/paint/list_marker_inside.hpp tessera::ui::paint::marker_host_item
+
 header include/tessera/ui/paint/paint_cache.hpp
 class include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCache
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawAssetOp

@@ -42,6 +42,15 @@ struct LayoutInput {
     // wrap decision paint will, so the caller forwards it here. It is part of the layout-input
     // signature because it changes the fact, which is part of the layout result.
     bool text_wrap = false;
+    // Width of the first-line box a `list-style-position: inside` marker takes at the start of this
+    // Text (TextStyle::first_line_indent, docs/design/list-style-inside.md); zero for any other
+    // text.
+    // Stored in sixteenths of a px (`text_indent_px`) so the input stays inside its size budget;
+    // `inside_marker` already rounds the box up to that grid, so layout and paint agree exactly.
+    std::uint16_t text_indent_q = 0;
+    [[nodiscard]] float text_indent_px() const {
+        return static_cast<float>(text_indent_q) / 16.0f;
+    }
     // Font-size runs of the inline spans of this Text (docs/design/inline-size-runs.md): the same
     // table paint hands the measurer, so a shrunk `sub`/`sup`/`small` is measured as it is drawn.
     text::TextSizeRunsId text_runs{};
