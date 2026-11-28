@@ -273,6 +273,16 @@ void test_goldens() {
     const std::string rich = read_file(dir + "/rich.json");
     check(!rich.empty(), "rich golden is readable");
     check_eq(ir::write_ir_json(make_rich_module()), rich, "rich module matches its golden");
+    const std::string resource = read_file(dir + "/resource.json");
+    check(!resource.empty(), "resource golden is readable");
+    check_eq(ir::write_ir_json(make_resource_module()), resource,
+             "resource module matches its golden");
+    // #656: a component without resources writes no `resources` key, so no golden changes.
+    check(ir::write_ir_json(make_counter_module()).find("\"resources\"") == std::string::npos,
+          "a module without resources writes no resources key");
+    check(resource.find("\"suspend\": true") != std::string::npos &&
+              resource.find("\"service\": \"svc::api\"") != std::string::npos,
+          "the resource golden writes the final field names");
 }
 
 void test_output_is_deterministic() {
@@ -331,6 +341,7 @@ int main(int argc, char** argv) {
         };
         write("counter.json", ir::write_ir_json(make_counter_module()));
         write("rich.json", ir::write_ir_json(make_rich_module()));
+        write("resource.json", ir::write_ir_json(make_resource_module()));
         return finish("ir json golden update");
     }
     test_expression_forms();

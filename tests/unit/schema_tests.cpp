@@ -64,7 +64,7 @@ const schema::AliasAttr* find_attr(const schema::AliasRow& alias, std::string_vi
 
 void test_schema_version_and_counts() {
     check_eq(std::to_string(schema::kSchemaVersion), "1", "the schema version");
-    check(schema::elements().size() == 13, "13 intrinsic elements (README section 3)");
+    check(schema::elements().size() == 14, "14 intrinsic elements (README section 3)");
     check(schema::type_records().size() == 12,
           "12 payload records (common-and-events.md section 2)");
     check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
@@ -80,8 +80,9 @@ void test_schema_version_and_counts() {
 
 void test_element_rows() {
     constexpr std::string_view kExpectedTags[] = {
-        "View",   "Text",   "Button",      "TextInput",   "TextArea",      "Image",         "Path",
-        "Scroll", "Spacer", "VirtualList", "VirtualGrid", "ErrorBoundary", "CustomElement",
+        "View",        "Text",          "Button",   "TextInput",     "TextArea",
+        "Image",       "Path",          "Scroll",   "Spacer",        "VirtualList",
+        "VirtualGrid", "ErrorBoundary", "Suspense", "CustomElement",
     };
     check(schema::elements().size() == std::size(kExpectedTags), "one row per element");
     for (std::size_t i = 0; i < schema::elements().size() && i < std::size(kExpectedTags); ++i) {
@@ -217,7 +218,8 @@ void test_common_props_and_roles() {
     const schema::PropRow* ref = find_prop(schema::common_props(), "ref");
     check(ref != nullptr && ref->value == schema::ValueKind::Name && ref->lowers_to == "refs",
           "ref is a name lowering to refs");
-    check(ref != nullptr && ref->not_on.size() == 2, "ref is rejected on Spacer and ErrorBoundary");
+    check(ref != nullptr && ref->not_on.size() == 3,
+          "ref is rejected on Spacer, ErrorBoundary and Suspense");
     const schema::PropRow* automation = find_prop(schema::common_props(), "automationId");
     check(automation != nullptr && automation->lowers_to == "automationId",
           "automationId lowers to the node automationId");

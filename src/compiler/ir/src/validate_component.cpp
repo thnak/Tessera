@@ -118,8 +118,9 @@ void ComponentChecker::check_declarations() {
                            env.source);
         }
     }
-    // ADR-064 item 7: a behavior is a `beh::<name>` id with at least one target ref, a registry
-    // name, and one arg per manifest field. The registry name itself is checked at generation time
+    // ADR-064 item 7: a behavior is a `beh::<name>` id, a registry name, zero or more target refs
+    // (`useHotkeys` and `useTransition` take none) and one arg per manifest field. The registry
+    // name itself is checked at generation time
     // (`TESSERA_BEHAVIOR_UNKNOWN`), because the IR validator has no registry.
     for (const auto& behavior : component.behaviors) {
         declare(behavior.id, "beh::", behavior.source);
@@ -128,10 +129,6 @@ void ComponentChecker::check_declarations() {
             context.report("TESSERA_IR_MALFORMED",
                            "behavior `" + behavior.id + "` names no engine behavior",
                            behavior.source);
-        }
-        if (behavior.targets.empty()) {
-            context.report("TESSERA_IR_MALFORMED",
-                           "behavior `" + behavior.id + "` has no target ref", behavior.source);
         }
         for (const auto& target : behavior.targets) {
             if (target.rfind("ref::", 0) != 0) {
@@ -173,6 +170,16 @@ void ComponentChecker::check_declarations() {
         if (service.header.empty()) {
             context.report("TESSERA_IR_MALFORMED", "service `" + service.id + "` has no header",
                            service.source);
+        }
+    }
+    // ADR-067 item 1: a resource is a `res::<name>` id; its status/data/error are the dotted refs.
+    // The entry's own checks (service, key, coverage) run after the node tree, in
+    // `validate_resources`.
+    for (const auto& resource : component.resources) {
+        declare(resource.id, "res::", resource.source);
+        scope.declared_types.emplace(resource.id + ".status", "string");
+        if (!resource.type.empty()) {
+            scope.declared_types.emplace(resource.id + ".data", resource.type);
         }
     }
     for (const auto& ref : component.refs) {
@@ -283,6 +290,13 @@ ComponentScope make_scope(const Component& component) {
     for (const auto& ref : component.refs) {
         scope.ids.insert(ref.id);
     }
+    for (const auto& resource : component.resources) {
+        scope.ids.insert(resource.id);
+        scope.declared_types.emplace(resource.id + ".status", "string");
+        if (!resource.type.empty()) {
+            scope.declared_types.emplace(resource.id + ".data", resource.type);
+        }
+    }
     for (const auto& handler : component.handlers) {
         scope.handlers.insert(handler.id);
     }
@@ -324,6 +338,7 @@ void validate_component(ValidationContext& context, const Component& component) 
     }
     validate_node_tree(context, checker.scope, component.root, provider_types);
     checker.check_effects_and_refs();
+    validate_resources(context, checker.scope, component);
 }
 
 } // namespace tessera::compiler::ir

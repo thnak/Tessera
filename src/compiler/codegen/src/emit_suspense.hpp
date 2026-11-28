@@ -23,6 +23,9 @@
 // what keeps every committed `.g.hpp` golden byte-identical.
 namespace tessera::compiler::codegen::internal {
 
+// True when the component owns a transition mark: a marked action or a `useTransition`.
+[[nodiscard]] bool has_transition_surface(const ir::Component& component);
+
 // True when the component has a `Suspense` node or a transition-marked action.
 [[nodiscard]] bool uses_pending(const ir::Component& component, const DynamicPlan& plan);
 
@@ -42,6 +45,11 @@ void emit_pending_declarations(CppWriter& writer, const ir::Component& component
 // Emits `apply_suspense_<n>()` (attach the live subtree) and the fake-resource seams.
 [[nodiscard]] bool emit_pending_sources(CppWriter& writer, const ir::Component& component,
                                         const DynamicPlan& plan, std::string& error);
+
+// Emits `run_marked_set()`: the call of the transition-marked handler, without a scene event.
+// `fake_resource` keeps the spike's unused-member guard for a component with no marked handler.
+[[nodiscard]] bool emit_run_marked_set(CppWriter& writer, const ir::Component& component,
+                                       bool fake_resource, std::string& error);
 
 // Emits the two subtrees of one `Suspense` node into their ownership slots and attaches the live
 // one. Called by emit_node in place of the normal child loop.

@@ -20,7 +20,7 @@ question in [`react-compat.md`](react-compat.md) section 6 (written `[Q n]` in t
 | [`README.md`](README.md) | This page: terms, notation, lowering rules shared by all elements |
 | [`common-and-events.md`](common-and-events.md) | Common and reserved attributes; event payload records; handler rules |
 | [`elements-basic.md`](elements-basic.md) | `View`, `Text`, `Button`, `TextInput`, `TextArea` (including the owner's cases) |
-| [`elements-other.md`](elements-other.md) | `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
+| [`elements-other.md`](elements-other.md) | `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `Suspense`, `CustomElement` |
 | [`html-aliases.md`](html-aliases.md) | Normative mapping of lowercase HTML tags and HTML attributes |
 | [`react-compat.md`](react-compat.md) | React compatibility: what is accepted, what is not and why; code slice list; open questions |
 | [`machine-readable.md`](machine-readable.md) | Machine-readable form, owner, consumers, sharing with the runtime and the typings generator |
@@ -29,7 +29,7 @@ question in [`react-compat.md`](react-compat.md) section 6 (written `[Q n]` in t
 
 | Term | Meaning |
 |---|---|
-| Intrinsic | A built-in element whose tag is one of the 13 names in section 3 |
+| Intrinsic | A built-in element whose tag is one of the 14 names in section 3 |
 | Alias | A lowercase HTML tag that resolves to an intrinsic ([`html-aliases.md`](html-aliases.md)) |
 | Literal-only | The attribute value must be a string, number or boolean literal (or the value-less flag form for `bool`); an expression is `TESSERA_JSX_PROP_NOT_LITERAL` |
 | Pure expression | As in subset spec section 8; a literal is also accepted |
@@ -75,6 +75,7 @@ Types of attribute values are checked by the type pass (`TESSERA_JSX_TYPE_MISMAT
 | `VirtualList` | `VirtualList` | exactly one `.map` template | `VirtualList` | same |
 | `VirtualGrid` | `VirtualGrid` | exactly one `.map` template | `VirtualGrid` | same |
 | `ErrorBoundary` | `ErrorBoundary` | exactly one element | none (`ref` rejected) | same |
+| `Suspense` | `Suspense` | exactly one element | none (`ref` rejected) | same |
 | `CustomElement` | `CustomElement` | none | `CustomElement` | same |
 
 Library components (`Form`, `Field`, `Checkbox`, ...) and project components are not intrinsics
@@ -100,6 +101,6 @@ Library components (`Form`, `Field`, `Checkbox`, ...) and project components are
 8. **`key`** lowers to the node `key`; `ref` to a `refs[]` entry whose `target` is the node id.
 9. **Conditionals and loops** lower to `condition` and `loop` on the node, as in subset spec 10.4/10.5.
    They are not attributes and are not listed per element. They are not allowed on the single child of
-   `ErrorBoundary` and on the template child of `VirtualList`/`VirtualGrid` beyond the loop itself.
+   `ErrorBoundary`, `Suspense` and on the template child of `VirtualList`/`VirtualGrid` beyond the loop itself.
 10. **Determinism.** Output depends only on the source text and the table. Props are emitted in sorted
     key order by the IR writer; the table order never leaks into output.

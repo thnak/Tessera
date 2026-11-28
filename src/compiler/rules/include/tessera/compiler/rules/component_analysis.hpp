@@ -9,6 +9,7 @@
 #include "tessera/compiler/rules/effect_info.hpp"
 #include "tessera/compiler/rules/environment_info.hpp"
 #include "tessera/compiler/rules/reducer_info.hpp"
+#include "tessera/compiler/rules/resource_info.hpp"
 #include "tessera/compiler/rules/service_info.hpp"
 #include "tessera/compiler/rules/symbol.hpp"
 
@@ -40,6 +41,9 @@ struct ComponentAnalysis {
     // ADR-050 section 3.1 (issue #177): `useService<T>()` statements in their accepted form, in
     // body order. A rejected one is a diagnostic and contributes no entry.
     std::vector<ServiceUseInfo> service_uses;
+    // ADR-067 item 1 (issue #656): `useResource` calls in their accepted form, in body order. A
+    // rejected one is a diagnostic and contributes no entry.
+    std::vector<ResourceInfo> resources;
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

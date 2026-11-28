@@ -83,6 +83,11 @@ void validate_span(ValidationContext& context, const SourceSpan& span, const std
 void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root,
                         const std::map<std::string, std::string>& provider_types = {});
 void validate_component(ValidationContext& context, const Component& component);
+// ADR-067 item 1 (pending-ui-v1.md sections 3.4 and 4.2): the `resources` entries (service, method,
+// key) and the Suspense coverage of the suspending ones. Runs after the node tree so every
+// reference a key or a read names is declared.
+void validate_resources(ValidationContext& context, const ComponentScope& scope,
+                        const Component& component);
 
 // Module-level record type table checks: ids, names, sorted order, spans, members and cycles
 // (sections 2.2 and 11). Must run before any component, so a value and a member type resolve.

@@ -80,6 +80,7 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
         check_hooks(ctx);
         check_contexts(ctx);
         check_services(ctx);
+        check_resource_services(ctx);
         classify_arrows(ctx);
         check_service_calls(ctx);
         check_effect_deps(ctx);

@@ -303,6 +303,18 @@ void validate_record_position(ValidationContext& context, const ComponentScope& 
 void validate_reference_member(ValidationContext& context, const ComponentScope& scope,
                                std::string_view id, const SourceSpan& where) {
     const std::size_t dot = id.find('.');
+    // ADR-067 item 1: a resource is read through exactly one of three members; the bare id is a
+    // record, not a value.
+    if (id.substr(0, 5) == "res::") {
+        const std::string_view member = dot == std::string_view::npos ? "" : id.substr(dot + 1);
+        if (member != "status" && member != "data" && member != "error") {
+            context.report("TESSERA_IR_UNRESOLVED",
+                           "`" + std::string(id) +
+                               "` must read `.status`, `.data` or `.error` of the resource",
+                           where);
+        }
+        return;
+    }
     if (dot == std::string_view::npos) {
         return;
     }

@@ -17,7 +17,7 @@ template<typename Row, std::size_t N> constexpr std::span<const Row> rows(const 
     return std::span<const Row>(list, N);
 }
 
-constexpr std::string_view kHiddenExcept[] = {"Spacer", "ErrorBoundary"};
+constexpr std::string_view kHiddenExcept[] = {"Spacer", "ErrorBoundary", "Suspense"};
 
 template<std::size_t N>
 constexpr std::span<const std::string_view> tags(const std::string_view (&list)[N]) {

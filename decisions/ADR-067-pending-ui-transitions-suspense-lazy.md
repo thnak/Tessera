@@ -1,6 +1,6 @@
 # ADR-067: Pending UI: `useResource`, `Suspense`, transitions, deferred values and `lazy`
 
-- Status: Proposed (2026-11-20). Owner direction: the "L" rows of
+- Status: Accepted (2026-11-28). Owner direction: the "L" rows of
   [`react-core-coverage.md`](../docs/reference/react-core-coverage.md) are done early, because the
   farm protocol of `AGENTS.md` can exhaust the roadmap sooner than planned and a larger codebase is
   harder to change. The model below is the proposal to review; it builds on what exists and adds no
@@ -101,7 +101,7 @@ Selector with a search, dialogs with a lazy body) be written against one rule.
 
 ## Evidence required before Accepted
 
-This ADR stays Proposed until measured evidence exists. Spike [#661](https://github.com/thnak/Tessera/issues/661) implements a Suspense boundary and a transition mark on a fake resource, off by default, and records: fallback, restore, keep-on-refresh, pending flag and stale-epoch behavior; agreement between the evaluator and generated code; allocation-free updates; and what the data store lacks. The implementing issues #655 to #657 wait for Acceptance.
+This ADR stayed Proposed until measured evidence existed (it was Accepted on 2026-11-28 after the spike below). Spike [#661](https://github.com/thnak/Tessera/issues/661) implements a Suspense boundary and a transition mark on a fake resource, off by default, and records: fallback, restore, keep-on-refresh, pending flag and stale-epoch behavior; agreement between the evaluator and generated code; allocation-free updates; and what the data store lacks. The implementing issues #655 to #657 were released by Acceptance.
 
 ### Spike #661 evidence (items 1-4, recorded 2026-11-21)
 

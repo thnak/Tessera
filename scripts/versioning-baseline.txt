@@ -43,6 +43,7 @@ field	ir	ir-v1::2. Component::id	string	yes	-
 field	ir	ir-v1::2. Component::name	string	yes	-
 field	ir	ir-v1::2. Component::props	Prop[]	no	-
 field	ir	ir-v1::2. Component::refs	Ref[]	no	-
+field	ir	ir-v1::2. Component::resources	Resource[]	no	-
 field	ir	ir-v1::2. Component::root	Node	yes	-
 field	ir	ir-v1::2. Component::services	Service[]	no	-
 field	ir	ir-v1::2. Component::source	SourceSpan	yes	-

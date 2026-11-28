@@ -33,6 +33,11 @@ struct BehaviorInfo {
     std::vector<std::string> outputs;
     std::vector<std::string> output_types;
     bool exclusive = false;
+    // `useTransition` only: the binding that reads the hook's one output directly
+    // (`isPending`), where every other behavior reads `<name>.<field>`. Empty otherwise.
+    std::string value_name;
+    // `useDeferredValue` only: the `useState` name whose value the hook defers.
+    std::string source_state;
 };
 
 } // namespace tessera::compiler::rules

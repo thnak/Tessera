@@ -26,6 +26,11 @@ namespace tessera::compiler::codegen::internal {
 // True when the component declares at least one behavior.
 [[nodiscard]] bool uses_behaviors(const ir::Component& component);
 
+// The accessor calls of the component's `useDeferredValue` behaviors (`beh_d_value()`). A marked
+// setter calls each before it assigns, so the last settled value is the one the UI showed before
+// the change (pending-ui-v1.md section 6).
+[[nodiscard]] std::vector<std::string> deferred_accessor_calls(const ir::Component& component);
+
 // The engine headers the component's behaviors need, unique and sorted, in the `#include "..."`
 // spelling (no quotes). Empty without behaviors.
 [[nodiscard]] std::vector<std::string> behavior_headers(const ir::Component& component);

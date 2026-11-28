@@ -8,12 +8,14 @@
 // Deterministic: no clock, no network, no random ids. The fake resource is driven by explicit
 // epochs, which is exactly what the data store's per-key epoch counter is.
 
+#include "tessera/ui/pending/deferred.hpp"
 #include "tessera/ui/pending/fake_resource.hpp"
 #include "tessera/ui/pending/suspense.hpp"
 #include "tessera/ui/pending/transition.hpp"
 
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -193,9 +195,64 @@ void test_multiple_reads() {
     check(!boundary.suspends(), "every read settled restores the content");
 }
 
+// pending-ui-v1.md section 4.3: a transition that started the read keeps the subtree that is live.
+void test_hold_keeps_the_live_content() {
+    pending::SuspenseBoundary boundary;
+    boundary.reset_reads(1);
+    boundary.set_hold(true); // the transition is pending before the read starts suspending
+    (void)boundary.set_read(0, true, false, 1); // Loading with no data
+    check(boundary.suspends(), "the read still suspends");
+    check(boundary.phase() == pending::SuspensePhase::Content,
+          "a held boundary keeps its content instead of entering the fallback");
+
+    // The hold does not rescue a boundary that was already showing its fallback: that is the old
+    // UI.
+    pending::SuspenseBoundary shown;
+    shown.reset_reads(1);
+    (void)shown.set_read(0, true, false, 1);
+    check(shown.fallback_live(), "without a hold the suspending read shows the fallback");
+    shown.set_hold(true);
+    check(shown.fallback_live(), "a hold set later does not pull the content back");
+
+    // Releasing the hold re-applies the rule: a read that still suspends shows the fallback.
+    boundary.set_hold(false);
+    check(boundary.phase() == pending::SuspensePhase::Fallback,
+          "releasing the hold while the read still suspends shows the fallback");
+    // The data settles it.
+    (void)boundary.set_read(0, false, true, 1);
+    check(boundary.phase() == pending::SuspensePhase::Content, "data restores the content");
+
+    // reset_reads clears the hold with the reads.
+    boundary.set_hold(true);
+    boundary.reset_reads(1);
+    check(!boundary.held() && boundary.phase() == pending::SuspensePhase::Content,
+          "reset clears the hold");
+}
+
+// section 6: the settled value of useDeferredValue.
+void test_deferred_scalar() {
+    pending::DeferredScalar<int> value;
+    check(value.read(1, false) == 1, "unheld: the value is the argument");
+    check(value.read(2, false) == 2, "unheld: it follows the argument");
+    check(value.read(3, true) == 2, "held: the last settled value");
+    check(value.read(4, true) == 2, "held: still the last settled value");
+    check(value.read(4, false) == 4, "released: the current argument settles");
+
+    pending::DeferredScalar<int> fresh;
+    check(fresh.read(7, true) == 7, "a value never observed before a hold settles on its argument");
+    check(fresh.read(8, true) == 7, "and is held afterwards");
+
+    pending::DeferredScalar<std::string> text;
+    check(text.read("fast", false) == "fast" && text.read("slow", true) == "fast" &&
+              text.read("slow", false) == "slow",
+          "an enum-like string token follows the same rule");
+}
+
 } // namespace
 
 int main() {
+    test_hold_keeps_the_live_content();
+    test_deferred_scalar();
     test_fallback_while_loading_with_no_data();
     test_subtree_restored_on_data();
     test_old_subtree_kept_on_refresh();

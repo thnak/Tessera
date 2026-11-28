@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 13, "the manifest declares thirteen hooks");
+    bool ok = expect(manifest->hooks.size() == 16, "the manifest declares sixteen hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -64,6 +64,15 @@ bool test_committed_manifest_parses() {
     ok = expect(manifest->find("useAnnounce") != nullptr, "useAnnounce is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
+    // Issue #656 (ADR-067 item 4): a behavior hook with no target and no options whose one output
+    // is the pending flag.
+    const auto* transition = manifest->find("useTransition");
+    ok = expect(transition != nullptr && transition->lowering == HookLoweringKind::Behavior &&
+                    transition->provider == "transition" && transition->outputs.size() == 1 &&
+                    transition->outputs[0].name == "isPending" &&
+                    transition->outputs[0].ir == "bool" && transition->params.empty(),
+                "useTransition is a target-less behavior hook with one bool output") &&
+         ok;
     return ok;
 }
 

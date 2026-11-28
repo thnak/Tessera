@@ -192,6 +192,44 @@
       "lowering": { "kind": "behavior", "behavior": "announce" }
     },
     {
+      "name": "useTransition",
+      "params": [],
+      "returns": {
+        "fields": [{ "name": "isPending", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "transition" }
+    },
+    {
+      "name": "useDeferredValue",
+      "params": [{ "name": "value", "kind": "value", "ts": "T", "ir": "scalar" }],
+      "returns": {
+        "fields": [{ "name": "value", "ts": "T", "ir": "scalar" }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "deferred_value" }
+    },
+    {
+      "name": "useResource",
+      "params": [
+        { "name": "method", "kind": "value", "ts": "ServiceMethod", "ir": "service-method" },
+        { "name": "key", "kind": "value", "ts": "ResourceKey", "ir": "scalar" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ResourceOptions",
+          "ir": "record",
+          "fields": [{ "name": "suspend", "ts": "boolean", "ir": "bool", "default": false }]
+        }
+      ],
+      "returns": {
+        "fields": [
+          { "name": "status", "ts": "string", "ir": "string" },
+          { "name": "data", "ts": "T", "ir": "scalar" },
+          { "name": "error", "ts": "string", "ir": "string" }
+        ]
+      },
+      "lowering": { "kind": "environment", "provider": "resource" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },
