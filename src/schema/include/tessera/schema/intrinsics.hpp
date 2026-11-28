@@ -181,6 +181,28 @@ struct AliasRow {
     std::string_view note;
 };
 
+// One attribute of a tag that lowers onto a library component (ADR-059 group E, issue #1041).
+// `rename` is the component prop the attribute becomes; an empty `rename` rejects it with
+// `suggestion`. `ts_type` is the attribute's type in the generated typings.
+struct LibraryAttr {
+    std::string_view name;
+    std::string_view rename;
+    std::string_view ts_type;
+    std::string_view suggestion;
+};
+
+// A tag (and, for `input`, a `type` literal) that resolves to a library component instead of an
+// intrinsic carrier: `input type="checkbox"` is the library `Checkbox`. The file must import
+// `component` (from `import_path`, the package the styled component ships in); the attributes
+// not named here and not common (`className`, `key`, `ref`, `automationId`) are rejected.
+struct LibraryLowering {
+    std::string_view tag;
+    std::string_view type; // `input` type literal; empty for every other tag
+    std::string_view component;
+    std::string_view import_path;
+    std::span<const LibraryAttr> attrs;
+};
+
 struct DomType {
     std::string_view name;   // accepted in `useRef<...>`
     std::string_view target; // intrinsic tag
@@ -200,12 +222,18 @@ struct DomType {
 // table order; a tag without an entry gets none.
 [[nodiscard]] std::span<const AliasStyle> alias_style_defaults(std::string_view tag);
 [[nodiscard]] std::span<const DomType> dom_types();
+// Tags that lower onto a library component (html-aliases.md section 3.8), in table order.
+[[nodiscard]] std::span<const LibraryLowering> library_lowerings();
 
 // Null when the tag is not an intrinsic or the name is not a payload record.
 [[nodiscard]] const ElementRow* find_element(std::string_view tag);
 [[nodiscard]] const TypeRecord* find_type_record(std::string_view name);
 // Mapped, partial and unsupported lowercase tags; null for an unknown tag.
 [[nodiscard]] const AliasRow* find_alias(std::string_view tag);
+// The library lowering of `tag` with `type` (the `input` type literal, empty otherwise); null when
+// the tag is an ordinary alias.
+[[nodiscard]] const LibraryLowering* find_library_lowering(std::string_view tag,
+                                                           std::string_view type);
 // A DOM element type accepted in `useRef<...>`; null when unknown.
 [[nodiscard]] const DomType* find_dom_type(std::string_view name);
 

@@ -67,7 +67,7 @@ void test_schema_version_and_counts() {
     check(schema::elements().size() == 14, "14 intrinsic elements (README section 3)");
     check(schema::type_records().size() == 12,
           "12 payload records (common-and-events.md section 2)");
-    check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
+    check(schema::aliases().size() == 101, "50 mapped/partial and 51 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     // 128 since ADR-068 slice 4 added `clip-path` (issue #672); 130 with `list-style-type` and
     // `list-style-position` (issue #541); 147 with the `-webkit-mask*` longhand aliases (#617).
@@ -271,7 +271,7 @@ void test_aliases() {
     check(schema::alias_style_defaults("span").empty(), "span injects no style");
     check(schema::alias_style_defaults("div").empty(), "a non-emphasis alias injects no style");
     const schema::AliasRow* input = schema::find_alias("input");
-    check(input != nullptr && input->type_map.size() == 6 && input->type_map_closed,
+    check(input != nullptr && input->type_map.size() == 9 && input->type_map_closed,
           "input has a closed type map");
     bool password_secure = false;
     for (const schema::AliasTypeMap& entry : input->type_map) {
@@ -303,6 +303,43 @@ void test_aliases() {
               !table->alternative.empty(),
           "table has no mapping and an alternative");
     check(schema::find_alias("nosuchtag") == nullptr, "an unknown lowercase tag is not found");
+
+    // Issue #1041: tags that lower onto a library component resolve through their own table.
+    const schema::LibraryLowering* checkbox = schema::find_library_lowering("input", "checkbox");
+    check(checkbox != nullptr && checkbox->component == "Checkbox" &&
+              checkbox->import_path == "tessera-ui/Checkbox",
+          "input type=checkbox lowers onto Checkbox");
+    check(schema::find_library_lowering("input", "text") == nullptr &&
+              schema::find_library_lowering("input", "") == nullptr,
+          "a text input stays a TextInput");
+    check(schema::find_library_lowering("progress", "") != nullptr &&
+              schema::find_library_lowering("meter", "") != nullptr &&
+              schema::find_library_lowering("details", "") != nullptr &&
+              schema::find_library_lowering("input", "range") != nullptr &&
+              schema::find_library_lowering("input", "radio") != nullptr,
+          "progress, meter, details, range and radio lower onto library components");
+    check(schema::library_lowerings().size() == 6, "six library lowerings");
+    for (const schema::LibraryLowering& lowering : schema::library_lowerings()) {
+        const schema::AliasRow* row = schema::find_alias(lowering.tag);
+        check(row != nullptr && row->status == schema::AliasStatus::Mapped,
+              "a library lowering has a mapped alias row");
+        if (row != nullptr && !lowering.type.empty()) {
+            bool known_type = false;
+            for (const schema::AliasTypeMap& entry : row->type_map) {
+                known_type = known_type || entry.type == lowering.type;
+            }
+            check(known_type, "a lowered input type is in the type map");
+        }
+        for (const schema::LibraryAttr& attr : lowering.attrs) {
+            check(!attr.rename.empty() || !attr.suggestion.empty(),
+                  "a rejected library attribute has a suggestion");
+            check(attr.rename.empty() || !attr.ts_type.empty(),
+                  "a kept library attribute is typed");
+        }
+    }
+    check(schema::find_alias("summary") != nullptr &&
+              schema::find_alias("summary")->status == schema::AliasStatus::Mapped,
+          "summary is mapped (as a child of details)");
 
     for (const schema::AliasRow& alias : schema::aliases()) {
         if (alias.status == schema::AliasStatus::Unsupported) {

@@ -40,10 +40,18 @@ constexpr AliasInject kInjectModeUrl[] = {{"inputMode", "url"}};
 constexpr AliasInject kInjectModeSearch[] = {{"inputMode", "search"}};
 constexpr AliasInject kInjectModeNumeric[] = {{"inputMode", "numeric"}};
 
+// `checkbox`, `radio` and `range` inject nothing on TextInput: the element lowers onto a library
+// component instead (library_lowering.cpp), so the entries only make the types known.
 constexpr AliasTypeMap kInputTypeMap[] = {
-    {"password", rows(kInjectSecure)},   {"email", rows(kInjectModeEmail)},
-    {"tel", rows(kInjectModeTel)},       {"url", rows(kInjectModeUrl)},
-    {"search", rows(kInjectModeSearch)}, {"number", rows(kInjectModeNumeric)},
+    {"checkbox", {}},
+    {"radio", {}},
+    {"range", {}},
+    {"password", rows(kInjectSecure)},
+    {"email", rows(kInjectModeEmail)},
+    {"tel", rows(kInjectModeTel)},
+    {"url", rows(kInjectModeUrl)},
+    {"search", rows(kInjectModeSearch)},
+    {"number", rows(kInjectModeNumeric)},
 };
 
 // --- attribute rewrites ---------------------------------------------------------------------
@@ -226,7 +234,6 @@ constexpr std::string_view kAltTable =
 constexpr std::string_view kAltSvg = "`Path` with `d` and `viewBox`";
 constexpr std::string_view kAltMedia = "`CustomElement`";
 constexpr std::string_view kAltOverlay = "Overlay service and library components";
-constexpr std::string_view kAltProgress = "Library `Progress` (after V1)";
 constexpr std::string_view kAltDocument =
     "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them";
 
@@ -356,6 +363,20 @@ constexpr AliasRow kAliases[] = {
     plain("blockquote", "View", AliasStatus::Mapped,
           "the user-agent sheet gives it the 1em 40px margin"),
 
+    // Group E (issue #1041): the carrier is a `View`; lowering resolves each tag to the imported
+    // library component of library_lowering.cpp.
+    plain(
+        "progress", "View", AliasStatus::Mapped,
+        "lowers onto the library `Progress` (`value`, `max` are integers; `max` defaults to 100)"),
+    plain("meter", "View", AliasStatus::Mapped,
+          "lowers onto the library `Meter` (integer `value`, `min`, `max`, `low`, `high`, "
+          "`optimum`)"),
+    plain("details", "View", AliasStatus::Mapped,
+          "lowers onto the library `Disclosure`; the first `summary` child with static text is its "
+          "summary"),
+    plain("summary", "View", AliasStatus::Mapped,
+          "only as a child of `details`; a `summary` anywhere else is TESSERA_IR_UNSUPPORTED"),
+
     // Section 5: no mapping.
     {"form", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltForm, ""},
     {"select", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
@@ -394,12 +415,8 @@ constexpr AliasRow kAliases[] = {
     {"source", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltMedia, ""},
     {"track", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltMedia, ""},
     {"dialog", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"details", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"summary", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
     {"menu", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
     {"popover", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"progress", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltProgress, ""},
-    {"meter", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltProgress, ""},
     {"html", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
     {"head", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
     {"body", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
@@ -437,7 +454,7 @@ constexpr bool alias_rows_are_valid(std::span<const AliasRow> list) {
 
 static_assert(alias_rows_are_valid(kAliases), "alias rows are unique and well-formed");
 // html-aliases.md section 2 (46 mapped or partial tags) and section 5 (55 unmapped tags).
-static_assert(std::size(kAliases) == 101, "46 mapped or partial tags plus 55 unmapped tags");
+static_assert(std::size(kAliases) == 101, "50 mapped or partial tags plus 51 unmapped tags");
 
 constexpr bool alias_styles_are_grouped(std::span<const AliasStyle> list) {
     for (std::size_t i = 1; i < list.size(); ++i) {

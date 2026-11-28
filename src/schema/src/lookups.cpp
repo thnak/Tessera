@@ -143,6 +143,19 @@ std::span<const AliasRow> aliases() {
     return internal::alias_table();
 }
 
+std::span<const LibraryLowering> library_lowerings() {
+    return internal::library_lowering_table();
+}
+
+const LibraryLowering* find_library_lowering(std::string_view tag, std::string_view type) {
+    for (const LibraryLowering& row : internal::library_lowering_table()) {
+        if (row.tag == tag && row.type == type) {
+            return &row;
+        }
+    }
+    return nullptr;
+}
+
 std::span<const AliasStyle> alias_style_defaults(std::string_view tag) {
     const std::span<const AliasStyle> table = internal::alias_style_table();
     const auto first = std::find_if(table.begin(), table.end(),

@@ -73,6 +73,10 @@ struct ElementInfo {
     // own, so their children are spliced where the element stood (like a fragment's). Every other
     // element builds a node.
     bool passthrough = false;
+    // Issue #1041: the library lowering of a tag that resolves onto an imported library component
+    // (`input type="checkbox"`, `progress`, `details`, ...); null for every other element. The
+    // component attributes are rewritten through it and `summary` is read from a `details`.
+    const schema::LibraryLowering* library = nullptr;
 };
 [[nodiscard]] std::optional<ElementInfo> resolve_element(NodeState& state,
                                                          const jsx::JsxNode& element);

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::schema::dump {
 namespace {
@@ -120,8 +121,51 @@ void append_alias_interface(std::string& out, const AliasRow& alias) {
     if (target == nullptr) {
         return;
     }
-    out += "export interface " + std::string(alias.tag) + "Props extends " +
-           std::string(target->tag) + "Props {\n";
+    // Issue #1041: the attributes of the library lowerings (`checked`, `min`, `open`, ...). A name
+    // the carrier already declares with another type (`defaultValue` is a string on TextInput) is
+    // omitted from the base and re-declared as the union; an event is kept as the base declares it,
+    // since a payload-free handler is assignable to it.
+    std::vector<const LibraryAttr*> library_props;
+    std::vector<std::string> omitted;
+    for (const LibraryLowering& lowering : library_lowerings()) {
+        if (lowering.tag != alias.tag) {
+            continue;
+        }
+        for (const LibraryAttr& attr : lowering.attrs) {
+            if (attr.rename.empty() || attr.name.starts_with("aria-")) {
+                continue;
+            }
+            const bool seen =
+                std::any_of(library_props.begin(), library_props.end(),
+                            [&](const LibraryAttr* kept) { return kept->name == attr.name; });
+            if (seen) {
+                continue;
+            }
+            const PropRow* base = find_prop(*target, attr.name);
+            const bool event =
+                std::any_of(target->events.begin(), target->events.end(),
+                            [&](const EventRow& row) { return row.name == attr.name; });
+            if (event) {
+                continue;
+            }
+            if (base != nullptr && ts_type(base->type) == attr.ts_type) {
+                continue;
+            }
+            if (base != nullptr) {
+                omitted.push_back(std::string(attr.name));
+            }
+            library_props.push_back(&attr);
+        }
+    }
+    std::string base_type = std::string(target->tag) + "Props";
+    if (!omitted.empty()) {
+        std::string keys;
+        for (const std::string& name : omitted) {
+            keys += (keys.empty() ? "" : " | ") + ("\"" + name + "\"");
+        }
+        base_type = "Omit<" + base_type + ", " + keys + ">";
+    }
+    out += "export interface " + std::string(alias.tag) + "Props extends " + base_type + " {\n";
     if (!alias.type_map.empty()) {
         out += "  type?: ";
         bool first = true;
@@ -161,6 +205,13 @@ void append_alias_interface(std::string& out, const AliasRow& alias) {
         case AliasAttrKind::Reject:
             break;
         }
+    }
+    for (const LibraryAttr* attr : library_props) {
+        const PropRow* base = find_prop(*target, attr->name);
+        const std::string type = base != nullptr
+                                     ? ts_type(base->type) + " | " + std::string(attr->ts_type)
+                                     : std::string(attr->ts_type);
+        out += "  " + std::string(attr->name) + "?: " + type + ";\n";
     }
     out += "}\n\n";
 }

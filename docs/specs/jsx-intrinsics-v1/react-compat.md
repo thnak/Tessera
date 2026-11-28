@@ -121,9 +121,10 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `style={{ width: 100, flex: 1, opacity: 0.5 }}` | Supported | Numbers: px for length properties, unitless otherwise, from the stylesheet table (subset 10.3); `lineHeight: 1.5` stays unitless |
 | `style={styles.box}`, `style={{...a, ...b}}` | Not supported | Keys must be known at compile time (`STYLE_DYNAMIC`). Inline the literal or use `className` |
 | `disabled`, `readOnly`, `placeholder`, `value`, `defaultValue`, `maxLength`, `rows` | Supported | Same names; rules in [`elements-basic.md`](elements-basic.md) section 4 |
-| `checked`, `defaultChecked` | Not supported | There is no checkbox intrinsic. Library `Checkbox`/`Switch` after V1 |
+| `checked` | `input type="checkbox"`/`"radio"` lower onto the library `Checkbox`/`Radio` ([`html-aliases.md`](html-aliases.md) section 3.8); `checked` on a text input is `HTML_ATTR` | The control is controlled; `defaultChecked` is rejected |
 | `input type="text"`, `password`, `email`, `tel`, `url`, `search`, `number` | Supported through `input` ([`html-aliases.md`](html-aliases.md) section 3.2) | `number` keeps a string value |
-| `input type="checkbox"`, `radio`, `range`, `file`, `date`, ... | Not supported (`HTML_INPUT_TYPE`) | No equivalent intrinsic |
+| `input type="checkbox"`, `radio`, `range` | Mapped to library `Checkbox`, `Radio`, `Slider` (section 3.8) | The file imports the component |
+| `input type="file"`, `date`, ... | Not supported (`HTML_INPUT_TYPE`) | No equivalent intrinsic |
 | `value` without `onChange` | Warning, like React [Q4] | |
 | `value` and `defaultValue` together | Error (React warns at run time) | One owner of the state |
 | `e.target.value`, `e.currentTarget`, `e.target.checked`, `e.preventDefault()` | `e.target.value` supported on text events; others not | Section 2 |
