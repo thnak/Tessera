@@ -36,6 +36,10 @@
     "mock_transpiler_lazy_gzip_bytes": {
       "better": 5.0,
       "worse": 5.0
+    },
+    "lazy_service_modules_gzip_bytes": {
+      "better": 50.0,
+      "worse": 20.0
     }
   },
   "entries": {
@@ -50,6 +54,12 @@
       "status": "enforce",
       "unit": "bytes",
       "measures": "gzip-9 bytes of designer/web/dist/assets/mock/: the lazy mock host chunk plus esbuild's WebAssembly (issue #434, ADR-055 decision 5). A project without a *.mock.ts file never fetches it, which is why it is left out of download_gzip_bytes and the cold download does not move. Measured 3.75 MB gzip, almost all esbuild.wasm: a smaller transpiler (spec studio-mock-services-v1.md open question 1) would lower it."
+    },
+    "lazy_service_modules_gzip_bytes": {
+      "budget": 300000.0,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "gzip-9 bytes of tessera_format.js/.wasm and tessera_analysis.js/.wasm, the service workers' lazy modules (issue #568, ADR-060): the format module loads on the first Format Document and the analysis module on the first diagnostics request, so neither is in download_gzip_bytes. Measured 289913 (format 147092, analysis 142821) with emsdk 7.0.0 and python zlib 1.3.1. The budget is a ceiling with a 20 percent worse band while the services grow (more analysis requests, the printer); a build under half of it asks for a tighten."
     },
     "cold_engine_ready_ms": {
       "budget": 16.443,

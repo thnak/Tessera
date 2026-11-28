@@ -1,6 +1,6 @@
 # Studio services v1
 
-Status: proposed (V1-M4); the protocol core and its no-UI harness are implemented
+Status: proposed (V1-M4); the protocol core, its no-UI harness and the `analysis` and `format` workers are implemented
 (`designer/web/services/`, `scripts/ci/preview_studio_services.mjs`). Decision:
 [ADR-060](../../decisions/ADR-060-studio-services-in-web-workers.md). Related:
 [designer-protocol-v1.md](designer-protocol-v1.md) section 2.1 (transport),
@@ -102,7 +102,7 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 | Service | Features at this version |
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
-| `analysis` | `symbols` (section 10, #570); the rest is defined by the analysis issues (#568 and following) |
+| `analysis` | `symbols` (section 10, #570) and `diagnostics` (section 11, #568); the language requests (definition, hover, completions, rename) are the analysis issues that follow |
 | `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
@@ -130,7 +130,7 @@ The index of declarations and references that definition, references, hover, com
 (#571 to #574) answer from. The library is `src/compiler/analysis` (`tessera_analysis`), portable C++
 over the front end of [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md), so the Wasm worker, the
 CLI and the MCP server share it. Feature name: `symbols`, listed by the worker's `capabilities`
-(`analysis_capabilities_json()`). The worker host that carries it (#568) is not part of the library.
+(`analysis_capabilities_json()`). The worker host is section 11.
 
 **Request** `symbols`: payload `{ file? }`, one file id or every file. **Result**
 `{ files: [{ file, indexed, symbols, references }] }`, in file id order. `indexed` is false for a file
@@ -172,4 +172,46 @@ that is not `.ts`/`.tsx` or that the parser could not read.
 
 Tests: `tests/unit/analysis_index_tests.cpp` (declarations, cross-file, UTF-16 and BOM offsets,
 incremental equals fresh, and span/resolution invariants over `samples/` and
-`tests/fixtures/corpus/`). The Wasm build and the preview size budget belong to #568's module.
+`tests/fixtures/corpus/`). The Wasm module, worker and budget are section 11.
+
+## 11. Analysis worker and project diagnostics (`diagnostics`)
+
+[ADR-060](../../decisions/ADR-060-studio-services-in-web-workers.md) section 1: the `analysis` service is
+`tessera_analysis.wasm` (`createTesseraAnalysis`, target `tessera_analysis_wasm`, linked from
+`src/compiler/analysis`), loaded lazily by `designer/web/services/analysis-service.js` in its own worker on the first
+request. The page-side client and the gate are the generic ones of section 9.
+
+- **Snapshot paths.** A `snapshot` file entry may carry `path`, the project-relative path with `/`: it is how a
+  relative import resolves (section 10) and what a duplicate-component message names. A file with no path
+  resolves no imports. `ServiceClient.setSnapshot` takes `[id, text, path?]`.
+- **Request** `diagnostics`: `{ file? }`. **Result** `{ files: [{ file, diagnostics: [Diagnostic] }] }`, one entry
+  per file of the project (or only `file`) in file id order, an empty list for a clean file. A `Diagnostic` is
+  `{ code, severity: "error" | "warning", message, from, to }` with the UTF-16 `Span` of section 2 (file implied by
+  the entry) and, for a finding about two places, `related: { file, from, to, message }`. Order within a file is
+  `from`, `to`, `code`, `message`, so it does not depend on the order the files were given.
+- **What is reported.** (1) The parser's diagnostics of each `.ts`/`.tsx` file, `TESSERA_JSX_*`, with their codes;
+  parsing recovers per top-level item, so one syntax error costs that item and the file's other items still
+  index. (2) `TESSERA_ANALYSIS_IMPORT_FILE`: a relative import no file of the snapshot matches (error; a missing
+  `.module.css` is a warning, because a snapshot may carry only the sources). (3) `TESSERA_ANALYSIS_IMPORT_NAME`:
+  the file exists but does not export the name; not reported when that file has parse errors, since its own
+  diagnostics are the cause. (4) `TESSERA_ANALYSIS_DUPLICATE_COMPONENT`: a component name declared at module scope
+  more than once in the project; every declaration is reported, with `related` pointing at another one. An error in
+  an imported file is reported against that file, never against its importer. The semantic analyzer and lowering
+  diagnostics (`TESSERA_REACT_*`, `TESSERA_IR_*`) are not run here yet: they need a whole-project lowering pass.
+- **Engine ABI.** `src/compiler/analysis/src/analysis_entry.h`: stage files with `tessera_analysis_set_file` and
+  `tessera_analysis_commit_snapshot`, edits with `tessera_analysis_edit` and `tessera_analysis_commit_edits` (0 when an
+  edit names an unknown file or a range outside it; the worker then answers `TESSERA_STUDIO_VERSION`), and ask with
+  `tessera_analysis_query_json("symbols" | "diagnostics" | "capabilities", file or -1)`. The same functions link
+  natively into `tests/unit/analysis_diagnostics_tests.cpp`, which compares them with the library byte for byte.
+- **Worker rules.** Changes (`snapshot`, `delta`) and queries run in arrival order, so an answer is computed
+  against the version it carries; a query answered for an older version is dropped by the client
+  (`TESSERA_STUDIO_STALE`). Errors: `TESSERA_ANALYSIS_NO_FILE`, `TESSERA_ANALYSIS_ENGINE`. Capabilities:
+  `{ name: "analysis", protocol: 1, features: ["symbols", "diagnostics"] }`.
+- **Gate.** `scripts/ci/preview_analysis_service.mjs` (workflow step in `pages.yml`): protocol cases against a JS
+  stand-in engine (latest wins, an edit while a request is in flight drops the stale answer, a 150 ms parse in the
+  worker leaves the page thread's longest gap under 100 ms, a crashed engine is an error response) and, with
+  `TESSERA_ANALYSIS_WASM` set to a built `tessera_analysis.js`, the same cases and the project findings against the
+  C++ library.
+- **Budget.** The module is lazy, so it is not in `download_gzip_bytes`; `lazy_service_modules_gzip_bytes` in
+  `tests/golden/perf/preview_budget.json` weighs it with the format module (`scripts/preview_budget_measure.py`,
+  from the assembled `build/pages`).
