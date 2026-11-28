@@ -227,7 +227,7 @@ export function applyOperation(layout: Layout, op: Operation, ctx: Context = def
     case "resize":
       return op.visible === true ? resizeVisibleSplit(layout, op.path, op.sizes) : resizeSplit(layout, op.path, op.sizes);
     case "sash":
-      return dragSash(layout, op.path, op.index, op.position, op.extentPx, ctx);
+      return dragSash(layout, op.path, op.index, op.position, op.extentPx, ctx, op.origin);
     case "resetSplit":
       return resetSplit(layout, op.path, ctx);
     case "maximize":

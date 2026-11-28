@@ -726,6 +726,18 @@ test("sash: double-click resets a split to the default fractions, also across a 
   assert.ok(wb.defaultVisibleSizes(swapped, [], wb.defaultContext).every((size) => size > 0), "a rearranged layout still has defaults");
 });
 
+test("sash: the outcome starts from the sizes the drag began with, not from a live resize that already moved the split", () => {
+  const layout = dflt();
+  const live = wb.applyOperation(layout, { kind: "resize", path: [], sizes: [0.1117, 0.4441, 0.4442], visible: true }).layout;
+  const origin = [0.18, 0.41, 0.41];
+  const op = { kind: "sash", path: [], index: 0, position: 0.02, extentPx: 1440, origin };
+  const collapsed = wb.applyOperation(live, op).layout;
+  assert.deepEqual(collapsed.collapsed, ["g-bottom", "g-project"]);
+  assert.deepEqual(collapsed.root.sizes, layout.root.sizes, "the collapsed group keeps the size it had before the drag");
+  const kept = wb.applyOperation(live, { ...op, position: 0.18 + 5 / 1440 }).layout;
+  assert.deepEqual(kept, layout, "a short drag snaps back to the default from the live state");
+});
+
 test("collapsed edges: every collapsed group with a visible neighbour gets a restore handle", () => {
   const layout = dflt();
   assert.deepEqual(wb.collapsedEdges(layout), [{ groupId: "g-bottom", dir: "column", beside: ["g-editor", "g-preview"], edge: "end" }]);

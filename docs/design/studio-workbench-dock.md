@@ -33,11 +33,12 @@ library never owns the layout.
 | `actions.ts` | intercepts every library action in `onAction`, maps it to a model operation (`gestureOf`) and cancels it |
 | `hosts.ts`, `PanelSlot.tsx` | one persistent host element per open panel, adopted by the slot the library lays out |
 | `separators.ts` | real `aria-valuemin/valuemax/valuenow` on separators, splitter key arithmetic |
+| `use-sash.ts`, `CollapsedEdges.tsx` | pointer half of sash snap, double-click reset and collapse; restore handles for collapsed groups |
 | `FlexDock.tsx`, `WorkbenchDock.tsx` | the React surface: ARIA patching, Alt+Shift+Arrow moves, double-click maximize |
 | `use-workbench.ts` | store subscription, persistence, the `Ctrl+J` stand-in for the registry |
 | `PanelBoundary.tsx` | an error boundary per panel (failure isolation) |
 
-`scripts/ci/workbench_dock_core.mjs` (12 tests) round-trips the model through the real library `Model`
+`scripts/ci/workbench_dock_core.mjs` (13 tests) round-trips the model through the real library `Model`
 in Node. `scripts/ci/workbench_dock.mjs` is the developer-run real-browser acceptance (real mouse
 drags, keyboard-only docking, reload persistence, throwing storage, 390 px).
 
@@ -86,9 +87,9 @@ session's, driven by `onVisibility`.
 
 ## 6. Known gaps (decisions for the owner)
 
-- Sash snap to the default fraction, double-click reset and collapse-below-`minSize` (spec 4.4) are not
-  implemented, by owner decision (2026-11-19): a follow-up, not part of the command wiring. The library
-  offers no hook and the adapter does not draw sashes itself.
+- Sash snap, double-click reset and collapse-below-`minSize` (spec 4.4) landed with #589: the pointer is
+  tracked in `use-sash.ts`, the decision is the model's (`workbench/sash.ts`), and a collapsed group gets a
+  restore handle (`CollapsedEdges.tsx`) because it has no sash. Collapse by a key on a sash is not done.
 - Tab count badges were lost with the old tab strip. The tab context menu (`panel.tab`, Shift+F10) is back:
   Maximize or Restore, Move Panel (Left, Right, Top, Bottom, Into Group), Close Panel
   (`page-layout-commands.ts`, section 7).

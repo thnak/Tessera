@@ -335,6 +335,21 @@ release; if the chosen library cannot style overlays this way the adapter draws 
 maximize/restore (`view.maximizePanel`, panel header button, double-click on the tab strip) calls
 `maximize`.
 
+Implemented ([#589](https://github.com/thnak/Tessera/issues/589); `workbench/sash.ts`, `dock/use-sash.ts`,
+`dock/CollapsedEdges.tsx`). A sash release is one `sash` operation: the adapter reports where the pointer
+put the splitter (the library clamps at the minimum and also resizes live, so the outcome is computed from the
+sizes the drag began with). It snaps to the default boundary, to the minimum or to the maximum when within
+`SNAP_PX` (12 CSS px); past a group's minimum by more than `COLLAPSE_PX` (24 CSS px) it collapses that group
+(`collapsed` in the layout JSON, size kept, so a reload keeps it and a restore returns the previous size); a
+drag under 3 px is a click and changes nothing. Only a group collapses: a nested split beside the sash is
+clamped. Double-click on a sash is `resetSplit`: the visible split returns to the default fractions found in the
+default layout (collapsed groups keep their share; a rearranged layout with no default for a split gets even
+shares). A collapsed group has no sash, so a 4 px restore handle sits on the edge of the visible groups beside
+it; dragging it back by `COLLAPSE_PX` or double-clicking it is `collapse {collapsed: false}`. The handle is
+`aria-hidden` and not a tab stop: the keyboard has `view.toggleSideBar`, `view.togglePanelArea` and
+`view.togglePanel`, and arrow, Shift+arrow and Home/End stay plain `resize` operations (no snap, so a 16 px
+step is always 16 px). Not done: collapsing a group by a key on its sash.
+
 ### 4.5 Rewrite of `scripts/ci/preview_browser_layout.mjs`
 
 The script is rewritten, not deleted ([#516](https://github.com/thnak/Tessera/issues/516)). Today it

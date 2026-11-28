@@ -9,7 +9,7 @@
 
 import { collapseGroup } from "./ops";
 import { resizeVisibleSplit } from "./resize";
-import { canonicalSizes, groupsOf, visibleLayout } from "./tree";
+import { canonicalSizes, diff, groupsOf, visibleLayout } from "./tree";
 import type { Context, Layout, LayoutNode, PanelDef, Result, SplitNode } from "./types";
 
 /** A drag that ends this close (CSS px) to a snap point lands on it. */
@@ -132,9 +132,19 @@ export function dragSash(
   position: number,
   extentPx: number,
   ctx: Context,
+  origin?: readonly number[],
 ): Result {
-  const split = visibleSplit(layout, path);
-  const unchanged: Result = { layout, change: { opened: [], closed: [], shown: [], hidden: [] } };
+  const none = { opened: [], closed: [], shown: [], hidden: [] };
+  const unchanged: Result = { layout, change: none };
+  // A dock that resizes live has already moved the split while the pointer travelled; the drag's outcome is a
+  // function of where it began and where it ended, so start again from the sizes it began with.
+  const probe = visibleSplit(layout, path);
+  const start =
+    origin !== undefined && probe !== null && origin.length === probe.children.length && origin.every((size) => size > 0)
+      ? resizeVisibleSplit(layout, path, origin).layout
+      : layout;
+  const done = (next: Layout): Result => ({ layout: next, change: diff(layout, next) });
+  const split = visibleSplit(start, path);
   if (split === null || extentPx <= 0 || index < 0 || index + 1 >= split.children.length || !Number.isFinite(position)) {
     return unchanged;
   }
@@ -146,13 +156,13 @@ export function dragSash(
   const slack = COLLAPSE_PX / extentPx;
   const overshoot = position < lo - slack ? split.children[index] : position > hi + slack ? split.children[index + 1] : null;
   if (overshoot !== null && overshoot.type === "group") {
-    const collapsed = collapseGroup(layout, overshoot.id, true);
-    if (collapsed.layout !== layout) {
-      return collapsed;
+    const collapsed = collapseGroup(start, overshoot.id, true);
+    if (collapsed.layout !== start) {
+      return done(collapsed.layout);
     }
   }
   let at = Math.min(hi, Math.max(lo, position));
-  const defaults = defaultVisibleSizes(layout, path, ctx);
+  const defaults = defaultVisibleSizes(start, path, ctx);
   const points = [lo, hi];
   if (defaults !== null) {
     const boundary = defaults.slice(0, index + 1).reduce((sum, size) => sum + size, 0);
@@ -167,7 +177,7 @@ export function dragSash(
   const sizes = [...split.sizes];
   sizes[index] = at - before;
   sizes[index + 1] = pair - sizes[index];
-  return resizeVisibleSplit(layout, path, sizes);
+  return done(resizeVisibleSplit(start, path, sizes).layout);
 }
 
 /** Where a collapsed group's restore handle sits: on the `edge` of the visible groups `beside` it. */

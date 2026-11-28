@@ -466,17 +466,17 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Studio panel analogues | Problems = Problems (the compiler's diagnostics as a list); Output = Diagnostics (the compile report) and Mock console; Terminal = (none, no terminal in a browser); Debug Console / Call Stack = Call trace, Platform events | Diagnostics exists; others are #448 and mock-services | W5, #448 |
 | Panel maximize/restore | header button, double-click tab strip | none | W5 |
 | Drag-and-drop docking | drop-zone overlays (centre, edges), live preview of the target region | none | W5 (library) |
-| Sash resize | drag, double-click resets, snap to default and to collapse | none (fixed CSS columns) | W5, W7 |
+| Sash resize | drag, double-click resets, snap to default and to collapse | done (#589): drag snaps, double-click resets, below `minSize` collapses, a handle restores | done |
 | Status bar | left: branch, problems; right: language, position; clickable items | `StatusLine.tsx`: Problems (split counts; opens and focuses the Problems panel), caret (Go to Line), language, bell; items are `menus.json` `statusBar` | done (owner feedback on #586) |
 | Notifications / toasts | bell, toasts with actions, do-not-disturb | page `role="status"` lines scattered per region | W3b |
 | Context menus | right-click, `Shift+F10` | none | W3 |
 | Keybindings JSON | `keybindings.json`, conflict display, chords | hard-coded CodeMirror keymap | W8 |
 | Settings UI | `Ctrl+,` search + JSON | `localStorage` preferences, no UI | W8 |
-| Zen mode | `Ctrl+K Z`, hides chrome, `Esc Esc` | none | W7 |
-| Layout presets | VS: Window > Apply Window Layout, Save; VS Code: layout picker, customize layout | none; reset only | W7 |
+| Zen mode | `Ctrl+K Z`, hides chrome, `Esc Esc` | done (transient, never stored; gate in `workbench_commands_dock.mjs`) | done (W7) |
+| Layout presets | VS: Window > Apply Window Layout, Save; VS Code: layout picker, customize layout | done: four presets, one Undo step | done (W7) |
 | Toggle side bar / panel | `Ctrl+B`, `Ctrl+J` | none | W5b |
-| Focus cycling | `F6`, `Ctrl+1..3` groups | tab order only | W7 (`Ctrl+1` not capturable, use `F6`) |
-| Panel keyboard move | VS Code: command "Move View/Panel To..." | none | W7 |
+| Focus cycling | `F6`, `Ctrl+1..3` groups | `F6` / `Shift+F6` ring over every region | done (W7; `Ctrl+1` not capturable, use `F6`) |
+| Panel keyboard move | VS Code: command "Move View/Panel To..." | `Alt+Shift+Arrow`, tab menu Move Left/Right/Top/Bottom/Into Group, live message | done (W7) |
 | Floating / pop-out windows | VS and VS Code: Move into new window | none | out of scope (decision 8) |
 | Theme | color themes, light/dark/high contrast | light/dark/system | exists; picker W8 |
 | Format / rename / go to definition / references | `Shift+Alt+F`, `F2`, `F12`, `Shift+F12` | none | IDE slices (reserved ids) |
@@ -504,7 +504,7 @@ size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard
 | W5b | Activity bar and side bar shell (Explorer live; Search and Source Control reserved), `Ctrl+B`/`Ctrl+J` | W5 | VS Code region model; side bar is a dock region holding views |
 | W5c | Editor groups, preview tabs, breadcrumbs (path) | W5, editor panel | decision 12; may move after V1 |
 | W6 | Rewrite `scripts/ci/preview_browser_layout.mjs` for the dock | W5 | layout spec section 4.5 |
-| W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, zen mode, layout presets, a11y audit | W5, W3 | WAI-ARIA checks in the browser script |
+| W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, zen mode, layout presets, a11y audit | W5, W3 | WAI-ARIA checks in the browser script; implemented, see [`guides/studio-keyboard.md`](../guides/studio-keyboard.md) (the remaining keyboard gap is collapse by key, below) |
 | W8 | Keybindings JSON and settings UI | W3, W4 | `view.openKeybindings`, `view.openSettings` (`Ctrl+,`), JSON import/export of overrides and layout, conflict display |
 | W9 | MCP projection | W1, ADR-060 services | `commands-tools.json` generator and equality test (open decision 5) |
 | IDE slices (E2-E8) | Format, go to definition, rename, Source Control panel | W1/W2 for menu items; W5 for panels | each one flips `reserved` commands and panels to `live`; the menu tree does not change |
