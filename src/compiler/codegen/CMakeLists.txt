@@ -1417,6 +1417,17 @@ if (TESSERA_BUILD_TESTS)
     add_test(NAME codegen_theme_embed
         COMMAND codegen_theme_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
 
+    # `assets.fontPack` (#970): the CLI checks the theme's `fontPacks` pins against the manifest.
+    add_executable(codegen_font_pack_embed_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_font_pack_embed_tests.cpp)
+
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(codegen_font_pack_embed_tests PRIVATE TESSERA_NO_SUBPROCESS=1)
+    endif ()
+
+    add_test(NAME codegen_font_pack_embed
+        COMMAND codegen_font_pack_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
+
     # End-to-end proof: build the generated sample and inspect the attached metadata, children,
     # focusability and text through the real scene API (no GPU).
     add_executable(codegen_runtime_tests

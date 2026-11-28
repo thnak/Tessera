@@ -15,7 +15,8 @@ Two pages: `form` (`FormPage.tsx`, `form.module.css`, light theme) and `dash` (`
 
 Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.module.css`, the theme
 tokens of `instrument.theme.json` (written into the page as `:root` variables) and the font
-`tests/fixtures/fonts/NotoSans-Regular.ttf`. A difference is therefore a difference in how the two
+`packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf` (Plex Sans Regular from the font pack, #970;
+`parity_gate.py` passes it to the gallery with `--font`). A difference is therefore a difference in how the two
 renderers read the same rules, not a difference in the rules. `FormPage.tsx` is deliberately busy: a
 card with a shadow, a two-column grid with a spanning item, text inputs (one in an error state), a
 select drawn from views, a segmented control, switches and a checkbox, a truncated help line, and a
@@ -45,7 +46,8 @@ Kept as the fallback for when a step needs watching:
 ```bash
 # engine (Linux with Mesa lavapipe; the capture is 640x720)
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
-  build/dev/samples/gallery/gallery --page form --capture out/parity/engine.png --width 640 --height 720
+  build/dev/samples/gallery/gallery --page form --capture out/parity/engine.png --width 640 --height 720 \
+  --font packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf
 
 # the form's stylesheet is a CSS module (#463): write its scoped CSS and class map for the twin
 build/dev/samples/gallery/gallery --emit-module-css out/parity
@@ -137,7 +139,8 @@ These are not bugs; a markup author who writes for both has to know them.
   dashboard therefore uses a solid hero; a gradient there is the clearest visible gap against Chrome.
 - A border with different widths or colours per side is not one ring and keeps the square edge strips
   on a rounded box.
-- The font has one weight, so bold is not compared. The form runs in the light theme and the dashboard in the dark one, both at
+- The engine's text stack loads one face (`--font`), so only Plex Sans Regular is shared and bold is still not
+  compared: verifying bold needs the text stack to load the pack's 600/700 faces, which it does not yet. The form runs in the light theme and the dashboard in the dark one, both at
   device scale 1; high contrast, RTL and scale 2 need their own runs.
 - The engine's element boxes are not exported, so layout is compared through the overlay, not as
   numbers.

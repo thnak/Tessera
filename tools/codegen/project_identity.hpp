@@ -43,6 +43,10 @@ struct ProjectIdentity {
     // `assets.themePins`: theme id -> version pin, in document order (ADR-047 item 4). Checked
     // against the theme asset's `themeVersions` when the asset is embedded.
     std::vector<ThemePinSpec> theme_pins;
+    // `assets.fontPack` as a project-relative POSIX path to a `font-pack.json`, empty when the app
+    // does not opt into the bundled pack. When set, the theme asset's `fontPacks` pins are checked
+    // against the manifest's version when the asset is embedded (theme-versions-v1.md section 5).
+    std::string font_pack;
     // `ui.limits.*`: the JSX front end limits, the compiled-in defaults unless the config sets one.
     tessera::compiler::jsx::Limits limits;
     // `permissions`: the mask of the permissions this app may request (docs/specs/permissions-v1.md

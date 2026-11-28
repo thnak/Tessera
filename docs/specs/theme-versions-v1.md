@@ -73,8 +73,12 @@ TTFs and the license text (`OFL.txt`, OFL-1.1, Reserved Font Name "Plex"; entrie
   another version is `TESSERA_FONT_PACK_PIN`, naming the theme and both versions. Taking a new pack
   version is therefore a deliberate theme edit (and a theme version bump with reviewed goldens, section 1).
 - Implementation: `include/tessera/ui/style/font_pack.hpp` (`parse_font_pack`, `read_theme_font_pins`,
-  `check_theme_font_pins`), `src/ui/style/font_pack.cpp`. Wiring the check into
-  `tools/codegen` (as `assets.themePins` is) is not done yet.
+  `check_theme_font_pins`), `src/ui/style/font_pack.cpp`. `tools/codegen` runs the check when the project
+  config names the manifest in `assets.fontPack` (a project-relative path to `font-pack.json`, #970), right
+  after `assets.themePins`: a pin the pack does not satisfy exits 1 with `TESSERA_FONT_PACK_PIN`, an unreadable
+  or malformed manifest with `TESSERA_FONT_PACK_MANIFEST`, and no theme header is written. An app that names no
+  pack has not opted in and its theme's pins are not checked.
+  `tests/unit/codegen_font_pack_embed_tests.cpp` pins it.
 - **Tabular numbers (ADR-047 item 5): a gap in the text stack, not in the pack.** The shaper passes no
   OpenType feature list, so `tnum` and `font-feature-settings` are not applied
   ([#966](https://github.com/thnak/Tessera/issues/966) asks the owner how to proceed). Every shipped
