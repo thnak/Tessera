@@ -6,6 +6,7 @@
 # library links into the native hosts and the Wasm analysis worker.
 add_library(tessera_analysis STATIC
     src/completion.cpp
+    src/completion_lex.cpp
     src/css_scan.cpp
     src/diagnostics.cpp
     src/file_indexer.cpp
