@@ -45,6 +45,11 @@ struct LayoutInput {
     // Font-size runs of the inline spans of this Text (docs/design/inline-size-runs.md): the same
     // table paint hands the measurer, so a shrunk `sub`/`sup`/`small` is measured as it is drawn.
     text::TextSizeRunsId text_runs{};
+    // The `colspan`/`rowspan` of a table cell and the `span` of a `col`/`colgroup` (ARIA
+    // `aria-colspan`/`aria-rowspan`, docs/design/table-layout.md section 2). Columns: 1 is none.
+    // Rows: 0 spans to the end of the row group, as `rowspan="0"`. Part of the layout signature.
+    std::uint16_t col_span = 1;
+    std::uint16_t row_span = 1;
     // The signature of this subtree as the last pass that visited it computed it (zero: never).
     // A caller that retains the input between passes keeps it so an unchanged subtree can be
     // skipped (`LayoutSignatureBuilder::reuse`). It is derived data and is not part of the input's

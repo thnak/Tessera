@@ -54,7 +54,10 @@ bool value_supported(std::string_view property, std::string_view value) {
 
     if (property == "display") {
         return keyword_in(normalized, {"block", "inline", "inline-block", "flex", "inline-flex",
-                                       "grid", "inline-grid", "none", "contents"});
+                                       "grid", "inline-grid", "none", "contents", "table",
+                                       "inline-table", "table-row", "table-cell", "table-row-group",
+                                       "table-header-group", "table-footer-group", "table-column",
+                                       "table-column-group", "table-caption"});
     }
     if (property == "position") {
         return keyword_in(normalized, {"static", "relative", "absolute", "fixed", "sticky"});

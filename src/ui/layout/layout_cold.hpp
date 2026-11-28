@@ -16,9 +16,12 @@ class TextMeasureCache;
 namespace tessera::ui::layout::detail {
 
 // Lays out `root` as a whole tree. `as_grid_item` zeroes the root's margins because the grid engine
-// positions the item's border box and folds the margins into the track sizes.
+// positions the item's border box and folds the margins into the track sizes. `fill_root` (a table
+// cell) makes the root's border box exactly the available size on each definite axis, over its own
+// `width`/`height`: a cell always fills its column and row.
 [[nodiscard]] LayoutResult layout_cold(const LayoutInput& root, const LayoutViewport& viewport,
                                        float available_width, float available_height,
-                                       text::TextMeasureCache& cache, bool as_grid_item);
+                                       text::TextMeasureCache& cache, bool as_grid_item,
+                                       bool fill_root = false);
 
 } // namespace tessera::ui::layout::detail

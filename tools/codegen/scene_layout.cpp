@@ -3,6 +3,7 @@
 #include "scene_layout.hpp"
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/table_span.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/text_wrap.hpp"
 #include "tessera/ui/style/safe_area_style.hpp"
@@ -47,6 +48,7 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::style::Scen
     ui::layout::LayoutInput input;
     input.id = node.id();
     input.style = tree.compute(sheet, node);
+    ui::layout::apply_table_spans(input, node);
     (void)ui::style::apply_safe_area_style(input.style, node, &metrics);
     const auto& paint = node.paint_data();
     const bool text_payload = paint.has_value() && paint->kind == ui::PaintKind::Text;
