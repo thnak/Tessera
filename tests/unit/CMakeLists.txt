@@ -56,6 +56,21 @@ target_link_libraries(analysis_language_tests PRIVATE tessera_analysis_entry)
 
 add_test(NAME analysis_language COMMAND analysis_language_tests)
 
+# Completions (#573) and rename (#574), ADR-060.
+add_executable(analysis_completion_tests
+    analysis_completion_tests.cpp)
+
+target_link_libraries(analysis_completion_tests PRIVATE tessera_analysis_entry)
+
+add_test(NAME analysis_completion COMMAND analysis_completion_tests)
+
+add_executable(analysis_rename_tests
+    analysis_rename_tests.cpp)
+
+target_link_libraries(analysis_rename_tests PRIVATE tessera_analysis_entry)
+
+add_test(NAME analysis_rename COMMAND analysis_rename_tests)
+
 add_executable(jsx_module_tests
     jsx_module_tests.cpp)
 
