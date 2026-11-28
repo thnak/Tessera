@@ -760,6 +760,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "select_component"
+      },
       "status": "live"
     },
     {
@@ -790,6 +793,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "apply_device_profile"
+      },
       "status": "live"
     },
     {
@@ -917,6 +923,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "set_fold_posture"
+      },
       "status": "live"
     },
     {

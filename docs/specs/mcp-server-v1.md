@@ -80,6 +80,26 @@ resolved against the root (`Options::base_dir`); its document is byte-identical 
   tools that read the folder are `list_files`, `generate` and `diagnostics` / `get_ir` without `source`
   (sections 1, 2 and 4).
 
+### 3.1 Schema ownership (issue #566, studio-workbench-v1 open decision 5)
+
+Two files describe tools, and a tool is in exactly one of them as its schema owner:
+
+- `tools/mcp/schema/tools.json` owns the tools the native server implements. It is unchanged and is still the
+  exact `tools/list` result.
+- `tools/mcp/schema/commands-tools.json` owns the **studio-backed** tools. The Studio command registry
+  (`designer/web/src/workbench/commands.json`) generates it: a command with `mcp: { "tool": "<snake_case>" }`
+  contributes `description` (its `description`, else `title`) and `inputSchema` (its `args`, with the UI-only
+  `x-*` keywords removed and `$schema` 2020-12 added). `annotations.tesseraCommand` names the command.
+- A command may set `mcp` only when it is `live`, names worker services (`viewer`, `analysis`, `format`,
+  `mock`; ADR-060) and no page-side-only one (`project-io`, `layout`, `prefs`), and has an `args` schema. The
+  registry constructor and the generator both refuse anything else; UI-only commands are never exposed.
+- A command takes an existing `tools.json` name through `mcp.tool`; the descriptor is then flagged
+  `annotations.existing` and the name is not renamed (section 3).
+- `node scripts/ci/mcp_commands_tools.mjs` fails when the committed file differs from the registry byte
+  for byte (`--write` regenerates it). The native server does not serve these tools: the handler is the
+  studio's own service call, reachable only from the page, so the file is metadata for clients and for the
+  page-side MCP adapter.
+
 ## 4. `generate` (issue #407, ADR-040)
 
 `generate` produces the C++ of the folder with the same driver as `tessera_codegen` (`cli::run`), over

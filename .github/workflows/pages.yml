@@ -84,6 +84,8 @@ on:
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
+      - 'scripts/ci/mcp_commands_tools.mjs'
+      - 'tools/mcp/schema/**'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -147,6 +149,8 @@ on:
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
+      - 'scripts/ci/mcp_commands_tools.mjs'
+      - 'tools/mcp/schema/**'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -409,6 +413,9 @@ jobs:
       # The workbench core (commands, when-clauses, keymap, menus, palette): pure modules, no browser.
       - name: Studio workbench core (registry, keymap, menus, palette)
         run: node scripts/ci/preview_workbench.mjs
+
+      - name: Studio MCP projection (commands-tools.json matches the registry)
+        run: node scripts/ci/mcp_commands_tools.mjs
 
       - name: Studio workbench menus (model, keyboard navigation)
         run: node scripts/ci/preview_workbench_menus.mjs
