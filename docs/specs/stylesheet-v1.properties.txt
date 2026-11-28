@@ -155,6 +155,9 @@ longhand font-weight typography
 longhand line-height typography
 longhand letter-spacing typography
 longhand word-spacing typography
+longhand font-feature-settings typography
+longhand font-variant-ligatures typography
+longhand font-variant-numeric typography
 longhand text-align typography
 longhand text-transform typography
 longhand white-space typography

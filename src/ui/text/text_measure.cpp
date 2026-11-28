@@ -176,6 +176,15 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     if (const std::string* font_style = computed.find("font-style")) {
         result.italic = lower(trim(*font_style)) == "italic";
     }
+    {
+        const auto value_of = [&](std::string_view name) {
+            const std::string* found = computed.find(name);
+            return found != nullptr ? std::string_view(*found) : std::string_view();
+        };
+        result.features = intern_font_features(parse_font_features(
+            value_of("font-variant-ligatures"), value_of("font-variant-numeric"),
+            value_of("font-feature-settings")));
+    }
     if (const std::string* white_space = computed.find("white-space")) {
         result.white_space = parse_white_space(*white_space);
     }

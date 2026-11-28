@@ -2494,6 +2494,9 @@ enum include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Prio
 alias include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Duration
 constant include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::kMaxActions
 
+header include/tessera/ui/capsule/live_capsule_poster.hpp
+class include/tessera/ui/capsule/live_capsule_poster.hpp tessera::ui::capsule::LiveCapsulePoster
+
 header include/tessera/ui/chart/chart_geometry.hpp
 class include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartDamage
 struct include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartPlot
@@ -3669,6 +3672,19 @@ struct include/tessera/ui/text/font_face.hpp tessera::ui::text::FontError
 struct include/tessera/ui/text/font_face.hpp tessera::ui::text::FontFaceMetrics
 struct include/tessera/ui/text/font_face.hpp tessera::ui::text::detail::FontFaceState
 enum include/tessera/ui/text/font_face.hpp tessera::ui::text::FontErrorCode
+
+header include/tessera/ui/text/font_features.hpp
+struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeature
+struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeatures
+struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeaturesId
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::font_feature_tag
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::intern_font_features
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_feature_settings
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_features
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_ligatures
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_numeric
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::resolve_font_features
+constant include/tessera/ui/text/font_features.hpp tessera::ui::text::kMaxInternedFontFeatures
 
 header include/tessera/ui/text/font_metrics.hpp
 class include/tessera/ui/text/font_metrics.hpp tessera::ui::text::FontMetricsProvider

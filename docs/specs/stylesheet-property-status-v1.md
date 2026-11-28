@@ -149,6 +149,9 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `line-height` | applied | `text_measure.cpp`; `text_measure` |
 | `letter-spacing` | applied | `text_measure.cpp`; `text_measure` |
 | `word-spacing` | applied | `text_measure.cpp` (additive per painted ASCII space); `word_spacing` |
+| `font-feature-settings` | applied | `text_measure.cpp` `text_style_from` -> `font_features.cpp` -> `TextStyle::features` -> `harfbuzz_shaper.cpp` hb_feature_t; `font_features` |
+| `font-variant-ligatures` | applied | same path (`none`, `[no-]common-ligatures`, `[no-]discretionary-ligatures`, `[no-]historical-ligatures`, `[no-]contextual`); `font_features` |
+| `font-variant-numeric` | applied | same path (`lining-nums`, `oldstyle-nums`, `proportional-nums`, `tabular-nums`, fractions, `ordinal`, `slashed-zero`); `font_features` |
 | `text-align` | applied | `paint_text.cpp` line start offset; `paint_text_decoration` |
 | `text-transform` | applied | `text_measure.cpp` `parse_text_transform`; `text_transform` |
 | `white-space` | applied | `text_measure.cpp` `parse_white_space`; `text_measure` |

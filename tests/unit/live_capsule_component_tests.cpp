@@ -13,6 +13,10 @@ namespace {
 
 using namespace overlay_test;
 using namespace tessera::ui::capsule;
+using tessera::ui::a11y::A11yNode;
+using tessera::ui::a11y::A11ySnapshot;
+using tessera::ui::a11y::name_of;
+using tessera::ui::a11y::Role;
 using tessera::ui::accessibility::AnnouncementQueue;
 
 const Node* find_part(const Node& node, std::string_view part) {
@@ -102,8 +106,26 @@ void test_semantics_placement_and_focus() {
         named = named || (attribute.name == "aria-label" && attribute.value == "Timer running");
     }
     expect(named, "the accessible name comes from the front activity");
-    // The a11y tree has no Status role yet, so the node role is checked at the scene level.
     expect(content->role() == "status", "role status");
+    {
+        A11ySnapshot snapshot;
+        a11y_test::StubStyles styles;
+        // The fixture does not run layout for overlay content, so the box the capsule wrote is
+        // applied by hand; a zero-size node is not emitted.
+        content->set_bounds(
+            {capsule.rect().x, capsule.rect().y, capsule.rect().width, capsule.rect().height});
+        (void)a11y_test::build(*f.host->overlays().layer_node(OverlayLayer::Toast), styles,
+                               snapshot);
+        const A11yNode* status = nullptr;
+        for (const A11yNode& node : snapshot.nodes) {
+            if (node.role == Role::Status) {
+                status = &node;
+            }
+        }
+        expect(status != nullptr, "the snapshot carries a Status node for the capsule");
+        expect(status != nullptr && name_of(*status) == "Timer running",
+               "the Status node is named from the front activity");
+    }
     bool live = false;
     for (const auto& attribute : content->aria_attributes()) {
         live = live || (attribute.name == "aria-live" && attribute.value == "polite");
@@ -204,6 +226,69 @@ void test_reduced_motion_and_fallback() {
     expect(capsule.rect().width > 200.0f && !capsule.active(), "reduced motion snaps the size");
 }
 
+// Rotation and fold changes (spec section 2): the position follows the window metrics on the next
+// sync without rebuilding the content or reopening the overlay.
+void test_rotation_and_fold_placement() {
+    Fixture f;
+    LiveCapsuleHost host;
+    LiveCapsule capsule(host, f.host->overlays());
+    const LiveCapsuleEnv portrait = notch_env();
+    host.start(timer());
+    settle(f, capsule, portrait);
+    const OverlayHandle handle = capsule.handle();
+    auto centre_x = [&] { return capsule.rect().x + capsule.rect().width * 0.5f; };
+    expect(std::abs(centre_x() - 200.0f) < 0.01f && capsule.rect().y < 1.0f,
+           "portrait: on the notch");
+
+    // Rotate to landscape: the cutout is now on a side edge, so the capsule falls back to the
+    // top-centre rule of the wider window.
+    LiveCapsuleEnv landscape = portrait;
+    landscape.window_width = 800.0f;
+    landscape.window_height = 400.0f;
+    landscape.top_inset = 0.0f;
+    landscape.cutouts = {};
+    landscape.cutouts.bounds[0] = {0.0f, 170.0f, 30.0f, 60.0f};
+    landscape.cutouts.count = 1;
+    settle(f, capsule, landscape);
+    expect(std::abs(centre_x() - 400.0f) < 0.01f && std::abs(capsule.rect().y - 8.0f) < 0.01f,
+           "landscape: top centre of the wider window, 8 below the inset");
+    expect(capsule.handle() == handle && f.host->overlays().size() == 1,
+           "rotation moves the capsule, it does not reopen it");
+
+    // Unfold with a vertical hinge under the centre: the capsule moves to a pane.
+    LiveCapsuleEnv folded = landscape;
+    folded.hinge = {390.0f, 0.0f, 20.0f, 400.0f};
+    settle(f, capsule, folded);
+    const auto& rect = capsule.rect();
+    expect(rect.x + rect.width <= 390.0f + 0.01f || rect.x >= 410.0f - 0.01f,
+           "the capsule never sits under the hinge");
+
+    // Fold closed: the hinge goes away and the capsule returns to the centre.
+    settle(f, capsule, landscape);
+    expect(std::abs(centre_x() - 400.0f) < 0.01f, "without the hinge it returns to the centre");
+
+    // Back to portrait: onto the notch again.
+    settle(f, capsule, portrait);
+    expect(std::abs(centre_x() - 200.0f) < 0.01f && capsule.rect().y < 1.0f,
+           "rotating back lands on the notch again");
+
+    // The scene borrows inline-style text: after many rewrites the declarations must still read
+    // the values the capsule last wrote (not freed or half-written memory).
+    const Node* node = f.host->overlays().content(capsule.handle());
+    std::string left;
+    std::string width;
+    for (const auto& declaration : node->inline_style()) {
+        if (declaration.name == "left") {
+            left = std::string(declaration.value);
+        } else if (declaration.name == "width") {
+            width = std::string(declaration.value);
+        }
+    }
+    expect(left == std::to_string(std::lround(capsule.rect().x)) + "px" &&
+               width == std::to_string(std::lround(capsule.rect().width)) + "px",
+           "the box inline style owns its text");
+}
+
 void test_high_priority_preempts() {
     Fixture f;
     LiveCapsuleHost host;
@@ -231,6 +316,7 @@ int main() {
     test_semantics_placement_and_focus();
     test_update_in_place_and_idle();
     test_reduced_motion_and_fallback();
+    test_rotation_and_fold_placement();
     test_high_priority_preempts();
     if (failures != 0) {
         std::cerr << suite << ": " << failures << " failure(s)\n";

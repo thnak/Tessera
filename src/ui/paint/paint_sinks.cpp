@@ -104,6 +104,7 @@ void Batched2DSink::draw_text(const TextDraw& run) {
     text::TextStyle style;
     style.font_size = run.font_size;
     style.font_weight = run.font_weight;
+    style.features = run.features;
     const text::ShapedRun shaped = shaper_->shape(run.text, style);
     if (shaped.glyphs.empty()) {
         return;

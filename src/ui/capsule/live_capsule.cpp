@@ -3,9 +3,11 @@
 #include "tessera/ui/capsule/live_capsule.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <string_view>
 
@@ -27,8 +29,17 @@ Node& add_part(Node& parent, std::string_view part, std::string_view label = {})
     return node;
 }
 
-void set_px(Node& node, std::string_view property, float value) {
-    node.set_inline_style(property, std::to_string(std::lround(value)) + "px");
+// The visible text of a part (the title, an action label); the accessible name stays on the part.
+void add_text(Node& parent, std::string_view text) {
+    if (text.empty()) {
+        return;
+    }
+    Node& node = parent.add_child(std::make_unique<Node>(next_part_id++));
+    node.set_element_kind("Text");
+    PaintData data;
+    data.kind = PaintKind::Text;
+    data.text = std::string(text);
+    node.set_paint_data(std::move(data));
 }
 
 bool same_rect(const hal::WindowRect& a, const hal::WindowRect& b) noexcept {
@@ -43,7 +54,16 @@ LiveCapsule::LiveCapsule(LiveCapsuleHost& host, OverlayHost& overlays)
       overlays_(overlays) {}
 
 LiveCapsule::~LiveCapsule() {
+    // `abandon` leaves no handle, so this closes nothing and never touches the host.
     close();
+}
+
+void LiveCapsule::set_px(Node& node, std::size_t slot, std::string_view property, float value) {
+    PxText& storage = px_[slot];
+    std::array<char, 24>& buffer = storage.text[storage.next];
+    storage.next ^= 1U;
+    std::snprintf(buffer.data(), buffer.size(), "%ldpx", std::lround(value));
+    node.set_inline_style(property, std::string_view(buffer.data()));
 }
 
 void LiveCapsule::close() {
@@ -70,7 +90,7 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
 
     if (front != nullptr && controller_.state() == CapsuleState::Expanded) {
         Node& card = add_part(content, "card");
-        add_part(card, "title", front->slots.title);
+        add_text(add_part(card, "title", front->slots.title), front->slots.title);
         Node& body = add_part(card, "content");
         if (front->slots.content) {
             front->slots.content(body);
@@ -78,6 +98,7 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
         Node& actions = add_part(card, "actions");
         for (const ActionSlot& action : front->slots.actions) {
             Node& button = add_part(actions, "action", action.label);
+            add_text(button, action.label);
             button.set_role("button");
             button.set_focusable(true);
             button.set_tab_index(0);
@@ -131,6 +152,7 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
             // The toast layer says "alert"; the capsule is a status. It is focusable and in the tab
             // order, but nothing ever focuses it on its own.
             root.set_role("status");
+            root.set_class_name("capsule");
             root.set_focusable(true);
             root.set_tab_index(0);
             root.set_inline_style("position", "absolute");
@@ -209,11 +231,11 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
     const hal::WindowRect rect = place_capsule(place).rect;
     if (box_dirty_ || moving || !same_rect(rect, rect_)) {
         rect_ = rect;
-        set_px(*content, "left", rect.x);
-        set_px(*content, "top", rect.y);
-        set_px(*content, "width", rect.width);
-        set_px(*content, "height", rect.height);
-        set_px(*content, "border-radius", now.corner_radius);
+        set_px(*content, 0, "left", rect.x);
+        set_px(*content, 1, "top", rect.y);
+        set_px(*content, 2, "width", rect.width);
+        set_px(*content, 3, "height", rect.height);
+        set_px(*content, 4, "border-radius", now.corner_radius);
         box_dirty_ = false;
     }
     return moving || morph_.active();

@@ -230,6 +230,7 @@ void PaintCache::Recorder::draw_text(const TextDraw& run) {
     }
     draw.font_size = run.font_size;
     draw.font_weight = run.font_weight;
+    draw.features = run.features;
     draw.color = run.color;
     draw.baseline = run.baseline;
     draw.lcd = run.lcd;

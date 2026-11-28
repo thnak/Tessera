@@ -60,6 +60,8 @@ bool roles() {
            expect(atspi_role(Role::TabPanel) == AtspiRole::Panel, "tab panel is panel") &&
            expect(atspi_role(Role::Generic) == AtspiRole::Filler, "generic is filler") &&
            expect(atspi_role(Role::Alert) == AtspiRole::Alert, "alert role") &&
+           expect(atspi_role(Role::Status) == AtspiRole::StatusBar, "status is status bar") &&
+           expect(role_from_string("status") == Role::Status, "status parses") &&
            expect(static_cast<std::uint32_t>(AtspiRole::PushButton) == 42, "push button id") &&
            expect(static_cast<std::uint32_t>(AtspiRole::Entry) == 76, "entry id") &&
            expect_equal(atspi_role_name(Role::Button), "push button", "role name") &&

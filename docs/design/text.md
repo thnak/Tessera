@@ -89,7 +89,8 @@ V1 text style properties:
 - `text-align`, `text-transform`, `white-space`, `text-overflow`
 - `color`, `opacity`
 - `direction`, `writing-mode` (parsed; vertical layout is not in V1, see section 12)
-- `font-feature-settings` (parsed; which features are honored is not specified)
+- `font-feature-settings`, `font-variant-numeric`, `font-variant-ligatures` (#966): `font_features.cpp` interns
+  them into `TextStyle::features` (raw tags win; invalid is ignored whole); the shaper passes `hb_feature_t`
 
 Units resolve through the style engine: `em`/`rem`/`%`/viewport units become pixels before
 shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.

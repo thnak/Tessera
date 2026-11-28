@@ -2057,6 +2057,13 @@ target_link_libraries(harfbuzz_shaper_tests PRIVATE tessera_text)
 
 add_test(NAME harfbuzz_shaper COMMAND harfbuzz_shaper_tests "${TESSERA_FONT_FIXTURE}")
 
+add_executable(font_features_tests
+    font_features_tests.cpp)
+
+target_link_libraries(font_features_tests PRIVATE tessera_paint tessera_text)
+
+add_test(NAME font_features COMMAND font_features_tests "${TESSERA_FONT_FIXTURE}")
+
 add_executable(fallback_shaper_tests
     fallback_shaper_tests.cpp)
 

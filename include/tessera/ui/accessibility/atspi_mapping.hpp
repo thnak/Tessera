@@ -41,6 +41,7 @@ enum class AtspiRole : std::uint32_t {
     RadioButton = 43,
     ScrollPane = 48,
     Slider = 50,
+    StatusBar = 55,
     Text = 60,
     ToggleButton = 61,
     ToolTip = 63,

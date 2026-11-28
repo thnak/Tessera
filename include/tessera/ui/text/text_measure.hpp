@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/text/font_features.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -94,6 +95,11 @@ struct TextStyle {
     float word_spacing = 0.0f;
     int font_weight = 400;
     bool italic = false;
+    // Interned OpenType feature set from font-variant-ligatures, font-variant-numeric and
+    // font-feature-settings (docs/design/text.md section 3.1). The shaper applies it, so it changes
+    // glyph choice and advances and is part of every cache key. A 4-byte handle, not the list:
+    // TextDraw and DrawTextOp carry it and sizeof(PaintOp) is budgeted.
+    FontFeaturesId features{};
     WhiteSpace white_space = WhiteSpace::Normal;
     TextTransform text_transform = TextTransform::None;
     // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.

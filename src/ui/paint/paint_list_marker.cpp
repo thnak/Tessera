@@ -166,6 +166,7 @@ void paint_list_marker(const Node& node, const style::ComputedStyle& style, cons
     draw.font_size = size;
     draw.font_weight = text_style.font_weight;
     draw.italic = text_style.italic;
+    draw.features = text_style.features;
     draw.color = color;
     draw.baseline = std::round(baseline);
     sink.draw_text(draw);

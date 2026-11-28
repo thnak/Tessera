@@ -223,6 +223,7 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
             run.text = decoration.preedit_text;
             run.font_size = text_style.font_size;
             run.font_weight = text_style.font_weight;
+            run.features = text_style.features;
             run.color = color;
             run.baseline = std::round(anchor->top + anchor->line.baseline);
             sink.draw_text(run);
@@ -429,12 +430,10 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
             return;
         }
         TextDraw run;
-        // The run must start at the aligned origin, not the content-box origin: the sink draws from
-        // `rect.x` (`Batched2DSink::draw_text` passes `run.rect.x` to the text renderer as the pen
-        // start), so keeping `content_x` here silently discarded the alignment computed above for
-        // every single-line run that takes this path (issue #313). The width narrows to what is
-        // left from the aligned origin, matching `available_width` the run-sequence path already
-        // uses.
+        // The run starts at the aligned origin, not the content-box origin: the sink draws from
+        // `rect.x` as the pen start, so `content_x` here would discard the alignment computed above
+        // for every single-line run (issue #313). The width narrows to what is left from there,
+        // matching `available_width` of the run-sequence path.
         run.rect = {line_x, content_y, available_width, content_height};
         // The sink puts the baseline at `rect.y + ascent` unless told otherwise; an explicit
         // `line-height` moves it by the half-leading, so say where the line layout put it.
@@ -453,6 +452,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         run.text = painted;
         run.font_size = text_style.font_size;
         run.font_weight = text_style.font_weight;
+        run.features = text_style.features;
         run.color = color;
         sink.draw_text(run);
         ++stats.texts;

@@ -6,6 +6,7 @@ add_library(tessera_text STATIC
     edit_buffer.cpp
     edit_grapheme.cpp
     font_face.cpp
+    font_features.cpp
     font_metrics.cpp
     font_text_measurer.cpp
     freetype_metrics.cpp

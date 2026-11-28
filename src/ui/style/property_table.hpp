@@ -82,6 +82,10 @@ constexpr PropertyDef kProperties[] = {
     {"line-height", "normal", true},
     {"letter-spacing", "normal", true},
     {"word-spacing", "normal", true},
+    // OpenType feature requests the shaper applies (issue #966, docs/design/text.md section 3.1).
+    {"font-feature-settings", "normal", true},
+    {"font-variant-ligatures", "normal", true},
+    {"font-variant-numeric", "normal", true},
     {"text-align", "start", true},
     {"text-transform", "none", true},
     // Not inherited (CSS): the box that paints the line owns truncation (docs/design/text.md 6.3).

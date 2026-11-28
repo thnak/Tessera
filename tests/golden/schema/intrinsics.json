@@ -2920,6 +2920,19 @@
     },
     {
       "kind": "keyword",
+      "name": "font-feature-settings",
+      "note": "normal or a list of quoted OpenType tags"
+    },
+    {
+      "kind": "keyword",
+      "name": "font-variant-ligatures"
+    },
+    {
+      "kind": "keyword",
+      "name": "font-variant-numeric"
+    },
+    {
+      "kind": "keyword",
       "name": "text-align"
     },
     {

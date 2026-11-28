@@ -131,10 +131,26 @@ announcements and timeouts (`live_capsule_host`), and the `LiveCapsule` componen
 layer (`live_capsule`). Tests: ctest `live_capsule` (unit) and `live_capsule_component` (headless
 AppHost: placement, focus, parts, in-place update, idle).
 
-Not yet: goldens (notch, punch-hole, none; three themes; mid-transition); a `Status` role in the
-accessibility tree (the node carries role `status` and `aria-live: polite`, but the tree maps it to
-generic); a content-hash measured slot size (slots carry size hints today); posting `start/update/end`
-from other threads; the `tessera-ui` surface.
+Also landed: the `Status` role in the accessibility tree (`Role::Status`; AT-SPI status bar, UIA Text),
+so the capsule node appears in the snapshot named from the front activity.
+
+Also landed (#968): `LiveCapsulePoster` (`live_capsule_poster`) posts `start/update/end` from any thread
+through the completion queue (bounded, returns false when full, applied at the UI-thread drain);
+ctest `live_capsule_poster`; rotation, fold and unfold placement tests in `live_capsule_component`.
+
+Goldens (#968): ctest `live_capsule_golden` (`tests/gpu/live_capsule_golden_tests.cpp`) captures 30
+frames through `capture_scene_frame` and compares them with lavapipe baselines in
+`tests/golden/baseline/live_capsule/`: `minimal`, `compact` and `expanded` with a notch, a centred
+punch-hole and no cutout on the light, dark and high-contrast Instrument themes (27), plus the expand
+morph caught six frames in under the manual clock (`mid_expand_*`, light theme, 3). The test skips
+unless the loader selects only lavapipe; regenerate with `live_capsule_golden_tests --update-goldens`
+on a software device. The look is `packages/tessera-ui/live-capsule.css` (theme tokens only; the
+component writes position, size and radius). The component now sets class `capsule` on its root, paints
+the title and action labels as text, owns the text of its box inline styles (the scene borrows inline
+style text, so temporaries dangled), and has `abandon()` for a host torn down before it.
+
+Not yet: a content-hash measured slot size (slots carry size hints today); the `tessera-ui` TSX
+surface (#305).
 
 ## 10. Decisions
 

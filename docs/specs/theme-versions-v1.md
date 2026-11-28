@@ -79,11 +79,10 @@ TTFs and the license text (`OFL.txt`, OFL-1.1, Reserved Font Name "Plex"; entrie
   or malformed manifest with `TESSERA_FONT_PACK_MANIFEST`, and no theme header is written. An app that names no
   pack has not opted in and its theme's pins are not checked.
   `tests/unit/codegen_font_pack_embed_tests.cpp` pins it.
-- **Tabular numbers (ADR-047 item 5): a gap in the text stack, not in the pack.** The shaper passes no
-  OpenType feature list, so `tnum` and `font-feature-settings` are not applied
-  ([#966](https://github.com/thnak/Tessera/issues/966) asks the owner how to proceed). Every shipped
-  Plex face has tabular default figures, which `font_pack_tests` pins per file, so Instrument values
-  align today.
+- **Tabular numbers (ADR-047 item 5).** The shaper applies `font-variant-numeric: tabular-nums` and
+  `font-feature-settings` ([#966](https://github.com/thnak/Tessera/issues/966), `font_features_tests`).
+  Every shipped Plex face also has tabular default figures, which `font_pack_tests` pins per file, so
+  Instrument values align with or without the feature.
 - Goldens: the `swatch` gallery page (`samples/gallery/SwatchPage.tsx`) paints every colour token of
   a theme with Plex Sans Regular from the pack; `gallery_golden_swatch_{light,dark,high_contrast}` compare
   it with `tests/golden/gallery/swatch_*.png`, lavapipe only.
