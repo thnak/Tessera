@@ -13,6 +13,11 @@
 // The page itself is not a tablist any more, which is the whole point of the issue: switching a preview
 // view must not change the workspace's shape.
 //
+// **Split groups (#1025).** The area can hold two groups, each its own tab strip and its own CodeMirror
+// editor. A file lives in exactly one group, so the page's per-path buffer stays the single copy: moving a tab
+// moves a path, the dirty set and the canvas never see it. The focused group's editor is `sourceRef` (what the
+// sessions reveal spans and mark diagnostics through); focus follows the pointer or the keyboard into a group.
+//
 // The editor is uncontrolled on purpose. React would otherwise re-render the tree and the preview
 // column on every keystroke; instead the page writes the buffer on each user edit, which marks the file
 // dirty once. That is the same rule the canvas follows (ADR-054 decision 3): React owns the chrome, and a
@@ -21,31 +26,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
 import { STALE_TEXT, type ProjectFile } from "../lib/project";
+import { activeOf, canSplit, groupTabs } from "../../editor-groups.js";
+import { EditorTabs, tabIdOf, type GroupId } from "./EditorTabs";
 
-/** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
-export function tabIdOf(path: string): string {
-  return "tab-file-" + path.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-/** The letter a tab shows for a file's kind, so a `.tsx` is distinguishable from a `.css` by shape. */
-function kindLetter(kind: string): string {
-  switch (kind) {
-    case "source":
-      return "tsx";
-    case "stylesheet":
-      return "css";
-    case "config":
-      return "json";
-    case "theme":
-      return "theme";
-    case "mock":
-      return "mock";
-    case "services":
-      return "svc";
-    default:
-      return "file";
-  }
-}
+export { tabIdOf };
 
 const VIEW_NOTES: Record<string, string> = {
   binary: "it is not UTF-8 text",
@@ -53,112 +37,156 @@ const VIEW_NOTES: Record<string, string> = {
   unreadable: "the browser could not read it (it may have changed on disk)",
 };
 
-/** The open files as tabs, with the unsaved marker and a close button each. */
-function EditorTabs({
-  open,
+interface GroupHandlers {
+  onEdit: (text: string, path: string) => void;
+  onSave: () => void;
+  onApplyNow: () => void;
+}
+
+/** One group: its tab strip, its tabpanel and its own CodeMirror editor (created in an effect, see the header). */
+function EditorGroup({
+  group,
+  tabs,
   files,
   active,
+  focused,
   dirty,
+  textOf,
+  revision,
+  handlers,
+  onReady,
   onSelect,
   onClose,
+  onMove,
+  onFocus,
+  caretRef,
+  disabled,
+  actions,
 }: {
-  open: readonly string[];
+  group: GroupId;
+  tabs: readonly string[];
   files: readonly ProjectFile[];
   active: string;
+  focused: boolean;
   dirty: readonly string[];
+  textOf: (path: string) => string;
+  revision: number;
+  handlers: React.MutableRefObject<GroupHandlers>;
+  onReady: (group: GroupId, editor: CodeEditor | null) => void;
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
+  onMove: (path: string, target: GroupId, index?: number) => void;
+  onFocus: (path: string) => void;
+  caretRef?: React.RefObject<HTMLSpanElement | null>;
+  disabled: boolean;
+  actions: ReactNode;
 }) {
+  const host = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<CodeEditor | null>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const caret = useRef(caretRef);
+  caret.current = caretRef;
+  const side = group === "side";
+  useEffect(() => {
+    const parent = host.current;
+    if (parent === null) {
+      return;
+    }
+    const editor = createCodeEditor(parent, {
+      onChange: (changed) => handlers.current.onEdit(changed, activeRef.current),
+      onSave: () => handlers.current.onSave(),
+      onApplyNow: () => handlers.current.onApplyNow(),
+      label: side ? "Source code, second group" : "Source code",
+      id: side ? "source-side" : "source",
+      onCaret: ({ line, column, selected }) => {
+        const cell = caret.current?.current;
+        if (cell && focusedRef.current) {
+          cell.textContent = `Ln ${line}, Col ${column}` + (selected > 0 ? ` (${selected} selected)` : "");
+        }
+      },
+    });
+    editorRef.current = editor;
+    onReady(group, editor);
+    return () => {
+      onReady(group, null);
+      editorRef.current = null;
+      editor.destroy();
+    };
+  }, [group, side, handlers, onReady]);
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
+
+  // Opening a file from an effect keeps the text out of React's render cycle. It runs only on a page write:
+  // the group's active file, or a buffer the page replaced. (The editor reuses a file's own state, history
+  // included, when the text the page hands over is the text the editor already holds.)
+  const applied = useRef<string>("");
+  useEffect(() => {
+    const editor = editorRef.current;
+    const stamp = `${revision}:${active}`;
+    if (!editor || applied.current === stamp) {
+      return;
+    }
+    applied.current = stamp;
+    if (active !== "") {
+      editor.open(active, textOf(active), files.find((file) => file.path === active)?.viewOnly === true);
+    }
+  }, [revision, active, textOf, files]);
+
+  const suffix = side ? "-side" : "";
   return (
-    <div className="tabstrip" role="tablist" aria-label="Open files">
-      {open.map((path) => {
-        const file = files.find((candidate) => candidate.path === path);
-        const name = file ? file.name : path;
-        const selected = path === active;
-        const isDirty = dirty.includes(path);
-        return (
-          <div
-            key={path}
-            className={"editor-tab" + (selected ? " is-selected" : "")}
-            // A tab is a button (select) plus a button (close): the wrapper is the row, so the close
-            // control is not nested inside the tab's own button -- interactive content inside a
-            // `role="tab"` element is not a tab, it is a broken control.
-          >
-            <button
-              id={tabIdOf(path)}
-              type="button"
-              role="tab"
-              className="editor-tab-select"
-              aria-controls="editor-panel"
-              aria-selected={selected}
-              tabIndex={selected ? 0 : -1}
-              title={path}
-              onClick={() => onSelect(path)}
-              onKeyDown={(event) => {
-                const index = open.indexOf(path);
-                let next: string | null = null;
-                if (event.key === "ArrowRight") {
-                  next = open[(index + 1) % open.length];
-                } else if (event.key === "ArrowLeft") {
-                  next = open[(index - 1 + open.length) % open.length];
-                } else if (event.key === "Home") {
-                  next = open[0];
-                } else if (event.key === "End") {
-                  next = open[open.length - 1];
-                } else if (event.key === "Delete" || (event.key === "w" && (event.ctrlKey || event.metaKey))) {
-                  event.preventDefault();
-                  onClose(path);
-                  return;
-                }
-                if (next !== null) {
-                  event.preventDefault();
-                  onSelect(next);
-                  document.getElementById(tabIdOf(next))?.focus();
-                }
-              }}
-            >
-              <span className="editor-tab-kind" aria-hidden="true">
-                {kindLetter(file ? file.kind : "other")}
-              </span>
-              <span className="editor-tab-name">{name}</span>
-              {isDirty ? (
-                <span className="editor-tab-dirty" title="Unsaved changes" aria-label="Unsaved changes">
-                  &bull;
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className="editor-tab-close"
-              aria-label={`Close ${name}`}
-              title={`Close ${name}`}
-              onClick={() => onClose(path)}
-            >
-              &times;
-            </button>
-          </div>
-        );
-      })}
+    <div
+      className={"editor-group" + (focused ? " is-focused" : "")}
+      data-group={group}
+      onFocusCapture={() => active !== "" && !focused && onFocus(active)}
+    >
+      {disabled ? null : (
+        <EditorTabs
+          group={group}
+          label={side ? "Open files, second group" : "Open files"}
+          panelId={"editor-panel" + suffix}
+          open={tabs}
+          files={files}
+          active={active}
+          dirty={dirty}
+          onSelect={onSelect}
+          onClose={onClose}
+          onMove={onMove}
+          actions={actions}
+        />
+      )}
+      <div
+        className="editor"
+        id={"editor-panel" + suffix}
+        hidden={disabled}
+        role="tabpanel"
+        aria-labelledby={active ? tabIdOf(active) : undefined}
+      >
+        <div id={"editor-host" + suffix} ref={host} />
+      </div>
     </div>
   );
 }
 
 /**
- * The code column: the tab strip, the editor and the notes below it.
+ * The code column: the tab strips, the editors and the notes below them.
  *
  * Since issue #444 an edit needs no button -- it applies ~150 ms after the last keystroke -- and since issue #557
  * the cold start is a command (`run.restart`, on the toolbar and in the Run menu), not a button here.
  */
 export function CodeRegion({
-  open,
+  groups,
   files,
-  active,
   dirty,
-  text,
+  textOf,
   revision,
   sourceRef,
   onSelectTab,
   onCloseTab,
+  onFocusTab,
+  onMoveTab,
+  onSplit,
+  onJoin,
   onEdit,
   applying,
   onSave,
@@ -167,12 +195,12 @@ export function CodeRegion({
   empty = null,
   caretRef,
 }: {
-  open: readonly string[];
+  /** The workspace's tab state (`open`, `active` and the group fields, see `editor-groups.js`). */
+  groups: Parameters<typeof groupTabs>[0];
   files: readonly ProjectFile[];
-  active: string;
   dirty: readonly string[];
-  /** The active file's text: what the editor shows after a tab switch or a programmatic replace. */
-  text: string;
+  /** The text of a file: what an editor shows after a tab switch, a move or a programmatic replace. */
+  textOf: (path: string) => string;
   /**
    * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample).
    *
@@ -182,11 +210,17 @@ export function CodeRegion({
    * re-render per file switch instead of one per key.
    */
   revision: number;
-  /** Receives the editor once it is mounted; the sessions reveal spans and mark diagnostics through it. */
+  /** Receives the focused group's editor; the sessions reveal spans and mark diagnostics through it. */
   sourceRef: React.MutableRefObject<CodeEditor | null>;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
-  onEdit: (text: string) => void;
+  /** Focus moved into the group showing `path` (no content change, so no revision bump). */
+  onFocusTab: (path: string) => void;
+  onMoveTab: (path: string, group: GroupId, index?: number) => void;
+  onSplit: () => void;
+  onJoin: () => void;
+  /** A user edit of `path`'s buffer (the group's own file, not necessarily the focused one). */
+  onEdit: (text: string, path: string) => void;
   /** A live edit is scheduled or running: the hint says so instead of pretending nothing is happening. */
   applying: boolean;
   /** Mod-S in the editor: save to the opened folder (#391). */
@@ -197,82 +231,67 @@ export function CodeRegion({
   stale?: readonly string[];
   /** Shown instead of the editor while no project is open (the welcome view); the editor stays mounted. */
   empty?: ReactNode;
-  /** The status bar's caret cell; the editor writes `Ln 3, Col 5 (12 selected)` into it without a render. */
+  /** The status bar's caret cell; the focused editor writes `Ln 3, Col 5 (12 selected)` into it without a render. */
   caretRef?: React.RefObject<HTMLSpanElement | null>;
 }) {
-  // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
-  // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
-  const host = useRef<HTMLDivElement | null>(null);
-  const handlers = useRef({ onEdit, onSave, onApplyNow });
+  const handlers = useRef<GroupHandlers>({ onEdit, onSave, onApplyNow });
   handlers.current = { onEdit, onSave, onApplyNow };
-  const caret = useRef(caretRef);
-  caret.current = caretRef;
-  useEffect(() => {
-    const parent = host.current;
-    if (parent === null) {
-      return;
-    }
-    const editor = createCodeEditor(parent, {
-      onChange: (changed) => handlers.current.onEdit(changed),
-      onSave: () => handlers.current.onSave(),
-      onApplyNow: () => handlers.current.onApplyNow(),
-      label: "Source code",
-      onCaret: ({ line, column, selected }) => {
-        const cell = caret.current?.current;
-        if (cell) {
-          cell.textContent = `Ln ${line}, Col ${column}` + (selected > 0 ? ` (${selected} selected)` : "");
-        }
-      },
-    });
+  const tabs = groupTabs(groups);
+  const split = tabs.side.length > 0;
+  const mainActive: string = activeOf(groups, "main");
+  const sideActive: string = activeOf(groups, "side");
+  const focusSide = split && tabs.side.includes(groups.active);
+
+  // The focused group's editor is what the sessions and the probes see; republished when focus or the split changes.
+  const editors = useRef<Record<GroupId, CodeEditor | null>>({ main: null, side: null });
+  const focusRef = useRef<GroupId>("main");
+  focusRef.current = focusSide ? "side" : "main";
+  const publish = useRef(() => {
+    const editor = editors.current[focusRef.current] ?? editors.current.main;
     sourceRef.current = editor;
     // A seam for the Playwright probes (they cannot set a value on a CodeMirror surface): the text, and an
     // edit that arrives exactly as typing does. Nothing on the page reads it.
-    (globalThis as { __tesseraEditor?: CodeEditor }).__tesseraEditor = editor;
-    return () => {
-      delete (globalThis as { __tesseraEditor?: CodeEditor }).__tesseraEditor;
-      sourceRef.current = null;
-      editor.destroy();
-    };
+    const seam = globalThis as { __tesseraEditor?: CodeEditor };
+    if (editor) {
+      seam.__tesseraEditor = editor;
+    } else {
+      delete seam.__tesseraEditor;
+    }
+  });
+  const onReady = useRef((group: GroupId, editor: CodeEditor | null) => {
+    editors.current[group] = editor;
+    publish.current();
+  });
+  useEffect(() => publish.current(), [focusSide, split]);
+  useEffect(() => () => {
+    sourceRef.current = null;
   }, [sourceRef]);
 
-  // Opening a file from an effect keeps the text out of React's render cycle. It runs only on a page write:
-  // the active file, or a buffer the page replaced. (The editor reuses a file's own state, history included,
-  // when the text the page hands over is the text the editor already holds.)
-  const applied = useRef<string>("");
-  useEffect(() => {
-    const editor = sourceRef.current;
-    const stamp = `${revision}:${active}`;
-    if (!editor || applied.current === stamp) {
-      return;
-    }
-    applied.current = stamp;
-    if (active !== "") {
-      editor.open(active, text, files.find((file) => file.path === active)?.viewOnly === true);
-    }
-  }, [revision, active, text, files, sourceRef]);
-  const current = files.find((file) => file.path === active) ?? null;
+  const current = files.find((file) => file.path === groups.active) ?? null;
+  const moveLabel = (group: GroupId) => (group === "main" ? "Split editor right" : "Merge editor groups");
+  const actionOf = (group: GroupId) =>
+    group === "main" && !split ? (
+      <button type="button" className="editor-group-action" id="editor-split" title={moveLabel(group)}
+        aria-label={moveLabel(group)} disabled={!canSplit(groups)} onClick={onSplit}>
+        &#x2AFF;
+      </button>
+    ) : group === "side" ? (
+      <button type="button" className="editor-group-action" id="editor-join" title={moveLabel(group)}
+        aria-label={moveLabel(group)} onClick={onJoin}>
+        &#x2715;
+      </button>
+    ) : null;
+  const shared = { files, dirty, textOf, revision, handlers, onReady: onReady.current, onSelect: onSelectTab, onClose: onCloseTab, onMove: onMoveTab, onFocus: onFocusTab, caretRef };
 
   return (
     <section className="region region-code" aria-label="Code">
-      {empty === null ? (
-        <EditorTabs
-          open={open}
-          files={files}
-          active={active}
-          dirty={dirty}
-          onSelect={onSelectTab}
-          onClose={onCloseTab}
-        />
-      ) : null}
-
-      <div
-        className="editor"
-        id="editor-panel"
-        hidden={empty !== null}
-        role="tabpanel"
-        aria-labelledby={active ? tabIdOf(active) : undefined}
-      >
-        <div id="editor-host" ref={host} />
+      <div className={"editor-groups" + (split ? " is-split" : "")}>
+        <EditorGroup {...shared} group="main" tabs={tabs.main} active={mainActive} focused={!focusSide}
+          disabled={empty !== null} actions={actionOf("main")} />
+        {split ? (
+          <EditorGroup {...shared} group="side" tabs={tabs.side} active={sideActive} focused={focusSide}
+            disabled={false} actions={actionOf("side")} />
+        ) : null}
       </div>
       {empty}
 
