@@ -1,8 +1,9 @@
 # Source format v1: the compiler-owned formatter
 
-- Status: slices 1 and 2 implemented (`.tsx`: whole file, CLI, edit list, the studio format worker and
-  Format Document). Slices 3 and 4 of [ADR-061](../../decisions/ADR-061-compiler-owned-formatter.md)
-  (CSS and `tessera.json`, range formatting) are not in this version and are listed in section 10.
+- Status: slices 1, 2 and 3 implemented (`.tsx` whole file, CLI, edit list, the studio format worker and
+  Format Document; `.css` and `tessera.json`, sections 12 and 13). Slice 4 of
+  [ADR-061](../../decisions/ADR-061-compiler-owned-formatter.md) (range formatting) is not in this version
+  and is listed in section 10.
 - Normative for: what `format_source` and `tessera fmt` guarantee, the comment attachment rules and
   the style table. The grammar being printed is
   [`jsx-subset-v1.md`](jsx-subset-v1.md) and [`jsx-subset-v1-jsx.md`](jsx-subset-v1-jsx.md).
@@ -26,9 +27,11 @@ does not parse (section 7).
 FormatResult format_source(FileKind kind, std::string_view text, const FormatOptions& options = {});
 ```
 
-- `FileKind::Tsx` is the only kind in slice 1.
+- `FileKind::Tsx`, `Css` (any `.css`) and `Json` (a file named `tessera.json`); `file_kind_for_path` maps a
+  path to a kind and returns nothing for any other file.
 - `FormatOptions`: `print_width` (default 100) and `indent_width` (default 2). These are the two
-  options ADR-061 allows; reading them from `format` in `tessera.json` arrives with slice 3.
+  options ADR-061 allows; `format_options_from_tessera_json` reads them from `format.printWidth` and
+  `format.indentWidth` (section 13).
 - `FormatResult`: `text` (empty when refused), `changed`, and `diagnostics`. A result is either
   complete output or a refusal, never partial output.
 - Line endings follow the input: a file that contains CRLF is printed with CRLF, anything else with
@@ -120,8 +123,10 @@ slice 1 (range formatting is slice 4).
 tessera_fmt [--check] [paths...]      # `tessera fmt` once ADR-077's unified command exists
 ```
 
-A path is a file or a directory (walked for `.tsx`, skipping `node_modules` and dot directories);
-no path means the current directory. `--check` changes nothing and lists the files that would
+A path is a file or a directory (walked for `.tsx`, `.css` and `tessera.json`, skipping `node_modules` and
+dot directories; a file named on the command line is formatted by its kind);
+no path means the current directory. Each file is formatted with the `format` options of the nearest
+`tessera.json` at or above its directory (defaults when there is none). `--check` changes nothing and lists the files that would
 change. Exit status: 0 done or already canonical, 1 `--check` found differences, 2 a file was refused,
 unreadable or missing, or an option is unknown. Until ADR-077's unified `tessera` command lands the
 binary is `tessera_fmt`, and it accepts `fmt` as an optional first argument so the documented
@@ -142,8 +147,7 @@ spelling works on either.
 ## 10. Known limits of slice 1
 
 - The CLI rewrites whole files; the edit list (section 11) is the editor-facing form.
-- `.css` and `tessera.json` are not formatted (slice 3); `format.printWidth` and
-  `format.indentWidth` are not read from `tessera.json` yet.
+- (`.css` and `tessera.json` are slice 3, sections 12 and 13.)
 - Range formatting and recovery from recoverable errors (slice 4).
 - Layout is greedy and local: ternaries and arithmetic do not break, there is no member-chain
   breaking, and assignments do not break after `=`.
@@ -174,8 +178,9 @@ std::string format_edits_json(FileKind kind, std::string_view text, const Format
   `format` with those edits (`file` added). Format Document (`edit.format`, Shift+Alt+F) applies the list as
   one CodeMirror transaction: one undo step restores the text, the caret and selection map through the
   changes, and a text change while the worker was busy drops the answer. A refused file leaves the text
-  untouched and the failure toast names `path:line:column code message`. Only `.tsx` is formatted until
-  slice 3.
+  untouched and the failure toast names `path:line:column code message`. The worker still sends `.tsx` only; the
+  Wasm module also exports `tessera_format_edits_json_kind(kind, ...)` (0 tsx, 1 css, 2 tessera.json) for
+  the studio to adopt.
 - **Size:** `tessera_format.wasm` is 374 KB raw, 144 KB gzip-9 (plus a 3 KB loader), loaded lazily on the
   first format and not on the first-paint path, so `download_gzip_bytes` does not weigh it; a lazy-module
   entry in `tests/golden/perf/preview_budget.json` (like the mock transpiler's) is not added yet.
@@ -183,3 +188,56 @@ std::string format_edits_json(FileKind kind, std::string_view text, const Format
   a refusal or a worker failure never blocks the save. The setting is the local preference
   `tessera.studio.formatOnSave` (`off` disables it; `designer/web/src/lib/format-prefs.ts`). A settings
   surface for the toggle is not in this slice.
+
+## 12. CSS (slice 3)
+
+The CSS printer is token based like the TSX one (section 1): it prints from the stylesheet engine's own
+tokenizer (`src/ui/style/tokenizer.cpp`, comments included), so token boundaries are the engine's. It
+never rewrites a token; it decides only whitespace, line breaks and the closing semicolon.
+
+| Topic | Rule |
+| --- | --- |
+| Indent | `indentWidth` spaces per block level (default 2); `printWidth` is not used, CSS is never wrapped |
+| Rule | selector list one selector per line (split at top-level commas, combinators and compound selectors never respaced), ` {`, one item per line, `}`; an empty rule is `a {}` |
+| Declaration | `property: value;` on one line, a `;` always added after the last one, `;` that closes nothing dropped; property and value text are never re-cased or respaced beyond collapsing runs of whitespace |
+| Multi-line value | a newline in a value outside parentheses stays a line break, continued one level deeper (grid areas, comma lists); inside parentheses whitespace collapses |
+| Custom property | `--x: value;` the value is printed byte for byte (after trimming), including a balanced `{}` block |
+| `@`-rule prelude | printed byte for byte between the name and the `{` or `;` (`@media (min-width:600px) {`) |
+| Blocks | `@media`, `@supports`, `@layer`, `@keyframes`, `@font-face` and CSS nesting print their contents the same way, one level deeper |
+| Blank lines | at most one, kept between items; none at the start of a block or the file |
+| File | no content gives an empty file, otherwise exactly one trailing newline |
+
+**Comments** are never lost and never moved to another construct: a comment on its own line is an item
+of the block it stands in (at its indent, with the blank line before it kept); a comment after `;`, `{`
+or `}` on the same line trails it; a comment inside a declaration or a prelude stays where it is,
+between the same two tokens. A `/** ... */`-shaped block is re-indented, any other multi-line block is
+printed byte for byte (as in section 4). Because every comment has a place, CSS has no
+`TESSERA_FMT_COMMENT` refusal.
+
+**Refusals** (`TESSERA_FMT_SYNTAX`, with line and column): an unclosed `{`, `(` or `[`, an unmatched `}`,
+an unterminated string. The stylesheet parser itself is tolerant; the formatter is not, so an unbalanced
+file is never rewritten. **Verification:** after printing, the output is tokenized again and must have the
+same comments and the same sequence of non-whitespace tokens (a semicolon that closes nothing excepted),
+else `TESSERA_FMT_VERIFY`. The tests additionally compare `parse_stylesheet` of input and output.
+
+## 13. tessera.json (slice 3)
+
+Printed as strict JSON: `indentWidth` spaces (default 2), `"key": value`, **key order and duplicate
+keys preserved** (the compiler, not the formatter, owns the schema, so nothing is sorted), string and
+number text byte for byte, one trailing newline. Objects and arrays that hold a non-scalar always break,
+one member per line, with no trailing comma; an array of scalars stays on one line when it fits
+`printWidth` (default 100, counted in code points), otherwise one item per line; `{}` and `[]` are
+empty. JSON has no comments, so none is accepted: a `//` or `/* */`, a trailing comma, a single-quoted
+string, a raw control character in a string or an empty file is refused as `TESSERA_FMT_SYNTAX`. The
+output is parsed again and must have the same structure and text (`TESSERA_FMT_VERIFY`).
+
+The two options come from the same file: `{"format": {"printWidth": 100, "indentWidth": 2}}`.
+`printWidth` is 40..400 and `indentWidth` 1..8; a missing, mistyped or out-of-range value, or a file that
+does not parse, leaves the default. Options never make a format fail. Existing files in the repository
+keep compact objects (`"app": { "name": ... }`) until they are formatted; `fmt --check` over them is not
+a CI step yet, for the same reason as the samples in section 9.
+
+`ctest -R source_format` formats every `.css` file under `samples/`, `packages/`, `tests/`,
+`tools/reference/`, `tools/wiki/src/` and `designer/web/src/` and every `tessera.json` there: each must
+format, be idempotent and (CSS) mean the same to `parse_stylesheet` with no comment lost, with a floor on
+the number found.

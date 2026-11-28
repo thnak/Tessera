@@ -53,6 +53,24 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_format_edits_json(const char* text, int
         format::format_edits_json(format::FileKind::Tsx, text == nullptr ? "" : text, options));
 }
 
+// `kind`: 0 = .tsx, 1 = .css, 2 = tessera.json (the studio format worker still asks for .tsx only).
+EMSCRIPTEN_KEEPALIVE const char* tessera_format_edits_json_kind(int kind, const char* text,
+                                                                int print_width, int indent_width) {
+    namespace format = tessera::compiler::format;
+    format::FormatOptions options;
+    if (print_width > 0) {
+        options.print_width = print_width;
+    }
+    if (indent_width > 0) {
+        options.indent_width = indent_width;
+    }
+    const format::FileKind file_kind = kind == 1   ? format::FileKind::Css
+                                       : kind == 2 ? format::FileKind::Json
+                                                   : format::FileKind::Tsx;
+    return duplicate_out(
+        format::format_edits_json(file_kind, text == nullptr ? "" : text, options));
+}
+
 EMSCRIPTEN_KEEPALIVE void tessera_free(const char* text) {
     std::free(const_cast<char*>(text));
 }

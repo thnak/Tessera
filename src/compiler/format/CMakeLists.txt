@@ -8,6 +8,8 @@ add_library(tessera_source_format STATIC
     build_statements.cpp
     build_comments.cpp
     build_jsx.cpp
+    css_format.cpp
+    json_format.cpp
     doc.cpp
     edits.cpp
     format.cpp
@@ -19,5 +21,5 @@ target_include_directories(tessera_source_format
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(tessera_source_format PUBLIC tessera_jsx_frontend)
+target_link_libraries(tessera_source_format PUBLIC tessera_jsx_frontend tessera_css_tokenizer)
 target_compile_features(tessera_source_format PUBLIC cxx_std_23)
