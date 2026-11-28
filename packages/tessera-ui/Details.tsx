@@ -30,9 +30,7 @@ export function Details({ summary, defaultOpen = false, children }: DetailsProps
       >
         <Text>{summary}</Text>
       </View>
-      <View className="tdet-body" style={{ display: open ? "flex" : "none" }}>
-        {children}
-      </View>
+      <View className="tdet-body" style={{ display: open ? "flex" : "none" }}>{children}</View>
     </View>
   );
 }

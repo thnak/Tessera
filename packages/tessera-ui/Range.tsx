@@ -16,13 +16,7 @@
 
 import { KeyEvent, PointerEvent, SizeChangeEvent, useState } from "tessera";
 
-export type RangeProps = {
-  label: string;
-  min?: int;
-  max?: int;
-  step?: int;
-  defaultValue?: int;
-};
+export type RangeProps = { label: string; min?: int; max?: int; step?: int; defaultValue?: int };
 
 export function Range({ label, min = 0, max = 100, step = 1, defaultValue = 0 }: RangeProps) {
   const [moved, setMoved] = useState<int>(0);
@@ -44,7 +38,9 @@ export function Range({ label, min = 0, max = 100, step = 1, defaultValue = 0 }:
         width > 0 &&
           setMoved(
             clamp(
-              min + toInt(round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)) * step,
+              min + toInt(
+                round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)
+              ) * step,
               min,
               max
             ) - defaultValue
@@ -52,18 +48,22 @@ export function Range({ label, min = 0, max = 100, step = 1, defaultValue = 0 }:
       }}
       onPointerMove={(e: PointerEvent) =>
         dragging &&
-        width > 0 &&
-        setMoved(
+          width > 0 &&
+          setMoved(
             clamp(
-              min + toInt(round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)) * step,
+              min + toInt(
+                round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)
+              ) * step,
               min,
               max
             ) - defaultValue
           )}
       onPointerUp={() => setDragging(false)}
       onKeyDown={(e: KeyEvent) => {
-        (e.key === "ArrowRight" || e.key === "ArrowUp") && setMoved(clamp(value + step, min, max) - defaultValue);
-        (e.key === "ArrowLeft" || e.key === "ArrowDown") && setMoved(clamp(value - step, min, max) - defaultValue);
+        (e.key === "ArrowRight" || e.key === "ArrowUp") &&
+          setMoved(clamp(value + step, min, max) - defaultValue);
+        (e.key === "ArrowLeft" || e.key === "ArrowDown") &&
+          setMoved(clamp(value - step, min, max) - defaultValue);
         e.key === "PageUp" && setMoved(clamp(value + step * 10, min, max) - defaultValue);
         e.key === "PageDown" && setMoved(clamp(value - step * 10, min, max) - defaultValue);
         e.key === "Home" && setMoved(min - defaultValue);

@@ -23,9 +23,19 @@ export function TagsPage() {
     <View className="g-page">
       <Text className="g-title">input, progress, meter, details</Text>
       <View className="g-row">
-        <input type="checkbox" aria-label="Accept terms" checked={terms} onChange={() => setTerms(!terms)} />
+        <input
+          type="checkbox"
+          aria-label="Accept terms"
+          checked={terms}
+          onChange={() => setTerms(!terms)}
+        />
         <Text>Accept terms</Text>
-        <input type="checkbox" aria-label="Newsletter" checked={news} onChange={() => setNews(!news)} />
+        <input
+          type="checkbox"
+          aria-label="Newsletter"
+          checked={news}
+          onChange={() => setNews(!news)}
+        />
         <Text>Newsletter</Text>
         <input type="checkbox" aria-label="Locked" checked={true} disabled />
         <Text>Locked</Text>
@@ -35,7 +45,12 @@ export function TagsPage() {
         <Text>Free</Text>
         <input type="radio" aria-label="Team" checked={plan === 1} onChange={() => setPlan(1)} />
         <Text>Team</Text>
-        <input type="radio" aria-label="Enterprise" checked={plan === 2} onChange={() => setPlan(2)} />
+        <input
+          type="radio"
+          aria-label="Enterprise"
+          checked={plan === 2}
+          onChange={() => setPlan(2)}
+        />
         <Text>Enterprise</Text>
       </View>
       <input type="range" min={0} max={100} step={5} defaultValue={40} aria-label="Volume" />
