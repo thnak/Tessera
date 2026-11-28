@@ -21,11 +21,11 @@ comparison set shows, and one screen a stranger can build is the evidence the ar
 
 | Group | V1 | Status (2026-11-28) |
 |---|---|---|
-| Foundations | Text, Heading, Divider, Spacer, VisuallyHidden | not built (Text is an intrinsic today) |
+| Foundations | Text, Heading, Divider, Spacer, VisuallyHidden | **Divider built**; the rest not built (Text is an intrinsic today) |
 | Actions | Button, IconButton, Link | Button done; the rest not built |
 | Inputs | TextInput, TextArea, Checkbox, Switch, Select | **Checkbox and Switch built**; TextInput/TextArea not built (primitives exist); Select blocked (section 4) |
-| Layout | Stack, Card, ScrollView | not built |
-| Feedback | Spinner, Progress, Badge, EmptyState | not built |
+| Layout | Stack, Card, ScrollView | **Card built**; the rest not built |
+| Feedback | Spinner, Progress, Badge, EmptyState | **Spinner, Badge built**, Progress is `ProgressBar`; EmptyState not built |
 | Overlay | Tooltip | not built (the overlay host landed in #302) |
 | Media / data | Image, List | not built |
 
@@ -48,7 +48,7 @@ Ordered by dependency, within [library-farm-plan.md](library-farm-plan.md) phase
 3. Actions: IconButton, Link. Inputs on the existing primitives: TextInput, TextArea.
 4. Feedback: Spinner, Progress, Badge, EmptyState. Media and data: Image, List. Tooltip.
 5. Select, once its popup is decided (section 4).
-6. The Settings starter template, assembled from the above (option C's artifact). It is built
+6. The Settings starter template (**started**: [`samples/settings`](../../samples/settings/README.md), `gallery --page settings`, goldens `settings_*`; its gap list is the README's), assembled from the above (option C's artifact). It is built
    incrementally as soon as step 2 exists, so the set is measured, not guessed.
 
 Each component lands as one component per issue (a phase 3 input per PR), with the ADR-047 item 10
@@ -81,6 +81,23 @@ definition of done and the parity page from the farm plan.
 - Parity twin (#1035): `tools/parity/controls.html` against `gallery --page controls`
   (`parity_gate.py --page controls --width 640 --height 360`): structure difference 0.10 %, pixels
   2.83 % (lavapipe vs Chromium, Plex). Not done: Select (section 6).
+
+### Display slice (#240, tag m5-lib3)
+
+- Components: `Badge`, `Divider`, `Card`, `Avatar` (initials; the photo variant waits for `Image`),
+  `Skeleton` and `Spinner`, each with its own `<name>.css` (theme tokens only, parts `tbdg`, `tdiv`,
+  `tcard`, `tav`, `tsk`, `tspn`). They are presentational: no state and no callbacks.
+- Accessibility: none is a control and none is focusable. `Avatar` is a named `img`; `Spinner` is a
+  named `progressbar` with no `aria-valuenow` (indeterminate); `Divider` and `Skeleton` are hidden
+  `presentation` boxes (the engine has no `separator` role); `Badge` and `Card` carry no role.
+- Motion: `Skeleton` and `Spinner` are static for now. A `@keyframes` rule anywhere in the shared
+  library sheet changes `gallery_golden_form_plan_mid` (a transition golden), so the pulse and the
+  turn wait for that engine fix ([#1068](https://github.com/thnak/Tessera/issues/1068)). The `Spinner` ring is one color: the engine draws
+  one border color per box.
+- Gallery: the `display` page, goldens per theme and right-to-left
+  (`tests/golden/gallery/display_*.png`), `gallery_display_runtime` (roles, names, hidden boxes) and
+  `library_controls_style` (tokens, rules). Not done: the Chrome parity twin for this page, and
+  `Tabs` and `TextArea` polish (still open under #240).
 
 ## 6. Select: decision note (#1035)
 

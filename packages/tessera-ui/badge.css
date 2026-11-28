@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Badge look (issue #240, ADR-047 item 5): a compact pill. Tones pair a fill with its `on-*`
+   token so contrast holds in every theme, the high-contrast one included. Theme tokens only. */
+
+.tbdg {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--line-height-label);
+  padding-inline: var(--space-2);
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  background-color: var(--surface-sunken);
+  color: var(--on-surface);
+}
+
+.tbdg-accent {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tbdg-success {
+  border-color: var(--success);
+  background-color: var(--success);
+  color: var(--on-success);
+}
+
+.tbdg-warning {
+  border-color: var(--warning);
+  background-color: var(--warning);
+  color: var(--on-warning);
+}
+
+.tbdg-danger {
+  border-color: var(--danger);
+  background-color: var(--danger);
+  color: var(--on-danger);
+}

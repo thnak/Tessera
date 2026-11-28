@@ -58,6 +58,7 @@ namespace dynamic {
       int state_count_ = 0;
       // useState `items`.
       std::vector<std::string> state_items_ = prop_seed_;
+      bool state_items_seeded_ = false;
       // Interpolated text for the node with pre-order index 4 (PaintData only; never a layout input).
       tessera::ui::Node* text_node_4_ = nullptr;
       std::string text_node_4_value_;
@@ -243,6 +244,10 @@ namespace dynamic {
       static_assert(!std::is_same_v<decltype(&Self::on_click), decltype(&DynamicBase<Self>::on_click)> &&
                         std::is_convertible_v<decltype(&Self::on_click), void (Self::*)(const tessera::ui::ClickEvent&)>,
                     "TESSERA_CG_MISSING_BINDING: component `Dynamic` needs `void on_click(const tessera::ui::ClickEvent& event)` for bind::on_click (ui/Dynamic.tsx:4:3); define it in the developer class (ADR-040)");
+      if (!state_items_seeded_) {
+        state_items_seeded_ = true;
+        state_items_ = prop_seed_;
+      }
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
@@ -606,6 +611,7 @@ namespace dynamic {
     template <class Self>
     inline void DynamicBase<Self>::set_items(std::vector<std::string> value) {
       using namespace Dynamic_detail;
+      state_items_seeded_ = true;
       if (state_items_ == value) {
         return;
       }

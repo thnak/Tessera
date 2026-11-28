@@ -75,6 +75,7 @@ namespace vlist {
       int state_count_ = 0;
       // useState `items`.
       std::vector<std::string> state_items_ = prop_seed_;
+      bool state_items_seeded_ = false;
       // useState `row_extent`.
       int state_row_extent_ = 32;
       // useState `row_gap`.
@@ -299,6 +300,10 @@ namespace vlist {
       static_assert(!std::is_same_v<decltype(&Self::on_scroll), decltype(&VirtualDemoBase<Self>::on_scroll)> &&
                         std::is_convertible_v<decltype(&Self::on_scroll), void (Self::*)(const tessera::ui::ScrollEventInfo&)>,
                     "TESSERA_CG_MISSING_BINDING: component `VirtualDemo` needs `void on_scroll(const tessera::ui::ScrollEventInfo& e)` for bind::on_scroll (ui/VirtualDemo.tsx:9:3); define it in the developer class (ADR-040)");
+      if (!state_items_seeded_) {
+        state_items_seeded_ = true;
+        state_items_ = prop_seed_;
+      }
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
@@ -966,6 +971,7 @@ namespace vlist {
     template <class Self>
     inline void VirtualDemoBase<Self>::set_items(std::vector<std::string> value) {
       using namespace VirtualDemo_detail;
+      state_items_seeded_ = true;
       if (state_items_ == value) {
         return;
       }

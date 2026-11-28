@@ -54,6 +54,7 @@ namespace demo {
       Form state_form_ = Form{.name = "Ann", .email = "ann@example.com", .age = 30};
       // useState `rows`.
       std::vector<Entry> state_rows_ = prop_seed_;
+      bool state_rows_seeded_ = false;
       // Interpolated text for the node with pre-order index 2 (PaintData only; never a layout input).
       tessera::ui::Node* text_node_2_ = nullptr;
       std::string text_node_2_value_;
@@ -169,6 +170,10 @@ namespace demo {
     template <class Self>
     inline void FormPageBase<Self>::build(tessera::ui::Node& parent) {
       using namespace FormPage_detail;
+      if (!state_rows_seeded_) {
+        state_rows_seeded_ = true;
+        state_rows_ = prop_seed_;
+      }
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2101ull + node_id_base_));
       node_1->set_element_kind("View");
@@ -443,6 +448,7 @@ namespace demo {
     template <class Self>
     inline void FormPageBase<Self>::set_rows(std::vector<Entry> value) {
       using namespace FormPage_detail;
+      state_rows_seeded_ = true;
       if (state_rows_ == value) {
         return;
       }

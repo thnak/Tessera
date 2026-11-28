@@ -17,6 +17,13 @@ set(_gallery_controls
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Checkbox.tsx
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Radio.tsx
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/RadioGroup.tsx)
+set(_gallery_display
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Badge.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Divider.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Card.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Avatar.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Skeleton.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Spinner.tsx)
 set(_gallery_tags
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Range.tsx
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/ProgressBar.tsx
@@ -24,6 +31,10 @@ set(_gallery_tags
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Details.tsx)
 set(_gallery_primitives ${PROJECT_SOURCE_DIR}/packages/tessera-ui/primitives/Progress.tsx)
 set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.tsx)
+# The Settings starter template lives in samples/settings (issues #240, #527) and builds only on the
+# library components above; the gallery runs it as `--page settings`.
+set(_gallery_settings_page ${PROJECT_SOURCE_DIR}/samples/settings/SettingsPage.tsx)
+set(_gallery_settings_css ${PROJECT_SOURCE_DIR}/samples/settings/settings.css)
 # The codegen CLI as a command. In an Emscripten build it is the Node tool (NODERAWFS, see the
 # compiler's CMakeLists), so it runs through node: the emsdk's (`EMSDK_NODE`, which emsdk_env.sh
 # exports and CI sets) or the one on the PATH.
@@ -63,7 +74,16 @@ set(_gallery_outputs
     ${_gallery_gen}/Meter.g.hpp ${_gallery_gen}/Meter.hpp ${_gallery_gen}/Meter.cpp
     ${_gallery_gen}/Details.g.hpp ${_gallery_gen}/Details.hpp ${_gallery_gen}/Details.cpp
     ${_gallery_gen}/Progress.g.hpp ${_gallery_gen}/Progress.hpp ${_gallery_gen}/Progress.cpp
-    ${_gallery_gen}/TablesPage.g.hpp ${_gallery_gen}/TablesPage.hpp ${_gallery_gen}/TablesPage.cpp)
+    ${_gallery_gen}/TablesPage.g.hpp ${_gallery_gen}/TablesPage.hpp ${_gallery_gen}/TablesPage.cpp
+    ${_gallery_gen}/SettingsPage.g.hpp ${_gallery_gen}/SettingsPage.hpp
+    ${_gallery_gen}/SettingsPage.cpp
+    ${_gallery_gen}/DisplayPage.g.hpp ${_gallery_gen}/DisplayPage.hpp ${_gallery_gen}/DisplayPage.cpp
+    ${_gallery_gen}/Badge.g.hpp ${_gallery_gen}/Badge.hpp ${_gallery_gen}/Badge.cpp
+    ${_gallery_gen}/Divider.g.hpp ${_gallery_gen}/Divider.hpp ${_gallery_gen}/Divider.cpp
+    ${_gallery_gen}/Card.g.hpp ${_gallery_gen}/Card.hpp ${_gallery_gen}/Card.cpp
+    ${_gallery_gen}/Avatar.g.hpp ${_gallery_gen}/Avatar.hpp ${_gallery_gen}/Avatar.cpp
+    ${_gallery_gen}/Skeleton.g.hpp ${_gallery_gen}/Skeleton.hpp ${_gallery_gen}/Skeleton.cpp
+    ${_gallery_gen}/Spinner.g.hpp ${_gallery_gen}/Spinner.hpp ${_gallery_gen}/Spinner.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -84,6 +104,9 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${_gallery_gen}/src/ControlsPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/TablesPage.tsx ${_gallery_gen}/src/TablesPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_tags} ${_gallery_gen}/src
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_settings_page} ${_gallery_gen}/src/SettingsPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_display} ${_gallery_gen}/src
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/DisplayPage.tsx ${_gallery_gen}/src/DisplayPage.tsx
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src/primitives
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_primitives} ${_gallery_gen}/src/primitives
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_gen}/src/TagsPage.tsx
@@ -100,7 +123,9 @@ add_custom_command(
             ${_gallery_gen}/src/TagsPage.tsx ${_gallery_gen}/src/Range.tsx
             ${_gallery_gen}/src/ProgressBar.tsx ${_gallery_gen}/src/Meter.tsx
             ${_gallery_gen}/src/Details.tsx ${_gallery_gen}/src/primitives/Progress.tsx
-    DEPENDS tessera_codegen_cli ${_gallery_controls} ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_tags} ${_gallery_primitives} ${_gallery_button} ${_gallery_safe_area}
+            ${_gallery_gen}/src/SettingsPage.tsx
+            ${_gallery_gen}/src/DisplayPage.tsx ${_gallery_gen}/src/Badge.tsx ${_gallery_gen}/src/Divider.tsx ${_gallery_gen}/src/Card.tsx ${_gallery_gen}/src/Avatar.tsx ${_gallery_gen}/src/Skeleton.tsx ${_gallery_gen}/src/Spinner.tsx
+    DEPENDS tessera_codegen_cli ${_gallery_settings_page} ${_gallery_controls} ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_tags} ${_gallery_display} ${CMAKE_CURRENT_SOURCE_DIR}/DisplayPage.tsx ${_gallery_primitives} ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_icon} ${_gallery_icon_glyph}
@@ -124,6 +149,12 @@ if (EMSCRIPTEN)
         range.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/range.css
         progress.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/progress.css
         disclosure.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/disclosure.css
+        badge.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/badge.css
+        divider.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/divider.css
+        card.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/card.css
+        avatar.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/avatar.css
+        skeleton.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/skeleton.css
+        spinner.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/spinner.css
         safe-area.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css
         gallery.css=${CMAKE_CURRENT_SOURCE_DIR}/gallery.css
         form.module.css=${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
@@ -131,6 +162,7 @@ if (EMSCRIPTEN)
         swatch.css=${CMAKE_CURRENT_SOURCE_DIR}/swatch.css
         lists.css=${CMAKE_CURRENT_SOURCE_DIR}/lists.css
         tables.css=${CMAKE_CURRENT_SOURCE_DIR}/tables.css
+        settings.css=${_gallery_settings_css}
         instrument.theme.json=${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json
         IBMPlexSans-Regular.ttf=${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf)
     add_executable(gallery_web web_main.cpp resources.cpp form_module.cpp ${_gallery_outputs})
@@ -153,12 +185,14 @@ if (EMSCRIPTEN)
         TESSERA_GALLERY_RANGE_CSS="/gallery/range.css"
         TESSERA_GALLERY_PROGRESS_CSS="/gallery/progress.css"
         TESSERA_GALLERY_DISCLOSURE_CSS="/gallery/disclosure.css"
+        TESSERA_GALLERY_DISPLAY_CSS_DIR="/gallery"
         TESSERA_GALLERY_CSS="/gallery/gallery.css"
         TESSERA_GALLERY_FORM_CSS="/gallery/form.module.css"
         TESSERA_GALLERY_DASH_CSS="/gallery/dash.css"
         TESSERA_GALLERY_SWATCH_CSS="/gallery/swatch.css"
         TESSERA_GALLERY_LISTS_CSS="/gallery/lists.css"
         TESSERA_GALLERY_TABLES_CSS="/gallery/tables.css"
+        TESSERA_GALLERY_SETTINGS_CSS="/gallery/settings.css"
         TESSERA_GALLERY_THEME="/gallery/instrument.theme.json")
     target_compile_features(gallery_web PRIVATE cxx_std_23)
     tessera_web_app(gallery_web)
@@ -199,6 +233,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_RANGE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/range.css"
     TESSERA_GALLERY_PROGRESS_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/progress.css"
     TESSERA_GALLERY_DISCLOSURE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/disclosure.css"
+    TESSERA_GALLERY_DISPLAY_CSS_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui"
     TESSERA_GALLERY_ICON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
@@ -206,6 +241,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_SWATCH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/swatch.css"
     TESSERA_GALLERY_LISTS_CSS="${CMAKE_CURRENT_SOURCE_DIR}/lists.css"
     TESSERA_GALLERY_TABLES_CSS="${CMAKE_CURRENT_SOURCE_DIR}/tables.css"
+    TESSERA_GALLERY_SETTINGS_CSS="${_gallery_settings_css}"
     TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
 
@@ -247,6 +283,24 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(gallery_tags_runtime_tests PRIVATE ${_gallery_gen})
     target_compile_features(gallery_tags_runtime_tests PRIVATE cxx_std_23)
     add_test(NAME gallery_tags_runtime COMMAND gallery_tags_runtime_tests)
+
+    # The Settings starter template (issues #240, #527): the generated page, keyboard and pointer
+    # through the real InputRouter, no GPU. Building it is also the codegen compile test: the
+    # page and every library component it uses go through the CLI and the C++ compiler.
+    add_executable(gallery_settings_runtime_tests settings_runtime_tests.cpp ${_gallery_outputs})
+    target_link_libraries(gallery_settings_runtime_tests PRIVATE tessera_scene tessera_text_edit
+        tessera_animation tessera_layout)
+    target_include_directories(gallery_settings_runtime_tests PRIVATE ${_gallery_gen})
+    target_compile_features(gallery_settings_runtime_tests PRIVATE cxx_std_23)
+    add_test(NAME gallery_settings_runtime COMMAND gallery_settings_runtime_tests)
+    # Headless accessibility contract of the display components (issue #240): roles, names and
+    # hidden presentation boxes through the generated display page, no GPU.
+    add_executable(gallery_display_runtime_tests display_runtime_tests.cpp ${_gallery_outputs})
+    target_link_libraries(gallery_display_runtime_tests PRIVATE tessera_scene tessera_text_edit
+        tessera_animation)
+    target_include_directories(gallery_display_runtime_tests PRIVATE ${_gallery_gen})
+    target_compile_features(gallery_display_runtime_tests PRIVATE cxx_std_23)
+    add_test(NAME gallery_display_runtime COMMAND gallery_display_runtime_tests)
 
     # Smoke: one capture on any Vulkan device. No device: the tool prints its documented skip line.
     add_test(NAME gallery_capture
@@ -305,6 +359,18 @@ if (TESSERA_BUILD_TESTS)
             "tables_${_theme}|--page tables --theme instrument-${_theme} --width 760 --height 540")
     endforeach ()
 
+    # The Settings starter template (issues #240, #527): per theme, plus compact, text scale 150 and
+    # the right-to-left mirror on the light theme, and the screen after a toggle and a Save click.
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "settings_${_theme}|--page settings --theme instrument-${_theme_id} --width 480 --height 640")
+    endforeach ()
+    list(APPEND _gallery_cases
+        "settings_compact|--page settings --density compact --width 480 --height 640"
+        "settings_scale_150|--page settings --text-scale 150 --width 560 --height 720"
+        "settings_rtl|--page settings --rtl --width 480 --height 640")
+
     # The input controls page (issue #240): Switch, Checkbox and RadioGroup in every state, per theme,
     # plus the right-to-left mirror on the light theme.
     foreach (_theme light dark high_contrast)
@@ -320,6 +386,14 @@ if (TESSERA_BUILD_TESTS)
         list(APPEND _gallery_cases
             "tags_${_theme}|--page tags --theme instrument-${_theme_id} --width 640 --height 440")
     endforeach ()
+    # The display page (issue #240): Badge, Divider, Card, Avatar, Skeleton and Spinner, per theme,
+    # plus the right-to-left mirror on the light theme.
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "display_${_theme}|--page display --theme instrument-${_theme_id} --width 640 --height 440")
+    endforeach ()
+    list(APPEND _gallery_cases "display_rtl|--page display --rtl --width 640 --height 440")
     list(APPEND _gallery_cases "tags_rtl|--page tags --rtl --width 640 --height 440")
     foreach (_device notch gesture keyboard fold)
         foreach (_theme light dark)

@@ -258,6 +258,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         }
         writer.line("// useState `" + state.name + "`.");
         writer.line(*type + " " + member_name(state.id) + " = " + initial.text + ";");
+        if (state.initial && reads_prop(*state.initial)) {
+            // The member initializer above only gives the declared prop default; build() re-seeds
+            // the state once from the props the owner has written by then (issue #1055).
+            writer.line("bool " + state_seeded_name(state.id) + " = false;");
+        }
     }
     for (const ir::Ref& ref : component.refs) {
         writer.line("// useRef `" + ref.name + "` (assigned in build() to its target node).");
