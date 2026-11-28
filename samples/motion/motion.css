@@ -3,7 +3,12 @@
 /* transition, @keyframes and a class-driven state change. Durations are fixed-step sampled by the
    engine, so a golden frame is deterministic. */
 
-:root { --brand: #2f6fed; --brand-strong: #1f56c4; --ink: #16202e; --paper: #ffffff; }
+:root {
+  --brand: #2f6fed;
+  --brand-strong: #1f56c4;
+  --ink: #16202e;
+  --paper: #ffffff;
+}
 
 .stage {
   display: flex;
@@ -16,8 +21,14 @@
 }
 
 @keyframes pulse {
-  from { opacity: 1; width: 48px; }
-  to { opacity: 0.35; width: 96px; }
+  from {
+    opacity: 1;
+    width: 48px;
+  }
+  to {
+    opacity: 0.35;
+    width: 96px;
+  }
 }
 
 .pulse {
@@ -36,8 +47,12 @@
   color: #ffffff;
   transition: background-color 150ms ease;
 }
-.toggle:hover { background-color: var(--brand-strong); }
-.toggle:active { background-color: #17479f; }
+.toggle:hover {
+  background-color: var(--brand-strong);
+}
+.toggle:active {
+  background-color: #17479f;
+}
 
 .drawer {
   height: 0;
@@ -53,5 +68,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse { animation: none; }
+  .pulse {
+    animation: none;
+  }
 }

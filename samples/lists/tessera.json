@@ -1,4 +1,8 @@
 {
   "schemaVersion": 1,
-  "app": { "name": "lists", "entry": "Lists.tsx", "namespace": "lists" }
+  "app": {
+    "name": "lists",
+    "entry": "Lists.tsx",
+    "namespace": "lists"
+  }
 }

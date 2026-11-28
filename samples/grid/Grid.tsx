@@ -9,9 +9,7 @@ import "./grid.css";
 export function Grid() {
   return (
     <div className="page">
-      <header className="top">
-        <h1>Grid and container queries</h1>
-      </header>
+      <header className="top"><h1>Grid and container queries</h1></header>
       <nav className="side">
         <a>Overview</a>
         <a>Reports</a>

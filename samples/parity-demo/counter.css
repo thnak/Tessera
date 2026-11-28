@@ -24,7 +24,10 @@
   border-radius: 12px;
 }
 
-.readout { font-size: 20px; font-weight: 600; }
+.readout {
+  font-size: 20px;
+  font-weight: 600;
+}
 
 .primary {
   padding: 10px 16px;
@@ -34,9 +37,15 @@
   color: #ffffff;
   transition: background-color 150ms ease;
 }
-.primary:hover { background-color: var(--accent-strong); }
-.primary:active { background-color: #17479f; }
-.primary:focus-visible { border: 2px solid #17479f; }
+.primary:hover {
+  background-color: var(--accent-strong);
+}
+.primary:active {
+  background-color: #17479f;
+}
+.primary:focus-visible {
+  border: 2px solid #17479f;
+}
 
 .ghost {
   padding: 10px 16px;
@@ -45,8 +54,13 @@
   background-color: transparent;
   color: var(--ink);
 }
-.ghost:hover { background-color: #eef2f9; }
+.ghost:hover {
+  background-color: #eef2f9;
+}
 
 @media (max-width: 360px) {
-  .counter { margin: 8px; padding: 12px; }
+  .counter {
+    margin: 8px;
+    padding: 12px;
+  }
 }

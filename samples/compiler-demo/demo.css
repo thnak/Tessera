@@ -31,8 +31,13 @@
     border-radius: 12px;
   }
 
-  .title { font-size: 22px; font-weight: 700; }
-  .muted { color: var(--ink-muted); }
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .muted {
+    color: var(--ink-muted);
+  }
 
   .primary {
     padding: 10px 18px;
@@ -42,16 +47,24 @@
     color: #ffffff;
     transition: background-color 150ms ease;
   }
-  .primary:hover { background-color: var(--brand-strong); }
-  .primary:active { background-color: #17479f; }
-  .primary:focus-visible { border: 2px solid #17479f; }
+  .primary:hover {
+    background-color: var(--brand-strong);
+  }
+  .primary:active {
+    background-color: #17479f;
+  }
+  .primary:focus-visible {
+    border: 2px solid #17479f;
+  }
 
   .field {
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
   }
-  .field:focus-visible { border: 2px solid var(--brand); }
+  .field:focus-visible {
+    border: 2px solid var(--brand);
+  }
 
   .badge {
     padding: 2px 10px;
@@ -63,5 +76,8 @@
 }
 
 @media (max-width: 400px) {
-  .card { margin: 8px; padding: 16px; }
+  .card {
+    margin: 8px;
+    padding: 16px;
+  }
 }

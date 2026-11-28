@@ -1,4 +1,8 @@
 {
   "schemaVersion": 1,
-  "app": { "name": "motion", "entry": "Motion.tsx", "namespace": "motion" }
+  "app": {
+    "name": "motion",
+    "entry": "Motion.tsx",
+    "namespace": "motion"
+  }
 }

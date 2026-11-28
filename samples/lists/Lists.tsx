@@ -10,7 +10,12 @@ import { useState } from "tessera";
 import "./lists.css";
 
 export function Lists() {
-  const [tasks, setTasks] = useState<string[]>(["Write the TSX", "Style it", "Compile to C++", "Ship"]);
+  const [tasks, setTasks] = useState<string[]>([
+    "Write the TSX",
+    "Style it",
+    "Compile to C++",
+    "Ship",
+  ]);
   const [done, setDone] = useState<int>(0);
 
   return (
@@ -18,14 +23,10 @@ export function Lists() {
       <h1>Release checklist</h1>
       <ul className="tasks">
         {tasks.map((task) => (
-          <li key={task} className="task">
-            <span className="name">{task}</span>
-          </li>
+          <li key={task} className="task"><span className="name">{task}</span></li>
         ))}
       </ul>
-      <button className="pick" onClick={() => setDone(done + 1)}>
-        Mark a step done
-      </button>
+      <button className="pick" onClick={() => setDone(done + 1)}>Mark a step done</button>
       {done > 0 && <p className="status">Steps done: {done}</p>}
     </div>
   );
