@@ -227,6 +227,7 @@ add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
 # Window size classes (issue #692): the compact/medium/expanded buckets `useBreakpoint()` returns.
 add_subdirectory(src/ui/responsive)
+add_subdirectory(src/ui/capsule)
 # The dev-mode compiler-error overlay (issue #78): a consumer of the `compiler-diagnostics-v1`
 # document that renders into the app's existing OverlayHost. Dev-only (`TESSERA_ENABLE_DEVTOOLS`
 # will gate the app-side mount); the library itself builds unconditionally so its tests always run.
