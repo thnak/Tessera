@@ -55,7 +55,7 @@ and a change marks paint dirty only (`paint_list_marker.cpp`).
 
 - `list-style-position: inside` and `list-style-image` are rejected: flowing a marker into the first
   line needs inline layout the engine does not have.
-- `sub`/`sup`/`small` inside a `Text` still keep the parent's size (spans are not metric); they need mixed-size runs in the text measurer.
+- `sub`/`sup`/`small` inside a `Text` shrink through size runs ([`inline-size-runs.md`](inline-size-runs.md)); the first-line marker box that `inside` needs is the part still missing (section 3 there).
 - No `::marker` pseudo-element, no `counter()`, no `@counter-style`; `display: list-item` does not exist.
 - Right-to-left lists draw the marker on the left; the logical (start-side) placement is not modelled.
 

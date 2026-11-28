@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/text/size_runs.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -41,6 +42,9 @@ struct LayoutInput {
     // wrap decision paint will, so the caller forwards it here. It is part of the layout-input
     // signature because it changes the fact, which is part of the layout result.
     bool text_wrap = false;
+    // Font-size runs of the inline spans of this Text (docs/design/inline-size-runs.md): the same
+    // table paint hands the measurer, so a shrunk `sub`/`sup`/`small` is measured as it is drawn.
+    text::TextSizeRunsId text_runs{};
     // The signature of this subtree as the last pass that visited it computed it (zero: never).
     // A caller that retains the input between passes keeps it so an unchanged subtree can be
     // skipped (`LayoutSignatureBuilder::reuse`). It is derived data and is not part of the input's

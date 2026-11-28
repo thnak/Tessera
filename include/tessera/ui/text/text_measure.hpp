@@ -4,6 +4,7 @@
 
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/text/font_features.hpp"
+#include "tessera/ui/text/size_runs.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -100,6 +101,10 @@ struct TextStyle {
     // glyph choice and advances and is part of every cache key. A 4-byte handle, not the list:
     // TextDraw and DrawTextOp carry it and sizeof(PaintOp) is budgeted.
     FontFeaturesId features{};
+    // Inline-span font-size runs of this paragraph (docs/design/inline-size-runs.md). The wrap
+    // measures each run at font_size * scale; paint draws the slices of a run at that size. Part of
+    // every cache key because it changes advances and line breaks.
+    TextSizeRunsId size_runs{};
     WhiteSpace white_space = WhiteSpace::Normal;
     TextTransform text_transform = TextTransform::None;
     // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.

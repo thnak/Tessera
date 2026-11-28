@@ -131,6 +131,7 @@ void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
     // the result the scheduler reuses (issue #490). Folding it in means a wrap flip re-measures
     // instead of reusing a stale fit fact.
     hasher.word(kTextWrap | (input.text_wrap ? 0x100U : 0U));
+    hasher.word(0x5A000000U | input.text_runs.value);
     // Open the node: its running state starts from its own fields and takes each child's signature
     // as the children finish.
     ++depth_;

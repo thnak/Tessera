@@ -24,6 +24,8 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/scene/text_wrap.hpp"
+#include "tessera/ui/text/size_runs.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 namespace tessera::app {
 
@@ -73,6 +75,25 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         input.text = paint->text;
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
         input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
+    }
+    input.text_runs = {};
+    if (text_payload && !paint->spans.empty()) {
+        // A span may shrink inside its paragraph (`sub`, `sup`, `small`): the measure must see
+        // the runs paint will draw (docs/design/inline-size-runs.md).
+        std::vector<ui::text::SpanFontSize> sizes;
+        sizes.reserve(paint->spans.size());
+        for (const ui::PaintSpan& span : paint->spans) {
+            for (const auto& child : node.children()) {
+                if (child->id() != span.node_id) {
+                    continue;
+                }
+                const ui::style::ComputedStyle& span_style = styles.resolve(*child);
+                sizes.push_back({span.begin, span.end, ui::text::text_style_from(span_style).font_size});
+                break;
+            }
+        }
+        input.text_runs = ui::text::size_runs_from_spans(
+            sizes, ui::text::text_style_from(input.style).font_size);
     }
     // The layout signature is folded in here, while the node is hot, rather than by a second walk
     // over the finished tree: that walk was a cache miss per node.

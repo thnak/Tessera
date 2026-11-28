@@ -85,6 +85,7 @@ struct RecordedText {
     bool italic = false;
     Color color;
     std::optional<float> baseline;
+    float font_size = 0.0f;
 };
 
 class RecordingSink final : public PaintSink {
@@ -99,7 +100,7 @@ public:
     void draw_text(const TextDraw& run) override {
         order.push_back('t');
         texts.push_back(RecordedText{run.rect, std::string(run.text), run.font_weight, run.italic,
-                                     run.color, run.baseline});
+                                     run.color, run.baseline, run.font_size});
     }
     std::vector<RecordedText> texts;
     std::vector<std::pair<Rect, Color>> fills;
@@ -310,9 +311,32 @@ void test_transform_skips_span_bounds() {
            "a transformed Text keeps parent-level hit testing in V1");
 }
 
+// Issue #1004: a span below the paragraph's size is measured and drawn at its own size.
+void test_shrunk_span() {
+    Scene scene = make_scene();
+    scene.styles.set(4, styled({{"font-size", "8"}, {"color", "#000000"}}));
+    RecordingSink sink;
+    paint_scene(*scene.root, scene.styles, sink, PaintContext{});
+    expect(sink.texts.size() == 2, "a shrunk span still paints one run");
+    if (sink.texts.size() == 2) {
+        expect(sink.texts[0].rect.width == 31 * kAdvance, "the plain run keeps its advance");
+        expect(sink.texts[1].rect.width == 5 * 4.0f, "the shrunk run advances at half the size");
+        expect(sink.texts[1].rect.x == 10.0f + 31 * kAdvance, "it starts at the boundary");
+        expect(sink.texts[1].font_size == 8.0f, "and is drawn at the span size");
+    }
+    // A span asking for a larger size keeps the paragraph's (the line box does not grow).
+    scene.styles.set(4, styled({{"font-size", "32"}, {"color", "#000000"}}));
+    RecordingSink grown;
+    paint_scene(*scene.root, scene.styles, grown, PaintContext{});
+    expect(grown.texts.size() == 2 && grown.texts[1].rect.width == 5 * kAdvance &&
+               grown.texts[1].font_size == 16.0f,
+           "a larger span keeps the paragraph size");
+}
+
 } // namespace
 
 int main() {
+    test_shrunk_span();
     test_one_line_golden();
     test_mark_background();
     test_decoration_and_shift();

@@ -15,6 +15,7 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/text_decoration.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
+#include "tessera/ui/text/size_runs.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 #include "tessera/ui/text/text_paint.hpp"
@@ -26,6 +27,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui::paint::detail {
 namespace {
@@ -40,6 +42,10 @@ struct SpanRunStyle {
     // `vertical-align` baseline shift in px, positive raising the run (not inherited).
     TextRuleStyle rules;
     float shift = 0.0f;
+    // The span's font size over the paragraph's (1 = the paragraph's own size; below 1 for
+    // `sub`/`sup`/`small`). Mirrors the table layout measured, see text::size_runs_from_spans.
+    float scale = 1.0f;
+    float font_size = 0.0f;
     // The span's own `background-color` (not inherited; `mark`), transparent when unset. It fills
     // the line box of each slice, so adjacent slices of one span abut.
     rhi::Color background{0.0f, 0.0f, 0.0f, 0.0f};
@@ -108,9 +114,17 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
     // fields are deliberately ignored (the spec rule that keeps the parent's measurement exact).
     SpanRunStyle styles[kMaxPaintSpans];
     const std::size_t span_count = std::min(data->spans.size(), kMaxPaintSpans);
+    // The size the layout pass measured the paragraph at: the node's computed font size, not a
+    // PaintData override, so both passes derive the same span ratios.
+    float computed_size = base_style.font_size;
+    if (context.styles != nullptr) {
+        computed_size = text::text_style_from(context.styles->compute(node)).font_size;
+    }
+    std::vector<text::SpanFontSize> sizes;
     for (std::size_t index = 0; index < span_count; ++index) {
         const PaintSpan& span = data->spans[index];
         SpanRunStyle& run = styles[index];
+        run.font_size = base_style.font_size;
         run.begin = span.begin;
         run.end = span.end;
         run.font_weight = base_style.font_weight;
@@ -128,6 +142,11 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         const text::TextStyle run_text = text::text_style_from(span_style);
         run.font_weight = run_text.font_weight;
         run.italic = run_text.italic;
+        sizes.push_back({span.begin, span.end, run_text.font_size});
+        if (computed_size > 0.0f && run_text.font_size > 0.0f && run_text.font_size < computed_size) {
+            run.scale = std::max(text::kMinTextSizeRunScale, run_text.font_size / computed_size);
+            run.font_size = base_style.font_size * run.scale;
+        }
         run.color = detail::current_color(span_style);
         run.color.a *= opacity;
         run.rules = resolve_text_rules(span_style, run_text, run.color, opacity);
@@ -136,8 +155,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
             run.background = *fill;
             run.background.a *= opacity;
         }
-        // Spans paint at the parent's size (their metric fields are ignored), so the em-relative
-        // shifts are taken against that size, not the span's own `font-size`.
+        // The em-relative shift is taken against the paragraph's size, not the span's own.
         if (const std::string* shift_value = span_style.find("vertical-align")) {
             run.shift = style::vertical_align_shift(*shift_value, base_style.font_size);
         }
@@ -149,7 +167,9 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
     text::TextConstraints constraints;
     constraints.wrap = wrap;
     constraints.max_width = content.width;
-    text::TextLayout layout = metrics_source->layout(data->text, base_style, constraints);
+    text::TextStyle layout_style = base_style;
+    layout_style.size_runs = text::size_runs_from_spans(sizes, computed_size);
+    text::TextLayout layout = metrics_source->layout(data->text, layout_style, constraints);
     if (max_lines > 0 && layout.lines.size() > max_lines) {
         layout.lines.resize(max_lines);
     }
@@ -172,7 +192,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         text::PaintedSegment segment;
         while (cursor.next(segment)) {
             const auto emit_slice = [&](std::string_view painted, std::size_t source_begin,
-                                        float width) {
+                                        float width, bool collapsed) {
                 const std::size_t index = span_index_at(data->spans, source_begin);
                 const SpanRunStyle& span_style =
                     index < span_count ? styles[index] : SpanRunStyle{};
@@ -181,7 +201,8 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                 const TextRuleStyle& rules = index < span_count ? span_style.rules : parent_rules;
                 draw.rect = {std::round(x), std::round(line_top - shift), width, line.height};
                 draw.text = painted;
-                draw.font_size = base_style.font_size;
+                draw.font_size =
+                    index < span_count && !collapsed ? span_style.font_size : base_style.font_size;
                 draw.font_weight =
                     index < span_count ? span_style.font_weight : base_style.font_weight;
                 draw.italic = index < span_count ? span_style.italic : base_style.italic;
@@ -208,7 +229,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                 // A collapsed whitespace run paints as one space; splitting it would change the
                 // measured advance, so it takes the style of the byte that starts it.
                 emit_slice(segment.source, segment.source_begin,
-                           metrics_source->advance(segment.source, base_style));
+                           metrics_source->advance(segment.source, base_style), true);
                 continue;
             }
             std::size_t position = segment.source_begin;
@@ -237,7 +258,11 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                     transformed = text::apply_text_transform(slice, base_style.text_transform);
                     painted = transformed;
                 }
-                emit_slice(painted, position, metrics_source->advance(slice, base_style));
+                text::TextStyle slice_style = base_style;
+                if (index < span_count) {
+                    slice_style.font_size = styles[index].font_size;
+                }
+                emit_slice(painted, position, metrics_source->advance(slice, slice_style), false);
                 position = slice_end;
             }
         }

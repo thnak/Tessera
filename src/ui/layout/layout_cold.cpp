@@ -98,8 +98,10 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
     // `field-sizing: content` makes an editable field a measured leaf even when it is empty.
     const bool sizes_to_content = is_keyword(input.style.find("field-sizing"), "content");
     if ((!input.text.empty() || sizes_to_content) && input.children.empty()) {
-        measure_contexts.push_back(std::make_unique<MeasureContext>(
-            MeasureContext{&input, text::text_style_from(input.style), &cache}));
+        text::TextStyle measured = text::text_style_from(input.style);
+        measured.size_runs = input.text_runs;
+        measure_contexts.push_back(
+            std::make_unique<MeasureContext>(MeasureContext{&input, measured, &cache}));
         YGNodeSetContext(node, measure_contexts.back().get());
         YGNodeSetMeasureFunc(node, measure_text);
     }
