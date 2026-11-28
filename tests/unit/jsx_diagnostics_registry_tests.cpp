@@ -229,7 +229,8 @@ void collect_quoted_codes(std::string_view text, std::set<std::string>& out) {
             ++end;
         }
         const std::string_view code = text.substr(begin, end - begin);
-        if (code.starts_with("TESSERA_JSX_") || code.starts_with("TESSERA_REACT_")) {
+        if (code.starts_with("TESSERA_JSX_") || code.starts_with("TESSERA_REACT_") ||
+            code.starts_with("TESSERA_SHIM_")) {
             out.emplace(code);
         }
     }

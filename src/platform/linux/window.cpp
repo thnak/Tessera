@@ -20,6 +20,7 @@
 // the per-output refresh, kept out of this translation unit because it is already at the
 // file-size limit. Included after the Xlib-pulling headers for the same reason as the rest.
 #include "x11_display.hpp"
+#include "x11_ime_spot_apply.hpp"
 
 #if defined(TESSERA_X11_RANDR)
 #include <X11/extensions/Xrandr.h>
@@ -73,10 +74,8 @@ public:
         return WindowSystem::Xlib;
     }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
-    // OS appearance preferences (issue #187): the color scheme and reduced motion the desktop's
-    // settings report. The value is kept by a watcher thread (one D-Bus connection, off the frame
-    // path), and a change arrives as `ThemeChanged` from `poll_events`; this read is an atomic
-    // load.
+    // OS appearance preferences (issue #187): kept by a watcher thread off the frame path; a
+    // change arrives as `ThemeChanged` from `poll_events`; this read is an atomic load.
     [[nodiscard]] AppearancePreference appearance() const noexcept override;
     std::size_t displays(std::span<DisplayInfo> displays) const override {
         return detail::query_x11_displays(display_, root_, displays);
@@ -108,14 +107,14 @@ public:
         return fullscreen_supported_;
     }
     void set_caption_regions(std::span<const CaptionRegion> regions) override;
-    // Pointer shape (issue #191, window-chrome-v1.md section 8.5). X11 has no WM-mediated cursor:
-    // the client creates the font cursor and installs it with XDefineCursor, which the server
-    // applies on its next pass. The app calls this only when the wanted shape changes, and the
-    // event mask does not select EnterNotify, so nothing re-applies it on entry (there is nothing
-    // to reset it either).
+    // Pointer shape (issue #191, window-chrome-v1.md section 8.5): the client creates the font
+    // cursor and installs it with XDefineCursor; nothing re-applies it on entry.
     void set_cursor(CursorShape shape) override;
     [[nodiscard]] bool supports_cursor() const noexcept override {
         return true;
+    }
+    void set_text_input_rect(const TextInputRect& rect) override {
+        spot_.set(input_context_, rect, detail::x11_dpi_scale(dpi_), last_width_, last_height_);
     }
 
 private:
@@ -126,9 +125,7 @@ private:
     void open_input_method();
     void close_input_method();
     // RandR topology/mode notifications (docs/specs/os-events-v1.md section 5):
-    // `XRRUpdateConfiguration` must run before RandR state is read, and the change is recorded as
-    // one normalized event. Both live outside this translation unit (x11_display.cpp) because this
-    // file is at its size budget.
+    // `XRRUpdateConfiguration` runs before RandR state is read; both live in x11_display.cpp.
     void handle_display_change(const XEvent& event);
     [[nodiscard]] bool has_pending_events() const;
 
@@ -151,6 +148,7 @@ private:
     X11Xi2Pump xi2_;
     XIM input_method_ = nullptr;
     XIC input_context_ = nullptr;
+    x11::SpotAnchor spot_;
     // The OS backdrop this window resolved at creation (glass-v1.md section 6). The engine reads it
     // only through WindowMetrics; `backdrop_setup_` owns the ARGB colormap of a translucent window.
     detail::X11BackdropSetup backdrop_setup_;

@@ -155,6 +155,10 @@ the reference implementation until the last step. The seam makes the two compara
 - Record the trigger table above in [`library-farm-plan.md`](../docs/design/library-farm-plan.md)
   section 6 so the farm knows the exit is a decision, not a task.
 - When a trigger fires, append the measurement to this ADR and open the decision issue.
+- **Chart measurement (2026-11-28, #531):** no trigger. Arcs rasterize in about 0.2 ms; a stroked
+  polyline is 0.7 ms at 100 points, 11 ms at 1,000 and 285 ms at 10,000 (800x300), all byte-identical
+  across 220 runs. Charts must decimate before emission; see
+  [`chart-node-v1.md`](../docs/specs/chart-node-v1.md) section 11.
 - **Cost trigger fired (2026-11-21, #683) for the large-raster use case:** a 4K ThorVG raster is
   14.9 ms (sparse) to 31 ms (dense) on the measured AMD machines, against a 16.7 ms frame. The decision
   is proposed in [ADR-071](ADR-071-gpu-compute-tile-rasterizer.md); on a faster CPU (2026-11-24) the same

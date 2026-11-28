@@ -140,7 +140,8 @@ What does not exist: **no chart component in `packages/tessera-ui/`, no axis, no
 legend, no tooltip or crosshair, and no sample.** `samples/` has no chart page and the parity
 harness has no chart page.
 
-Three decisions blocked the chart track. **Two are now answered** (2026-11-18):
+Three decisions blocked the chart track. **All three are now recorded** (2026-11-18; measurements in
+[`chart-node-v1.md`](../specs/chart-node-v1.md) section 11):
 
 1. **How a polyline is drawn.** **Answered:** ThorVG is ON by default
    ([ADR-057](../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md)), so a polyline is a
@@ -149,7 +150,7 @@ Three decisions blocked the chart track. **Two are now answered** (2026-11-18):
 2. **Pie and donut need an arc.** **Answered by the same decision:** ThorVG rasterizes arcs, so pie
    and donut are unblocked. `PaintSink` still has no arc primitive, and that is now a deliberate
    choice rather than a gap: arcs go through the path seam.
-3. **`filter` and `clip-path` are `Later`.** Still open. [`stylesheet-v1.md`](../../docs/specs/stylesheet-v1.md)
+3. **`filter` and `clip-path` are `Later`.** Recorded in the chart spec. [`stylesheet-v1.md`](../../docs/specs/stylesheet-v1.md)
    section 11 lists both as `Later`. A chart that wants a glow, a drop shadow on a line, or a
    clipped plot area cannot have one. Record this in the chart spec rather than discovering it per
    component.
