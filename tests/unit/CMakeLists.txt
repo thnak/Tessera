@@ -1497,6 +1497,19 @@ target_compile_definitions(instrument_theme_tests PRIVATE
 
 add_test(NAME instrument_theme COMMAND instrument_theme_tests)
 
+# The bundled font pack (issue #280): manifest, pinned hashes, the themes' pack pin, and the
+# recorded tabular-number gap.
+add_executable(font_pack_tests
+    font_pack_tests.cpp)
+
+target_link_libraries(font_pack_tests PRIVATE tessera_style tessera_automation tessera_text)
+
+target_compile_definitions(font_pack_tests PRIVATE
+    TESSERA_FONT_PACK_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex"
+    TESSERA_INSTRUMENT_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+
+add_test(NAME font_pack COMMAND font_pack_tests)
+
 add_executable(property_registry_tests
     property_registry_tests.cpp)
 

@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The token swatch page (issue #280): a four-column grid of chips, each filled with one theme token
+   through var(), so the theme asset is the only place a colour is defined. */
+
+.sw-page {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+}
+
+.sw-title {
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+  margin-bottom: var(--space-3);
+}
+
+.sw-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.sw-cell {
+  display: flex;
+  flex-direction: column;
+  width: 120px;
+  margin-right: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.sw-chip {
+  height: 40px;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+}
+
+.sw-name {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+  margin-top: var(--space-1);
+}
+
+.sw-surface {
+  background-color: var(--surface);
+}
+
+.sw-surface-raised {
+  background-color: var(--surface-raised);
+}
+
+.sw-surface-sunken {
+  background-color: var(--surface-sunken);
+}
+
+.sw-on-surface {
+  background-color: var(--on-surface);
+}
+
+.sw-on-surface-muted {
+  background-color: var(--on-surface-muted);
+}
+
+.sw-border {
+  background-color: var(--border);
+}
+
+.sw-border-strong {
+  background-color: var(--border-strong);
+}
+
+.sw-accent {
+  background-color: var(--accent);
+}
+
+.sw-on-accent {
+  background-color: var(--on-accent);
+}
+
+.sw-danger {
+  background-color: var(--danger);
+}
+
+.sw-on-danger {
+  background-color: var(--on-danger);
+}
+
+.sw-success {
+  background-color: var(--success);
+}
+
+.sw-on-success {
+  background-color: var(--on-success);
+}
+
+.sw-warning {
+  background-color: var(--warning);
+}
+
+.sw-on-warning {
+  background-color: var(--on-warning);
+}
+
+.sw-focus-ring {
+  background-color: var(--focus-ring);
+}

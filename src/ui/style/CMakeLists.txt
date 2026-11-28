@@ -16,6 +16,7 @@ add_library(tessera_style STATIC
     # two-range merge that allocates nothing (issue #735, slice F).
     cascade_properties.cpp
     font_size.cpp
+    font_pack.cpp
     color.cpp
     color_functions.cpp
     gradient.cpp

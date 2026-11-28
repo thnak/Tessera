@@ -15,7 +15,8 @@
 //                      activation, before the capture (a page's own onClick runs)
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
 //                      captured part-way (the clock is manual: the instant is exact)
-//   --page P           buttons (default), safe-area, form or dash (the parity pages, tools/parity)
+//   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
+//                      swatch (every colour token of the theme, issue #280)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -108,6 +109,7 @@ struct Resources {
     style::PreparedStyleSheet form_sheet;
     gallery::FormModule form_module;
     style::PreparedStyleSheet dash_sheet;
+    style::PreparedStyleSheet swatch_sheet;
     std::vector<std::uint8_t> theme_blob;
 };
 
@@ -117,8 +119,10 @@ std::optional<Resources> load_resources() {
     const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
     const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
     const auto dash_css = read_file(TESSERA_GALLERY_DASH_CSS);
+    const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !safe_area_css || !gallery_css || !form_css || !dash_css || !theme_json) {
+    if (!button_css || !safe_area_css || !gallery_css || !form_css || !dash_css || !swatch_css ||
+        !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -138,6 +142,7 @@ std::optional<Resources> load_resources() {
     resources.form_module = *form_module; // the scan's scoped text, as FormPage's `styles.x`
     resources.form_sheet = style::prepare_stylesheet(resources.form_module.css);
     resources.dash_sheet = style::prepare_stylesheet(*dash_css);
+    resources.swatch_sheet = style::prepare_stylesheet(*swatch_css);
     resources.theme_blob = style::serialize_theme_asset(*theme);
     return resources;
 }
@@ -149,6 +154,7 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
         {"gallery.css", &resources.gallery_sheet, style::Origin::Author, false},
         {"form.module.css", &resources.form_sheet, style::Origin::Author, false},
         {"dash.css", &resources.dash_sheet, style::Origin::Author, false},
+        {"swatch.css", &resources.swatch_sheet, style::Origin::Author, false},
     };
     return style::CompiledStyleSheet(sources);
 }
@@ -370,7 +376,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area] [--device none|notch|gesture|keyboard|fold]\n"
+           "               [--page buttons|safe-area|form|dash|swatch] [--device "
+           "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
            "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";
     std::exit(code);
