@@ -155,6 +155,7 @@ public:
     // Retained layers (issue #617): true when the renderer holds this layer's pixels. Image and
     // glass draws that could not complete tell the renderer, so such a layer is not kept.
     [[nodiscard]] bool retain_layer(const LayerRetention& retention) override;
+    void release_layer(std::uint64_t owner) override;
     // Masks the innermost layer (issue #617): true when the renderer opened the mask target.
     [[nodiscard]] bool begin_layer_mask() override;
     void end_layer_mask() override;

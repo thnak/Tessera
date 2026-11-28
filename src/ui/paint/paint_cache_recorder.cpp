@@ -145,6 +145,11 @@ bool PaintCache::Recorder::retain_layer(const LayerRetention& retention) {
     return false;
 }
 
+// A side effect on the target, not paint: nothing is recorded, so a replay never repeats it.
+void PaintCache::Recorder::release_layer(std::uint64_t owner) {
+    target_.release_layer(owner);
+}
+
 // A mask is recorded only into a subtree draw list (`record_pops`): a masked node is never recorded
 // per node, because its mask paints after its children. The gradient fills between the two calls
 // are always recorded so a later replay on a capable sink still masks, and are forwarded only while

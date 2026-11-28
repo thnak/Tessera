@@ -21,6 +21,9 @@ ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runti
     // off.
     config.draw_list_cache_bytes =
         static_cast<std::size_t>(runtime.draw_list_cache_budget_mb) * 1024u * 1024u;
+    // `layerPromotion` opts into generic layer promotion (issue #1014); the thresholds stay the
+    // engine defaults of `LayerPromotionConfig`.
+    config.promote_layers = runtime.layer_promotion;
     return config;
 }
 
