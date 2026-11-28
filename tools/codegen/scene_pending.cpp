@@ -199,9 +199,13 @@ std::string pending_control_json(PreviewSession* session, std::string_view actio
     PendingControl control;
     if (session == nullptr) {
         result.error = "no canvas session: call tessera_canvas_apply first";
+    } else if (action == kStatusAction) {
+        // A read: the page asks what the doubles hold after an apply, before any control. Nothing
+        // is applied, so no frame is owed (`changed` is false).
+        result.ok = true;
     } else if (!pending_action_from(action, control.action)) {
         result.error = "unknown resource action `" + std::string(action) +
-                       "` (expected fetch, resolve or fail)";
+                       "` (expected fetch, resolve, fail or status)";
     } else {
         control.resource = std::string(resource);
         control.epoch = epoch;

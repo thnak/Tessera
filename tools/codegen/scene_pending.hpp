@@ -102,6 +102,9 @@ struct PendingReport {
 
 class PreviewSession;
 
+// The action that reads the report without applying anything.
+inline constexpr std::string_view kStatusAction = "status";
+
 // The whole of the canvas export: parse the action, apply the control to `session` (null: no
 // running session) and report. An unknown action is reported, never applied. `epoch` 0 is the
 // resource's current one.

@@ -418,13 +418,14 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
 // 11) and rebuilds the tree, so the preview shows the fallback (`fetch` with no data), the content
 // (`resolve`) or the pending state (a transition-marked handler, then `fetch` and `resolve`). It is
 // what the Studio mock worker (ADR-055) calls for a fake resource: `action` is `fetch`, `resolve`
-// or `fail`; `resource` is `res::<name>` or `<name>`; `number` is the value of a number-typed
-// resource, `text` the value of a string-typed one and the message of a `fail`; `epoch` 0 means the
-// current one and any other value is a completion that is dropped when it is stale. Every resource
-// opens with a fetch in flight, like an app's first render. The report is `pending_report_json`'s
-// one line, with `changed` set when a frame is owed.
+// `fail` (or `status`, a read that applies nothing); `resource` is `res::<name>` or `<name>`;
+// `text` is the value of a string-typed resource and the message of a `fail`, `number` the value of
+// a number-typed one (strings first, then numbers: the page's `callExport` order); `epoch` 0 means
+// the current one and any other value is a completion that is dropped when it is stale. Every
+// resource opens with a fetch in flight, like an app's first render. The report is
+// `pending_report_json`'s one line, with `changed` set when a frame is owed.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_resource(const char* action, const char* resource,
-                                                         double number, const char* text,
+                                                         const char* text, double number,
                                                          int epoch) {
     cli::PreviewSession* preview =
         g_session != nullptr && g_session->started() ? g_session->preview() : nullptr;

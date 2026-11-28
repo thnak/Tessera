@@ -8,13 +8,16 @@
 // clock: every step is a control or a click.
 
 #include "codegen_pending_tsx_fixture.hpp"
+#include "scene_interaction.hpp"
 #include "scene_pending.hpp"
+#include "scene_project.hpp"
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/automation/scene_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <optional>
@@ -169,12 +172,53 @@ void run() {
            "an unknown action is reported: " + unknown);
     const std::string none = cli::pending_control_json(nullptr, "fetch", "feed", 0, "", 0);
     expect(none.find("no canvas session") != std::string::npos, "no session is reported");
+
+    // `status` is a read: the report, nothing applied, no frame owed.
+    const std::string status = cli::pending_control_json(&session, "status", "", 0, "", 0);
+    expect(status.find("\"ok\":true") != std::string::npos &&
+               status.find("\"changed\":false") != std::string::npos &&
+               status.find("\"status\":\"refreshing\"") != std::string::npos,
+           "status reports the current state and changes nothing: " + status);
+}
+
+constexpr std::string_view kManifest =
+    R"({"version":1,"services":[{"id":"demo.nav","name":"Navigator",)"
+    R"("cpp":{"type":"demo::Navigator","header":"demo/services.hpp"},)"
+    R"("methods":[{"name":"loadFeed","params":[{"name":"mode","type":"string"}],)"
+    R"("returns":"string"}]}]})";
+
+// The `resource` script step is the same control the canvas export takes, so the Wasm scene module
+// (which has no GPU device) can exercise the vocabulary end to end.
+void run_script() {
+    const std::array<cli::ProjectFile, 1> sources{{{"ui/Feed.tsx", fixture::kSource}}};
+    cli::ProjectInput project{sources, {}, "ui/Feed.tsx"};
+    project.services_manifest = kManifest;
+    const std::string document = cli::scene_input_document(
+        project, cli::ScenePreviewOptions{}, "",
+        "resource status\nresource resolve feed hello world\nresource resolve res::feed late @9\n"
+        "resource fetch feed\nresource fail feed boom\n");
+    const auto has = [&document](std::string_view part) {
+        return document.find(part) != std::string::npos;
+    };
+    expect(has("\"kind\":\"resource\"") && has("\"status\":\"loading\""),
+           "the first status step reports the opening fetch: " + document);
+    expect(has("\"status\":\"success\"") && has("\"fallback\":false"),
+           "a resolve restores the content");
+    expect(has("\"accepted\":false"), "a stale epoch is dropped and reported");
+    expect(has("\"status\":\"refreshing\"") && has("\"status\":\"error\"") &&
+               has("\"error\":\"boom\""),
+           "a refresh and a failure are reported");
+    const std::string bad = cli::scene_input_document(project, cli::ScenePreviewOptions{}, "",
+                                                      "resource explode feed\n");
+    expect(bad.find("\"error\":\"line 1: `resource` needs") != std::string::npos,
+           "an unknown action is a parse error: " + bad);
 }
 
 } // namespace
 
 int main() {
     run();
+    run_script();
     if (g_failures != 0) {
         std::cerr << "scene_pending: " << g_failures << " failure(s)\n";
         return 1;
