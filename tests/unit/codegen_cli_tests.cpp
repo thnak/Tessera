@@ -194,6 +194,9 @@ int main(int argc, char** argv) {
     fs::create_directories(project_b);
     fs::copy_file(sample_dir / "Demo.tsx", project_a / "Demo.tsx");
     fs::copy_file(sample_dir / "Demo.tsx", project_b / "Demo.tsx");
+    // Demo.tsx imports ./demo.css (issue #607): a copy of the entry carries its sheet.
+    fs::copy_file(sample_dir / "demo.css", project_a / "demo.css");
+    fs::copy_file(sample_dir / "demo.css", project_b / "demo.css");
     const auto salted = [&](const fs::path& project, const fs::path& output, const char* salt) {
         return run_cli(cli,
                        "--write --out " + quoted(output) + " --namespace demo --salt " + salt +
@@ -223,6 +226,7 @@ int main(int argc, char** argv) {
     const fs::path configured = work / "configured";
     fs::create_directories(configured / "ui");
     fs::copy_file(sample_dir / "Demo.tsx", configured / "ui" / "Demo.tsx");
+    fs::copy_file(sample_dir / "demo.css", configured / "ui" / "demo.css");
     write_file(configured / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":"factory"}})");
     const auto from_config = [&](const fs::path& output, const std::string& extra = {}) {
         return run_cli(cli,

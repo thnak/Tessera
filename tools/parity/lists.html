@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- The browser twin of samples/lists: the same structure and the very stylesheet the sample imports. No reset: the browser's own defaults are what the engine's user-agent sheet reproduces (ADR-063). Compare with scripts/ua_audit/page.mjs. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera lists twin</title>
+<style>
+  @font-face { font-family: T; src: url(../../tests/fixtures/fonts/NotoSans-Regular.ttf); }
+  :root { --font-sans: T; }
+  html, body { margin: 0; font-family: T; }
+  button, input { font-family: T; line-height: 1.2; }
+</style>
+<link rel="stylesheet" href="../../samples/lists/lists.css">
+</head>
+<body>
+<div class="board">
+  <h1>Release checklist</h1>
+  <ul class="tasks">
+    <li class="task"><span class="name">Write the TSX</span></li>
+    <li class="task"><span class="name">Style it</span></li>
+    <li class="task"><span class="name">Compile to C++</span></li>
+    <li class="task"><span class="name">Ship</span></li>
+  </ul>
+  <button class="pick">Mark a step done</button>
+</div>
+</body>
+</html>

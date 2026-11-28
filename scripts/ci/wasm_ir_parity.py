@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -83,6 +84,21 @@ def require_success(result: subprocess.CompletedProcess, label: str) -> None:
     detail = (result.stderr or result.stdout).strip().splitlines()
     message = detail[0] if detail else "no diagnostics"
     raise SetupError("{} failed (exit {}): {}".format(label, result.returncode, message))
+
+
+def missing_stylesheets(samples: Sequence[str], repo_root: Path) -> List[str]:
+    """Repo-relative stylesheets a sample imports (`import "./x.css";` or a CSS module) that are absent."""
+    missing: List[str] = []
+    for sample in samples:
+        path = repo_root / sample
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r'^\s*import\s+(?:[\w$]+\s+from\s+)?"(\./[^"]+\.css)"\s*;', text, re.MULTILINE):
+            sheet = (path.parent / match.group(1)).resolve()
+            if not sheet.is_file():
+                missing.append(display_path(sheet, repo_root))
+    return missing
 
 
 def command_prefixes(native_bin: str, wasm_js: str, node: Optional[str]) -> Tuple[List[str], List[str]]:
@@ -276,6 +292,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 2
     if args.node and not Path(args.node).is_file():
         print("SETUP ERROR: --node not found: {}".format(args.node), file=sys.stderr)
+        return 2
+
+    missing = missing_stylesheets(samples, repo_root)
+    if missing:
+        # A sample that imports a sheet compiles to a missing-stylesheet diagnostic on both sides
+        # alike, so the two would match and the gate would pass on a failed compile.
+        print("SETUP ERROR: sample imports a stylesheet that is not on disk: {}".format(", ".join(missing)), file=sys.stderr)
         return 2
 
     native_prefix, wasm_prefix = command_prefixes(args.native, args.wasm, args.node)

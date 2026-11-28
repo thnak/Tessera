@@ -65,7 +65,10 @@ class WasmIrParityTests(unittest.TestCase):
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name) / "repo"
         (self.root / "samples" / "parity-demo").mkdir(parents=True)
-        (self.root / SAMPLE_REL).write_text("export function Counter() {}\n", encoding="utf-8")
+        (self.root / SAMPLE_REL).write_text(
+            'import "./counter.css";\nexport function Counter() {}\n', encoding="utf-8"
+        )
+        (self.root / "samples" / "parity-demo" / "counter.css").write_text(".a {}\n", encoding="utf-8")
         self.bin = Path(self._temp.name) / "bin"
         self.bin.mkdir()
 
@@ -197,6 +200,12 @@ class WasmIrParityTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("SETUP ERROR", result.stderr)
+
+    def test_missing_imported_stylesheet_is_setup_error(self) -> None:
+        (self.root / "samples" / "parity-demo" / "counter.css").unlink()
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("stylesheet", result.stderr)
 
 
 if __name__ == "__main__":
