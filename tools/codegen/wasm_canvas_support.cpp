@@ -80,6 +80,24 @@ PreviewInput::Kind key_kind_from(std::string_view name, bool& known) {
     return PreviewInput::Kind::KeyDown;
 }
 
+PreviewInput::Kind text_kind_from(std::string_view name, bool& known) {
+    known = true;
+    if (name == "commit") {
+        return PreviewInput::Kind::Text;
+    }
+    if (name == "start") {
+        return PreviewInput::Kind::CompositionStart;
+    }
+    if (name == "update") {
+        return PreviewInput::Kind::CompositionUpdate;
+    }
+    if (name == "end") {
+        return PreviewInput::Kind::CompositionEnd;
+    }
+    known = false;
+    return PreviewInput::Kind::Text;
+}
+
 std::uint32_t key_code_from_name(std::string_view name) {
     struct Named {
         std::string_view name;

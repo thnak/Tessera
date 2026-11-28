@@ -48,6 +48,12 @@ ui::InputEvent to_input_event(const PreviewInput& input, double timestamp_s) {
     case PreviewInput::Kind::KeyUp:
         event.type = ui::InputEventType::KeyUp;
         break;
+    case PreviewInput::Kind::Text:
+    case PreviewInput::Kind::CompositionStart:
+    case PreviewInput::Kind::CompositionUpdate:
+    case PreviewInput::Kind::CompositionEnd:
+        fill_text_event(input, event);
+        break;
     }
     event.timestamp_s = timestamp_s;
     event.x = input.x;
@@ -151,6 +157,7 @@ void PreviewSession::rebuild() {
     // The behaviors target nodes in the tree about to be replaced, so they are detached before it
     // dies (the same ordering the router needs, and for the same reason).
     detach_behaviors();
+    detach_text_fields();
     behaviors_.clear();
     behavior_errors_.clear();
     root_ = std::make_unique<ui::Node>(1);
@@ -212,6 +219,7 @@ void PreviewSession::rebuild() {
     // After layout, so a behavior that reads a node's box sees the final one. A behavior attaches
     // only when every target ref resolved to a built node.
     attach_behaviors(built);
+    attach_text_fields(built);
     if (kept_focus != 0) {
         if (ui::Node* node = node_by_automation_id(kept_focus)) {
             ui::FocusManager& focus = router_.focus_manager();
@@ -221,6 +229,7 @@ void PreviewSession::rebuild() {
             }
         }
     }
+    sync_text_fields(); // after focus is restored: the caret shows only in the focused field
 }
 
 bool PreviewSession::relayout() {
@@ -357,6 +366,7 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
     ran_.clear();
     unrun_.clear();
     dirty_ = false;
+    text_consumed_ = false;
     for (const auto& slot : slots_) {
         slot->reached = false;
     }
@@ -381,6 +391,7 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
         // Button look pressed in the preview.
         refresh_behaviors();
     }
+    sync_text_fields(); // focus may have moved: show or hide the caret
     return result.dispatched;
 }
 

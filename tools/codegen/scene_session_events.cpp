@@ -36,10 +36,9 @@ constexpr ui::EventType* click_type() {
 
 } // namespace
 
-namespace {
-
 // The IR body of `handler_id` in `component`: a component handler (`handler::N`), or a native
-// binding (`bind::X`) whose `preview` block is the body. False when neither exists.
+// binding (`bind::X`) whose `preview` block is the body. False when neither exists. Shared with
+// `scene_session_text.cpp` (declared in `scene_session_slots.hpp`).
 bool resolve_body(const ir::IrModule& module, const ir::Component& component,
                   const std::string& handler_id, const std::vector<ir::Param>*& params,
                   const std::vector<ir::Action>*& actions) {
@@ -62,8 +61,6 @@ bool resolve_body(const ir::IrModule& module, const ir::Component& component,
     return false;
 }
 
-} // namespace
-
 // The state of a callback chain: the frame whose handler is running, and the one that called it.
 struct PreviewSession::CallContext {
     PreviewSession* session = nullptr;
@@ -71,11 +68,13 @@ struct PreviewSession::CallContext {
     CallContext* outer = nullptr;
 };
 
-bool PreviewSession::run_actions(std::size_t frame, const std::vector<ir::Action>& actions) {
+bool PreviewSession::run_actions(std::size_t frame, const std::vector<ir::Action>& actions,
+                                 eval::Scope* scope) {
     CallContext context{this, frame, active_call_};
     active_call_ = &context;
     evaluator_.set_prop_call_sink(&PreviewSession::on_prop_call, &context);
-    const bool ok = evaluator_.run(actions, *frames_[frame].scope).has_value();
+    const bool ok =
+        evaluator_.run(actions, scope != nullptr ? *scope : *frames_[frame].scope).has_value();
     active_call_ = context.outer;
     evaluator_.set_prop_call_sink(
         context.outer != nullptr ? &PreviewSession::on_prop_call : nullptr, context.outer);

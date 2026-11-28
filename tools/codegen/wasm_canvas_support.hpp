@@ -40,6 +40,11 @@ namespace tessera::compiler::codegen::cli {
 // `known` is false for anything else (`"blur"` is handled by the caller, which has no key to map).
 [[nodiscard]] PreviewInput::Kind key_kind_from(std::string_view name, bool& known);
 
+// The page's text vocabulary (issue #601): `"commit"` is committed text, `"start"`, `"update"` and
+// `"end"` are the IME composition lifecycle. `known` is false for anything else (`"copy"` and
+// `"cut"` are handled by the caller, which has no text to send).
+[[nodiscard]] PreviewInput::Kind text_kind_from(std::string_view name, bool& known);
+
 // The engine's logical key code for a W3C `KeyboardEvent.key` value ("Tab", "Enter", " ",
 // "ArrowDown", "a"): the same names `key_is` in `event_payloads.hpp` compares against. A single
 // printable character maps to its upper-case ASCII code; an unknown name maps to 0, which the page

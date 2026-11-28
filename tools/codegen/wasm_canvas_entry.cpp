@@ -269,6 +269,32 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_key(const char* kind, const char
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 
+// Text for the focused `TextInput`/`TextArea` (issue #601, docs/design/canvas-text-input.md).
+// `kind` is
+// `"commit"` (typed or pasted text, an IME result), `"start"`, `"update"` or `"end"` (the IME
+// preedit lifecycle), or `"copy"` / `"cut"` (`text` is ignored; the report's `text` is the
+// selection). The report is the key report: `handled` says the field took it, `textFocus`, `caret`
+// and `fieldBox` place the page's hidden editable element. An unknown kind answers a well-formed
+// report with nothing done.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_text(const char* kind, const char* text) {
+    cli::CanvasPointerResult result;
+    if (g_session == nullptr || !g_session->started()) {
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    const std::string_view name = kind != nullptr ? std::string_view(kind) : std::string_view();
+    if (name == "copy" || name == "cut") {
+        return duplicate_out(
+            cli::canvas_pointer_report_json(g_session->text_clipboard(name == "cut")));
+    }
+    bool known = false;
+    const cli::PreviewInput::Kind parsed = cli::text_kind_from(name, known);
+    if (!known) {
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    result = g_session->text(parsed, text != nullptr ? std::string_view(text) : std::string_view());
+    return duplicate_out(cli::canvas_pointer_report_json(result));
+}
+
 // Changes the simulated fold posture of the RUNNING session (issue #408) and re-lays the tree out
 // in place. Returns the same one-line report a Run returns, with `changed` set when a layout pass
 // ran: the page draws one frame when it is true, and nothing when the posture was already in force.

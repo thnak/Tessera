@@ -309,6 +309,21 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
             }
             scene.set_paint_data(text_paint(std::move(text)));
         }
+    } else if (node.kind == ir::NodeKind::TextInput || node.kind == ir::NodeKind::TextArea) {
+        // A text field paints its value (issue #601); the session attaches the edit controller that
+        // keeps the buffer, the caret and the preedit. `value` is controlled, `defaultValue` seeds.
+        const auto value = node.props.find("value");
+        const bool controlled = value != node.props.end() && value->second != nullptr;
+        const auto seed = controlled ? value : node.props.find("defaultValue");
+        std::string text;
+        if (seed != node.props.end() && seed->second != nullptr &&
+            !evaluate_text(evaluator_, *seed->second, *scope_, text, result_.error)) {
+            return false;
+        }
+        scene.set_paint_data(text_paint(std::move(text)));
+        if (has_id) {
+            result_.text_fields.push_back({id, node.kind == ir::NodeKind::TextArea, controlled});
+        }
     } else if (node.kind == ir::NodeKind::Text && !node.children.empty()) {
         // `<Text><b>x</b></Text>` is the inline-span form, which needs the span byte ranges codegen
         // computes while it creates the children (emit_node_behavior.cpp).

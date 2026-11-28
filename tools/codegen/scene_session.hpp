@@ -7,6 +7,7 @@
 #include "scene_override.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
+#include "scene_text_field.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
@@ -59,6 +60,11 @@ struct PreviewInput {
         PointerCancel,
         KeyDown,
         KeyUp,
+        // Text for the focused field (issue #601): a commit, and the IME preedit lifecycle.
+        Text,
+        CompositionStart,
+        CompositionUpdate,
+        CompositionEnd,
     };
     Kind kind = Kind::PointerDown;
     float x = 0.0f;
@@ -69,6 +75,7 @@ struct PreviewInput {
     std::uint32_t key = 0; // a `ui::KeyCode`; 0 when not a key event
     bool repeat = false;   // auto-repeat of a held key (Enter does not activate on a repeat)
     std::uint32_t pointer_id = 0;
+    std::string text; // UTF-8 payload of a Text/Composition kind, at most `ui::kMaxEditTextBytes`
 };
 
 // The engine's normalized event for `input`. `timestamp_s` comes from the session's fixed step
@@ -147,6 +154,22 @@ public:
     // `EngineAutomationHost::click` in the native harness.
     [[nodiscard]] PreviewClickResult click(std::uint64_t automation_id);
 
+    // The focused `TextInput`/`TextArea` (issue #601). Text and editing keys reach it through
+    // `dispatch()`: the router delivers them to the node, whose `TextInputRuntime` edits the buffer
+    // and emits `TextChange`, which runs the `onChange` body with a `TextChangeEvent`.
+    [[nodiscard]] PreviewTextField focused_text_field() const;
+    // The focused field's selected text (copy and cut read it), empty when nothing is selected.
+    [[nodiscard]] std::string focused_text_selection() const;
+    // True when the last `dispatch()` was consumed by a text field (the page may prevent the
+    // default).
+    [[nodiscard]] bool text_consumed() const noexcept {
+        return text_consumed_;
+    }
+    // Publishes every field's caret, selection and preedit into its paint data. Cheap and
+    // idempotent (an unchanged decoration marks nothing dirty); `dispatch()` and `rebuild()` call
+    // it.
+    void sync_text_fields();
+
     // Every state and animated cell in declaration order, in the existing `ui::StateCell`
     // representation: what generated `snapshot_state()` returns and the parity runner compares.
     [[nodiscard]] ui::StateSnapshot state() const;
@@ -167,20 +190,14 @@ public:
     // out again) or when this session built no tree; true when a layout pass ran.
     bool set_posture(tessera::hal::FoldPosture posture);
 
-    // Resizes the RUNNING tree in place (issue #436): the viewport and the DPI scale are layout
-    // inputs like the posture, so a device preset or an orientation swap re-lays the tree out and
-    // re-resolves `@media` - it never evaluates the source again. Hover, focus, the state cells and
-    // the router's capture all survive, which is what a breakpoint is supposed to feel like in a
-    // preview.
+    // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs like
+    // the posture, so a device or orientation change re-lays the tree out and re-resolves `@media`
+    // - it never evaluates the source again; hover, focus, state and capture survive.
     //
     // `@media` is re-resolved only when the move can change an answer
-    // (`PreparedStyleSheet::media_answer_can_change`): a size that crosses no breakpoint is one
-    // layout pass and no cascade rebuild. When it does cross one, the SAME prepared data is
-    // resolved against the new context - the ADR-048 resolve step, never a re-parse - so the frame
-    // the caller paints next is already the responsive one. `cascade_generation()` counts those
-    // rebuilds.
-    //
-    // Returns false when nothing moved (no layout pass ran) or the session built no tree.
+    // (`PreparedStyleSheet::media_answer_can_change`): then the SAME prepared data is resolved
+    // against the new context (ADR-048), counted by `cascade_generation()`. False when nothing moved
+    // (no layout pass ran) or the session built no tree.
     bool set_viewport(float width, float height, float dpi_scale);
 
     // One pass for both layout inputs, so a call that changes the size AND the posture costs one
@@ -209,9 +226,8 @@ public:
         return cascade_generation_;
     }
 
-    // The sheet the tree is CURRENTLY laid out with. After `set_viewport` crosses a breakpoint this
-    // is a different sheet from the one the session was constructed with, which is why a painter
-    // must read it here rather than keep its own copy.
+    // The sheet the tree is CURRENTLY laid out with; after `set_viewport` crosses a breakpoint it is a
+    // different sheet, so a painter reads it here rather than keeping a copy.
     [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
         return sheet_;
     }
@@ -230,9 +246,7 @@ public:
         return settle_.totals();
     }
 
-    // The `useBreakpoint()` consumers of this session (issue #692). The canvas pushes the class
-    // from `set_viewport`, exactly as `AppHost` does from `apply_viewport`, so the preview and the
-    // runtime cannot disagree about which class a width is in.
+    // The `useBreakpoint()` consumers (issue #692), pushed from `set_viewport` as `AppHost` does.
     [[nodiscard]] ui::responsive::EnvironmentSet& environment_values() noexcept {
         return environment_;
     }
@@ -341,6 +355,13 @@ private:
     // kept in a `unique_ptr` for the same reason `HandlerSlot` is: `LayoutObservation` holds the
     // context pointer for its whole life.
     struct SizeSlot;
+    struct TextField;
+    void attach_text_fields(const SceneBuildResult& built);
+    void detach_text_fields();
+    // The bound scene events of a field: the six text/key events feed its runtime; `TextChange`
+    // runs the `onChange` body.
+    static void on_text_event(void* context, const ui::Event& event);
+    static void on_text_change(void* context, const ui::Event& event);
     // Attaches one observation per `onSizeChange` node of the tree just built, after layout, so the
     // first delivery carries the size the tree actually has. Replaced by every `rebuild()`.
     void attach_size_observations(const SceneBuildResult& built);
@@ -363,7 +384,9 @@ private:
                       const std::string& handler_id, std::size_t frame);
     // Runs `actions` against the scope of component frame `frame` (0 is the root component). A
     // `callProp` in them runs the caller's handler in the caller's frame (`on_prop_call`).
-    [[nodiscard]] bool run_actions(std::size_t frame, const std::vector<ir::Action>& actions);
+    // `scope` replaces the frame's scope for this run (a handler whose parameter is bound).
+    [[nodiscard]] bool run_actions(std::size_t frame, const std::vector<ir::Action>& actions,
+                                   eval::Scope* scope = nullptr);
     static void on_prop_call(void* context, const std::string& target, bool has_payload);
     // Attaches every IR behavior to the nodes its target refs resolved to, after the tree exists.
     // A behavior whose targets are not all present attaches nothing (the spec's rule), and a
@@ -428,6 +451,9 @@ private:
     // One entry per `onSizeChange` node of the live tree (issue #694), in build order. Replaced by
     // every `rebuild()`, and detached before the tree it observes dies.
     std::vector<std::unique_ptr<SizeSlot>> size_slots_;
+    // One per text field; survives `rebuild()` (matched by automation id).
+    std::vector<std::unique_ptr<TextField>> text_fields_;
+    bool text_consumed_ = false;
     // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
     // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
     // options on every recompute, and re-evaluating them per pointer move would be work for a value
