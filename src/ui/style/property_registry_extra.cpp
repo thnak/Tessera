@@ -72,6 +72,12 @@ void PropertyRegistry::register_extension_properties() {
     // list-item`, so a marker is drawn only where a rule asks for one (the user-agent sheet does
     // for `ul`/`ol`), and a `role="listitem"` View in a custom list stays bare.
     properties_["list-style-type"] = PropertyInfo{"none", true};
+    // Table layout (issue #543, docs/design/table-layout.md): the table-wide inherited properties
+    // and the layout algorithm switch. The table engine reads them from the `display: table` box.
+    properties_["border-collapse"] = PropertyInfo{"separate", true};
+    properties_["border-spacing"] = PropertyInfo{"0", true};
+    properties_["caption-side"] = PropertyInfo{"top", true};
+    properties_["table-layout"] = PropertyInfo{"auto", false};
     properties_["list-style-position"] = PropertyInfo{"outside", true};
     shorthands_["list-style"] =
         ShorthandInfo{{"list-style-type", "list-style-position"}, ShorthandKind::Pair};

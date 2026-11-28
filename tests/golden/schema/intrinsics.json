@@ -456,11 +456,163 @@
           "suggestion": "not in V1"
         }
       ],
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "checked",
+              "rename": "checked"
+            },
+            {
+              "name": "disabled",
+              "rename": "disabled"
+            },
+            {
+              "name": "onChange",
+              "rename": "onToggle"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "defaultChecked",
+              "suggestion": "the library `Checkbox` is controlled: keep `checked` in state"
+            }
+          ],
+          "component": "Checkbox",
+          "import": "tessera-ui/Checkbox",
+          "type": "checkbox"
+        },
+        {
+          "attrs": [
+            {
+              "name": "checked",
+              "rename": "selected"
+            },
+            {
+              "name": "disabled",
+              "rename": "disabled"
+            },
+            {
+              "name": "onChange",
+              "rename": "onSelect"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "defaultChecked",
+              "suggestion": "the library `Radio` is controlled: keep the selection in state"
+            }
+          ],
+          "component": "Radio",
+          "import": "tessera-ui/Radio",
+          "type": "radio"
+        },
+        {
+          "attrs": [
+            {
+              "name": "defaultValue",
+              "rename": "defaultValue"
+            },
+            {
+              "name": "min",
+              "rename": "min"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "step",
+              "rename": "step"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "onChange",
+              "suggestion": "the library `Range` keeps its value; a controlled range is tracked in #1051"
+            },
+            {
+              "name": "disabled",
+              "suggestion": "the library `Range` has no disabled state yet (#1051)"
+            }
+          ],
+          "component": "Range",
+          "import": "tessera-ui/Range",
+          "type": "range"
+        }
+      ],
       "note": "`type` must be a string literal and is removed; [Q19] `autoComplete` tokens",
       "status": "mapped",
       "tag": "input",
       "target": "TextInput",
       "typeMap": {
+        "checkbox": {},
         "email": {
           "inputMode": "email"
         },
@@ -470,6 +622,8 @@
         "password": {
           "secure": "true"
         },
+        "radio": {},
+        "range": {},
         "search": {
           "inputMode": "search"
         },
@@ -653,6 +807,239 @@
       "target": "View"
     },
     {
+      "inject": [
+        {
+          "name": "role",
+          "value": "table"
+        }
+      ],
+      "note": "the user-agent sheet makes it `display: table`; the layout engine lays out the tree below it",
+      "status": "partial",
+      "tag": "table",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-header-group`; shown above the body",
+      "status": "mapped",
+      "tag": "thead",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-row-group`",
+      "status": "mapped",
+      "tag": "tbody",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-footer-group`; shown below the body",
+      "status": "mapped",
+      "tag": "tfoot",
+      "target": "View"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "row"
+        }
+      ],
+      "note": "`display: table-row`",
+      "status": "mapped",
+      "tag": "tr",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "colSpan",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        },
+        {
+          "kind": "rename",
+          "name": "rowSpan",
+          "note": "a static integer; 0 spans the group",
+          "rename": "aria-rowspan"
+        }
+      ],
+      "inject": [
+        {
+          "name": "role",
+          "value": "cell"
+        }
+      ],
+      "note": "`display: table-cell`; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan`",
+      "status": "mapped",
+      "tag": "td",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "colSpan",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        },
+        {
+          "kind": "rename",
+          "name": "rowSpan",
+          "note": "a static integer; 0 spans the group",
+          "rename": "aria-rowspan"
+        },
+        {
+          "kind": "reject",
+          "name": "scope",
+          "suggestion": "row headers are not modelled; `th` is a column header"
+        }
+      ],
+      "inject": [
+        {
+          "name": "role",
+          "value": "columnheader"
+        }
+      ],
+      "note": "as `td`, bold and centred by the user-agent sheet; `scope` is rejected",
+      "status": "mapped",
+      "tag": "th",
+      "target": "View"
+    },
+    {
+      "note": "`display: table-caption`; `caption-side` puts it above or below the grid",
+      "status": "mapped",
+      "tag": "caption",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "span",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        }
+      ],
+      "note": "`display: table-column-group`; takes no space of its own",
+      "status": "mapped",
+      "tag": "colgroup",
+      "target": "View"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "span",
+          "note": "a static integer",
+          "rename": "aria-colspan"
+        }
+      ],
+      "note": "`display: table-column`; its `width` sizes the column",
+      "status": "mapped",
+      "tag": "col",
+      "target": "View"
+    },
+    {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "value",
+              "rename": "value"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            }
+          ],
+          "component": "ProgressBar",
+          "import": "tessera-ui/ProgressBar"
+        }
+      ],
+      "note": "lowers onto the library `ProgressBar` (`value`, `max` are integers; `max` defaults to 100)",
+      "status": "mapped",
+      "tag": "progress",
+      "target": "View"
+    },
+    {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "value",
+              "rename": "value"
+            },
+            {
+              "name": "min",
+              "rename": "min"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "low",
+              "rename": "low"
+            },
+            {
+              "name": "high",
+              "rename": "high"
+            },
+            {
+              "name": "optimum",
+              "rename": "optimum"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            }
+          ],
+          "component": "Meter",
+          "import": "tessera-ui/Meter"
+        }
+      ],
+      "note": "lowers onto the library `Meter` (integer `value`, `min`, `max`, `low`, `high`, `optimum`)",
+      "status": "mapped",
+      "tag": "meter",
+      "target": "View"
+    },
+    {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "open",
+              "rename": "defaultOpen"
+            },
+            {
+              "name": "name",
+              "suggestion": "an exclusive group of disclosures is not in V1"
+            },
+            {
+              "name": "onToggle",
+              "suggestion": "the open state is internal to the library `Details`"
+            }
+          ],
+          "component": "Details",
+          "import": "tessera-ui/Details"
+        }
+      ],
+      "note": "lowers onto the library `Details`; the first `summary` child with static text is its summary",
+      "status": "mapped",
+      "tag": "details",
+      "target": "View"
+    },
+    {
+      "note": "only as a child of `details`; a `summary` anywhere else is TESSERA_IR_UNSUPPORTED",
+      "status": "mapped",
+      "tag": "summary",
+      "target": "View"
+    },
+    {
       "alternative": "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` after V1",
       "status": "unsupported",
       "tag": "form"
@@ -676,56 +1063,6 @@
       "alternative": "Library `Select` (after V1)",
       "status": "unsupported",
       "tag": "datalist"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "table"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "thead"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tbody"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tfoot"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "tr"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "td"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "th"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "caption"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "colgroup"
-    },
-    {
-      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
-      "status": "unsupported",
-      "tag": "col"
     },
     {
       "alternative": "`Path` with `d` and `viewBox`",
@@ -840,32 +1177,12 @@
     {
       "alternative": "Overlay service and library components",
       "status": "unsupported",
-      "tag": "details"
-    },
-    {
-      "alternative": "Overlay service and library components",
-      "status": "unsupported",
-      "tag": "summary"
-    },
-    {
-      "alternative": "Overlay service and library components",
-      "status": "unsupported",
       "tag": "menu"
     },
     {
       "alternative": "Overlay service and library components",
       "status": "unsupported",
       "tag": "popover"
-    },
-    {
-      "alternative": "Library `Progress` (after V1)",
-      "status": "unsupported",
-      "tag": "progress"
-    },
-    {
-      "alternative": "Library `Progress` (after V1)",
-      "status": "unsupported",
-      "tag": "meter"
     },
     {
       "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
@@ -1102,6 +1419,30 @@
         "Suspense"
       ],
       "note": "the number of a list item; `li value` is rewritten to it (a static integer)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-colspan",
+      "name": "aria-colspan",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "columns a table cell or `col` spans; `td`/`th` `colSpan` and `col` `span` are rewritten to it",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-rowspan",
+      "name": "aria-rowspan",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "rows a table cell spans (0 to the end of the group); `td`/`th` `rowSpan` is rewritten to it",
       "type": "string",
       "value": "expr"
     },
@@ -2668,7 +3009,11 @@
     "menuitem",
     "tooltip",
     "alert",
-    "paragraph"
+    "paragraph",
+    "table",
+    "row",
+    "cell",
+    "columnheader"
   ],
   "schemaVersion": 1,
   "style": [
@@ -3066,7 +3411,7 @@
     {
       "kind": "length",
       "name": "vertical-align",
-      "note": "baseline, sub, super or a length"
+      "note": "baseline, sub, super, a length, or on a table cell middle, top, bottom"
     },
     {
       "kind": "keyword",
@@ -3077,6 +3422,26 @@
       "kind": "keyword",
       "name": "list-style-position",
       "note": "outside or inside"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-collapse",
+      "note": "separate or collapse (tables)"
+    },
+    {
+      "kind": "length",
+      "name": "border-spacing",
+      "note": "one or two lengths (tables)"
+    },
+    {
+      "kind": "keyword",
+      "name": "caption-side",
+      "note": "top or bottom (tables)"
+    },
+    {
+      "kind": "keyword",
+      "name": "table-layout",
+      "note": "auto or fixed (tables)"
     },
     {
       "kind": "keyword",

@@ -118,6 +118,15 @@ void check_deferred_value(Context& ctx, std::size_t index, const jsx::Statement&
 // Whether `call` is `useResource(...)`; the service pass skips its first argument, which names a
 // service method as a value.
 [[nodiscard]] bool is_resource_call(const jsx::Expr& call);
+// observable.cpp: ADR-050 open question 6. `check_observable` is the form of one `useObservable`
+// statement and declares its symbol (hook pass); `check_observable_services` resolves each against
+// the `useService` bindings and the manifest, run after `check_services`.
+void check_observable(Context& ctx, std::size_t index, const jsx::Statement& statement,
+                      const jsx::Expr& call);
+void check_observable_services(Context& ctx);
+// Whether `call` is `useObservable(...)`; the service pass skips it (its argument names a service
+// member as a value).
+[[nodiscard]] bool is_observable_call(const jsx::Expr& call);
 // Whether `expr` is `svc.method(...)` on a service symbol of a known method, which a handler body
 // may hold like a setter call. Defined in service.cpp, which owns the form.
 [[nodiscard]] bool is_service_call(const Context& ctx, const jsx::Expr& expr);

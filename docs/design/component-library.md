@@ -52,6 +52,19 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `Progress` | `progressbar` with the caller's `aria-valuenow/min/max` (value clamped), not focusable; the children slot draws the fill; serves `progress` and `meter` (#544) | done |
 | `Disclosure` | `details`/`summary`: a focusable `button` summary with `aria-expanded`, content `display: none` while closed (#544) | done |
 
+Form-tag controls (issue #1041, ADR-059 group E): the lowercase tags `input type="checkbox"|"radio"|"range"`,
+`progress`, `meter` and `details`/`summary` lower onto these styled components
+([`html-aliases.md`](../specs/jsx-intrinsics-v1/html-aliases.md) section 3.8), which the file imports.
+Tokens only, restyled by every theme; the page is `gallery --page tags` (`tags_<theme>` and `tags_rtl`
+goldens, `gallery_tags_runtime` for keyboard and pointer through the real `InputRouter`).
+
+| Component | Over | Look and contract |
+|---|---|---|
+| `Checkbox`, `Radio` | the `checkbox`/`radio` contract of the primitives (controlled `checked`/`selected`) | `checkbox.css`, `radio.css` (#240) |
+| `Range` | restates `primitives/Slider` (the primitive's value is not readable by children, #1051) | `range.css`: `slider`, keys, drag, fill and thumb by flex-grow |
+| `ProgressBar`, `Meter` | composes `primitives/Progress` | `progress.css`: `progressbar` semantics; `Meter` colors the fill good/warn/bad against `low`, `high`, `optimum` |
+| `Details` | restates `primitives/Disclosure` (a component cannot forward `{children}` into another's slot) | `disclosure.css`: summary `button` with `aria-expanded`, body `display: none` while closed |
+
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
 (variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
 It forwards `onPress` behind a `!disabled` guard ([jsx-subset-v1 section 9.4](../specs/jsx-subset-v1.md)).

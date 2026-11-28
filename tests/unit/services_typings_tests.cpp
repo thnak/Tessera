@@ -80,10 +80,49 @@ void golden_output() {
     check(svc::write_services_typings(*parsed) == text, "generation is deterministic");
 }
 
+// A service with observables lists them as readonly members and adds the `useObservable` overload.
+void observables_output() {
+    const auto parsed = svc::parse_services_manifest(R"({
+  "version": 1,
+  "services": [
+    { "id": "demo.nav", "name": "Navigator",
+      "cpp": { "type": "demo::Navigator", "header": "demo/navigator.hpp" },
+      "methods": [{ "name": "back", "params": [], "returns": "void" }],
+      "observables": [{ "name": "title", "type": "string" },
+                      { "name": "route", "type": "optional<Route>" }] }
+  ]
+})");
+    check(parsed.has_value(), "the observable manifest parses");
+    if (!parsed) {
+        return;
+    }
+    constexpr std::string_view expected =
+        "// Generated from ui/services.json by tessera_codegen. Do not edit.\n"
+        "// Types the services TSX may name in useService<T>() and the methods it may call.\n"
+        "\n"
+        "export interface Navigator {\n"
+        "  back(): void;\n"
+        "  readonly title: string;\n"
+        "  readonly route: Route | null;\n"
+        "}\n"
+        "\n"
+        "// Reads a service observable in render (docs/specs/services-manifest-v1.md).\n"
+        "export declare function useObservable<T>(source: T): T;\n"
+        "\n"
+        "export declare function useService<T extends Navigator>(): Navigator;\n";
+    const std::string text = svc::write_services_typings(*parsed);
+    check(text == expected, "observables are typed readonly and useObservable is declared");
+    if (text != expected) {
+        std::cerr << text;
+    }
+    // A manifest without observables does not declare the hook (the golden above pins that).
+}
+
 } // namespace
 
 int main() {
     type_mapping();
     golden_output();
+    observables_output();
     return failures == 0 ? 0 : 1;
 }

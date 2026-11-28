@@ -151,6 +151,17 @@ Three dotted references read it, and only these three resolve; the bare id is a 
   generates `.status` only (`.data`/`.error` are `TESSERA_CODEGEN_UNSUPPORTED` until the result
   type has a source). The writer omits `resources` when empty.
 
+### 4.5 Observable references (additive, ADR-050 open question 6)
+
+A component that calls `useObservable` lists one `observables` entry per call (`id` `obs::<name>`,
+`service` a declared `svc::` id, `member`, `type`, `source`; [`ir-v1.md`](ir-v1.md) section 2).
+`obs::<name>` reads the observable's current value, typed by `type`, and `obs::<name>.<field>` reads
+a field of a record-typed one (checked like any dotted record read, section 4.3). The value is
+read-only. Codegen reads it through the generated `obs_<name>_value()` (the zero value before the
+service is attached) and depends the binding on the observable's own dirty bit; the evaluator reads
+the id from its scope, like any cell. The writer omits `observables` when empty
+([`observable-render-read.md`](../design/observable-render-read.md)).
+
 ## 5. Loop
 
 ```json

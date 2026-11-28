@@ -19,6 +19,33 @@ constexpr float kInfinity = std::numeric_limits<float>::infinity();
 
 } // namespace
 
+float item_min_content_width(const GridItemLayouter& layouter, const LayoutInput& item,
+                             const GridItemLayout& maximum, bool definite_width) {
+    // A text leaf measured at zero available width reports its longest unbreakable run, which is
+    // the min-content width. A container at zero width reports just its insets (its text
+    // overflows), so its min-content is how far its laid-out descendants reach, capped by the
+    // max-content width (a fixed width, or size containment, stays what it is).
+    if (!item.text.empty() && item.children.empty()) {
+        return layouter.layout(item, 0.0f, -1.0f, nullptr).width;
+    }
+    if (item.children.empty() || definite_width) {
+        return maximum.width;
+    }
+    std::vector<LayoutBox> narrow;
+    (void)layouter.layout(item, 0.0f, -1.0f, &narrow);
+    float reach = 0.0f;
+    float first_x = kInfinity; // the left inset: where the first descendants start
+    for (std::size_t i = 1; i < narrow.size(); ++i) {
+        reach = std::max(reach, narrow[i].bounds.x + narrow[i].bounds.width);
+        first_x = std::min(first_x, narrow[i].bounds.x);
+    }
+    // At zero width the box is its insets, so the right inset is what the left one leaves.
+    const float right_inset = narrow.empty() || first_x == kInfinity
+                                  ? 0.0f
+                                  : std::max(0.0f, narrow.front().bounds.width - first_x);
+    return std::min(reach + right_inset, maximum.width);
+}
+
 void GridEngine::measure_items() {
     bool need_width = columns_.needs_content;
     bool need_height = rows_.needs_content;
@@ -49,25 +76,10 @@ void GridEngine::measure_items() {
         // is the min-content width. A container at zero width reports just its insets (its text
         // overflows), so its min-content is how far its laid-out descendants reach, capped by the
         // max-content width (a fixed width, or size containment, stays what it is).
-        item.min_content_width = maximum.width;
-        if (need_width && !item.input->text.empty() && item.input->children.empty()) {
-            item.min_content_width = layouter_.layout(*item.input, 0.0f, -1.0f, nullptr).width;
-        } else if (need_width && !item.input->children.empty() &&
-                   !has_definite_size(*item.input, "width")) {
-            std::vector<LayoutBox> narrow;
-            (void)layouter_.layout(*item.input, 0.0f, -1.0f, &narrow);
-            float reach = 0.0f;
-            float first_x = kInfinity; // the left inset: where the first descendants start
-            for (std::size_t i = 1; i < narrow.size(); ++i) {
-                reach = std::max(reach, narrow[i].bounds.x + narrow[i].bounds.width);
-                first_x = std::min(first_x, narrow[i].bounds.x);
-            }
-            // At zero width the box is its insets, so the right inset is what the left one leaves.
-            const float right_inset = narrow.empty() || first_x == kInfinity
-                                          ? 0.0f
-                                          : std::max(0.0f, narrow.front().bounds.width - first_x);
-            item.min_content_width = std::min(reach + right_inset, maximum.width);
-        }
+        item.min_content_width =
+            need_width ? item_min_content_width(layouter_, *item.input, maximum,
+                                                has_definite_size(*item.input, "width"))
+                       : maximum.width;
     }
 }
 

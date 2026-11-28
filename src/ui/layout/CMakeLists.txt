@@ -25,7 +25,11 @@ add_library(tessera_layout STATIC
     layout_tokens.cpp
     layout_scheduler.cpp
     layout_signature.cpp
-    pixel_snap.cpp)
+    pixel_snap.cpp
+    table_columns.cpp
+    table_layout.cpp
+    table_model.cpp
+    table_span.cpp)
 
 target_include_directories(tessera_layout PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -50,6 +54,12 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/grid_layout_tests.cpp)
     target_link_libraries(grid_layout_tests PRIVATE tessera_layout)
     add_test(NAME grid_layout COMMAND grid_layout_tests)
+
+    # HTML table layout (issue #543): the hand-computed corpus and the signature coverage of spans.
+    add_executable(table_layout_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/table_layout_tests.cpp)
+    target_link_libraries(table_layout_tests PRIVATE tessera_layout)
+    add_test(NAME table_layout COMMAND table_layout_tests)
 
     add_executable(grid_signature_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/grid_signature_tests.cpp)

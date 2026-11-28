@@ -185,7 +185,7 @@ void collect_boxes(YGNodeRef node, const LayoutInput& input, float parent_x, flo
 
 LayoutResult layout_cold(const LayoutInput& root, const LayoutViewport& viewport,
                          float available_width, float available_height,
-                         text::TextMeasureCache& cache, bool as_grid_item) {
+                         text::TextMeasureCache& cache, bool as_grid_item, bool fill_root) {
     std::vector<std::unique_ptr<MeasureContext>> measure_contexts;
     std::vector<std::unique_ptr<GridContext>> grid_contexts;
     YGNodeRef root_node =
@@ -196,6 +196,15 @@ LayoutResult layout_cold(const LayoutInput& root, const LayoutViewport& viewport
     if (as_grid_item && available_width >= 0.0f && contains_inline_size(root.style) &&
         has_auto_width(root.style)) {
         YGNodeStyleSetWidthAuto(root_node);
+    }
+    if (fill_root) {
+        YGNodeStyleSetBoxSizing(root_node, YGBoxSizingBorderBox);
+        if (available_width >= 0.0f) {
+            YGNodeStyleSetWidth(root_node, available_width);
+        }
+        if (available_height >= 0.0f) {
+            YGNodeStyleSetHeight(root_node, available_height);
+        }
     }
     // The root is a page (#611): viewport-wide up to `max-width`, centred, at least viewport tall.
     const bool page = !as_grid_item && available_width >= 0.0f && available_height >= 0.0f;

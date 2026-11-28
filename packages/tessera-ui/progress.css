@@ -1,0 +1,44 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The ProgressBar and Meter looks (issue #1041, ADR-047 item 5): a 240 x 8 px rounded track with a fill
+   and a rest that share the width by flex-grow. A Meter colours its fill by region: good is the
+   success token, warn the warning token, bad the danger token. Theme tokens only. */
+
+.tprg-track,
+.tmtr-track {
+  display: flex;
+  flex-direction: row;
+  width: 240px;
+  height: 8px;
+  margin-bottom: var(--space-3);
+  border-radius: 4px;
+  background-color: var(--surface-sunken);
+}
+
+.tprg-fill {
+  height: 8px;
+  border-radius: 4px;
+  background-color: var(--accent);
+}
+
+.tprg-rest,
+.tmtr-rest {
+  height: 8px;
+}
+
+.tmtr-fill {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.tmtr-good .tmtr-fill {
+  background-color: var(--success);
+}
+
+.tmtr-warn .tmtr-fill {
+  background-color: var(--warning);
+}
+
+.tmtr-bad .tmtr-fill {
+  background-color: var(--danger);
+}

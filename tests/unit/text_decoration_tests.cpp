@@ -80,7 +80,13 @@ bool grammar() {
          expect(near(style::vertical_align_shift("sub", 10.0f), -2.0f), "sub lowers 0.2em") &&
          expect(near(style::vertical_align_shift("-3px", 10.0f), -3.0f), "signed length") &&
          expect(near(style::vertical_align_shift("0.5em", 10.0f), 5.0f), "em length") &&
-         expect(!style::is_supported_vertical_align("middle"), "middle rejected") &&
+         expect(!style::is_supported_vertical_align("text-top"), "text-top rejected") &&
+         expect(style::is_supported_vertical_align("middle") &&
+                    style::is_supported_vertical_align("top") &&
+                    style::is_supported_vertical_align("bottom"),
+                "the table cell keywords are accepted") &&
+         expect(near(style::vertical_align_shift("middle", 10.0f), 0.0f),
+                "a cell keyword shifts no text") &&
          expect(!style::is_supported_vertical_align("50%"), "percent rejected") &&
          expect(style::is_supported_vertical_align("SUPER"), "case-insensitive") && ok;
     return ok;
@@ -136,12 +142,15 @@ bool registry_rules() {
                "a repeated line drops the shorthand") &&
         expect(expanded(registry, "text-decoration", "blink", &diagnostics).empty(),
                "an unknown component drops the shorthand") &&
-        expect(expanded(registry, "vertical-align", "middle", &diagnostics).empty() &&
+        expect(expanded(registry, "vertical-align", "text-top", &diagnostics).empty() &&
                    diagnostics == 1,
                "unsupported vertical-align is reported and dropped") &&
         expect(expanded(registry, "vertical-align", "super", &diagnostics).size() == 1 &&
                    diagnostics == 0,
                "super is accepted") &&
+        expect(expanded(registry, "vertical-align", "inherit", &diagnostics).size() == 1 &&
+                   diagnostics == 0,
+               "a CSS-wide keyword is accepted (the table sheet inherits the row's value)") &&
         expect(expanded(registry, "text-decoration-line", "line-through", &diagnostics).size() == 1,
                "longhand accepted") &&
         expect(expanded(registry, "text-decoration-color", "nope", &diagnostics).empty(),
@@ -157,7 +166,8 @@ bool registry_rules() {
     ok = expect(supports("(text-decoration: underline red)"), "@supports shorthand") &&
          expect(!supports("(text-decoration: wavy)"), "@supports shorthand rejects wavy") &&
          expect(supports("(vertical-align: sub)"), "@supports sub") &&
-         expect(!supports("(vertical-align: middle)"), "@supports middle is false") && ok;
+         expect(!supports("(vertical-align: text-top)"), "@supports text-top is false") &&
+         expect(supports("(vertical-align: middle)"), "@supports middle is true") && ok;
     return ok;
 }
 

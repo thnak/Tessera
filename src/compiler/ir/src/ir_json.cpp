@@ -219,6 +219,19 @@ JsonValue to_json(const Component& component) {
         resources.push(std::move(entry));
     }
     add_if_not_empty(json, "resources", std::move(resources));
+
+    // ADR-050 open question 6: omitted when the component reads no observable.
+    JsonValue observables = JsonValue::array();
+    for (const auto& observable : component.observables) {
+        JsonValue entry = JsonValue::object();
+        entry.set("id", JsonValue::string(observable.id));
+        entry.set("service", JsonValue::string(observable.service));
+        entry.set("member", JsonValue::string(observable.member));
+        entry.set("type", JsonValue::string(observable.type));
+        entry.set("source", to_json(observable.source));
+        observables.push(std::move(entry));
+    }
+    add_if_not_empty(json, "observables", std::move(observables));
     return json;
 }
 

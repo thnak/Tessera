@@ -92,6 +92,9 @@ void lower_service_hook(HookState& state, std::size_t index, LoweredHooks& out);
 // IR `resources[]` entry. The analyzer resolved the service binding and the method.
 void lower_resource_hook(HookState& state, std::size_t index, LoweredHooks& out,
                          const NameResolver& names);
+// ADR-050 open question 6: one `useObservable(svc.member)` statement, lowered to an IR
+// `observables[]` entry. The analyzer resolved the service binding, the member and its type.
+void lower_observable_hook(HookState& state, std::size_t index, LoweredHooks& out);
 // ADR-067 item 5 (issue #656): one `useDeferredValue(x)` call, lowered to a `deferred_value`
 // behavior whose one arg is the state it defers and whose output has that state's scalar type.
 void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks& out,

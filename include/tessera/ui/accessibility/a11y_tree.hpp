@@ -59,8 +59,12 @@ enum class Role : std::uint8_t {
     ScrollView,
     Tooltip,
     Alert,
-    Paragraph, // a block of text (`p`); the user-agent sheet gives it a margin
-    Status,    // a polite live region such as the LiveCapsule; announced by its name
+    Paragraph,    // a block of text (`p`); the user-agent sheet gives it a margin
+    Status,       // a polite live region such as the LiveCapsule; announced by its name
+    Table,        // `table`: a grid of rows and cells (docs/design/table-layout.md section 6)
+    Row,          // `tr`
+    Cell,         // `td`
+    ColumnHeader, // `th`
     // Not a role: the count of real values, so the role trait table can be sized and checked at
     // compile time (src/ui/accessibility/a11y_role_traits.hpp).
     kCount,

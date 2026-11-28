@@ -8,6 +8,7 @@
 #pragma once
 
 #include "grid_engine.hpp"
+#include "table_engine.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
@@ -29,6 +30,8 @@ namespace tessera::ui::layout::detail {
 // centred before it is snapped.
 [[nodiscard]] YGConfigRef unrounded_config();
 
+// True for `display: grid`/`inline-grid` and for a table (`table_engine.hpp`): the containers whose
+// subtree an engine lays out from a measure callback instead of Yoga.
 [[nodiscard]] bool is_grid_container(const style::ComputedStyle& style);
 
 // CSS `order` (stylesheet-v1 section 11, issue #213): flex items are laid out in ascending `order`,
@@ -105,7 +108,7 @@ struct GridItemContext {
 // the returned size is the size the engine positions and aligns.
 [[nodiscard]] GridItemLayout layout_grid_item(void* raw, const LayoutInput& item,
                                               float available_width, float available_height,
-                                              std::vector<LayoutBox>* boxes);
+                                              bool fill, std::vector<LayoutBox>* boxes);
 
 void run_grid(const LayoutInput& container, const LayoutViewport& viewport,
               const GridContentBox& content, text::TextMeasureCache& cache, float origin_x,

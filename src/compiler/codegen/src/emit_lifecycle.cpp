@@ -6,6 +6,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
+#include "emit_observables.hpp"
 #include "emit_resources.hpp"
 #include "emit_types_header.hpp"
 
@@ -215,7 +216,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
     };
     if (component.effects.empty()) {
         writer.line("");
-        if (static_instances.empty() && !item_instances) {
+        if (static_instances.empty() && !item_instances && !uses_observables(component)) {
             writer.line("void " + component.name + "::mount() {}");
             writer.line("");
             writer.line("void " + component.name + "::update_effects() {}");
@@ -234,12 +235,14 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
         writer.open("void " + component.name + "::mount()");
         instance_calls("mount", false);
         mount_items();
+        emit_observable_mount(writer, component, module);
         writer.close("");
         writer.line("");
         writer.open("void " + component.name + "::update_effects()");
         writer.close("");
         writer.line("");
         writer.open("void " + component.name + "::unmount()");
+        emit_observable_unmount(writer, component);
         unmount_items();
         instance_calls("unmount", true);
         writer.close("");
@@ -270,6 +273,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
     writer.line("update_effects();");
     instance_calls("mount", false);
     mount_items();
+    emit_observable_mount(writer, component, module);
     writer.close("");
     writer.line("");
 
@@ -317,6 +321,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
     writer.line("");
 
     writer.open("void " + component.name + "::unmount()");
+    emit_observable_unmount(writer, component);
     for (std::size_t i = component.effects.size(); i-- > 0;) {
         const ir::Effect& effect = component.effects[i];
         const std::string state = effect_state_name(effect.id);

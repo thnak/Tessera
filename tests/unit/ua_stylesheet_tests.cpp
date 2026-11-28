@@ -146,6 +146,26 @@ int main() {
     ok &= expect(view.find("margin-left") == nullptr || *view.find("margin-left") == "0",
                  "a plain View keeps no blockquote margin");
 
+    // Table tags (issue #543) match through the tag the alias keeps: the display values, Chrome's
+    // spacing and cell padding, and a bold centred `th`.
+    const style::ComputedStyle table = compute_for("View", "", {{"role", "table"}}, false, "table");
+    ok &= value_is(table, "display", "table");
+    ok &= value_is(table, "border-spacing", "2px");
+    ok &= value_is(table, "align-self", "-tessera-inline");
+    ok &= value_is(compute_for("View", "", {}, false, "thead"), "display", "table-header-group");
+    ok &= value_is(compute_for("View", "", {}, false, "tbody"), "display", "table-row-group");
+    ok &= value_is(compute_for("View", "", {}, false, "tfoot"), "display", "table-footer-group");
+    ok &= value_is(compute_for("View", "", {}, false, "tr"), "display", "table-row");
+    const style::ComputedStyle data_cell = compute_for("View", "", {}, false, "td");
+    ok &= value_is(data_cell, "display", "table-cell");
+    ok &= value_is(data_cell, "padding-top", "1px");
+    const style::ComputedStyle header_cell = compute_for("View", "", {}, false, "th");
+    ok &= value_is(header_cell, "font-weight", "700");
+    ok &= value_is(header_cell, "text-align", "center");
+    ok &= value_is(compute_for("View", "", {}, false, "caption"), "display", "table-caption");
+    ok &= value_is(compute_for("View", "", {}, false, "col"), "display", "table-column");
+    ok &= value_is(compute_for("View", "", {}, false, "colgroup"), "display", "table-column-group");
+
     // Controls have a size, a border and the browser's control font; without it a bare TextInput
     // is zero wide (the audit's finding).
     const style::ComputedStyle input = compute_for("TextInput", "");

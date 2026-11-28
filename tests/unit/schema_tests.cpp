@@ -67,18 +67,21 @@ void test_schema_version_and_counts() {
     check(schema::elements().size() == 14, "14 intrinsic elements (README section 3)");
     check(schema::type_records().size() == 12,
           "12 payload records (common-and-events.md section 2)");
-    check(schema::aliases().size() == 101, "46 mapped/partial and 55 unmapped aliases");
+    check(schema::aliases().size() == 101, "60 mapped/partial and 41 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     // 128 since ADR-068 slice 4 added `clip-path` (issue #672); 130 with `list-style-type` and
     // `list-style-position` (issue #541); 147 with the `-webkit-mask*` longhand aliases (#617).
-    check(schema::style_properties().size() == 154, "154 style longhands");
-    check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
+    check(schema::style_properties().size() == 158, "158 style longhands");
+    check(schema::role_tokens().size() == 27, "27 role tokens (common-and-events.md 1.1)");
     // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
     // id-reference attributes `useId` exists to fill.
+    // 29 with `aria-start`, `aria-reversed`
+    // and `aria-value`, the targets of `ol start`, `ol reversed` and `li value` (issue #912).
     // 29 with `aria-start`, `aria-reversed` and `aria-value`, the targets of `ol start`,
     // `ol reversed` and `li value` (issue #912).
-    // 31 with `aria-href` and `aria-for`, the targets of `a href` and `label htmlFor` (issue #542).
-    check(schema::common_props().size() == 31, "31 common attributes");
+    // 31 with `aria-href` and `aria-for`, the targets of `a href` and `label htmlFor` (issue #542);
+    // 33 with `aria-colspan` and `aria-rowspan` (issue #543).
+    check(schema::common_props().size() == 33, "33 common attributes");
 }
 
 void test_element_rows() {
@@ -272,7 +275,7 @@ void test_aliases() {
     check(schema::alias_style_defaults("span").empty(), "span injects no style");
     check(schema::alias_style_defaults("div").empty(), "a non-emphasis alias injects no style");
     const schema::AliasRow* input = schema::find_alias("input");
-    check(input != nullptr && input->type_map.size() == 6 && input->type_map_closed,
+    check(input != nullptr && input->type_map.size() == 9 && input->type_map_closed,
           "input has a closed type map");
     bool password_secure = false;
     for (const schema::AliasTypeMap& entry : input->type_map) {
@@ -300,10 +303,57 @@ void test_aliases() {
               type->values.size() == 3,
           "button type value map");
     const schema::AliasRow* table = schema::find_alias("table");
-    check(table != nullptr && table->status == schema::AliasStatus::Unsupported &&
-              !table->alternative.empty(),
-          "table has no mapping and an alternative");
+    check(table != nullptr && table->status == schema::AliasStatus::Partial &&
+              table->target == "View" && table->inject.size() == 1 &&
+              table->inject[0].value == "table",
+          "table maps to a View with role table");
+    const schema::AliasRow* cell = schema::find_alias("td");
+    check(cell != nullptr && find_attr(*cell, "colSpan") != nullptr &&
+              find_attr(*cell, "colSpan")->rename == "aria-colspan" &&
+              find_attr(*cell, "rowSpan")->rename == "aria-rowspan",
+          "td spans are renamed to aria-colspan and aria-rowspan");
+    const schema::AliasRow* form = schema::find_alias("form");
+    check(form != nullptr && form->status == schema::AliasStatus::Unsupported &&
+              !form->alternative.empty(),
+          "form has no mapping and an alternative");
     check(schema::find_alias("nosuchtag") == nullptr, "an unknown lowercase tag is not found");
+
+    // Issue #1041: tags that lower onto a library component resolve through their own table.
+    const schema::LibraryLowering* checkbox = schema::find_library_lowering("input", "checkbox");
+    check(checkbox != nullptr && checkbox->component == "Checkbox" &&
+              checkbox->import_path == "tessera-ui/Checkbox",
+          "input type=checkbox lowers onto Checkbox");
+    check(schema::find_library_lowering("input", "text") == nullptr &&
+              schema::find_library_lowering("input", "") == nullptr,
+          "a text input stays a TextInput");
+    check(schema::find_library_lowering("progress", "") != nullptr &&
+              schema::find_library_lowering("meter", "") != nullptr &&
+              schema::find_library_lowering("details", "") != nullptr &&
+              schema::find_library_lowering("input", "range") != nullptr &&
+              schema::find_library_lowering("input", "radio") != nullptr,
+          "progress, meter, details, range and radio lower onto library components");
+    check(schema::library_lowerings().size() == 6, "six library lowerings");
+    for (const schema::LibraryLowering& lowering : schema::library_lowerings()) {
+        const schema::AliasRow* row = schema::find_alias(lowering.tag);
+        check(row != nullptr && row->status == schema::AliasStatus::Mapped,
+              "a library lowering has a mapped alias row");
+        if (row != nullptr && !lowering.type.empty()) {
+            bool known_type = false;
+            for (const schema::AliasTypeMap& entry : row->type_map) {
+                known_type = known_type || entry.type == lowering.type;
+            }
+            check(known_type, "a lowered input type is in the type map");
+        }
+        for (const schema::LibraryAttr& attr : lowering.attrs) {
+            check(!attr.rename.empty() || !attr.suggestion.empty(),
+                  "a rejected library attribute has a suggestion");
+            check(attr.rename.empty() || !attr.ts_type.empty(),
+                  "a kept library attribute is typed");
+        }
+    }
+    check(schema::find_alias("summary") != nullptr &&
+              schema::find_alias("summary")->status == schema::AliasStatus::Mapped,
+          "summary is mapped (as a child of details)");
 
     for (const schema::AliasRow& alias : schema::aliases()) {
         if (alias.status == schema::AliasStatus::Unsupported) {

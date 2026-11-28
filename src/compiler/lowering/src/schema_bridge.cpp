@@ -147,6 +147,47 @@ ir::ExprPtr lower_node_expression(NodeState& state, const jsx::Expr& expr) {
     return std::move(*lowered);
 }
 
+namespace {
+
+// The `type` of an `input` written as a string literal; empty when absent or not a literal (the
+// ordinary input path reports a non-literal `type`).
+std::string_view literal_input_type(const jsx::JsxNode& element) {
+    for (const jsx::JsxAttribute& attribute : element.attributes) {
+        if (attribute.name == "type" && attribute.kind == jsx::JsxAttrKind::String) {
+            return attribute.string_value;
+        }
+    }
+    return {};
+}
+
+// Issue #1041: a tag that lowers onto a library component resolves to the component the file
+// imports under that name. The import is how a project picks the styled component (or its own),
+// so a missing one is reported with the line to add rather than guessed.
+std::optional<ElementInfo> resolve_library_lowering(NodeState& state, const jsx::JsxNode& element,
+                                                    const schema::LibraryLowering& lowering) {
+    for (const ComponentRef& reference : state.context.component_refs) {
+        if (reference.name == lowering.component) {
+            ElementInfo info;
+            info.kind = ir::NodeKind::Component;
+            info.is_component = true;
+            info.component_id = reference.id;
+            info.library = &lowering;
+            return info;
+        }
+    }
+    fail_node(state, "TESSERA_IR_UNRESOLVED",
+              "`<" + element.tag +
+                  (lowering.type.empty() ? "" : " type=\"" + std::string(lowering.type) + "\"") +
+                  ">` lowers onto the library `" + std::string(lowering.component) +
+                  "`, which this file does not import",
+              element.tag_span,
+              "import { " + std::string(lowering.component) + " } from \"" +
+                  std::string(lowering.import_path) + "\"");
+    return std::nullopt;
+}
+
+} // namespace
+
 std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode& element) {
     if (element.kind != jsx::JsxKind::Element) {
         fail_node(state, "TESSERA_IR_MALFORMED", "only an element node has attributes and children",
@@ -202,6 +243,17 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
             return std::nullopt;
         }
         return ElementInfo{row, *kind, false, {}, {}, {}, {}, {}};
+    }
+    if (const schema::LibraryLowering* lowering = schema::find_library_lowering(
+            element.tag, element.tag == "input" ? literal_input_type(element) : std::string_view());
+        lowering != nullptr) {
+        return resolve_library_lowering(state, element, *lowering);
+    }
+    if (element.tag == "summary") {
+        fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                  "`<summary>` is only the summary of a `<details>`", element.tag_span,
+                  "write it as a child of `<details>`, or use a `<Text>`");
+        return std::nullopt;
     }
     if (const schema::AliasRow* alias = schema::find_alias(element.tag); alias != nullptr) {
         // ADR-039 decision 3, html-aliases.md section 6: an unsupported row (the ADR-059 `planned`

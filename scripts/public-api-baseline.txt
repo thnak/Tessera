@@ -2809,6 +2809,10 @@ function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::round_hal
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_rect
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_scalar
 
+header include/tessera/ui/layout/table_span.hpp
+class include/tessera/ui/layout/table_span.hpp tessera::ui::Node
+function include/tessera/ui/layout/table_span.hpp tessera::ui::layout::apply_table_spans
+
 header include/tessera/ui/overlay/overlay.hpp
 class include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHost
 struct include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHandle
@@ -4008,6 +4012,11 @@ prop packages/tessera-ui/Checkbox.tsx Checkbox.indeterminate
 prop packages/tessera-ui/Checkbox.tsx Checkbox.label
 prop packages/tessera-ui/Checkbox.tsx Checkbox.onToggle
 
+component packages/tessera-ui/Details.tsx Details
+prop packages/tessera-ui/Details.tsx Details.children
+prop packages/tessera-ui/Details.tsx Details.defaultOpen
+prop packages/tessera-ui/Details.tsx Details.summary
+
 component packages/tessera-ui/Field.tsx Field
 prop packages/tessera-ui/Field.tsx Field.children
 prop packages/tessera-ui/Field.tsx Field.defaultValue
@@ -4032,6 +4041,20 @@ prop packages/tessera-ui/Icon.tsx Icon.mirror
 prop packages/tessera-ui/Icon.tsx Icon.name
 prop packages/tessera-ui/Icon.tsx Icon.size
 
+component packages/tessera-ui/Meter.tsx Meter
+prop packages/tessera-ui/Meter.tsx Meter.high
+prop packages/tessera-ui/Meter.tsx Meter.label
+prop packages/tessera-ui/Meter.tsx Meter.low
+prop packages/tessera-ui/Meter.tsx Meter.max
+prop packages/tessera-ui/Meter.tsx Meter.min
+prop packages/tessera-ui/Meter.tsx Meter.optimum
+prop packages/tessera-ui/Meter.tsx Meter.value
+
+component packages/tessera-ui/ProgressBar.tsx ProgressBar
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.label
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.max
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.value
+
 component packages/tessera-ui/Radio.tsx Radio
 prop packages/tessera-ui/Radio.tsx Radio.children
 prop packages/tessera-ui/Radio.tsx Radio.disabled
@@ -4042,6 +4065,13 @@ prop packages/tessera-ui/Radio.tsx Radio.selected
 component packages/tessera-ui/RadioGroup.tsx RadioGroup
 prop packages/tessera-ui/RadioGroup.tsx RadioGroup.children
 prop packages/tessera-ui/RadioGroup.tsx RadioGroup.label
+
+component packages/tessera-ui/Range.tsx Range
+prop packages/tessera-ui/Range.tsx Range.defaultValue
+prop packages/tessera-ui/Range.tsx Range.label
+prop packages/tessera-ui/Range.tsx Range.max
+prop packages/tessera-ui/Range.tsx Range.min
+prop packages/tessera-ui/Range.tsx Range.step
 
 component packages/tessera-ui/SafeArea.tsx SafeArea
 prop packages/tessera-ui/SafeArea.tsx SafeArea.children

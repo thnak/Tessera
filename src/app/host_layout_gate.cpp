@@ -21,6 +21,7 @@
 
 #include "host_impl.hpp"
 #include "tessera/ui/layout/layout_signature.hpp"
+#include "tessera/ui/layout/table_span.hpp"
 #include "tessera/ui/paint/list_marker_inside.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
@@ -72,6 +73,7 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
     input.text.clear();
     input.text_wrap = false;
     input.style = styles.resolve(node);
+    ui::layout::apply_table_spans(input, node);
     // A SafeArea node's padding or margin is host-owned, and the resolution is the SAME function
     // the design-time preview calls (issue #408): the app's metrics come from the OS and the
     // preview's from a simulated posture, but the token parsing and the padding writer are one

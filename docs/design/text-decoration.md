@@ -19,7 +19,7 @@ One grammar, shared by the registry validator, `@supports`, the shorthand and `t
 | `text-decoration-style` | `solid` | `double`, `dotted`, `dashed`, `wavy` |
 | `text-decoration-color` | `currentColor` or any colour | |
 | `text-decoration-thickness` | `auto`, `from-font`, a non-negative px/em/rem length | percentages, negatives |
-| `vertical-align` | `baseline`, `sub`, `super`, a signed px/em/rem length | `top`, `middle`, `bottom`, `text-top`, `text-bottom`, percentages |
+| `vertical-align` | `baseline`, `sub`, `super`, a signed px/em/rem length; `top`, `middle`, `bottom` (shift no text; they place a table cell's content, [`table-layout.md`](table-layout.md)) | `text-top`, `text-bottom`, percentages |
 
 `text-decoration` is the shorthand `<line> || <style> || <color> || <thickness>`. It expands to the
 four longhands and resets the omitted ones to their initial values. An unsupported component drops

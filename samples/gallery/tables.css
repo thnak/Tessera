@@ -1,0 +1,60 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The table look page (issue #543). The display values, the 2px spacing and the cell padding come
+   from the user-agent sheet; only the borders, fills and widths are authored here. */
+.t-columns {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: flex-start;
+  font-size: 14px;
+}
+
+.t-data {
+  border-collapse: collapse;
+}
+
+.t-data th,
+.t-data td {
+  border: 1px solid #808080;
+  padding: 4px 8px;
+}
+
+.t-data th {
+  background-color: rgba(128, 128, 128, 0.25);
+}
+
+.t-num {
+  text-align: right;
+}
+
+.t-spaced {
+  border-spacing: 6px;
+}
+
+.t-spaced td {
+  background-color: rgba(128, 128, 128, 0.25);
+  padding: 4px 8px;
+}
+
+.t-fixed {
+  table-layout: fixed;
+  width: 300px;
+}
+
+.t-narrow {
+  width: 80px;
+}
+
+.t-tall {
+  height: 56px;
+}
+
+.t-top {
+  vertical-align: top;
+}
+
+.t-bottom {
+  vertical-align: bottom;
+}
