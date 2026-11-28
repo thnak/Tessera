@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// The font pack manifest and the theme-side pin (docs/specs/theme-versions-v1.md section 5). Build time only.
+// The font pack manifest and the theme-side pin (docs/specs/theme-versions-v1.md section 5). Build
+// time only.
 
 #include "tessera/harness/json_parse.hpp"
 #include "tessera/ui/style/font_pack.hpp"

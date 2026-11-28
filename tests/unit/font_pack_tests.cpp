@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// The bundled font pack (ADR-047 item 4, issue #280, docs/specs/theme-versions-v1.md section 5): the manifest
-// parses, every listed file is present with its pinned size and SHA-256, the OFL text travels with
-// it, the Instrument themes pin the pack's exact version, and the text stack's tabular-number gap
-// is recorded. Deterministic: only files of the repository, no clock, network or system fonts.
+// The bundled font pack (ADR-047 item 4, issue #280, docs/specs/theme-versions-v1.md section 5):
+// the manifest parses, every listed file is present with its pinned size and SHA-256, the OFL text
+// travels with it, the Instrument themes pin the pack's exact version, and the text stack's
+// tabular-number gap is recorded. Deterministic: only files of the repository, no clock, network or
+// system fonts.
 
 #include "tessera/ui/automation/sha256.hpp"
 #include "tessera/ui/style/font_pack.hpp"
@@ -182,11 +183,11 @@ void test_theme_pins(const style::FontPack& pack) {
 }
 
 // ADR-047 item 5 asks for OpenType `tnum`. The shaper calls hb_shape with no feature list, so
-// `tnum` and `font-feature-settings` are NOT applied (gap, recorded in theme-versions-v1.md section 5 and filed as
-// an issue). For this pack it is not observable: every Plex face's default figures are already
-// tabular, so all ten digits advance alike without the feature. This test pins that fact for each
-// shipped file; a face whose default figures were proportional would fail it, which is the signal
-// to implement feature support first.
+// `tnum` and `font-feature-settings` are NOT applied (gap, recorded in theme-versions-v1.md section
+// 5 and filed as an issue). For this pack it is not observable: every Plex face's default figures
+// are already tabular, so all ten digits advance alike without the feature. This test pins that
+// fact for each shipped file; a face whose default figures were proportional would fail it, which
+// is the signal to implement feature support first.
 void test_default_digits_are_tabular(const style::FontPack& pack) {
     tessera::ui::text::TextStyle style;
     style.font_size = 100.0f;
