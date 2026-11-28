@@ -7,7 +7,7 @@
 #include <vector>
 
 #ifndef TESSERA_GALLERY_FONT
-#define TESSERA_GALLERY_FONT "tests/fixtures/fonts/NotoSans-Regular.ttf"
+#define TESSERA_GALLERY_FONT "packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
 #endif
 
 namespace gallery {

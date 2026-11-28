@@ -69,7 +69,7 @@ target_link_libraries(gallery PRIVATE
     tessera_harness_capture
     tessera_stb)
 target_compile_definitions(gallery PRIVATE
-    TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
+    TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
     TESSERA_GALLERY_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css"
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
     TESSERA_GALLERY_ICON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css"
@@ -129,14 +129,12 @@ if (TESSERA_BUILD_TESTS)
     # SafeArea (issue #223): one screen per scripted device, in the light and dark themes. The
     # window size is the device's: a notched phone, a gesture-navigation phone, a tablet-width
     # window with a keyboard, and a book-mode foldable.
-    # The token swatch page (issue #280): every colour token of each theme, painted with the font
-    # pack's Plex Sans (the opt-in pack, not the Noto test fixture the other cases use).
-    set(_gallery_plex_sans
-        "${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf")
+    # The token swatch page (issue #280): every colour token of each theme. Every case paints with the
+    # font pack's Plex Sans Regular, the gallery's default face (#973).
     foreach (_theme light dark high_contrast)
         string(REPLACE "_" "-" _theme_id "${_theme}")
         list(APPEND _gallery_cases
-            "swatch_${_theme}|--page swatch --theme instrument-${_theme_id} --width 560 --height 360 --font ${_gallery_plex_sans}")
+            "swatch_${_theme}|--page swatch --theme instrument-${_theme_id} --width 560 --height 360")
     endforeach ()
     # The Icon page (issue #530): every icon in both sizes, per theme, plus the right-to-left flip of
     # the directional icon on the light theme.

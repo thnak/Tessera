@@ -186,6 +186,8 @@ def main() -> int:
     browser_cmd = [
         node,
         str(repo / "scripts" / "ci" / "chrome_parity.mjs"),
+        "--page",
+        args.page,
         "--out",
         str(out),
         "--width",

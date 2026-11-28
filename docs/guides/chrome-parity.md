@@ -140,6 +140,11 @@ These are not bugs; a markup author who writes for both has to know them.
   dashboard therefore uses a solid hero; a gradient there is the clearest visible gap against Chrome.
 - A border with different widths or colours per side is not one ring and keeps the square edge strips
   on a rounded box.
+- Measured with Plex on lavapipe against Chromium (#973, `parity_gate.py`, 640x720): the form is at
+  `structure_diff_pct` 0.61 (over the 0.5 threshold; `differing_pixels_pct` 7.53) and the dashboard at 0.13
+  (3.02). The form's gap is vertical: each text input is 36 px in the engine and 38 px in Chrome, which shifts
+  every row below it; the 0.12 quoted in section 2 predates the Plex fixtures and was not re-measured with Noto. The gallery goldens now render with Plex
+  Sans Regular too (the default `TESSERA_GALLERY_FONT`).
 - The engine loads one face per weight (repeat `--font`, #973) and neither side synthesizes bold, but the
   form and dashboard twins set no `font-weight` yet, so no bold run is compared until a page uses one. The form runs in the light theme and the dashboard in the dark one, both at
   device scale 1; high contrast, RTL and scale 2 need their own runs.

@@ -64,8 +64,8 @@ Four items, all of which otherwise collide across every later phase:
 4. **The bundled font pack (#280).** `font-weight` is parsed and carried but **bold is not compared**
    (the parity guide says so outright). The pack (Plex Sans 400/600/700, Mono 400/700) exists in
    `packages/tessera-fonts/ibm-plex/`, and the parity gate and the chrome-parity harness now use its
-   Plex Sans Regular instead of Noto (#970). Bold stays unverifiable until the text stack loads more than
-   one face per window (`--font` takes a single file).
+   Plex Sans Regular, SemiBold and Bold (#970, #973: `--font` repeats and the text stack picks a face by
+   weight). No twin page sets a bold weight yet, so bold is loadable but not yet compared.
 
 ### Phase 1 — text and layout (14)
 
