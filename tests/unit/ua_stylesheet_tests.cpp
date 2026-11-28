@@ -145,11 +145,13 @@ int main() {
     // Controls have a size, a border and the browser's control font; without it a bare TextInput
     // is zero wide (the audit's finding).
     const style::ComputedStyle input = compute_for("TextInput", "");
-    ok &= value_is(input, "min-width", "176px");
-    ok &= value_is(input, "min-height", "22px");
+    ok &= value_is(input, "min-width", "168px");
+    ok &= value_is(input, "min-height", "16px");
+    ok &= expect(input.find("box-sizing") == nullptr || *input.find("box-sizing") == "content-box",
+                 "a text field is content-box like Chrome's (issue #973)");
     ok &= value_is(input, "border-top-width", "1px");
     ok &= value_is(input, "font-size", "13.3333px");
-    ok &= value_is(compute_for("TextArea", ""), "min-width", "161px");
+    ok &= value_is(compute_for("TextArea", ""), "min-width", "153px");
 
     // Every author declaration wins over the user-agent one, with the weakest possible selector,
     // and the user-agent defaults the author did not touch stay.

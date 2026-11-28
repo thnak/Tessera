@@ -25,6 +25,11 @@ std::string_view ua_stylesheet_text() noexcept {
     // between two stacked blocks; a flex column does not, so two adjacent headings sit further
     // apart than in a browser (a named exception, docs/reference/ua-audit.md).
     //
+    // `TextInput`/`TextArea` stay `content-box` like Chrome's text fields (only buttons, selects
+    // and checkboxes are border-box there), so an authored `height: 36px` plus a 1px border is a
+    // 38px field in both (issue #973); the minimums are the border-box 176x22 / 161x38 less padding
+    // and border.
+    //
     // Controls: a browser's `button`/`input`/`textarea` do not inherit `line-height` (Chrome's
     // sheet sets `font: -webkit-small-control`, which resets it to `normal`), so a page with
     // `line-height: 1.5` on the body still has 20px buttons (found by the showcase parity check).
@@ -66,12 +71,12 @@ std::string_view ua_stylesheet_text() noexcept {
            "background-color: #efefef; border: 1px solid #767676; border-radius: 2px; }\n"
            "Button:hover { background-color: #e5e5e5; border-color: #4f4f4f; }\n"
            "Button:active { background-color: #f5f5f5; border-color: #767676; }\n"
-           "TextInput { box-sizing: border-box; min-width: 176px; "
-           "min-height: 22px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
+           "TextInput { min-width: 168px; "
+           "min-height: 16px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
            "background-color: #ffffff; "
            "border: 1px solid #767676; border-radius: 2px; }\n"
-           "TextArea { box-sizing: border-box; min-width: 161px; "
-           "min-height: 38px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
+           "TextArea { min-width: 153px; "
+           "min-height: 32px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
            "background-color: #ffffff; "
            "border: 1px solid #767676; border-radius: 2px; }\n";
 }
