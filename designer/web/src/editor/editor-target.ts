@@ -57,7 +57,7 @@ export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
       throw new Error(`Format Document refused the file: ${report.message}`);
     }
     if (report.outcome === "skipped" && !isFormattable(view.contentDOM.dataset.path ?? "")) {
-      throw new Error("Format Document formats .tsx files; CSS and tessera.json follow");
+      throw new Error("Format Document formats .tsx, .css and tessera.json files");
     }
   },
   "edit.toggleComment": () => withView((view) => void toggleComment(view)),

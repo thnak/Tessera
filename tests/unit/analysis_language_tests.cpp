@@ -209,7 +209,7 @@ void test_json_and_abi() {
     check_eq(ask("references", 0, static_cast<int>(tag), 1),
              references_to_json(index, 0, tag, true), "abi references");
     check_eq(ask("hover", 0, static_cast<int>(tag), 0), hover_to_json(index, 0, tag), "abi hover");
-    check_eq(ask("rename", 0, 0, 0), std::string("<null>"), "unknown type is null");
+    check_eq(ask("bogus", 0, 0, 0), std::string("<null>"), "unknown type is null");
     check_eq(ask("hover", -1, 0, 0), std::string("<null>"), "negative file is null");
     check_eq(ask("hover", 0, -1, 0), std::string("<null>"), "negative offset is null");
 }

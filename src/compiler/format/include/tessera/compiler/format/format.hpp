@@ -21,6 +21,10 @@ enum class FileKind : std::uint8_t {
 struct FormatOptions {
     int print_width = 100; // `format.printWidth` in tessera.json
     int indent_width = 2;  // `format.indentWidth`
+    // Slice 4: a .tsx file whose errors are confined to top-level items the parser gave up on is
+    // formatted around them, each broken item kept byte for byte, instead of refused. Off by
+    // default (the CLI and CI refuse); the studio turns it on.
+    bool recover = false;
 };
 
 // Why a file was not formatted. A refusal never carries partial output.
@@ -36,6 +40,9 @@ struct FormatResult {
     std::string text; // the formatted file; empty when refused
     bool changed = false;
     std::vector<FormatDiagnostic> diagnostics;
+    // With `FormatOptions::recover`: the regions left as written (TESSERA_FMT_SKIPPED), each with
+    // the parser's message. The file is formatted otherwise, so `ok()` is still true.
+    std::vector<FormatDiagnostic> skipped;
 
     [[nodiscard]] bool ok() const {
         return diagnostics.empty();

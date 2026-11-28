@@ -43,6 +43,7 @@ import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
 import { usePanelVisibility, useViewFromUrl } from "./page-panels";
 import { useProblems, useProblemsStore } from "./page-problems";
+import { useProjectProblems } from "./page-project-problems";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
 import { useWorkbench as useCommands } from "./page-commands";
@@ -349,6 +350,7 @@ export function App() {
   );
 
   const problems = useProblems({ store: problemsStore, workbench, workspace, refs, onSelectTab });
+  const scheduleProjectProblems = useProjectProblems(problemsStore, workspace);
 
   const onEdit = useCallback(
     (text: string) => {
@@ -364,6 +366,7 @@ export function App() {
       // one apply per burst. It reads the file the workspace compiles through the refs above, so a
       // keystroke in a stylesheet tab applies nothing until the spec's restart case fires.
       live.current?.schedule();
+      scheduleProjectProblems();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspace.state.active],

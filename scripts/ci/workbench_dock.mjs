@@ -315,7 +315,7 @@ const centre = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 
 {
   const { page, context } = await open(1440, 900);
-  const seps = await page.evaluate(() => [...document.querySelectorAll('[role=separator]')].map((e) => ({
+  const seps = await page.evaluate(() => [...document.querySelectorAll('.dock-host .flexlayout__splitter[role=separator]')].map((e) => ({
     o: e.getAttribute('aria-orientation'), now: Number(e.getAttribute('aria-valuenow')), min: Number(e.getAttribute('aria-valuemin')), max: Number(e.getAttribute('aria-valuemax')), tab: e.tabIndex,
   })));
   check('separators: role, orientation, tabindex 0, and real min < now < max (not the library\'s 0..100)',
@@ -368,6 +368,61 @@ const centre = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
   await page.dblclick('#flexlayout-tabbutton-editor');
   await page.waitForTimeout(400);
   check('and double-click again restores', (await model(page)).maximized === null && (await box(page, '[data-panel=canvas]'))?.w > 100);
+
+  // Sash snap, double-click reset and collapse (issue #589; layout spec 4.4): all are layout operations.
+  await via(page, "wb.commands.resetLayout()");
+  await page.waitForTimeout(400);
+  const defaults = (await model(page)).root.sizes;
+  const sashBox = async () => box(page, '.dock-host .flexlayout__splitter');
+  let s0 = await sashBox();
+  await drag(page, centre(s0), { x: centre(s0).x + 7, y: centre(s0).y });
+  check('sash drag ending 7 px from the default snaps to the default fraction', JSON.stringify((await model(page)).root.sizes) === JSON.stringify(defaults), JSON.stringify((await model(page)).root.sizes));
+  s0 = await sashBox();
+  await drag(page, centre(s0), { x: centre(s0).x + 150, y: centre(s0).y });
+  const moved = (await model(page)).root.sizes[0];
+  check('a drag 150 px away does not snap', moved > defaults[0] + 0.05, String(moved));
+  s0 = await sashBox();
+  await page.mouse.dblclick(centre(s0).x, centre(s0).y);
+  await page.waitForTimeout(500);
+  const afterReset = await model(page);
+  check('double-click on the sash resets the split to its default fractions', JSON.stringify(afterReset.root.sizes) === JSON.stringify(defaults) && JSON.stringify(afterReset.root.children[1].sizes) === '[0.72,0.28]', JSON.stringify(afterReset.root.sizes));
+  check('  the keyboard path reaches the same state: ArrowRight then double-click is still the default',
+    await (async () => { await page.locator('.dock-host .flexlayout__splitter').first().focus(); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(250);
+      const kb = (await model(page)).root.sizes[0]; const s = await sashBox(); await page.mouse.dblclick(centre(s).x, centre(s).y); await page.waitForTimeout(400);
+      return kb > defaults[0] && JSON.stringify((await model(page)).root.sizes) === JSON.stringify(defaults); })());
+
+  s0 = await sashBox();
+  await drag(page, centre(s0), { x: 30, y: centre(s0).y });
+  const collapsedByDrag = await model(page);
+  check('dragging Project below its minSize collapses it (model operation, layout JSON)', collapsedByDrag.collapsed.includes('g-project') && JSON.stringify(collapsedByDrag.root.sizes) === JSON.stringify(defaults), JSON.stringify([collapsedByDrag.collapsed, collapsedByDrag.root.sizes, defaults]));
+  check('  a collapsed group has no box: zero frame cost', (await box(page, '[data-panel=project]')) === null || (await box(page, '[data-panel=project]')).w === 0);
+  await page.waitForTimeout(700);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.flexlayout__layout');
+  await page.waitForTimeout(800);
+  check('  the collapse persists across a reload', (await model(page)).collapsed.includes('g-project'));
+  const edge = await box(page, '.dock-edge[data-collapsed-group=g-project]');
+  check('  a restore handle sits on the collapsed edge', edge !== null && edge.h > 100, JSON.stringify(edge));
+  if (edge !== null) {
+    await drag(page, centre(edge), { x: centre(edge).x + 120, y: centre(edge).y });
+    const restored = await model(page);
+    check('dragging the collapsed edge back restores the group at its previous size', !restored.collapsed.includes('g-project') && JSON.stringify(restored.root.sizes) === JSON.stringify(defaults) && ((await box(page, '[data-panel=project]'))?.w ?? 0) > 100, JSON.stringify(restored.collapsed));
+  }
+  await via(page, "wb.commands.togglePanelArea()");
+  await page.waitForTimeout(300);
+  await via(page, "wb.commands.togglePanelArea()");
+  await page.waitForTimeout(300);
+  const bottomEdge = await box(page, '.dock-edge[data-collapsed-group=g-bottom]');
+  check('the collapsed panel area has a handle under the editor and canvas; double-click restores it', bottomEdge !== null && bottomEdge.w > 400);
+  if (bottomEdge !== null) {
+    await page.mouse.dblclick(centre(bottomEdge).x, centre(bottomEdge).y);
+    await page.waitForTimeout(400);
+    const reopened = await model(page);
+    check('  the panel area is open again', !reopened.collapsed.includes('g-bottom') && (await box(page, '[data-panel=' + groupOf(reopened, 'problems').active + ']')) !== null, JSON.stringify(reopened.collapsed));
+    await via(page, "wb.commands.togglePanelArea()");
+  }
+  await via(page, "wb.commands.resetLayout()");
+  await page.waitForTimeout(400);
 
   const editorHost = await page.evaluateHandle(() => document.querySelector('[data-panel=editor]'));
   await via(page, "wb.dispatch({kind:'move', panelId:'canvas', target:{edge:'bottom', of:'g-editor'}})");

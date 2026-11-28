@@ -63,6 +63,8 @@ public:
 
     [[nodiscard]] const FileIndex* file(FileId file) const;
     [[nodiscard]] std::optional<std::string_view> text(FileId file) const;
+    // The project-relative path the file was added with (empty when it had none).
+    [[nodiscard]] std::optional<std::string_view> path(FileId file) const;
     [[nodiscard]] const Symbol* symbol(std::string_view id) const;
     // Files in id order.
     [[nodiscard]] std::vector<FileId> files() const;

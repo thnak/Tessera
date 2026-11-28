@@ -5,9 +5,11 @@
 // Like the stub it is classic-script source, so one handle drives it in a page (blob Worker) and in Node
 // (worker_threads). The worker half of the protocol (handshake, snapshot and delta cache, cancel,
 // version checks) is the stub's; the one request is `format`. The formatter itself is an *engine*
-// the source is built around, a function `tesseraFormat(text, printWidth, indentWidth)` that returns (or
+// the source is built around, a function `tesseraFormat(text, printWidth, indentWidth, kind)` (kind: 0 .tsx, 1 .css, 2 tessera.json,
+// absent means 0) that returns (or
 // resolves to) the JSON of `format_edits_json`:
-//   {"edits":[{offset,length,newText}],"diagnostics":[{code,message,line,column}]}
+//   {"edits":[{offset,length,newText}],"diagnostics":[{code,message,line,column}],"skipped":[same shape]}
+// `skipped` lists the regions of a .tsx file left as written because they do not parse (ADR-061 slice 4).
 // In a page the engine is the Wasm module (`wasmEngineSource`); a gate may inject another.
 
 const CORE = String.raw`
@@ -25,10 +27,11 @@ const fail = (req, code, message) => reply(req, null, { code, message });
 async function format(req) {
   const p = req.payload;
   if (!Number.isInteger(p.file) || p.file < 0) return fail(req, 'TESSERA_STUDIO_MALFORMED', 'format.file must be a file id');
+  if (p.kind !== undefined && (!Number.isInteger(p.kind) || p.kind < 0 || p.kind > 2)) return fail(req, 'TESSERA_STUDIO_MALFORMED', 'format.kind must be 0, 1 or 2');
   if (!files.has(p.file)) return fail(req, 'TESSERA_FMT_NO_FILE', 'file ' + p.file + ' is not in the snapshot');
   let doc;
   try {
-    doc = JSON.parse(await tesseraFormat(files.get(p.file), p.printWidth || 0, p.indentWidth || 0));
+    doc = JSON.parse(await tesseraFormat(files.get(p.file), p.printWidth || 0, p.indentWidth || 0, p.kind || 0));
   } catch (e) {
     return fail(req, 'TESSERA_FMT_ENGINE', String((e && e.message) || e));
   }
@@ -39,6 +42,7 @@ async function format(req) {
     changed: doc.edits.length > 0,
     edits: doc.edits.map((e) => ({ file: p.file, offset: e.offset, length: e.length, newText: e.newText })),
     diagnostics: doc.diagnostics,
+    skipped: doc.skipped || [],
   });
 }
 
@@ -82,7 +86,7 @@ export function formatServiceSource(engineSource) {
 export function wasmEngineSource(moduleUrl) {
   return `
 let tesseraModule = null;
-async function tesseraFormat(text, printWidth, indentWidth) {
+async function tesseraFormat(text, printWidth, indentWidth, kind) {
   if (tesseraModule === null) {
     tesseraModule = import(${JSON.stringify(moduleUrl)}).then((m) => m.default());
   }
@@ -92,7 +96,7 @@ async function tesseraFormat(text, printWidth, indentWidth) {
   m.stringToUTF8(text, input, size);
   let out = 0;
   try {
-    out = m._tessera_format_edits_json(input, printWidth, indentWidth);
+    out = m._tessera_format_edits_json_kind(kind || 0, input, printWidth, indentWidth);
     if (!out) throw new Error('the format module ran out of memory');
     return m.UTF8ToString(out);
   } finally {

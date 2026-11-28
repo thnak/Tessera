@@ -72,6 +72,19 @@
 }
 .dock-host .flexlayout__splitter:focus-visible { outline: none; }
 
+/* The restore handle of a collapsed group: a sash with no visible bar until it is the thing you are about to drag. */
+.dock-edge {
+  position: absolute;
+  /* Above the dock's own sashes, which run to the edge of the groups this handle sits on. */
+  z-index: 50;
+  background: transparent;
+  transition: background 0.1s 0.1s;
+  touch-action: none;
+}
+.dock-edge-h { cursor: ns-resize; }
+.dock-edge-v { cursor: ew-resize; }
+.dock-edge:hover { background: var(--accent); }
+
 /* VS Code tabs: flat, with an accent line over the selected one and a subtle divider between tabs. */
 .dock-host .flexlayout__tab_button {
   border-radius: 0;

@@ -2,7 +2,9 @@
 
 // The Problems panel (owner decision, studio focus pass; Visual Studio's Error List, VS Code's Problems): a dock
 // panel listing the compiler's diagnostics for the project, each with a severity icon, its code, its message and
-// `file:line:col`. The severity chips filter the list, and a row jumps to its span in the editor.
+// `file:line:col`, grouped by file (files in path order, rows in position order; #575). The rows are the whole
+// project's: the analysis worker's diagnostics for every file plus the compile's. The severity chips filter the
+// list, and a row opens its file and jumps to its span in the editor.
 //
 // It is a normal dock panel (`panels.json` id `problems`), so it moves, floats, splits and closes like any
 // other tab (ADR-062). **A hidden panel does no work**: it subscribes to the store only while it is visible
@@ -14,6 +16,7 @@ import {
   EMPTY_SNAPSHOT,
   SEVERITIES,
   filterProblems,
+  groupByFile,
   locationOf,
   type Problem,
   type ProblemSeverity,
@@ -58,6 +61,7 @@ export function ProblemsPanel({
     return <section className="problems" id="problems-panel" hidden />;
   }
   const rows = filterProblems(snapshot.problems, shown);
+  const groups = groupByFile(rows);
   const counts: Record<ProblemSeverity, number> = { error: snapshot.errors, warning: snapshot.warnings, info: snapshot.infos };
   const toggle = (severity: ProblemSeverity): void => {
     const next = new Set(shown);
@@ -93,26 +97,38 @@ export function ProblemsPanel({
         </p>
       ) : (
         <ul className="problems-list" id="problems-list" aria-label="Problems list" onKeyDown={moveFocus}>
-          {rows.map((problem) => (
-            <li key={problem.key}>
-              <button
-                type="button"
-                className={`problems-row problems-${problem.severity}`}
-                data-problem={problem.key}
-                data-severity={problem.severity}
-                data-file={problem.file}
-                data-line={problem.line}
-                data-column={problem.column}
-                title={`${SEVERITY_LABEL[problem.severity]} ${problem.code}: ${problem.message}`}
-                onClick={() => onJump(problem)}
-              >
-                <span className="problems-icon" role="img" aria-label={SEVERITY_LABEL[problem.severity]}>
-                  {SEVERITY_ICON[problem.severity]}
+          {groups.map((group, groupIndex) => (
+            <li key={group.file} className="problems-group" data-problems-file={group.file}>
+              <h3 className="problems-file" id={`problems-file-${groupIndex}`}>
+                <span className="problems-file-name">{group.file || "(no file)"}</span>{" "}
+                <span className="problems-count" role="img" aria-label={`${group.problems.length} ${group.problems.length === 1 ? "problem" : "problems"}`}>
+                  {group.problems.length}
                 </span>
-                <span className="problems-code">{problem.code || "(no code)"}</span>
-                <span className="problems-message">{problem.message}</span>
-                <span className="problems-where">{locationOf(problem)}</span>
-              </button>
+              </h3>
+              <ul className="problems-group-rows" aria-labelledby={`problems-file-${groupIndex}`}>
+                {group.problems.map((problem) => (
+                  <li key={problem.key}>
+                    <button
+                      type="button"
+                      className={`problems-row problems-${problem.severity}`}
+                      data-problem={problem.key}
+                      data-severity={problem.severity}
+                      data-file={problem.file}
+                      data-line={problem.line}
+                      data-column={problem.column}
+                      title={`${SEVERITY_LABEL[problem.severity]} ${problem.code}: ${problem.message}`}
+                      onClick={() => onJump(problem)}
+                    >
+                      <span className="problems-icon" role="img" aria-label={SEVERITY_LABEL[problem.severity]}>
+                        {SEVERITY_ICON[problem.severity]}
+                      </span>
+                      <span className="problems-code">{problem.code || "(no code)"}</span>
+                      <span className="problems-message">{problem.message}</span>
+                      <span className="problems-where">{locationOf(problem)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>

@@ -34,10 +34,15 @@ EMSCRIPTEN_KEEPALIVE void tessera_analysis_edit(int file, int offset, int length
 // snapshot).
 EMSCRIPTEN_KEEPALIVE int tessera_analysis_commit_edits();
 EMSCRIPTEN_KEEPALIVE const char* tessera_analysis_query_json(const char* type, int file);
-// The position requests: `type` is "definition", "references" or "hover"; `offset` is in UTF-16
+// The position requests: `type` is "definition", "references", "hover", "completion" or
+// "prepareRename"; `offset` is in UTF-16
 // code units of the file; `flag` is includeDeclaration for "references" (ignored otherwise). Null
 // for an unknown type or a negative file or offset.
 EMSCRIPTEN_KEEPALIVE const char* tessera_analysis_request_json(const char* type, int file,
                                                                int offset, int flag);
+// Rename: the edits (or a refusal) for renaming the symbol at `offset` to `new_name` (UTF-8).
+// Null for a negative file or offset.
+EMSCRIPTEN_KEEPALIVE const char* tessera_analysis_rename_json(int file, int offset,
+                                                              const char* new_name);
 EMSCRIPTEN_KEEPALIVE void tessera_free(const char* text);
 }

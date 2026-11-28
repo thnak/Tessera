@@ -3,9 +3,10 @@
 // The Diagnostics view's session (P1, issue #165; the React host is issue #422; the multi-file workspace
 // is issue #431).
 //
-// It compiles the source the workspace selects with `tessera_diagnostics`, the same compiler the native
-// CLI runs, and lists the diagnostics with their source spans. The rendering is
-// `diagnostics-render.ts`; this file is the Wasm lifecycle and the pane's status line.
+// It compiles the project the workspace selects with `tessera_diagnostics`, the same compiler the native
+// CLI runs, and lists the diagnostics with their source spans. The compile runs in the `compile` service
+// worker behind the services protocol (#569, ADR-060): the page never calls a Wasm export for this view. The
+// rendering is `diagnostics-render.ts`; this file is the worker's lifecycle and the pane's status line.
 //
 // **What it compiles.** Before #431 this session read `#source.value`, which was the page's one textarea
 // and therefore always the right text. Now the editor shows one project file at a time and Run compiles
@@ -19,14 +20,10 @@
 // ADR-054 decision 3 split: React draws the chrome, the engine draws the preview.
 
 import type { CodeEditor, EditorMark } from "../editor/code-editor";
-import { wasmModuleUrl } from "../lib/module-url";
 import type { StatusReporter, ProjectReader, ViewSession } from "../lib/views";
-import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
+import { createCompileClient } from "../lib/compile-client";
 import { renderDiagnostics, type Diagnostic, type DiagnosticsDocument } from "./diagnostics-render";
 import { unavailableBox } from "./dom";
-
-/** The module factory `tessera_diagnostics.js` exports (Emscripten `MODULARIZE`+`EXPORT_ES6`). */
-type ModuleFactory = () => Promise<WasmModule>;
 
 /** The elements React committed for this pane; every one of them is a ref. */
 export interface DiagnosticsElements {
@@ -96,8 +93,9 @@ export function createDiagnosticsSession(options: {
   const { editor, list, emptyState, statusCount } = options.elements;
   const setStatus = options.setStatus;
 
-  // The module factory, or null when the artifacts are absent or refused to start.
-  let factory: ModuleFactory | null = null;
+  // The compile worker's client, or null until the first load succeeded (a missing module is the normal state
+  // of a checkout that has not built Wasm).
+  let compiler: ReturnType<typeof createCompileClient> | null = null;
 
   function showUnavailable(detail: string): void {
     list.replaceChildren();
@@ -136,26 +134,26 @@ export function createDiagnosticsSession(options: {
   }
 
   async function run(): Promise<void> {
-    if (!factory) {
+    if (!compiler) {
       return;
     }
     options.onReady(false);
     setStatus("compiling...");
     try {
-      // One module instance per view: the compiler keeps no state between calls that the page needs,
-      // and re-instantiating per Run would re-download and re-initialise the heap.
-      const module = await factory();
+      // The worker owns the module and the staging (`services/compile-service.js`); a newer request cancels
+      // an older one, and a worker that died is restarted from this snapshot.
       const target = options.source();
-      // The marshalling and the two release paths live in `lib/wasm-call.ts`: the three views share the
-      // same C ABI shape, so the lifetime rule is written once instead of three times.
-      stageProject(module, target);
-      const json = callExport(module, "_tessera_diagnostics_json");
-      const document_ = JSON.parse(json) as DiagnosticsDocument;
+      const document_ = await compiler.diagnostics(target);
       const counts = renderDiagnostics(list, emptyState, document_, { element: editor, file: target.active });
       markEditor(editor, document_);
       report(counts);
       options.onDiagnostics?.(Array.isArray(document_.diagnostics) ? document_.diagnostics : []);
     } catch (error) {
+      if ((error as { code?: string }).code === "TESSERA_COMPILE_ENGINE") {
+        // The worker could not load or run the module: the same state as a checkout without the Wasm artifacts.
+        showUnavailable(error instanceof Error ? error.message : String(error));
+        return;
+      }
       list.replaceChildren();
       emptyState.hidden = true;
       list.append(
@@ -171,25 +169,19 @@ export function createDiagnosticsSession(options: {
   }
 
   async function load(): Promise<void> {
-    if (factory !== null) {
+    if (compiler !== null) {
       return;
     }
+    const candidate = createCompileClient();
     try {
-      const imported = (await import(/* @vite-ignore */ wasmModuleUrl("tessera_diagnostics.js"))) as { default?: ModuleFactory };
-      factory = imported.default ?? null;
-      if (typeof factory !== "function") {
-        throw new Error("the module did not export a factory");
-      }
-      // Instantiate once up front so a broken module fails visibly at load, not on the first Run, and
-      // so a module built without the exports this view calls fails with a readable message rather
-      // than as "x is not a function" later.
-      requireExports(await factory(), ["_tessera_diagnostics_json", "_tessera_project_begin"]);
+      // The handshake proves the worker started; the Wasm module loads on the first compile, so a missing
+      // artifact surfaces as that compile's engine error (shown by `run`) rather than here.
+      await candidate.start();
+      compiler = candidate;
       setStatus("ready");
       options.onReady(true);
     } catch (error) {
-      // A missing artifact is the normal state of a checkout that has not built Wasm; `import()` of a
-      // missing file rejects with a TypeError whose message names the URL.
-      factory = null;
+      candidate.dispose();
       options.onReady(false);
       showUnavailable(error instanceof Error ? error.message : String(error));
     }
@@ -198,6 +190,7 @@ export function createDiagnosticsSession(options: {
   return {
     id: "diagnostics",
     load,
+    dispose: () => compiler?.dispose(),
     run,
     /**
      * An edit was applied (issue #444). On this view that is exactly a Run: compiling is a pure function

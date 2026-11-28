@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "analysis_entry.h"
+#include "tessera/compiler/analysis/completion.hpp"
 #include "tessera/compiler/analysis/language.hpp"
 #include "tessera/compiler/analysis/project_index.hpp"
+#include "tessera/compiler/analysis/rename.hpp"
 #include "tessera/compiler/analysis/symbol_json.hpp"
 
 #include <cstdlib>
@@ -105,7 +107,21 @@ const char* tessera_analysis_request_json(const char* type, int file, int offset
     if (kind == "hover") {
         return duplicate_out(hover_to_json(state().index, id, at));
     }
+    if (kind == "completion") {
+        return duplicate_out(completion_to_json(state().index, id, at));
+    }
+    if (kind == "prepareRename") {
+        return duplicate_out(prepare_rename_to_json(state().index, id, at));
+    }
     return nullptr;
+}
+
+const char* tessera_analysis_rename_json(int file, int offset, const char* new_name) {
+    if (file < 0 || offset < 0) {
+        return nullptr;
+    }
+    return duplicate_out(rename_to_json(state().index, static_cast<FileId>(file),
+                                        static_cast<std::uint32_t>(offset), text_of(new_name)));
 }
 
 void tessera_free(const char* text) {

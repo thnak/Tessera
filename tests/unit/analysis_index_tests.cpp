@@ -266,7 +266,7 @@ void test_determinism_and_recovery() {
     check_eq(analysis_capabilities_json(),
              "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\","
              "\"definition\","
-             "\"references\",\"hover\"]}",
+             "\"references\",\"hover\",\"completion\",\"prepareRename\",\"rename\"]}",
              "capabilities");
 }
 

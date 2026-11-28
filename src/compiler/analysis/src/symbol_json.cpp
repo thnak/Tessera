@@ -224,7 +224,8 @@ void append_json_string(std::string& out, std::string_view text) {
 
 std::string analysis_capabilities_json() {
     return "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\","
-           "\"definition\",\"references\",\"hover\"]}";
+           "\"definition\",\"references\",\"hover\",\"completion\",\"prepareRename\","
+           "\"rename\"]}";
 }
 
 } // namespace tessera::compiler::analysis

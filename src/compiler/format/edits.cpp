@@ -235,6 +235,7 @@ std::vector<TextEdit> diff_text_edits(std::string_view before, std::string_view 
 FormatEditsResult format_edits(FileKind kind, std::string_view text, const FormatOptions& options) {
     FormatEditsResult out;
     FormatResult formatted = format_source(kind, text, options);
+    out.skipped = std::move(formatted.skipped);
     if (!formatted.ok()) {
         out.diagnostics = std::move(formatted.diagnostics);
         return out;
@@ -272,6 +273,19 @@ void append_json_string(std::string& out, std::string_view text) {
     out.push_back('"');
 }
 
+void append_diagnostics(std::string& out, const std::vector<FormatDiagnostic>& list) {
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        const FormatDiagnostic& d = list[i];
+        out += i == 0 ? "" : ",";
+        out += "{\"code\":";
+        append_json_string(out, d.code);
+        out += ",\"message\":";
+        append_json_string(out, d.message);
+        out +=
+            ",\"line\":" + std::to_string(d.line) + ",\"column\":" + std::to_string(d.column) + "}";
+    }
+}
+
 } // namespace
 
 std::string format_edits_json(FileKind kind, std::string_view text, const FormatOptions& options) {
@@ -286,16 +300,9 @@ std::string format_edits_json(FileKind kind, std::string_view text, const Format
         out += "}";
     }
     out += "],\"diagnostics\":[";
-    for (std::size_t i = 0; i < result.diagnostics.size(); ++i) {
-        const FormatDiagnostic& d = result.diagnostics[i];
-        out += i == 0 ? "" : ",";
-        out += "{\"code\":";
-        append_json_string(out, d.code);
-        out += ",\"message\":";
-        append_json_string(out, d.message);
-        out +=
-            ",\"line\":" + std::to_string(d.line) + ",\"column\":" + std::to_string(d.column) + "}";
-    }
+    append_diagnostics(out, result.diagnostics);
+    out += "],\"skipped\":[";
+    append_diagnostics(out, result.skipped);
     out += "]}";
     return out;
 }

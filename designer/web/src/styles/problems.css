@@ -50,6 +50,21 @@
   list-style: none;
 }
 
+.problems-group { margin: 0; padding: 0; }
+.problems-group-rows { margin: 0; padding: 0; list-style: none; }
+.problems-file {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+.problems-file-name { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .problems-row {
   display: grid;
   grid-template-columns: 18px minmax(70px, max-content) minmax(0, 1fr) max-content;

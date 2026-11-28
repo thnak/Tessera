@@ -103,7 +103,8 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
 | `analysis` | `symbols` (section 10, #570), `diagnostics` (section 11, #568), `definition`, `references` and `hover` (section 12, #571, #572); completions and rename are the analysis issues that follow |
-| `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
+| `compile` | Feature `diagnostics` (section 14, #569): the studio's compile-and-diagnose view |
+| `format` | Feature `format`: request `{ file, kind?, printWidth?, indentWidth? }` (`kind` 0 tsx, 1 css, 2 tessera.json), result `{ file, changed, edits: [TextEdit], diagnostics, skipped }` (`skipped`: broken `.tsx` regions left as written, source-format-v1 section 14). The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
 Error codes: `TESSERA_STUDIO_MALFORMED`, `_VERSION`, `_NO_SNAPSHOT`, `_UNKNOWN_TYPE`, `_CANCELLED`,
@@ -253,10 +254,99 @@ the page's version is dropped by the client (`TESSERA_STUDIO_STALE`), so a hover
 - **Engine ABI.** `tessera_analysis_request_json(type, file, offset, flag)` in `analysis_entry.h` (`flag` is
   `includeDeclaration`); null for an unknown type or a negative file or offset, which the worker reports as
   `TESSERA_ANALYSIS_ENGINE`. The engine function of the worker is `tesseraAnalysisQuery(type, file, offset, flag)`.
-  Capabilities: `features: ["symbols", "diagnostics", "definition", "references", "hover"]`.
+  Capabilities: `features: ["symbols", "diagnostics", "definition", "references", "hover"]` (section 13 adds `completion`, `prepareRename`, `rename`).
 - **Tests and gate.** `tests/unit/analysis_language_tests.cpp` (cross-file definition and references through imports,
   props and CSS classes, UTF-16 offsets, hover signature, doc and diagnostics, edits, ABI parity);
   `scripts/ci/preview_analysis_service.mjs` (request validation, argument passing and stale drop against the stand-in
   engine and, with `TESSERA_ANALYSIS_WASM`, the same requests against the C++ library). The editor wiring (F12,
   Shift+F12, tooltip, the `go.*` commands gated on `service.analysis.ready`) and its Playwright cases are separate studio
   work.
+
+## 13. Completions and rename (`completion`, `prepareRename`, `rename`)
+
+Position requests of the `analysis` service (#573, #574) with the validation of section 12 (`{ file, offset }`);
+the engine is `completion.hpp` and `rename.hpp` beside `language.hpp`. Capabilities add `completion`, `prepareRename`
+and `rename`. `completion` and `prepareRename` use `tessera_analysis_request_json`; `rename` carries `newName` (a string,
+`TESSERA_STUDIO_MALFORMED` otherwise) and uses `tessera_analysis_rename_json(file, offset, newName)`; the engine function
+takes it as a fifth argument.
+
+- **`completion`**: result `{ from, to, context, items: [{ label, kind, detail? }], truncated }`. `[from, to)` is the
+  word at the caret (UTF-16; for `importPath` the string content), which the chosen label replaces. The list is a function
+  of the project version and the caret only: exact-case prefix matches first, then label order, no duplicates, at most
+  200 items (`truncated`). The editor filters further as the user types; suggested trigger characters are `<`, `.`, `/`,
+  `"`, `:` and a space after a tag name. `context` and what each offers:
+
+  | `context` | Caret | Items (`kind`) |
+  |---|---|---|
+  | `tag` | after `<` or `</` | components in scope: declared (`component`) and imported (`import`, `detail` the source) |
+  | `attribute` | inside an open tag, not after `=` | `key`, the destructured props of the tag's component through imports (`prop`), `className` on a lowercase tag; attributes already written are left out |
+  | `cssClass` | after `styles.` on a CSS module binding | class selectors of the `.css` file when it is in the snapshot (`cssClass`) |
+  | `member` | after `.` of anything else | none (needs the receiver's type) |
+  | `importPath` | inside the string of `import`/`export ... from` | project files as relative specifiers without `.tsx`/`.ts` (`file`) |
+  | `bind` | after `bind::` in a `//` comment | `bind::` ids already used in the project and the snake_case names of the component's handlers (`bind`) |
+  | `expression` | anywhere else in code | names in scope, innermost first: state, setters, handlers, props, locals, components, hooks (symbol kinds) |
+  | `none` | in a string or a comment | none |
+
+  Scope is module scope plus the component or hook of the last module-level declaration at or before the caret (the index
+  keeps no body ranges); a parameter of an anonymous function is not offered. CSS class names are read from the
+  style sheet text by a small selector scanner (selector preludes only, comments, strings and declaration values skipped).
+  A top-level item with a syntax error contributes no names, so an unfinished `<Ca` still completes from the module scope
+  and imports but not from that item's locals. Not offered yet: auto-import of a component from another file, intrinsic
+  tag names, the members of a value.
+- **`prepareRename`**: result `{ prepare: { from, to, placeholder, kind } }` for a renameable name (a use, an import binding
+  or the declaration; `kind` is the symbol kind or `cssClass`), else `{ prepare: null, refusal: { code, message } }`.
+- **`rename`**: result `{ edits: [{ file, offset, length, newText }], refusal? }`. The edits are the `delta` edits of
+  section 4, non-overlapping, sorted by file id and offset descending, so applying them in order and applying them all against
+  the original text agree. Renaming from a use, an import binding or the declaration gives the same edits; the declaration,
+  every import binding, `export { X }` entry, tag, attribute and use in every file change. A CSS class renames its selectors in
+  the module's `.css` file and every `styles.x` use through every binding of that file. A refusal carries empty `edits`;
+  nothing is half-renamed. Codes:
+
+  | Code | Refused because |
+  |---|---|
+  | `TESSERA_ANALYSIS_RENAME_NO_NAME` | the caret names nothing |
+  | `TESSERA_ANALYSIS_RENAME_UNRESOLVED` | no declaration: builtin, intrinsic tag, unbound name, member access |
+  | `TESSERA_ANALYSIS_RENAME_EXTERNAL` | declared outside the project: a package import, a missing file or name, a style sheet or class not in the snapshot |
+  | `TESSERA_ANALYSIS_RENAME_GENERATED` | an edit would land in generated code: a `gen`, `generated` or `__generated__` directory, a `.gen.`/`.generated.` file name, or an `@generated`/`DO NOT EDIT` header in the first 512 bytes |
+  | `TESSERA_ANALYSIS_RENAME_ALIAS` | a binding is spelled differently (`import { A as B }`, `{ a: b }`) |
+  | `TESSERA_ANALYSIS_RENAME_INVALID_NAME` | not an ASCII identifier (a CSS class: letters, digits, `_`), a component not capitalised, a hook not `useX` |
+  | `TESSERA_ANALYSIS_RENAME_RESERVED` | a reserved word |
+  | `TESSERA_ANALYSIS_RENAME_NO_CHANGE` | the new name is the current one |
+  | `TESSERA_ANALYSIS_RENAME_COLLISION` | the name exists: in a module-scope rename, any symbol of a touched file (and any component of the project); in a nested one, a sibling in the scope or at module scope; for a class, a selector of the style sheet |
+
+  Applying the edits and re-analysing adds no diagnostics (tested). Not checked: a second attribute with the new name already on
+  a tag, a rename started from the `.css` file, renaming through an `as` alias; renaming an exported component changes the
+  name of the generated `gen::<Component>Base`, so the developer class that derives from it needs the same edit.
+- **Tests and gate.** `tests/unit/analysis_completion_tests.cpp` (a list per context, ordering, UTF-16, ABI parity),
+  `tests/unit/analysis_rename_tests.cpp` (component, prop, state and CSS class across files, every refusal code, re-analysis,
+  ABI parity), `scripts/ci/preview_analysis_service.mjs` (request validation, latest-wins completion, the same requests against
+  the Wasm module, and the completion budget: with `TESSERA_ANALYSIS_WASM` set, the p95 of 30 completions over
+  `samples/gallery` in the worker stays under 100 ms). The editor wiring (completion source, F2 `edit.renameSymbol`, multi-file
+  undo) and its Playwright cases are separate studio work.
+
+## 14. Compile worker (`compile`) and the Problems panel (#569, #575)
+
+The diagnostics view no longer calls Wasm from the page: `designer/web/services/compile-service.js` runs the existing
+`tessera_diagnostics` module in its own worker, loaded lazily on the first request, behind the generic client of
+section 9 (`lib/compile-client.ts`).
+
+- **Snapshot.** Entries carry `path`; a path ending `.css` is staged as a stylesheet, anything else as a source. The
+  page sends the whole project each time (`setSnapshot`), so a restarted worker needs nothing else.
+- **Request** `diagnostics`: `{ entry?: string | null, servicesManifest?: string | null }`. **Result**
+  `{ document }`, the JSON document `tessera_diagnostics_json` writes ([compiler-diagnostics-v1.md](compiler-diagnostics-v1.md)),
+  unchanged, so the list, the editor underlines and the Problems store render exactly what they did before. Errors:
+  `TESSERA_COMPILE_ENGINE` (the module failed or is missing: the pane shows "Preview unavailable in this build"), plus the
+  generic codes. Capabilities: `{ name: "compile", protocol: 1, features: ["diagnostics"] }`.
+- **Restart.** `ServiceClient.withRecovery` restarts a worker that died (its `failure` is set) and repeats the snapshot and
+  the request once, so a killed worker costs one cold start and never a page error. The scene and canvas views still call
+  their modules directly; moving them is separate work.
+- **Problems panel.** The panel lists project-wide rows: the `analysis` worker's `diagnostics` for every file (section 11,
+  sent by `page-project-problems.ts`, 300 ms after an edit or a change of the file set) merged with the compile rows (a
+  finding both name, same file, code and line, is listed once; lowering findings only the compile reports stay). Rows are
+  grouped by file in path order, then line, column, code and message (`groupByFile`), headed by the file and its count; a
+  click opens the file and selects the span (the analysis offsets are UTF-16, what the editor reveals). A site without
+  `tessera_analysis.wasm` keeps the compile rows alone.
+- **Gates.** `scripts/ci/preview_compile_service.mjs` (protocol, staging, latest wins, stale drop, off-thread compile, a
+  killed worker; with `TESSERA_DIAGNOSTICS_WASM` the real compiler), `scripts/ci/preview_project_problems.mjs` (the page's
+  clients against the worker sources: a file that is not open reaches the store, fixing it clears the row, an unavailable
+  module stays quiet, a killed compile worker restarts) and `preview_problems.mjs` (grouping, sorting, merge).

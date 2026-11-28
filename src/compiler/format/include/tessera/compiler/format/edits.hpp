@@ -30,6 +30,7 @@ std::vector<TextEdit> diff_text_edits(std::string_view before, std::string_view 
 struct FormatEditsResult {
     std::vector<TextEdit> edits; // empty when already canonical or refused
     std::vector<FormatDiagnostic> diagnostics;
+    std::vector<FormatDiagnostic> skipped; // regions left as written (FormatOptions::recover)
 
     [[nodiscard]] bool ok() const {
         return diagnostics.empty();
@@ -42,7 +43,8 @@ FormatEditsResult format_edits(FileKind kind, std::string_view text,
                                const FormatOptions& options = {});
 
 // The wire form shared by the CLI (`--edits-json`) and the Wasm entry, UTF-8 JSON:
-// {"edits":[{"offset":0,"length":1,"newText":"x"}],"diagnostics":[{"code","message","line","column"}]}
+// {"edits":[{"offset":0,"length":1,"newText":"x"}],"diagnostics":[{"code","message","line","column"}],
+//  "skipped":[{"code","message","line","column"}]}
 std::string format_edits_json(FileKind kind, std::string_view text,
                               const FormatOptions& options = {});
 

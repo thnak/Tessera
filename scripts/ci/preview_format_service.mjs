@@ -17,8 +17,9 @@ import { toSequentialEdits } from '../../designer/web/services/protocol.js';
 import { assert, finish, test } from './mock_test_support.mjs';
 
 const STANDIN_ENGINE = String.raw`
-async function tesseraFormat(text) {
+async function tesseraFormat(text, printWidth, indentWidth, kind) {
   if (text.includes('@@slow')) await new Promise((r) => setTimeout(r, 80));
+  if (text.includes('@@kind')) return JSON.stringify({ edits: [], diagnostics: [], skipped: [{ code: 'KIND', message: String(kind), line: 1, column: 1 }] });
   if (text.includes('@@refuse')) {
     return JSON.stringify({ edits: [], diagnostics: [{ code: 'TESSERA_FMT_SYNTAX', message: 'refused', line: 1, column: 1 }] });
   }
@@ -34,11 +35,12 @@ const { execFileSync } = require('node:child_process');
 const { mkdtempSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
-async function tesseraFormat(text) {
+async function tesseraFormat(text, printWidth, indentWidth, kind) {
   const dir = mkdtempSync(join(tmpdir(), 'fmt-'));
+  const name = kind === 1 ? 'in.css' : kind === 2 ? 'tessera.json' : 'in.tsx';
   try {
-    writeFileSync(join(dir, 'in.tsx'), text, 'utf8');
-    return execFileSync(${JSON.stringify(bin)}, ['--edits-json', join(dir, 'in.tsx')], { encoding: 'utf8' });
+    writeFileSync(join(dir, name), text, 'utf8');
+    return execFileSync(${JSON.stringify(bin)}, ['--recover', '--edits-json', join(dir, name)], { encoding: 'utf8' });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -142,6 +144,16 @@ await commonCases('stand-in engine', STANDIN_ENGINE, {
   refused: '@@refuse\n',
 });
 
+await test('format passes the file kind to the engine and answers the skipped regions', async () => {
+  const client = await started(STANDIN_ENGINE, '@@kind');
+  assert.equal((await client.request('format', { file: 1 })).skipped[0].message, '0');
+  assert.equal((await client.request('format', { file: 1, kind: 1 })).skipped[0].message, '1');
+  assert.equal((await client.request('format', { file: 1, kind: 2 })).skipped[0].message, '2');
+  assert.equal(await code(client.request('format', { file: 1, kind: 3 })), 'TESSERA_STUDIO_MALFORMED');
+  assert.equal(await code(client.request('format', { file: 1, kind: 'css' })), 'TESSERA_STUDIO_MALFORMED');
+  client.dispose();
+});
+
 await test('latest wins: a newer format cancels the older one', async () => {
   const client = await started(STANDIN_ENGINE, 'a  \n@@slow\n');
   const older = code(client.request('format', { file: 1 }));
@@ -187,6 +199,27 @@ async function realCases(label, engine) {
     assert.equal(apply(text, result.edits), `// ${emoji}\nconst a = "x";\n`);
     assert.ok(result.edits.every((e) => e.offset >= text.indexOf('const')), 'nothing before the change is touched');
     assert.ok(result.edits.length <= 3, 'a minimal list, not the whole file');
+    client.dispose();
+  });
+  await test(`${label}: CSS and tessera.json are formatted by kind`, async () => {
+    const css = 'a{color:red}\n';
+    const client = await started(engine, css);
+    const result = await client.request('format', { file: 1, kind: 1 });
+    assert.equal(apply(css, result.edits), 'a {\n  color: red;\n}\n');
+    const json = '{"a":1}\n';
+    await client.setSnapshot([[1, json]]);
+    assert.equal(apply(json, (await client.request('format', { file: 1, kind: 2 })).edits), '{\n  "a": 1\n}\n');
+    client.dispose();
+  });
+  await test(`${label}: a .tsx file with one broken item is formatted around it`, async () => {
+    const broken = 'export function Bad() {\n  return <div>oops </span>;\n}\n';
+    const text = `const  a=1;\n\n${broken}`;
+    const client = await started(engine, text);
+    const result = await client.request('format', { file: 1 });
+    assert.deepEqual(result.diagnostics, []);
+    assert.equal(apply(text, result.edits), `const a = 1;\n\n${broken}`);
+    assert.equal(result.skipped.length, 1);
+    assert.equal(result.skipped[0].code, 'TESSERA_FMT_SKIPPED');
     client.dispose();
   });
 }
