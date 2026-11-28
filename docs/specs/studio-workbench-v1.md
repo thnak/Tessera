@@ -480,7 +480,7 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Floating / pop-out windows | VS and VS Code: Move into new window | none | out of scope (decision 8) |
 | Theme | color themes, light/dark/high contrast | light/dark/system | exists; picker W8 |
 | Format / rename / go to definition / references | `Shift+Alt+F`, `F2`, `F12`, `Shift+F12` | none | IDE slices (reserved ids) |
-| Problems panel | `Ctrl+Shift+M`; list with severity, code, message, file:line:col; filter; click to jump | `problems` panel (`regions/ProblemsPanel.tsx`), `view.problems`, status-bar split counts; project-wide rows grouped by file ([studio-services-v1.md](studio-services-v1.md) section 13) | done (owner decision, studio focus pass; #575 project-wide) |
+| Problems panel | `Ctrl+Shift+M`; list with severity, code, message, file:line:col; filter; click to jump | `problems` panel (`regions/ProblemsPanel.tsx`), `view.problems`, status-bar split counts; project-wide rows grouped by file ([studio-services-v1.md](studio-services-v1.md) section 14) | done (owner decision, studio focus pass; #575 project-wide) |
 | Terminal, debugger, extensions, remote | present | none; not applicable in a browser studio | not planned |
 
 Reading the matrix: W2 gives the menu bar, toolbar, status-bar commands; W3 gives palette, quick
