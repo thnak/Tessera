@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The Theme panel (#582): tokens by variant and the contrast results. Existing colour tokens only (`--pane-bg`,
+ * `--border`, `--text`, `--text-dim`, `--accent-fg`, `--error`, `--focus-ring`) so every studio theme and the
+ * contrast gate apply without a new pair. A verdict is the words pass or fail as well as colour.
+ */
+
+.theme {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--pane-bg);
+  font-size: 12.5px;
+}
+.theme[hidden] { display: none; }
+.theme-head { display: flex; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.theme-file { flex: 1 1 auto; min-width: 0; }
+.theme-status { margin: 0; padding: 4px 8px; color: var(--text-dim); }
+.theme-scroll { overflow: auto; min-height: 0; }
+.theme-table { border-collapse: collapse; width: 100%; }
+.theme-table th, .theme-table td { padding: 2px 6px; text-align: left; border-bottom: 1px solid var(--border); font-weight: normal; }
+.theme-name { color: var(--text); white-space: nowrap; font-family: var(--mono, monospace); }
+.theme-cell { display: inline-flex; align-items: center; gap: 4px; }
+.theme-swatch { width: 14px; height: 14px; border: 1px solid var(--border); flex: none; }
+.theme-input { width: 9em; font-family: var(--mono, monospace); font-size: 12px; }
+.theme-input:focus-visible, .theme-file:focus-visible, .theme-undo:focus-visible { outline: 2px solid var(--focus-ring); }
+.theme-none { color: var(--text-dim); }
+.theme-h { margin: 8px 8px 2px; font-size: 12px; color: var(--text); }
+.theme-pairs { margin: 0; padding: 0; list-style: none; }
+.theme-pair { display: flex; gap: 8px; padding: 1px 8px; color: var(--text-dim); }
+.theme-pair-name { flex: 1 1 auto; font-family: var(--mono, monospace); }
+.theme-pair[data-pass="false"] .theme-pair-verdict { color: var(--error); }
+.theme-pair[data-pass="true"] .theme-pair-verdict { color: var(--accent-fg); }

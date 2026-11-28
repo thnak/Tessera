@@ -9,6 +9,7 @@ add_library(tessera_text STATIC
     font_features.cpp
     font_metrics.cpp
     font_text_measurer.cpp
+    size_runs.cpp
     freetype_metrics.cpp
     glyph_atlas.cpp
     glyph_prewarm.cpp

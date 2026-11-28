@@ -16,7 +16,8 @@
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
 //                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
-//                      swatch (every colour token of the theme, issue #280) or icons (#530)
+//                      swatch (every colour token of the theme, issue #280) icons (#530) or lists
+//                      (#1006)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -89,6 +90,7 @@ struct Resources {
     gallery::FormModule form_module;
     style::PreparedStyleSheet dash_sheet;
     style::PreparedStyleSheet swatch_sheet;
+    style::PreparedStyleSheet lists_sheet;
     std::vector<std::uint8_t> theme_blob;
 };
 
@@ -100,9 +102,10 @@ std::optional<Resources> load_resources() {
     const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
     const auto dash_css = read_file(TESSERA_GALLERY_DASH_CSS);
     const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
+    const auto lists_css = read_file(TESSERA_GALLERY_LISTS_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
     if (!button_css || !icon_css || !safe_area_css || !gallery_css || !form_css || !dash_css ||
-        !swatch_css || !theme_json) {
+        !swatch_css || !lists_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -124,6 +127,7 @@ std::optional<Resources> load_resources() {
     resources.form_sheet = style::prepare_stylesheet(resources.form_module.css);
     resources.dash_sheet = style::prepare_stylesheet(*dash_css);
     resources.swatch_sheet = style::prepare_stylesheet(*swatch_css);
+    resources.lists_sheet = style::prepare_stylesheet(*lists_css);
     resources.theme_blob = style::serialize_theme_asset(*theme);
     return resources;
 }
@@ -136,6 +140,7 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
         {"form.module.css", &resources.form_sheet, style::Origin::Author, false},
         {"dash.css", &resources.dash_sheet, style::Origin::Author, false},
         {"swatch.css", &resources.swatch_sheet, style::Origin::Author, false},
+        {"lists.css", &resources.lists_sheet, style::Origin::Author, false},
     };
     return style::CompiledStyleSheet(sources);
 }
@@ -363,7 +368,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area|form|dash|swatch|icons] [--device "
+           "               [--page buttons|safe-area|form|dash|swatch|icons|lists] [--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
            "               [--hidden] [--frames N] [--width N] [--height N] [--font path]... "

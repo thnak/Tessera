@@ -2117,6 +2117,13 @@ target_link_libraries(text_layout_tests PRIVATE tessera_text)
 
 add_test(NAME text_layout COMMAND text_layout_tests)
 
+add_executable(text_size_runs_tests
+    text_size_runs_tests.cpp)
+
+target_link_libraries(text_size_runs_tests PRIVATE tessera_text)
+
+add_test(NAME text_size_runs COMMAND text_size_runs_tests)
+
 add_executable(text_paint_tests
     text_paint_tests.cpp)
 

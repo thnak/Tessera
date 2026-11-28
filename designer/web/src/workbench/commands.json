@@ -760,6 +760,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "select_component"
+      },
       "status": "live"
     },
     {
@@ -790,6 +793,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "apply_device_profile"
+      },
       "status": "live"
     },
     {
@@ -917,6 +923,9 @@
       "services": [
         "viewer"
       ],
+      "mcp": {
+        "tool": "set_fold_posture"
+      },
       "status": "live"
     },
     {
@@ -1059,6 +1068,13 @@
       "title": "Version History",
       "category": "View",
       "description": "Show the local versions of the active file, kept on save, format and rename",
+      "status": "live"
+    },
+    {
+      "id": "view.theme",
+      "title": "Theme Tokens",
+      "category": "View",
+      "description": "Edit the project's theme tokens per variant with WCAG contrast results",
       "status": "live"
     },
     {

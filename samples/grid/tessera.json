@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "app": {
+    "name": "grid",
+    "entry": "Grid.tsx",
+    "namespace": "grid"
+  }
+}

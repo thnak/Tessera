@@ -207,6 +207,16 @@ forward arguments unchanged, the same shape as `tessera icons add`.
 - `tests/unit/instrument_theme_tests.cpp` and `tests/unit/theme_version_tests.cpp` still cover the
   hand-maintained shipped asset; generated assets use the same checker.
 
+### 9.1 The Studio token editor
+
+The Studio Theme panel (#582, `view.theme`, `designer/web/{theme-tokens,theme-contrast}.js`) edits the
+tokens of a `*.theme.json` asset or of `:root` custom properties in a stylesheet, one column per variant,
+and shows the section 4 contrast table per variant (the high-contrast floors apply to ids containing
+`high-contrast`). A write replaces exactly one value span, so comments, order and layout survive, and it is
+dispatched as one editor transaction (Ctrl+Z, format and diff apply). A stylesheet edit repaints the Canvas
+as a live apply; an asset edit is read at start, so it takes the restart path until the host reloads
+assets live. Node gate: `scripts/ci/studio_theme.mjs`; browser gate: `scripts/ci/workbench_theme.mjs`.
+
 ## 10. Open questions
 
 - The static design tokens (`--space-*`, `--radius-*`, typography, motion) are emitted from a table

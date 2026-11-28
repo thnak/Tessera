@@ -61,8 +61,8 @@ against it.
 | `cite` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text` |
 | `abbr` | `Text` | - | mapped | Inline span inside `Text`; `title` is `HTML_ATTR`, so there is no dotted underline |
 | `q` | `Text` | - | mapped | Lowering wraps the children in U+201C and U+201D, the quotes a browser generates for `en` |
-| `sub`, `sup` | `Text` | `style.vertical-align: sub` / `super`, `style.font-size: 0.83em` | partial | Inline span inside `Text`. Deviation that cannot be closed in V1: a span keeps the parent's size ([`elements-basic.md`](elements-basic.md) section 2.1), so inside a `Text` the run is shifted but not shrunk; written as a node of its own the size applies |
-| `small` | `Text` | `style.font-size: 0.83em` | partial | Same deviation: inside a `Text` the size is the parent's |
+| `sub`, `sup` | `Text` | `style.vertical-align: sub` / `super`, `style.font-size: 0.83em` | mapped | Inline span inside `Text`: the run is shifted and measured and drawn at 0.83 of the paragraph size ([`inline-size-runs.md`](../../design/inline-size-runs.md)); the line box stays the paragraph's |
+| `small` | `Text` | `style.font-size: 0.83em` | mapped | Inline span inside `Text`, measured and drawn at 0.83 of the paragraph size (as `sub`) |
 | `br` | `Text` | - | mapped | Void (`TESSERA_IR_UNSUPPORTED` with children). Inside a `Text` it is a span whose text is a line feed, a forced break that survives `white-space: normal`; written as a node of its own it is an empty `Text` |
 | `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
 | `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |

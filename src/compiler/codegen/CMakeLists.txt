@@ -651,6 +651,7 @@ add_custom_command(
             ${_tessera_codegen_demo_src}/Demo.tsx
     DEPENDS tessera_codegen_cli
             ${_tessera_codegen_demo_src}/Demo.tsx
+            ${_tessera_codegen_demo_src}/demo.css
     COMMENT "Generating the compiler demo base"
     VERBATIM)
 

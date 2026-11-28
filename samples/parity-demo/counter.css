@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Counter sample's sheet: tokens, a card, two button styles with hover / active / focus-visible,
+   and a narrow-window rule. Plain CSS, as a React + Vite project writes it. */
+
+:root {
+  --accent: #2f6fed;
+  --accent-strong: #1f56c4;
+  --ink: #16202e;
+  --paper: #ffffff;
+  --line: #d8dee8;
+}
+
+.counter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin: 24px auto;
+  padding: 20px;
+  background-color: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.readout {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.primary {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--accent);
+  color: #ffffff;
+  transition: background-color 150ms ease;
+}
+.primary:hover {
+  background-color: var(--accent-strong);
+}
+.primary:active {
+  background-color: #17479f;
+}
+.primary:focus-visible {
+  border: 2px solid #17479f;
+}
+
+.ghost {
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--ink);
+}
+.ghost:hover {
+  background-color: #eef2f9;
+}
+
+@media (max-width: 360px) {
+  .counter {
+    margin: 8px;
+    padding: 12px;
+  }
+}

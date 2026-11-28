@@ -87,10 +87,13 @@ fills the line box of each slice of the run, behind the glyphs, and is not inher
   other non-metric properties through `className` and `style`, but it may not override a property that
   changes glyph advances or line boxes: `font-size`, `letter-spacing`, `white-space`. Writing one of
   those in a span's inline `style` is `TESSERA_JSX_SPAN_METRIC` (error); when a `className` sets one,
-  the runtime keeps the parent's value for measurement and painting. `font-family` is accepted but
+  the runtime keeps the parent's value for measurement and painting. The exception is a smaller
+  `font-size` coming from the alias default (`sub`, `sup`, `small`), `className` or the stylesheet: the run is
+  measured and drawn at that size ([`inline-size-runs.md`](../../design/inline-size-runs.md)); a size not below
+  the parent's is ignored, and the line box stays the parent's. `font-family` is accepted but
   inert in V1: the text stack paints one app face, so it changes neither metrics nor glyphs (the
   `code` default uses it and becomes effective when font selection lands). That rule is what lets the
-  parent's single measured run stay exact (V1 assumes one font size and face per paragraph).
+  parent's single measured run stay exact (V1 assumes one face per paragraph; sizes are shrink runs only).
 - **Events and hittesting.** A span with `onClick` or a role is a hit target: when a pointer press
   hits the parent's text box, the run under the point resolves to the span, and `onClick` is
   dispatched to the span (bubbling to the parent as usual). A span with neither never receives input

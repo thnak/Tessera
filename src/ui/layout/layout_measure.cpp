@@ -164,7 +164,8 @@ TextFit measure_text_fit(const LayoutInput& input, const rhi::Rect& bounds,
     if (input.text.empty()) {
         return TextFit::Unknown;
     }
-    const text::TextStyle style = text::text_style_from(input.style);
+    text::TextStyle style = text::text_style_from(input.style);
+    style.size_runs = input.text_runs;
     return measure_text_fit(text_fit_inputs(input, style), bounds, cache);
 }
 

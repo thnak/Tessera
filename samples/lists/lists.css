@@ -1,0 +1,65 @@
+/* SPDX-License-Identifier: MIT */
+
+/* A list as a React + Vite project styles one: a card, rows with a hover state, a status line. */
+
+:root {
+  --brand: #2f6fed;
+  --ink: #16202e;
+  --muted: #5b6676;
+  --line: #d8dee8;
+  --paper: #ffffff;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: 24px auto;
+  padding: 24px;
+  background-color: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.tasks {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task {
+  display: flex;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.name {
+  color: var(--ink);
+}
+
+.pick {
+  flex-grow: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: var(--paper);
+  color: var(--ink);
+  transition: background-color 120ms ease;
+}
+.pick:hover {
+  background-color: #eef2f9;
+}
+.pick:active {
+  background-color: #dfe8f8;
+}
+.pick:focus-visible {
+  border: 2px solid var(--brand);
+}
+
+.status {
+  margin: 0;
+  color: var(--muted);
+}

@@ -20,6 +20,7 @@ import type { ResourceControls } from "./page-resources";
 import type { ProblemsHandle } from "./page-problems";
 import type { SearchHandle } from "./page-search";
 import type { HistoryHandle } from "./page-history";
+import type { ThemeHandle } from "./page-theme";
 import type { PageRefs } from "./page-state";
 import type { Workspace } from "./page-workspace";
 import type { Skin } from "./views/skins";
@@ -34,6 +35,7 @@ import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
 import { SearchPanel } from "./regions/SearchPanel";
 import { HistoryPanel } from "./regions/HistoryPanel";
+import { ThemePanel } from "./regions/ThemePanel";
 
 export interface WorkbenchSurfaceProps {
   workbench: Workbench;
@@ -46,6 +48,8 @@ export interface WorkbenchSurfaceProps {
   search: SearchHandle;
   /** The version history of the active file (#583). */
   history: HistoryHandle;
+  /** The theme token editor (#582). */
+  theme: ThemeHandle;
   activeText: string;
   revision: number;
   runEnabled: boolean;
@@ -92,6 +96,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
     ),
     search: <SearchPanel search={props.search} visible={props.workbench.visible.has("search")} />,
     history: <HistoryPanel history={props.history} visible={props.workbench.visible.has("history")} />,
+    theme: <ThemePanel theme={props.theme} visible={props.workbench.visible.has("theme")} />,
     editor: (
       <CodeRegion
         open={workspace.state.open}

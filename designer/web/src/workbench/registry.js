@@ -14,12 +14,11 @@
 import { clauseError, clauseKeys, evaluate } from "./when.js";
 import { isKnownContextKey } from "./context.js";
 import { chordProblem, createKeymap } from "./keys.js";
+import { WORKER_SERVICES, mcpProblems } from "./mcp-projection.js";
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][A-Za-z0-9]*){1,2}$/;
 const STATUSES = new Set(["live", "reserved", "removed"]);
 const SURFACES = new Set(["menu", "palette", "keybinding", "toolbar", "mcp"]);
-/** Services that run in a worker and report readiness (ADR-060); page-side services are always ready. */
-const WORKER_SERVICES = new Set(["viewer", "analysis", "format", "mock"]);
 const CLAUSE_FIELDS = ["enabled", "visible", "checked"];
 
 /**
@@ -107,6 +106,7 @@ export function validateRecords(records) {
     if (record.args !== null && record.args !== undefined && record.args.type !== "object") {
       problems.push(`${id}: args must be null or a JSON Schema object`);
     }
+    problems.push(...mcpProblems(record));
   }
   return problems;
 }

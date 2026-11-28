@@ -278,6 +278,10 @@ RetainedNode* sync_node(RetainedTreeState& state, const LayoutInput& input, bool
         retained->text = input.text;
         text_changed = true;
     }
+    if (retained->text_style.size_runs != input.text_runs) {
+        retained->text_style.size_runs = input.text_runs;
+        text_changed = true;
+    }
     if (retained->text_wrap != input.text_wrap) {
         retained->text_wrap = input.text_wrap;
         text_changed = true;

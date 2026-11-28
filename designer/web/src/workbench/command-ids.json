@@ -76,5 +76,6 @@
   "edit.undoRename",
   "edit.toggleFormatOnSave",
   "view.history",
+  "view.theme",
   "history.restorePrevious"
 ]

@@ -68,8 +68,17 @@ std::expected<ir::IrModule, std::string> lower_sample() {
         return std::unexpected("the sample does not analyse");
     }
     const lowering::ModuleSource source{"Counter.tsx", parsed.root.get(), &analyzed, &map};
-    auto lowered = lowering::lower_project(std::span<const lowering::ModuleSource>(&source, 1),
-                                           "parity_sample");
+    // The sample imports its own sheet (issue #607); the lowering resolves the import against it.
+    const std::string sheet_text =
+        read_file(std::string(TESSERA_PARITY_SAMPLE_DIR) + "/counter.css");
+    if (sheet_text.empty()) {
+        return std::unexpected("cannot read samples/parity-demo/counter.css");
+    }
+    const lowering::StylesheetFile sheet{"counter.css", sheet_text};
+    auto lowered =
+        lowering::lower_project(std::span<const lowering::ModuleSource>(&source, 1),
+                                "parity_sample", std::span<const lowering::PackageRoot>(),
+                                std::span<const lowering::StylesheetFile>(&sheet, 1));
     if (!lowered) {
         return std::unexpected("the sample does not lower");
     }

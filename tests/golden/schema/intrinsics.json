@@ -545,8 +545,8 @@
       "target": "Text"
     },
     {
-      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects font-size: 0.83em",
-      "status": "partial",
+      "note": "inline span; injects font-size: 0.83em, a size run inside a `Text`",
+      "status": "mapped",
       "tag": "small",
       "target": "Text"
     },
@@ -563,14 +563,14 @@
       "target": "Text"
     },
     {
-      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects vertical-align: sub and font-size: 0.83em",
-      "status": "partial",
+      "note": "inline span; injects vertical-align: sub and font-size: 0.83em, a size run inside a `Text`",
+      "status": "mapped",
       "tag": "sub",
       "target": "Text"
     },
     {
-      "note": "inline span; the size change is dropped inside a `Text` (a span keeps the parent's metrics); injects vertical-align: super and font-size: 0.83em",
-      "status": "partial",
+      "note": "inline span; injects vertical-align: super and font-size: 0.83em, a size run inside a `Text`",
+      "status": "mapped",
       "tag": "sup",
       "target": "Text"
     },
