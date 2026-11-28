@@ -347,8 +347,7 @@ This page is the map and reading order for the framework.
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
 - [`design/build-and-packaging.md`](design/build-and-packaging.md) — CMake, static linking,
   assets, notices, SBOM (software bill of materials), release
-- [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives, data grid, packaging, roadmap
-- [`design/library-farm-plan.md`](design/library-farm-plan.md) — library and chart build order, the Chrome-parity gate, blocking decisions
+- [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives, data grid, packaging, roadmap; [`library-farm-plan.md`](design/library-farm-plan.md) build order and parity gate; [`v1-widget-set.md`](design/v1-widget-set.md) V1 widget set decision note (#527)
 - [`design/media-and-export.md`](design/media-and-export.md) — video/audio seams, printing, PDF,
   image/vector export
 

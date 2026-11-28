@@ -190,7 +190,7 @@ parity page.
 
 | # | Decision | Blocks |
 |---|---|---|
-| 5 | The concrete V1 widget set (#527) | every phase |
+| 5 | The concrete V1 widget set (#527): recommendation and owner-gated items in [v1-widget-set.md](v1-widget-set.md) | every phase |
 | 6 | `Slider` pointer drag: done in the primitive (#532, #982) | none |
 
 ### The ThorVG exit triggers (ADR-057 decision 3)

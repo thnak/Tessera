@@ -12,6 +12,7 @@
 // dispatch cannot disagree about which names exist.
 #pragma once
 
+#include "ControlsPage.hpp"
 #include "DashPage.hpp"
 #include "FormPage.hpp"
 #include "Gallery.hpp"
@@ -58,8 +59,8 @@ template<typename Page> struct Scene {
 // below is instantiated at the call site. `gallery_page_table_tests` walks both and fails if a name
 // here has no branch there, or the reverse - which is the drift a second list would otherwise
 // invite.
-inline constexpr std::array<std::string_view, 7> kPageNames{"buttons", "safe-area", "form", "dash",
-                                                            "swatch",  "icons",     "lists"};
+inline constexpr std::array<std::string_view, 8> kPageNames{
+    "buttons", "safe-area", "form", "dash", "swatch", "icons", "lists", "controls"};
 
 // Whether `name` is a page. `--page`'s validation is this and nothing else, so an unknown page and
 // a known one are answered by the same list.

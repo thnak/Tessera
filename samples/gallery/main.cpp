@@ -16,8 +16,8 @@
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
 //                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
-//                      swatch (every colour token of the theme, issue #280) icons (#530) or lists
-//                      (#1006)
+//                      swatch (every colour token of the theme, issue #280) icons (#530) lists
+//                      (#1006) or controls (Switch, Checkbox, Radio; #240)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -281,7 +281,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area|form|dash|swatch|icons|lists] [--device "
+           "               [--page buttons|safe-area|form|dash|swatch|icons|lists|controls] "
+           "[--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
            "               [--hidden] [--frames N] [--width N] [--height N] [--font path]... "

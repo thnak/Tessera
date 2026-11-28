@@ -3564,6 +3564,16 @@ target_compile_definitions(library_capsule_status_tests PRIVATE
     TESSERA_CAPSULE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/live-capsule.css")
 add_test(NAME library_capsule_status COMMAND library_capsule_status_tests)
 
+# Issue #240: the Switch, Checkbox and Radio stylesheets compile, read only theme tokens and name no
+# color literal.
+add_executable(library_controls_style_tests
+    library_controls_style_tests.cpp)
+target_link_libraries(library_controls_style_tests PRIVATE tessera_style)
+target_compile_definitions(library_controls_style_tests PRIVATE
+    TESSERA_LIBRARY_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui"
+    TESSERA_INSTRUMENT_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+add_test(NAME library_controls_style COMMAND library_controls_style_tests)
+
 # Issue #530: the Icon stylesheet compiles, names no color, and flips only a directional icon.
 add_executable(library_icon_style_tests
     library_icon_style_tests.cpp)
