@@ -49,4 +49,12 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(source_format_tests PRIVATE
         TESSERA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     add_test(NAME source_format COMMAND source_format_tests)
+
+    # `tessera_fmt --check` over the shipped samples as a ratchet (issue #990): see the script.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if (Python3_EXECUTABLE)
+        add_test(NAME fmt_check_samples
+            COMMAND "${Python3_EXECUTABLE}" -B "${PROJECT_SOURCE_DIR}/scripts/check_fmt_canonical.py"
+                --fmt $<TARGET_FILE:tessera_fmt> --root "${PROJECT_SOURCE_DIR}")
+    endif ()
 endif ()
