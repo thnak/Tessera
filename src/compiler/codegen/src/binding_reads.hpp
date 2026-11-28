@@ -78,7 +78,18 @@ struct BindingReadTable {
                                                     std::string_view ir_type,
                                                     std::span<const ir::RecordType> records);
 
-// Every bit id the component declares (`state::`, `prop::`, `anim::`, `env::`), sorted and unique.
+// The cell a component's pending-UI model (resources, a transition mark, a deferred value) marks
+// when what it publishes changes (pending-ui-v1.md section 10.1). Every resource read
+// (`res::<name>.<field>`) depends on it; a read of `isPending` or a deferred value is unbounded
+// already, so it carries it too.
+inline constexpr std::string_view kPendingCell = "pending::sync";
+
+// True when the component has a resource, a transition-marked setter or a deferred value, the only
+// cases that declare `kPendingCell`; every other component keeps its mask layout (and its golden).
+[[nodiscard]] bool has_pending_cell(const ir::Component& component);
+
+// Every bit id the component declares (`state::`, `prop::`, `anim::`, `env::`, and `pending::sync`
+// for a pending-UI component), sorted and unique.
 // With the default empty record table this is exactly the old one-bit-per-cell list, which keeps
 // every record-free golden byte-identical.
 [[nodiscard]] std::vector<std::string> declared_cells(const ir::Component& component,

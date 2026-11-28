@@ -62,8 +62,8 @@ struct ServiceFile {
 };
 
 constexpr std::string_view kImports =
-    "import { useState, useService, useResource, useTransition, useDeferredValue, Suspense } from "
-    "\"tessera\";\n";
+    "import { useState, useService, useResource, useTransition, useDeferredValue, useEffect, "
+    "Suspense } from \"tessera\";\n";
 
 std::string component(std::string_view body, std::string_view root) {
     return std::string(kImports) + "export function Feed() {\n" + std::string(body) + "  return " +
@@ -343,6 +343,103 @@ void test_deferred_value_rejections() {
                  "TESSERA_REACT_HOOK_ARG");
 }
 
+void test_error_and_effect_dependencies() {
+    const services::ServicesManifest manifest = make_manifest();
+    const Lowered lowered = lower(
+        component(std::string(kApi) + "  const feed = useResource(api.loadFeed, { query });\n"
+                                      "  // Note: bind::on_feed\n"
+                                      "  useEffect(() => { log(feed.status); log(feed.error); }, "
+                                      "[feed.status, feed.error]);\n",
+                  "<Text>{feed.error}</Text>"),
+        manifest);
+    check(lowered.module.has_value(), "a resource read in an effect lowers: " + lowered.error);
+    if (!lowered.module) {
+        return;
+    }
+    check_eq(lowered.codes, "", "the module with resource effect dependencies validates");
+    const ir::Component& feed = lowered.module->components.at(0);
+    check(feed.effects.size() == 1 && feed.effects[0].deps.size() == 2 &&
+              feed.effects[0].deps[0] == "res::feed.status" &&
+              feed.effects[0].deps[1] == "res::feed.error",
+          "the dependencies are the res:: references, in written order");
+    check(ir::write_ir_json(*lowered.module).find("res::feed.error") != std::string::npos,
+          ".error lowers to a res:: reference");
+
+    const auto expect_effect_error = [&](std::string_view name, std::string_view deps,
+                                         std::string_view reads) {
+        expect_code(name,
+                    std::string(kApi) +
+                        "  const feed = useResource(api.loadFeed, { query });\n"
+                        "  // Note: bind::on_feed\n  useEffect(() => { " +
+                        std::string(reads) + " }, " + std::string(deps) + ");\n",
+                    "<View />", "TESSERA_REACT_EFFECT_DEPS", manifest);
+    };
+    expect_effect_error("a read of a resource field that is not listed", "[]", "log(feed.status);");
+    expect_effect_error("a listed field the body does not read", "[feed.status, feed.data]",
+                        "log(feed.status);");
+    expect_effect_error("the bare resource as a dependency", "[feed]", "log(feed.status);");
+    expect_effect_error("a field a resource does not have", "[feed.bogus]", "log(feed.status);");
+    expect_effect_error("a dotted name that is not a resource", "[query.length]", "log(query);");
+}
+
+void test_deferred_value_over_a_prop() {
+    const services::ServicesManifest manifest = make_manifest();
+    const auto with_prop = [](std::string_view type) {
+        return std::string(kImports) +
+               "export function Feed({ level }: { level: " + std::string(type) +
+               " }) {\n  const d = useDeferredValue(level);\n  return <Text>{d}</Text>;\n}\n";
+    };
+    const Lowered lowered = lower(with_prop("int"), manifest);
+    check(lowered.module.has_value(), "a deferred int prop lowers: " + lowered.error);
+    if (lowered.module) {
+        check_eq(lowered.codes, "", "the module validates");
+        const auto& behaviors = lowered.module->components.at(0).behaviors;
+        check(behaviors.size() == 1 && behaviors[0].args.size() == 1 &&
+                  behaviors[0].args[0].expr.id == "prop::level" &&
+                  behaviors[0].outputs.at(0).type == "int",
+              "the arg is the prop and the output has the prop's type");
+    }
+    const Lowered text = lower(with_prop("string"), manifest);
+    check(text.error.find("TESSERA_IR_UNSUPPORTED") != std::string::npos,
+          "a string prop is rejected (its union is not in the IR): " + text.error);
+}
+
+void test_key_matches_the_method_parameters() {
+    const services::ServicesManifest manifest = make_manifest();
+    const std::string_view root = "<View />";
+    expect_code("a field that is not a parameter",
+                std::string(kApi) + "  const f = useResource(api.loadFeed, { q: query });\n", root,
+                "TESSERA_REACT_HOOK_ARG", manifest);
+    expect_code("an extra key field",
+                std::string(kApi) +
+                    "  const f = useResource(api.loadFeed, { query, extra: query });\n",
+                root, "TESSERA_REACT_HOOK_ARG", manifest);
+    expect_code("a repeated key field",
+                std::string(kApi) + "  const f = useResource(api.loadFeed, { query, query });\n",
+                root, "TESSERA_REACT_HOOK_ARG", manifest);
+    expect_code("a scalar key for a method with no parameters",
+                std::string(kApi) + "  const f = useResource(api.reset, query);\n", root,
+                "TESSERA_REACT_HOOK_ARG", manifest);
+    check(lower(component(std::string(kApi) + "  const f = useResource(api.loadFeed, query);\n",
+                          "<View />"),
+                manifest)
+              .module.has_value(),
+          "a scalar key matches a one-parameter method");
+    const Lowered mismatch = lower(
+        component(std::string(kApi) + "  const [n, setN] = useState<int>(0);\n"
+                                      "  const f = useResource(api.loadFeed, { query: n });\n",
+                  "<View />"),
+        manifest);
+    check(mismatch.error.find("TESSERA_REACT_HOOK_ARG") != std::string::npos &&
+              mismatch.error.find("declares `string`") != std::string::npos,
+          "an int key part for a string parameter is rejected: " + mismatch.error);
+    const Lowered literal = lower(
+        component(std::string(kApi) + "  const f = useResource(api.loadFeed, { query: \"x\" });\n",
+                  "<View />"),
+        manifest);
+    check(literal.module.has_value(), "a literal of the declared type is accepted");
+}
+
 } // namespace
 
 int main() {
@@ -353,6 +450,9 @@ int main() {
     test_resource_diagnostics();
     test_deferred_value_lowering();
     test_deferred_value_rejections();
+    test_error_and_effect_dependencies();
+    test_deferred_value_over_a_prop();
+    test_key_matches_the_method_parameters();
     if (failures == 0) {
         std::cout << "lowering resource tests passed\n";
     }

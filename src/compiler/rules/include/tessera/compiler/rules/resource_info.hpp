@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace tessera::compiler::rules {
 
@@ -26,6 +28,9 @@ struct ResourceInfo {
     // The IR type of `.data`: the manifest method's return type when it is int, float, bool or
     // string, empty otherwise (a record or `void` result has no scalar form in V1).
     std::string type;
+    // The service method's declared parameters (`ui/services.json`), as name and IR type, for the
+    // key check (pending-ui-v1.md section 3.1).
+    std::vector<std::pair<std::string, std::string>> params;
     jsx::Span span;
 };
 

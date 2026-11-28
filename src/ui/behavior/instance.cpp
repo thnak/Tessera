@@ -80,6 +80,19 @@ bool Instance::attach(std::string_view behavior, const Targets& targets, const S
     return true;
 }
 
+bool Instance::attach_untargeted(std::string_view behavior, const Services& services,
+                                 const ArgsView& args) {
+    detach();
+    behavior_ = create_behavior(behavior);
+    if (!behavior_) {
+        return false;
+    }
+    behavior_->attach(Targets{}, services, args);
+    args_hash_ = hash_args(args.values);
+    has_hash_ = true;
+    return true;
+}
+
 void Instance::update(const ArgsView& args) {
     if (!behavior_) {
         return;

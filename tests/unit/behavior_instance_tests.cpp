@@ -220,6 +220,34 @@ bool test_reattach_replaces() {
            expect(instance.outputs().size() == 3, "re-attach leaves one instance, not two");
 }
 
+// A behavior with no target (pending-ui-v1.md section 10.3): `attach` refuses an empty target set
+// on purpose, and `attach_untargeted` is the explicit way in for a behavior whose manifest entry
+// has none.
+bool test_untargeted_attach() {
+    Scene scene;
+    Instance instance;
+    bool ok = expect(!instance.attach("transition", Targets{}, Services{&scene.router}, ArgsView{}),
+                     "attach refuses an empty target set");
+    std::array<ArgValue, 1> pending{bool_arg(true)};
+    ok =
+        expect(instance.attach_untargeted("transition", Services{&scene.router}, ArgsView{pending}),
+               "a target-less behavior attaches") &&
+        ok;
+    ok = expect(instance.attached() && instance.outputs().size() == 1 &&
+                    instance.outputs()[0].boolean,
+                "its output follows the options at attach") &&
+         ok;
+    std::array<ArgValue, 1> settled{bool_arg(false)};
+    instance.update(ArgsView{settled});
+    ok = expect(!instance.outputs()[0].boolean, "and follows the next update") && ok;
+    ok =
+        expect(!instance.attach_untargeted("no_such_behavior", Services{&scene.router}, ArgsView{}),
+               "an unknown name does not attach") &&
+        ok;
+    instance.detach();
+    return expect(!instance.attached(), "detach releases it") && ok;
+}
+
 } // namespace
 
 int main() {
@@ -230,6 +258,7 @@ int main() {
     ok = test_unchanged_update_is_skipped() && ok;
     ok = test_detach_is_idempotent() && ok;
     ok = test_reattach_replaces() && ok;
+    ok = test_untargeted_attach() && ok;
     if (!ok) {
         std::cerr << "behavior_instance: FAILED\n";
         return 1;

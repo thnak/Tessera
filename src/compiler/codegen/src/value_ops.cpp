@@ -214,7 +214,7 @@ std::string_view declared_ir_type(const ir::Component& component, std::string_vi
     // `.data` has the service method's result type, which the IR does not carry, so it has no
     // printable type here.
     for (const ir::Resource& resource : component.resources) {
-        if (resource.id + ".status" == id) {
+        if (resource.id + ".status" == id || resource.id + ".error" == id) {
             return "string";
         }
         if (!resource.type.empty() && resource.id + ".data" == id) {

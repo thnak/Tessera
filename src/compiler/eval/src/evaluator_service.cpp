@@ -62,6 +62,10 @@ std::expected<Value, EvalError> Evaluator::unresolved_ref(const ir::Expr& expr,
             if (auto data = pending_->data_of(base)) {
                 return std::move(*data);
             }
+        } else if (member == "error") {
+            if (const auto text = pending_->error_of(base)) {
+                return Value::of_string(std::string(*text));
+            }
         }
     }
     return std::unexpected(

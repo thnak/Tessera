@@ -18,6 +18,19 @@ bool contains(const std::vector<std::string>& names, const std::string& name) {
 
 } // namespace
 
+bool is_resource_read(const Context& ctx, std::string_view name) {
+    const std::size_t dot = name.find('.');
+    if (dot == std::string_view::npos) {
+        return false;
+    }
+    const std::string_view field = name.substr(dot + 1);
+    if (field != "status" && field != "data" && field != "error") {
+        return false;
+    }
+    const Symbol* symbol = ctx.out.find(std::string(name.substr(0, dot)));
+    return symbol != nullptr && symbol->kind == SymbolKind::Resource;
+}
+
 bool is_dependency_kind(SymbolKind kind) {
     return kind == SymbolKind::Prop || kind == SymbolKind::State ||
            kind == SymbolKind::AnimatedValue;
@@ -26,9 +39,15 @@ bool is_dependency_kind(SymbolKind kind) {
 // Adds what a read of `name` requires. Locals are inlined by lowering (decision 8), so a read of
 // a local requires what the local reads. `visiting` stops a local that mentions itself.
 void add_required(const Context& ctx, const std::string& name, std::vector<std::string>& required,
-                  std::vector<std::string>& visiting) {
+                  std::vector<std::string>& visiting, bool resource_reads) {
     const std::string props_prefix = ctx.item.props_name + ".";
     if (!ctx.item.props_name.empty() && name.starts_with(props_prefix)) {
+        if (!contains(required, name)) {
+            required.push_back(name);
+        }
+        return;
+    }
+    if (resource_reads && is_resource_read(ctx, name)) {
         if (!contains(required, name)) {
             required.push_back(name);
         }
@@ -55,19 +74,22 @@ void add_required(const Context& ctx, const std::string& name, std::vector<std::
     visiting.push_back(name);
     ReadOptions options;
     options.props_name = ctx.item.props_name;
+    options.member_reads = resource_reads;
     for (const auto& read : collect_reads(*init, options)) {
-        add_required(ctx, read.name, required, visiting);
+        add_required(ctx, read.name, required, visiting, resource_reads);
     }
     visiting.pop_back();
 }
 
-std::vector<std::string> required_names(const Context& ctx, const jsx::Expr& body) {
+std::vector<std::string> required_names(const Context& ctx, const jsx::Expr& body,
+                                        bool resource_reads) {
     ReadOptions options;
     options.props_name = ctx.item.props_name;
+    options.member_reads = resource_reads;
     std::vector<std::string> required;
     std::vector<std::string> visiting;
     for (const auto& read : collect_reads(body, options)) {
-        add_required(ctx, read.name, required, visiting);
+        add_required(ctx, read.name, required, visiting, resource_reads);
     }
     return required;
 }

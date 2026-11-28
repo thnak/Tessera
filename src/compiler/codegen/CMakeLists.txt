@@ -1544,6 +1544,24 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene tessera_appfw_core tessera_ir_eval)
     endif ()
 
+    # #656 follow-ups: typed data, `.error`, dirty tracking, provider binding and an effect over a
+    # resource, on the compiled generated component (docs/specs/pending-ui-v1.md section 6).
+    if (EXISTS ${_tessera_codegen_golden_dir}/pending/ProviderFeed.g.hpp AND
+        TARGET tessera_appfw_core)
+        add_executable(codegen_pending_provider_tests
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_provider_tests.cpp
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending/ProviderFeed.cpp)
+        target_include_directories(codegen_pending_provider_tests PRIVATE
+            ${_tessera_codegen_golden_dir}/pending
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/pending
+            ${PROJECT_SOURCE_DIR}/tests/unit/codegen_base/services)
+        target_link_libraries(codegen_pending_provider_tests PRIVATE
+            tessera_scene tessera_appfw_core tessera_runtime)
+        target_compile_features(codegen_pending_provider_tests PRIVATE cxx_std_23)
+        tessera_allow_allocator_override(codegen_pending_provider_tests)
+        add_test(NAME codegen_pending_provider COMMAND codegen_pending_provider_tests)
+    endif ()
+
     # The developer class (tests/unit/codegen_base/fixtures/Dynamic.hpp) over the committed base.
     if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.g.hpp)
         add_executable(codegen_dynamic_runtime_tests

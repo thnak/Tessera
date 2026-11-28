@@ -80,6 +80,9 @@ public:
     // The `res::<name>.data` value of a typed resource (`Resource::type`): the scalar its view
     // publishes, the zero value while absent. Nullopt for an unknown id or an untyped resource.
     [[nodiscard]] std::optional<Value> data_of(std::string_view resource_id) const;
+    // The `res::<name>.error` text: the message of the last failure, empty while the resource has
+    // not failed. Nullopt for an unknown id.
+    [[nodiscard]] std::optional<std::string_view> error_of(std::string_view resource_id) const;
     // `useDeferredValue` (pending-ui-v1.md section 6): the settled value of behavior `id`. While a
     // transition is pending it keeps the last value read when nothing was; otherwise it takes
     // `current`. The first read settles, the rule `tessera::ui::pending::DeferredScalar` runs.

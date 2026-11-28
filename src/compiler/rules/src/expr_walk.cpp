@@ -27,6 +27,9 @@ public:
                 reads_.push_back({std::string(options_.props_name) + "." + expr.text, expr.span});
                 return;
             }
+            if (options_.member_reads && member_of_identifier(expr)) {
+                reads_.push_back({expr.operands[0]->text + "." + expr.text, expr.span});
+            }
             break;
         case ExprKind::Call:
             visit_call(expr);
@@ -53,6 +56,12 @@ private:
         return !options_.props_name.empty() && !member.operands.empty() &&
                member.operands[0]->kind == ExprKind::Identifier &&
                member.operands[0]->text == options_.props_name &&
+               !shadowed(member.operands[0]->text) && member.text != "[]";
+    }
+
+    [[nodiscard]] bool member_of_identifier(const Expr& member) const {
+        return member.operands.size() == 1 && member.operands[0] &&
+               member.operands[0]->kind == ExprKind::Identifier &&
                !shadowed(member.operands[0]->text) && member.text != "[]";
     }
 

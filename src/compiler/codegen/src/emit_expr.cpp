@@ -48,8 +48,9 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
             return ExprEmission{local->cpp, {}};
         }
         // A resource (ADR-067 item 1, pending-ui-v1.md section 3.4): `res::<name>.status` reads the
-        // generated accessor over the resource's view. `.data` and `.error` have the service
-        // method's result type, which the IR does not carry, so they are not generated yet.
+        // generated accessor over the resource's view. `.error` is the failure text (a string);
+        // `.data` is generated only for a typed resource (the IR carries the result type in
+        // `type`).
         if (expr.id.rfind("res::", 0) == 0) {
             const std::size_t dot = expr.id.find('.');
             const std::string member = dot == std::string::npos ? "" : expr.id.substr(dot + 1);
@@ -57,6 +58,10 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
             stem.pop_back();
             if (member == "status") {
                 return ExprEmission{"std::string(" + stem + "_status())", {}};
+            }
+            // `.error` is the text of the last failure, a string for every resource.
+            if (member == "error") {
+                return ExprEmission{"std::string(" + stem + "_state().error)", {}};
             }
             // `.data` of a typed resource (Resource::type): the scalar the view publishes, the zero
             // value while absent. Without a type there is nothing to emit.
@@ -79,8 +84,8 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
                 }
             }
             return fail("`" + expr.id +
-                        "` is not generated: `.error` has no scalar form yet, and `.data` needs "
-                        "the resource's `type` (the service method's declared return type)");
+                        "` is not generated: `.data` needs the resource's `type` (the service "
+                        "method's declared return type)");
         }
         // A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>`
         // reads the generated accessor `<member><field>()`, which returns the manifest default

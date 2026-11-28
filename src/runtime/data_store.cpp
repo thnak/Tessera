@@ -172,6 +172,44 @@ bool DataStore::try_published(const DataKey& key, PublishedState& out) const noe
     return true;
 }
 
+bool DataStore::try_published(const DataKey& key, PublishedState& out,
+                              PublishedPayload& payload) const noexcept {
+    const detail::DataStoreCore* core = core_.get();
+    if (core == nullptr) {
+        return false;
+    }
+    std::unique_lock<std::mutex> lock(core->mutex, std::try_to_lock);
+    if (!lock.owns_lock() || !core->alive) {
+        return false;
+    }
+    const auto it = core->entries.find(key);
+    if (it == core->entries.end()) {
+        out = PublishedState{};
+        payload.value.reset();
+        payload.type = nullptr;
+        payload.error_message.clear();
+        return true;
+    }
+    const detail::DataStoreCore::Entry& entry = it->second;
+    out.status = entry.status;
+    out.has_value = entry.value != nullptr;
+    out.has_error = entry.error.has_value();
+    out.version = entry.version;
+    out.epoch = entry.epoch;
+    payload.value = entry.value;
+    payload.type = entry.type;
+    if (entry.error.has_value()) {
+        try {
+            payload.error_message = entry.error->message;
+        } catch (...) {
+            payload.error_message.clear(); // a failed allocation shows an empty error, not a crash
+        }
+    } else {
+        payload.error_message.clear();
+    }
+    return true;
+}
+
 DataStore::ObserverId DataStore::observe(DataKey key, Observer observer) {
     if (!observer) {
         throw std::invalid_argument("data store observer must not be empty");

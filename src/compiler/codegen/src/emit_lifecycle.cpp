@@ -6,6 +6,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
+#include "emit_resources.hpp"
 #include "emit_types_header.hpp"
 
 #include <optional>
@@ -87,6 +88,40 @@ bool dep_member(const ir::Component& component, const ir::IrModule& module, std:
                            "` is not a state, prop or animated value reference");
 }
 
+// A resource field as the value an effect hashes: the generated public accessors of the component
+// (`res_feed_status()`, `res_feed_state()`), read through `component`.
+bool resource_dep_hash_expression(const ir::Component& component, const std::string& dep,
+                                  std::string& expression, std::string& error) {
+    const std::size_t dot = dep.find('.');
+    const std::string id = dep.substr(0, dot);
+    const std::string field = dep.substr(dot + 1);
+    for (const ir::Resource& resource : component.resources) {
+        if (resource.id != id) {
+            continue;
+        }
+        const std::string stem = "component." + resource_stem(resource);
+        if (field == "status") {
+            expression = "std::string_view(" + stem + "_status())";
+        } else if (field == "error") {
+            expression = "std::string_view(" + stem + "_state().error)";
+        } else if (resource.type == "string") {
+            expression = "std::string_view(" + stem + "_state().text)";
+        } else if (resource.type == "bool") {
+            expression = "(" + stem + "_state().number != 0.0)";
+        } else if (resource.type == "int") {
+            expression = "static_cast<std::int64_t>(" + stem + "_state().number)";
+        } else if (resource.type == "float") {
+            expression = stem + "_state().number";
+        } else {
+            return fail(error, "effect dep `" + dep +
+                                   "` reads the data of an untyped resource (the service method's "
+                                   "declared return type is not a scalar)");
+        }
+        return true;
+    }
+    return fail(error, "effect dep `" + dep + "` names no resource of this component");
+}
+
 bool emit_dep_hash(CppWriter& writer, const ir::Component& component, const ir::IrModule& module,
                    std::size_t index, const ir::Effect& effect, std::string& error) {
     writer.line("std::uint64_t dep_hash_" + std::to_string(index) + "(const " + component.name +
@@ -94,6 +129,14 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, const ir::
     ++writer.indent;
     writer.line("std::uint64_t hash = tessera::ui::kEffectHashSeed;");
     for (const std::string& dep : effect.deps) {
+        if (dep.rfind("res::", 0) == 0) {
+            std::string expression;
+            if (!resource_dep_hash_expression(component, dep, expression, error)) {
+                return false;
+            }
+            writer.line("hash = tessera::ui::effect_hash(hash, " + expression + ");");
+            continue;
+        }
         std::string member;
         std::string type;
         bool is_record = false;
@@ -181,6 +224,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
             writer.line("");
             hand_update();
             writer.open("void " + component.name + "::flush_update()");
+            emit_resource_sync_line(writer, component);
             writer.line("update_effects();");
             writer.line("apply_state();");
             writer.close("");
@@ -202,6 +246,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
         writer.line("");
         hand_update();
         writer.open("void " + component.name + "::flush_update()");
+        emit_resource_sync_line(writer, component);
         writer.line("update_effects();");
         writer.line("apply_state();");
         writer.close("");
@@ -265,6 +310,7 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
 
     hand_update();
     writer.open("void " + component.name + "::flush_update()");
+    emit_resource_sync_line(writer, component);
     writer.line("update_effects();");
     writer.line("apply_state();");
     writer.close("");

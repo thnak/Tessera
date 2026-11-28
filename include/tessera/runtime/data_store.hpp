@@ -122,6 +122,18 @@ struct PublishedState {
     }
 };
 
+// The value and error text behind a PublishedState, for a UI that renders them (a typed `.data`, an
+// `.error` string). Reused across reads by the caller: see DataStore::try_published.
+struct PublishedPayload {
+    std::shared_ptr<const void> value;
+    const void* type = nullptr;
+    std::string error_message;
+
+    template<typename T> [[nodiscard]] const T* value_as() const noexcept {
+        return type == detail::type_token<T>() ? static_cast<const T*>(value.get()) : nullptr;
+    }
+};
+
 // One in-flight fetch. The app owns the completion; the store owns ordering, so this handle is the
 // minimal fetch seam the push contract is specified against (transport/policy stay after V1).
 // `resolve`/`fail` may be called from any thread and return false when the result is discarded: the
@@ -221,6 +233,14 @@ public:
     // as it was, so the caller keeps rendering the state it read last. Completion is still
     // announced through the CompletionQueue at a tick boundary; this is the read that follows it.
     [[nodiscard]] bool try_published(const DataKey& key, PublishedState& out) const noexcept;
+
+    // The same read plus what a typed pending UI shows (pending-ui-v1.md sections 3.1 and 6.1): the
+    // published value (a shared_ptr copy, no allocation), its type token, and the last failure's
+    // message. `payload.error_message` is assigned in place, so it allocates only while its
+    // capacity grows; it is cleared when the entry has no error. On false `out` and `payload` are
+    // untouched.
+    [[nodiscard]] bool try_published(const DataKey& key, PublishedState& out,
+                                     PublishedPayload& payload) const noexcept;
 
     // Subscribe to changes of one key. Observers are called on the draining thread, once per key
     // per tick, after at least one write/fetch-state change; they are not called by `observe`.

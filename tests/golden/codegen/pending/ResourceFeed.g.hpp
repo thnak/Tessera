@@ -16,6 +16,7 @@
 #include "tessera/ui/pending/suspense.hpp"
 #include "tessera/ui/pending/transition.hpp"
 #include "tessera/ui/pending/resource_view.hpp"
+#include "tessera/ui/pending/resource_provider.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -61,8 +62,20 @@ namespace pending {
       // attaches whichever one the model says is live.
       // `res::feed` (svc::nav.loadFeed, suspending): bound by the host; unbound reads as idle.
       tessera::ui::pending::ResourceView res_feed_view_;
+      // The key last bound through a `ResourceProvider` service, and whether the host
+      // bound the view by hand (then the provider is not asked).
+      tessera::ui::pending::ResourceKey res_feed_key_;
+      bool res_feed_keyed_ = false;
+      bool res_feed_manual_ = false;
       // `res::tags` (svc::nav.loadTags, suspending): bound by the host; unbound reads as idle.
       tessera::ui::pending::ResourceView res_tags_view_;
+      // The key last bound through a `ResourceProvider` service, and whether the host
+      // bound the view by hand (then the provider is not asked).
+      tessera::ui::pending::ResourceKey res_tags_key_;
+      bool res_tags_keyed_ = false;
+      bool res_tags_manual_ = false;
+      // The last signature `pending_sync()` published; a change marks the pending cell.
+      std::uint64_t pending_sig_ = 0;
       // The transition mark of a `startTransition` setter (ADR-067 item 4).
       tessera::ui::pending::TransitionMark pending_transition_;
       // `node::2` Suspense boundary: the content subtree, the fallback subtree,
@@ -90,9 +103,10 @@ namespace pending {
       // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
       // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
       // dirty. The bit constants are public so an owner can mark a child's prop.
-      static constexpr std::size_t kBit_state_query_ = 0;
+      static constexpr std::size_t kBit_pending_sync_ = 0;
+      static constexpr std::size_t kBit_state_query_ = 1;
     private:
-      tessera::ui::DirtyMask<2> dirty_ = tessera::ui::DirtyMask<2>::all();
+      tessera::ui::DirtyMask<3> dirty_ = tessera::ui::DirtyMask<3>::all();
     public:
       // Marks one cell dirty without scheduling (the caller schedules).
       void note_dirty(std::size_t bit);
@@ -121,8 +135,15 @@ namespace pending {
       void bind_res_tags(const tessera::ui::pending::ResourceView& view);
       [[nodiscard]] tessera::ui::pending::ResourceState res_tags_state() const noexcept;
       [[nodiscard]] const char* res_tags_status() const noexcept;
+      // Binds each resource whose service is a `ResourceProvider` (pending-ui-v1.md section
+      // 10.2) to the view of its current key; true when any binding changed. A resource
+      // the host bound by hand is left alone.
+      bool sync_resource_keys();
       // Reads every bound resource once, feeds the boundary reads and the transition
-      // mark, and re-applies the boundaries: what a subscription does at a frame boundary.
+      // mark, re-applies the boundaries and marks the pending cell when anything the
+      // bindings read changed. True when it did. pending_sync() also binds keys and
+      // schedules the update: what a subscription does at a frame boundary.
+      bool pending_sync_run();
       void pending_sync();
       [[nodiscard]] bool pending_is_pending() const;
       [[nodiscard]] bool pending_fallback_live() const;
@@ -142,6 +163,7 @@ namespace pending {
       void attach_services(const tessera::appfw::ServiceContext& context) {
           services_ = std::tuple<demo::Navigator*>{
               &context.get<demo::Navigator>()};
+          pending_sync();
       }
       // ADR-050 section 3.1 item 3: resolve at mount, then run the ordinary mount().
       void mount(const tessera::appfw::ServiceContext& context) {
@@ -210,12 +232,12 @@ namespace pending {
       [[maybe_unused]] inline std::string format_value(const char* value) {
         return std::string(value);
       }
-      // text binding of node::4 reads: state::query (unbounded).
-      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_4 = tessera::ui::DirtyMask<2>::of({0, 1});
+      // text binding of node::4 reads: pending::sync state::query.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_text_4 = tessera::ui::DirtyMask<3>::of({0, 1, 2});
       // text binding of node::5 reads: nothing.
-      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_5 = tessera::ui::DirtyMask<2>::of({1});
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_text_5 = tessera::ui::DirtyMask<3>::of({2});
       // text binding of node::7 reads: nothing.
-      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_7 = tessera::ui::DirtyMask<2>::of({1});
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_text_7 = tessera::ui::DirtyMask<3>::of({2});
       template <class Self>
       struct Thunks {
         static void event_adapter_6_onClick(void* context, const tessera::ui::Event& event) {
@@ -339,6 +361,7 @@ namespace pending {
     inline void ResourceFeedBase<Self>::bind_res_feed(const tessera::ui::pending::ResourceView& view) {
       using namespace ResourceFeed_detail;
       res_feed_view_ = view;
+      res_feed_manual_ = true;
       pending_sync();
     }
     template <class Self>
@@ -355,6 +378,7 @@ namespace pending {
     inline void ResourceFeedBase<Self>::bind_res_tags(const tessera::ui::pending::ResourceView& view) {
       using namespace ResourceFeed_detail;
       res_tags_view_ = view;
+      res_tags_manual_ = true;
       pending_sync();
     }
     template <class Self>
@@ -368,7 +392,7 @@ namespace pending {
       return res_tags_view_.read().status();
     }
     template <class Self>
-    inline void ResourceFeedBase<Self>::pending_sync() {
+    inline bool ResourceFeedBase<Self>::pending_sync_run() {
       using namespace ResourceFeed_detail;
       const tessera::ui::pending::ResourceState res_feed_now = res_feed_view_.read();
       const tessera::ui::pending::ResourceState res_tags_now = res_tags_view_.read();
@@ -378,7 +402,62 @@ namespace pending {
       suspense_2_.set_hold(pending_transition_.pending());
       (void)suspense_2_.set_read(0, res_feed_now.loading, res_feed_now.has_data, res_feed_now.epoch);
       (void)suspense_2_.set_read(1, res_tags_now.loading, res_tags_now.has_data, res_tags_now.epoch);
+      std::uint64_t pending_word = 1469598103934665603ull;
+      pending_word = tessera::ui::pending::mix_signature(pending_word, res_feed_now.signature());
+      pending_word = tessera::ui::pending::mix_signature(pending_word, res_tags_now.signature());
+      pending_word = tessera::ui::pending::mix_signature(pending_word, pending_transition_.pending() ? 1u : 0u);
+      pending_word = tessera::ui::pending::mix_signature(pending_word, suspense_2_.fallback_live() ? 1u : 0u);
+      const bool pending_changed = pending_word != pending_sig_;
+      if (pending_changed) {
+        pending_sig_ = pending_word;
+        dirty_.set(kBit_pending_sync_);
+      }
       apply_suspense_2();
+      return pending_changed;
+    }
+    template <class Self>
+    inline void ResourceFeedBase<Self>::pending_sync() {
+      using namespace ResourceFeed_detail;
+      (void)sync_resource_keys();
+      if (pending_sync_run()) {
+        schedule_update();
+      }
+    }
+    template <class Self>
+    inline bool ResourceFeedBase<Self>::sync_resource_keys() {
+      using namespace ResourceFeed_detail;
+      bool rebound = false;
+      // `res::feed`: bound through the service when it is a
+      // `ResourceProvider`, by the host otherwise.
+      if constexpr (tessera::ui::pending::ResourceProvider<demo::Navigator>) {
+        demo::Navigator* const provider = std::get<demo::Navigator*>(services_);
+        if (!res_feed_manual_ && provider != nullptr) {
+          tessera::ui::pending::ResourceKey key;
+          key.field("query", state_query_);
+          if (!key.overflow() && !(res_feed_keyed_ && key.same_as(res_feed_key_))) {
+            res_feed_key_ = key;
+            res_feed_keyed_ = true;
+            res_feed_view_ = tessera::ui::pending::provided_view(*provider, "loadFeed", key.view());
+            rebound = true;
+          }
+        }
+      }
+      // `res::tags`: bound through the service when it is a
+      // `ResourceProvider`, by the host otherwise.
+      if constexpr (tessera::ui::pending::ResourceProvider<demo::Navigator>) {
+        demo::Navigator* const provider = std::get<demo::Navigator*>(services_);
+        if (!res_tags_manual_ && provider != nullptr) {
+          tessera::ui::pending::ResourceKey key;
+          key.field("", state_query_);
+          if (!key.overflow() && !(res_tags_keyed_ && key.same_as(res_tags_key_))) {
+            res_tags_key_ = key;
+            res_tags_keyed_ = true;
+            res_tags_view_ = tessera::ui::pending::provided_view(*provider, "loadTags", key.view());
+            rebound = true;
+          }
+        }
+      }
+      return rebound;
     }
     template <class Self>
     inline bool ResourceFeedBase<Self>::pending_is_pending() const {
@@ -410,6 +489,8 @@ namespace pending {
     template <class Self>
     inline void ResourceFeedBase<Self>::flush_update() {
       using namespace ResourceFeed_detail;
+      (void)sync_resource_keys();
+      (void)pending_sync_run();
       update_effects();
       apply_state();
     }
@@ -464,8 +545,13 @@ namespace pending {
       using namespace ResourceFeed_detail;
       (void)event;
       pending_transition_.begin(res_feed_view_.read().epoch + 1);
+      dirty_.set(kBit_pending_sync_);
       state_query_ = "next";
       dirty_.set(kBit_state_query_);
+      if (sync_resource_keys()) {
+      pending_transition_.begin(res_feed_view_.read().epoch);
+      }
+      pending_sync();
       apply_state();
     }
   }

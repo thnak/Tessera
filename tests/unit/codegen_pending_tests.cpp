@@ -47,6 +47,7 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
 }
 
 using tessera::test::codegen_pending::make_pending_module;
+using tessera::test::codegen_pending::make_pending_provider_module;
 using tessera::test::codegen_pending::make_pending_resource_module;
 
 std::string read_file(const std::string& path) {
@@ -310,6 +311,16 @@ void test_goldens(bool update) {
         return;
     }
     for (const codegen::GeneratedFile& file : *resources) {
+        result->push_back(file);
+    }
+    // #656 follow-ups: the provider-bound component with typed data, errors and an effect.
+    const auto providers = generate_base(make_pending_provider_module());
+    check(providers.has_value(), "the provider golden sample generates");
+    if (!providers) {
+        std::cerr << "  error: " << first_error(providers) << "\n";
+        return;
+    }
+    for (const codegen::GeneratedFile& file : *providers) {
         result->push_back(file);
     }
     const std::string directory = std::string(TESSERA_CODEGEN_GOLDEN_DIR) + "/pending";

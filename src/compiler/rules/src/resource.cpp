@@ -58,6 +58,63 @@ const Expr* impure_part(const Expr& expr) {
     return nullptr;
 }
 
+std::string params_text(const ResourceInfo& info) {
+    std::string text;
+    for (const auto& [name, type] : info.params) {
+        text += (text.empty() ? "" : ", ") + name + ": " + type;
+    }
+    return text.empty() ? "no parameters" : text;
+}
+
+// The key is the argument list of the fetch (pending-ui-v1.md section 3.1): one scalar for a method
+// of one parameter, or a record whose fields are the method's parameter names, once each. The key
+// part types are checked in lowering, where the cell types are known.
+bool key_matches_params(Context& ctx, const ResourceInfo& info, const std::string& service) {
+    const std::string where =
+        "`" + service + "." + info.method + "` takes (" + params_text(info) + ")";
+    const Expr& key = *info.key;
+    if (key.kind != ExprKind::Object) {
+        if (info.params.size() != 1) {
+            ctx.error(kHookArg,
+                      "the key of `useResource` is one scalar but " + where +
+                          "; write a record key whose fields are the parameter names",
+                      key.span,
+                      "write `{ " +
+                          (info.params.empty() ? std::string("...") : info.params[0].first) +
+                          " }`");
+            return false;
+        }
+        return true;
+    }
+    bool ok = true;
+    for (const jsx::ObjectProperty& property : key.properties) {
+        bool known = false;
+        for (const auto& param : info.params) {
+            known = known || param.first == property.key;
+        }
+        if (!known) {
+            ctx.error(kHookArg, "`" + property.key + "` is not a parameter of the method: " + where,
+                      property.key_span, "name the key fields after the method's parameters");
+            ok = false;
+        }
+    }
+    for (const auto& param : info.params) {
+        std::size_t seen = 0;
+        for (const jsx::ObjectProperty& property : key.properties) {
+            seen += property.key == param.first ? 1 : 0;
+        }
+        if (seen != 1) {
+            ctx.error(kHookArg,
+                      std::string(seen == 0 ? "the key has no field for parameter `"
+                                            : "the key repeats parameter `") +
+                          param.first + "`: " + where,
+                      key.span, "give each parameter exactly one key field");
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 } // namespace
 
 bool is_resource_call(const Expr& call) {
@@ -173,6 +230,13 @@ void check_resource_services(Context& ctx) {
         if (returns == "int" || returns == "float" || returns == "bool" || returns == "string") {
             info.type = returns;
         }
+        for (const services::ManifestParam& param : method->params) {
+            info.params.emplace_back(param.name, param.type);
+        }
+        if (!key_matches_params(ctx, info, use->service)) {
+            resources.erase(resources.begin() + static_cast<std::ptrdiff_t>(at));
+            continue;
+        }
         ++at;
     }
 }
@@ -188,13 +252,17 @@ void check_deferred_value(Context& ctx, std::size_t index, const Statement& stat
         return;
     }
     const Symbol* source = ctx.out.find(call.operands[1]->text);
-    if (source == nullptr || source->kind != SymbolKind::State) {
-        ctx.error(kHookArg, "`useDeferredValue` takes a `useState` value of the component",
-                  call.operands[1]->span, "pass the state variable by name");
+    if (source == nullptr ||
+        (source->kind != SymbolKind::State && source->kind != SymbolKind::Prop)) {
+        ctx.error(
+            kHookArg,
+            "`useDeferredValue` takes a `useState` value or a destructured prop of the component",
+            call.operands[1]->span, "pass the state variable or the prop by name");
         return;
     }
     // Copied first: `add_symbol` may reallocate the table `source` points into.
     const std::string source_name = source->name;
+    const bool source_is_prop = source->kind == SymbolKind::Prop;
     add_symbol(ctx, statement.names.front(), SymbolKind::DeferredValue, statement.span, index);
     BehaviorInfo info;
     info.statement = index;
@@ -203,6 +271,7 @@ void check_deferred_value(Context& ctx, std::size_t index, const Statement& stat
     info.hook = hook.name;
     info.behavior = hook.provider;
     info.source_state = source_name;
+    info.source_is_prop = source_is_prop;
     for (const jsx::HookOutput& output : hook.outputs) {
         info.outputs.push_back(output.name);
         info.output_types.push_back(output.ir);

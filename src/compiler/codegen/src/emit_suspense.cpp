@@ -112,6 +112,7 @@ std::vector<std::string> pending_headers(const ir::Component& component, const D
     if (uses_resources(component)) {
         // #656: the boundary reads the resources through the narrow view; no fake resource member.
         headers.emplace_back("tessera/ui/pending/resource_view.hpp");
+        headers.emplace_back("tessera/ui/pending/resource_provider.hpp");
         return headers;
     }
     // The fake resource backs both halves of the spike: the boundary reads it and a marked setter
@@ -132,6 +133,11 @@ void emit_pending_fields(CppWriter& writer, const ir::Component& component,
         emit_resource_fields(writer, component);
     } else {
         writer.line("tessera::ui::pending::FakeResource pending_resource_;");
+    }
+    if (has_pending_cell(component)) {
+        writer.line(
+            "// The last signature `pending_sync()` published; a change marks the pending cell.");
+        writer.line("std::uint64_t pending_sig_ = 0;");
     }
     if (has_transition(component)) {
         writer.line("// The transition mark of a `startTransition` setter (ADR-067 item 4).");
@@ -271,6 +277,18 @@ bool emit_pending_sources(CppWriter& writer, const ir::Component& component,
     }
     if (plan.suspenses.empty()) {
         writer.line("(void)pending_resource_;");
+    }
+    if (has_pending_cell(component)) {
+        std::vector<std::string> terms{"pending_resource_.epoch()",
+                                       "pending_resource_.loading() ? 1u : 0u",
+                                       "pending_resource_.has_data() ? 1u : 0u"};
+        if (has_transition(component)) {
+            terms.emplace_back("pending_transition_.pending() ? 1u : 0u");
+        }
+        for (const SuspenseSite& site : plan.suspenses) {
+            terms.push_back(boundary_member(site.ordinal) + ".fallback_live() ? 1u : 0u");
+        }
+        emit_pending_dirty_mark(writer, terms, false);
     }
     writer.close("");
     writer.line("");

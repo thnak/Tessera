@@ -229,6 +229,10 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
             continue;
         }
         const std::string member = behavior_member(behavior);
+        // A behavior with no target (`useHotkeys`) has no node to wait for: it attaches at once,
+        // which `Instance::attach` refuses on purpose for a behavior that declared targets and got
+        // none.
+        const bool targetless = behavior.targets.empty();
         // The target nodes, in manifest order. A ref member is a `Node*` the build pass assigned.
         std::string nodes = "const std::array<tessera::ui::Node*, " +
                             std::to_string(behavior.targets.size()) + "> targets_" + member + "{";
@@ -239,7 +243,9 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
             nodes += member_name(behavior.targets[index]);
         }
         nodes += "}";
-        writer.line(nodes + ";");
+        if (!targetless) {
+            writer.line(nodes + ";");
+        }
         // The evaluated value options, in manifest order, into the member `refresh` reuses. A
         // callback arg carries its handler id; a value arg is evaluated here, because a behavior's
         // options are not re-evaluated per pointer move.
@@ -257,6 +263,11 @@ bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std
             }
             writer.line("args_" + member + ".push_back(tessera::ui::behavior::make_arg(" +
                         value.text + "));");
+        }
+        if (targetless) {
+            writer.line("this->" + member + ".attach_untargeted(\"" + behavior.behavior +
+                        "\", services, tessera::ui::behavior::ArgsView{args_" + member + "});");
+            continue;
         }
         writer.line("this->" + member + ".attach(\"" + behavior.behavior +
                     "\", tessera::ui::behavior::Targets{targets_" + member +

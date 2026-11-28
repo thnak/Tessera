@@ -201,4 +201,148 @@ inline ir::IrModule make_pending_resource_module() {
     return module;
 }
 
+// #656 follow-ups (pending-ui-v1.md section 10.2): a component whose resources are typed (`.data`),
+// show their failure text (`.error`), are bound through a `ResourceProvider` service, are read
+// by an effect, and sit beside a deferred prop. Hand-built IR, like the others.
+//
+//   const api = useService<demo::FeedApi>();
+//   const [id, setId] = useState(1);
+//   const [isPending, startTransition] = useTransition();
+//   const row = useResource(api.loadRow, { id });          // string
+//   const count = useResource(api.loadCount, id);          // int
+//   const level = useDeferredValue(props.level);           // int prop
+//   useEffect(() => {...}, [row.status]);                  // bind::row
+//   <View>
+//     <Text>Row: {row.data} / {row.status} / [{row.error}] / {count.data}</Text>
+//     <Text>Pending: {isPending} / Level: {level}</Text>
+//     <Button onClick={startTransition(() => setId(2))}>Next</Button>
+//   </View>
+inline ir::IrModule make_pending_provider_module() {
+    ir::IrModule module;
+    module.name = "pending";
+
+    ir::Component feed;
+    feed.id = "comp::ProviderFeed";
+    feed.component_id = "84";
+    feed.name = "ProviderFeed";
+    feed.source = span(0, 1, 1);
+    feed.props.push_back(ir::Prop{"level", "int", ir::make_literal(std::int64_t{0}), false});
+    feed.state.push_back({"state::id", "id", "int", ir::make_literal(std::int64_t{1})});
+
+    ir::Service api;
+    api.id = "svc::api";
+    api.name = "api";
+    api.type = "demo::FeedApi";
+    api.header = "demo/feed_api.hpp";
+    api.source = span(5, 2, 1);
+    feed.services.push_back(std::move(api));
+
+    ir::Resource row;
+    row.id = "res::row";
+    row.service = "svc::api";
+    row.method = "loadRow";
+    row.type = "string";
+    {
+        std::vector<ir::RecordField> fields;
+        fields.push_back(ir::RecordField{"id", ir::make_ref("state::id")});
+        row.key = std::move(*ir::make_record("", std::move(fields)));
+    }
+    row.source = span(8, 3, 1);
+    feed.resources.push_back(std::move(row));
+
+    ir::Resource count;
+    count.id = "res::count";
+    count.service = "svc::api";
+    count.method = "loadCount";
+    count.type = "int";
+    count.key = std::move(*ir::make_ref("state::id"));
+    count.source = span(12, 4, 1);
+    feed.resources.push_back(std::move(count));
+
+    {
+        ir::Behavior pending;
+        pending.id = "beh::isPending";
+        pending.hook = "useTransition";
+        pending.behavior = "transition";
+        pending.outputs.push_back(ir::BehaviorOutput{"isPending", "bool"});
+        pending.source = span(14, 5, 1);
+        feed.behaviors.push_back(std::move(pending));
+
+        ir::Behavior level;
+        level.id = "beh::level";
+        level.hook = "useDeferredValue";
+        level.behavior = "deferred_value";
+        ir::BehaviorArg arg;
+        arg.name = "value";
+        arg.expr = std::move(*ir::make_ref("prop::level"));
+        level.args.push_back(std::move(arg));
+        level.outputs.push_back(ir::BehaviorOutput{"value", "int"});
+        level.source = span(16, 6, 1);
+        feed.behaviors.push_back(std::move(level));
+    }
+
+    ir::Effect effect;
+    effect.id = "effect::row";
+    effect.deps.push_back("res::row.status");
+    effect.handler = "bind::row";
+    effect.source = span(18, 7, 1);
+    feed.effects.push_back(std::move(effect));
+
+    ir::Node root = leaf(ir::NodeKind::View, "node::1", "821", 20);
+    ir::Node row_text = leaf(ir::NodeKind::Text, "node::2", "822", 30);
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("Row: "));
+        parts.push_back(ir::expr_part(ir::make_ref("res::row.data")));
+        parts.push_back(ir::text_part(" / "));
+        parts.push_back(ir::expr_part(ir::make_ref("res::row.status")));
+        parts.push_back(ir::text_part(" / ["));
+        parts.push_back(ir::expr_part(ir::make_ref("res::row.error")));
+        parts.push_back(ir::text_part("] / "));
+        parts.push_back(ir::expr_part(ir::make_ref("res::count.data")));
+        row_text.text = ir::make_template(std::move(parts));
+    }
+    root.children.push_back(std::move(row_text));
+    ir::Node state_text = leaf(ir::NodeKind::Text, "node::3", "823", 40);
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("Pending: "));
+        parts.push_back(ir::expr_part(ir::make_ref("beh::isPending.isPending")));
+        parts.push_back(ir::text_part(" / Level: "));
+        parts.push_back(ir::expr_part(ir::make_ref("beh::level.value")));
+        state_text.text = ir::make_template(std::move(parts));
+    }
+    root.children.push_back(std::move(state_text));
+    ir::Node button = leaf(ir::NodeKind::Button, "node::4", "824", 50);
+    button.events.emplace("onClick", "handler::next");
+    ir::Node button_text = leaf(ir::NodeKind::Text, "node::5", "825", 60);
+    button_text.text = ir::make_literal(std::string("Next"));
+    button.children.push_back(std::move(button_text));
+    root.children.push_back(std::move(button));
+    feed.root = std::move(root);
+
+    ir::Handler next;
+    next.id = "handler::next";
+    next.source = span(90, 8, 20);
+    next.params.push_back({"event", "ClickEvent"});
+    ir::Action set_id;
+    set_id.kind = ir::ActionKind::Set;
+    set_id.target = "state::id";
+    set_id.value = ir::make_literal(std::int64_t{2});
+    set_id.transition = true;
+    next.actions.push_back(std::move(set_id));
+    feed.handlers.push_back(std::move(next));
+
+    module.components.push_back(std::move(feed));
+
+    ir::Binding binding;
+    binding.id = "bind::row";
+    binding.component = "comp::ProviderFeed";
+    binding.kind = ir::BindingKind::Effect;
+    binding.source = span(100, 9, 4);
+    binding.region = "row";
+    module.bindings.push_back(std::move(binding));
+    return module;
+}
+
 } // namespace tessera::test::codegen_pending

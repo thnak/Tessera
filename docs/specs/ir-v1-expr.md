@@ -136,7 +136,7 @@ Three dotted references read it, and only these three resolve; the bare id is a 
 |---|---|
 | `res::<name>.status` | `string`: `idle`, `loading`, `refreshing`, `success` or `error` (`Stale` is never produced) |
 | `res::<name>.data` | the service method's result, absent data reads as the IR zero value. With the resource's optional `type` (`int`, `float`, `bool`, `string`) it is a typed scalar the validator and codegen know; without one the validator does not member-check it and codegen reports `TESSERA_CODEGEN_UNSUPPORTED` |
-| `res::<name>.error` | the failure of the last fetch, if any |
+| `res::<name>.error` | `string`: the failure message of the last fetch, empty until a fetch fails (generated for every resource, with or without `type`) |
 
 - `key` is a scalar expression or an anonymous `record` of scalar expressions of state, props and
   environment values, compared by value; a list, a nested record or a `res::` reference in a key is
