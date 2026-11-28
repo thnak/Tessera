@@ -194,8 +194,7 @@ public:
     // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs
     // like the posture, so a resize re-lays the tree out and re-resolves `@media` (only when the
     // move can change an answer, ADR-048; counted by `cascade_generation()`) without evaluating the
-    // source again: hover, focus, state and capture survive. False when nothing moved or there is
-    // no tree.
+    // source again: hover, focus, state and capture survive. False when nothing moved.
     bool set_viewport(float width, float height, float dpi_scale);
 
     // One pass for both layout inputs; the two setters above are its narrow spellings.
@@ -255,7 +254,7 @@ public:
     [[nodiscard]] const ui::Node& root() const noexcept {
         return *root_;
     }
-    // The live tree, for the animation driver (issue #603), which writes scene style onto it.
+    // The live tree for the animation driver (#603).
     [[nodiscard]] ui::Node& mutable_root() noexcept {
         return *root_;
     }
