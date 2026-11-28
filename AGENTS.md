@@ -1270,7 +1270,7 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       permission; permission groups, iOS provisional authorization and the `permissionText` manifest
       emission are open questions 1-3 of the spec.
 - [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
-- [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).
+- [x] #453: Background work policy: V1 is in-process `TaskScope` only; OS-scheduled jobs deferred (owner-gated). `BackgroundCoordinator` + `TimerQueue::set_paused` land the Suspended/Hidden policy ([design](docs/design/background-work.md) sections 5-6).
 - [x] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.
       **Done.** `include/tessera/testing/` (`test_app.hpp`, `expect.hpp`) and the `src/testing/` target:
       one deterministic stack (`ManualClock`, `CompletionQueue`, `ManualIoExecutor`, `TimerQueue`,

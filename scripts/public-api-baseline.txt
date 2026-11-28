@@ -86,6 +86,12 @@ struct include/tessera/appfw/application.hpp tessera::appfw::LifecycleDispatchRe
 enum include/tessera/appfw/application.hpp tessera::appfw::TerminationOutcome
 function include/tessera/appfw/application.hpp tessera::appfw::termination_outcome_name
 
+header include/tessera/appfw/background.hpp
+class include/tessera/appfw/background.hpp tessera::appfw::BackgroundCoordinator
+struct include/tessera/appfw/background.hpp tessera::appfw::BackgroundRegistration
+enum include/tessera/appfw/background.hpp tessera::appfw::BackgroundPolicy
+function include/tessera/appfw/background.hpp tessera::appfw::to_string
+
 header include/tessera/appfw/filesystem_fake.hpp
 class include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileSystem
 struct include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileCall

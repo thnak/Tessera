@@ -8,6 +8,7 @@
 add_library(tessera_appfw_core STATIC
     application.cpp
     application_lifecycle_sink.cpp
+    background.cpp
     lifecycle_script.cpp
     saved_state.cpp
     service_bridge.cpp
@@ -420,6 +421,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_task_scope_tests PRIVATE tessera_appfw_core)
     add_test(NAME appfw_task_scope COMMAND appfw_task_scope_tests)
+    # Issue #453: the in-process background policy (checkpoint, timer pause, scope cancel).
+    add_executable(appfw_background_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_background_tests.cpp)
+    target_include_directories(appfw_background_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_background_tests PRIVATE tessera_appfw_core)
+    add_test(NAME appfw_background COMMAND appfw_background_tests)
 
     # AF8 (issue #195, docs/specs/i18n-v1.md): locale negotiation, the compiled message catalog, the
     # locale service's change signal, and the locale-change dirty classification. The relayout
