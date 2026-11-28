@@ -56,7 +56,15 @@ mechanism it added is already in `main`. Two details made the first measurement 
 used to be painted whenever it was dirty, so the first frame of a scene (every node dirty, an empty
 paint cache) culled nothing; it is now painted only while it has a cache record that could go stale,
 and a subtree skip is refused while a dirty descendant has one. Limits: it does not help a genuinely
-fully visible 12 000-node screen, so the render-thread question of ADR-021 stays open for that case.
+fully visible 12 000-node screen. That case is measured, not guessed: `--stage-profile` column
+`cold_unculled` (cull off, so every node is visible to the paint pass) on 2026-11-28, MSVC Release,
+9 runs: paint pass **128 ms**, 12 000 nodes, 10 104 primitives, 10 039 text runs, 101 257 glyphs
+(about 10 microseconds per node, dominated by text runs). Reading: a screen that shows 10 000 text
+runs and 100 000 glyphs is not a UI anyone reads, so it is a stress bound, not a V1 scene. Decision
+for #257: option (c) with the second step not triggered. Culling (above) is the V1 lever, ADR-021's
+single UI thread stands, and worker recording is re-opened only by a measured real scene (a
+shipped-sample dashboard, not this synthetic bound) whose culled `paint_pass` exceeds the trigger in
+[`performance.md`](performance.md) section 9.1.
 
 ## Reference measurement, issue #241 (historical)
 
