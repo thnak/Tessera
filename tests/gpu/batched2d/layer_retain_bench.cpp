@@ -7,7 +7,11 @@
 // pass/draw/copy counts) and, when a device exists, on Vulkan (wall time per frame including the
 // GPU: submit() waits). Prints one line per run; not a pass/fail test.
 //
-//   layer_retain_bench [--frames N] [--cards N]
+// The same grid of plain containers (no mask, filter or opacity) is then painted flat and with
+// generic layer promotion (issue #967), to measure whether keeping an unchanged subtree as a layer
+// pays: the question the promotion policy is gated on.
+//
+//   layer_retain_bench [--frames N] [--cards N] [--children N]
 
 #include "layer_hazard_device.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
@@ -17,6 +21,7 @@
 #include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
+#include "tessera/ui/paint/layer_promotion.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -77,7 +82,8 @@ struct Scene {
     StubStyles styles;
     std::uint32_t cards = 0;
 
-    explicit Scene(std::uint32_t count)
+    // `plain`: every card is an unmasked container with `children` leaves.
+    explicit Scene(std::uint32_t count, bool plain = false, std::uint32_t children = 8)
         : cards(count) {
         root.set_bounds({0.0f, 0.0f, static_cast<float>(kWidth), static_cast<float>(kHeight)});
         ComputedStyle page;
@@ -93,7 +99,9 @@ struct Scene {
             ComputedStyle style;
             style.set("background-color", "#2850a0");
             style.set("border-radius", "16px");
-            if (card % 4 == 3) {
+            if (plain) {
+                style.set("border-width", "1px");
+            } else if (card % 4 == 3) {
                 style.set("filter", "blur(6px)");
             } else {
                 style.set("mask-image", "linear-gradient(90deg, rgba(0,0,0,0.2), #000)");
@@ -101,10 +109,11 @@ struct Scene {
             }
             styles.set(next, style);
             ++next;
-            for (int child = 0; child < 8; ++child) {
+            for (std::uint32_t child = 0; child < children; ++child) {
                 auto leaf = std::make_unique<Node>(next);
                 leaf->set_bounds({12.0f + static_cast<float>(child % 4) * 104.0f,
-                                  16.0f + static_cast<float>(child / 4) * 100.0f, 96.0f, 88.0f});
+                                  16.0f + static_cast<float>((child / 4) % 2) * 100.0f, 96.0f,
+                                  88.0f});
                 ComputedStyle leaf_style;
                 leaf_style.set("background-color", child % 2 == 0 ? "#f0c040" : "#40c0a0");
                 leaf_style.set("border-radius", "10px");
@@ -140,9 +149,11 @@ rhi::RenderTargetDesc target_desc() {
 template<typename Stats>
 Result run(rhi::Device& device, rhi::RenderTarget& target, rhi::Pipeline& pipeline,
            rhi::Texture& white, GlassPipelines glass, bool retain, std::uint32_t retained_layers,
-           std::uint32_t cards, int frames, Stats stats_of) {
-    Scene scene(cards);
+           std::uint32_t cards, int frames, Stats stats_of, bool plain = false,
+           std::uint32_t children = 8, bool promote = false) {
+    Scene scene(cards, plain, children);
     tessera::ui::paint::PaintCache cache;
+    tessera::ui::paint::LayerPromotion promotion;
     Batched2DConfig config;
     config.frames_in_flight = 1;
     config.max_retained_layers = retained_layers;
@@ -157,6 +168,7 @@ Result run(rhi::Device& device, rhi::RenderTarget& target, rhi::Pipeline& pipeli
         tessera::ui::paint::PaintContext context;
         context.paint_cache = &cache;
         context.retain_layers = retain;
+        context.layer_promotion = promote ? &promotion : nullptr;
         (void)tessera::ui::paint::paint_scene(scene.root, scene.styles, sink, context);
         renderer.end();
         commands->submit();
@@ -192,11 +204,14 @@ void print(const char* backend, const char* mode, const Result& r, bool counts) 
 int main(int argc, char** argv) {
     int frames = 303;
     std::uint32_t cards = 16;
+    std::uint32_t children = 40;
     for (int i = 1; i + 1 < argc; i += 2) {
         if (std::string(argv[i]) == "--frames") {
             frames = std::atoi(argv[i + 1]) + 3;
         } else if (std::string(argv[i]) == "--cards") {
             cards = static_cast<std::uint32_t>(std::atoi(argv[i + 1]));
+        } else if (std::string(argv[i]) == "--children") {
+            children = static_cast<std::uint32_t>(std::atoi(argv[i + 1]));
         }
     }
     std::cout << cards << " cards (" << cards - cards / 4 << " masked, " << cards / 4
@@ -229,6 +244,13 @@ int main(int argc, char** argv) {
             print("null  ", name,
                   run(device, *target, *pipeline, *white, glass, retain, entries, cards, frames,
                       stats),
+                  true);
+        }
+        std::cout << "plain containers, " << children << " children each\n";
+        for (const bool promote : {false, true}) {
+            print("null  ", promote ? "promoted" : "flat    ",
+                  run(device, *target, *pipeline, *white, glass, true, 32u, cards, frames, stats,
+                      true, children, promote),
                   true);
         }
     }
@@ -266,6 +288,12 @@ int main(int argc, char** argv) {
         print("vulkan", name,
               run(*device, *target, *pipeline, *white, glass, retain, entries, cards, frames,
                   no_stats),
+              false);
+    }
+    for (const bool promote : {false, true}) {
+        print("vulkan", promote ? "promoted" : "flat    ",
+              run(*device, *target, *pipeline, *white, glass, true, 32u, cards, frames, no_stats,
+                  true, children, promote),
               false);
     }
     return 0;

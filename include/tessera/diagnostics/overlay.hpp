@@ -29,6 +29,17 @@ struct OverlayFrame {
     double frame_ms = 0.0;
     double budget_ms = 0.0;
     std::uint64_t budget_overruns = 0;
+    // Layer cache (issue #967): the retained-layer cache and the promotion policy. `layers_enabled`
+    // false (no cache, or `layerCacheBudgetMb` 0) omits the line, so a build without layers keeps
+    // its overlay unchanged. Bytes are shown in KiB.
+    bool layers_enabled = false;
+    std::uint32_t layer_entries = 0;
+    std::uint64_t layer_bytes = 0;
+    std::uint64_t layer_hits = 0;
+    std::uint64_t layer_records = 0;
+    std::uint64_t layer_refused = 0;
+    std::uint64_t layer_evicted = 0;
+    std::uint64_t layers_promoted = 0; // layers the paint pass opened for the promotion policy
 };
 
 // Builds short overlay lines from a frame snapshot and metric values. No allocation happens per

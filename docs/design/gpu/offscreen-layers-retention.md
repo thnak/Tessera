@@ -201,3 +201,68 @@ unretained frame needs live; after the idle window both are released.
 - Retained text layers do not report glyph-atlas pressure (section 4).
 - WebGPU and Metal: the cache uses `copy_target_region` and the mode-2 composite, both already
   implemented there; it is exercised by the null and Vulkan lanes only.
+
+## 11. Generic promotion and layer diagnostics (issue #967)
+
+Retention (sections 1-9) serves a node that is already a layer. **Promotion** lets an ordinary
+container take the same path: `paint::LayerPromotion` (`include/tessera/ui/paint/layer_promotion.hpp`)
+keeps a small table of nodes the pass has painted and answers "is this one worth a layer?" from
+three numbers, none of them a clock:
+
+| Criterion | Default | Meaning |
+|---|---|---|
+| draws | 32 | draws the subtree emitted when last painted (backgrounds, borders, text, images, shadows, gradients, backdrops) |
+| stable frames | 3 | consecutive observed frames with the node and its whole subtree `Dirty::Clean` at the same retain epoch |
+| area | 16 384 px² | layout area of the node; a small subtree costs more to composite than to replay |
+
+A subtree is **never** promoted when it emitted a glass backdrop (a layer cannot carry the pixels
+behind it), when a layer is already inside it (mask, filter, group opacity: nested layers can
+degrade and the parent would re-record every frame), when `lcd_text` is on (a layer is grayscale),
+when the node or an ancestor is faded (a layer would change the flat fade's rounding), or when
+the node is itself in a layer. A promoted node is opened by the same `retain_layer` + `push_layer`
+as a masked card, so the key, the byte budget (`layerCacheBudgetMb`), LRU, deferred destruction,
+resize, DPI and device-loss behaviour of sections 4-7 apply unchanged; `layerCacheBudgetMb: 0`
+turns retention, and with it promotion, off.
+
+**Safety.** Promotion is an optimisation, so every fallback is a flat paint. The risk is a layer
+recorded before a change coming back after it: a node that turns dirty is painted flat (no sink
+call), so its old layer would still sit in the cache. The policy therefore keeps a per-node
+*generation* that moves each time the node is observed dirty; `layer_key_epoch` folds it, and
+the table's reset count, into the retained-layer key, so the next promotion has a new key and
+misses. A full table is cleared rather than grown (it is reserved at construction), which moves
+every key as well. A promoted node skips the per-node record and the subtree draw list (they
+would replay it flat).
+
+**Where it observes.** In the `paint_node` wrapper, after the node painted, from the stats delta:
+draws, backdrops and `PaintStats::layers` (layers opened for the node's own style). A node painted
+from a replayed subtree draw list is observed from the list's restored stats; nodes inside a list
+being recorded are not observed (the outermost clean subtree is), and a promoted node that hit
+painted nothing, so its history stands. A partial repaint bumps the retain epoch, which restarts
+every count, so promotion needs full repaints like every retained layer (section 6).
+
+**Off by default.** `FramePipelineConfig::promote_layers` is false: the owner decision on issue
+#476 was to wait for a measurement. The measurement says the cost saved is the CPU paint walk and
+quad batching of an unchanged subtree, not rasterization, which stays one draw:
+
+| `layer_retain_bench`, 16 plain cards, 40 children each (656 nodes), 1920x1080, 300 frames | CPU paint + record (null) | Vulkan frame (RTX 4060, blocking submit) |
+|---|---|---|
+| flat (per-node cache only) | 1.58 ms median | 1.86 ms |
+| promoted (steady state) | 0.001 ms | 0.13 ms |
+
+So promotion pays when a large, mostly static tree is repainted in full (a resize, a theme change,
+an animated backdrop) and is irrelevant when the frame is already damage-clipped. It is still
+opt-in because one retained layer holds device memory per card, the composite can differ from the
+flat paint by a rounding step at anti-aliased edges (not yet compared byte for byte), and the
+runtime config key that would expose it is a follow-up.
+
+**Diagnostics.** `PaintStats::promoted_layers` and `::layers`; `FramePipeline::layer_promotion_stats()`
+(entries, promotable, promotions, demotions, rejected for backdrop, nested layer or size, table
+resets); `Batched2DRenderer::retained_layer_stats()` (entries, bytes, hits, records, refused,
+invalidated, evicted); and the overlay's `layers` line (`OverlayFrame::layers_enabled` and the
+`layer_*` fields: `layers 3  3072KiB  hit 40  rec 3  refused 1  evicted 2  promoted 2`), omitted
+when the cache is off so the existing overlay is unchanged.
+
+**Tests.** `paint_layer_promotion` (policy and paint pass: earns the promotion, records then hits,
+a dirty node never hits a stale layer, flat for few draws, small area, glass inside, faded, LCD,
+no policy, retention off, a new epoch, over the subtree draw list, bounded table) and
+`diagnostics_overlay` (the layer line).

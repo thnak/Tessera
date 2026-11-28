@@ -3655,3 +3655,9 @@ add_executable(services_frontend_tests
 target_link_libraries(services_frontend_tests PRIVATE tessera_lowering tessera_ir_eval)
 
 add_test(NAME services_frontend COMMAND services_frontend_tests)
+
+# Generic layer promotion policy and its paint-pass path (issue #967).
+add_executable(paint_layer_promotion_tests
+    paint_layer_promotion_tests.cpp)
+target_link_libraries(paint_layer_promotion_tests PRIVATE tessera_paint tessera_style)
+add_test(NAME paint_layer_promotion COMMAND paint_layer_promotion_tests)
