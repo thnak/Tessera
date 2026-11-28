@@ -147,9 +147,8 @@ ignored, at most 16 faces); the emoji face goes last. `assets::load_font_stack(b
 (`ui/assets/asset_font.hpp`) returns the faces for `FallbackShaper`, and every failure is a value
 naming the asset (missing, not a font, empty manifest). Test `asset_font` builds a bundle with
 Hebrew then the color test face and shapes Hebrew, an emoji and an uncovered Thai character through
-it. **Weight faces (done, #973):** `extra_font_paths` adds faces of one family; `WeightedShaper` picks one by
-CSS weight, layout and paint metrics follow (test `weighted_shaper`); no synthetic bold. **Not done:** a framework-supplied stack when the app lists none (apps choose their faces; the
-repo ships Noto Sans and Twemoji only as test fixtures).
+it. **Weight faces (done, #973):** `extra_font_paths` adds faces of one family; `WeightedShaper` picks one by CSS
+weight, layout and paint metrics follow (test `weighted_shaper`); no synthetic bold. **Not done:** a framework-supplied stack when the app lists none (apps choose; the repo ships Noto Sans and Twemoji only as test fixtures).
 
 ## 5. Glyph atlas (implemented subset)
 
