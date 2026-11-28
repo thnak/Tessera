@@ -139,12 +139,12 @@ void text_node(Node& parent, tessera::ui::NodeId id, const char* text) {
     node.set_paint_data(std::move(data));
 }
 
-void dot(Node& slot) {
+void dot(Node& slot, const char* size, const char* radius) {
     Node& node = slot.add_child(std::make_unique<Node>(tessera::ui::NodeId{7001}));
     node.set_element_kind("View");
-    node.set_inline_style("width", "14px");
-    node.set_inline_style("height", "14px");
-    node.set_inline_style("border-radius", "7px");
+    node.set_inline_style("width", size);
+    node.set_inline_style("height", size);
+    node.set_inline_style("border-radius", radius);
     node.set_inline_style("background-color", "var(--accent)");
 }
 
@@ -156,9 +156,9 @@ Activity timer(Form form) {
     a.slots.leading_width = 28.0F;
     a.slots.trailing_width = 44.0F;
     a.slots.title = "Timer";
-    a.slots.leading = [](Node& slot) { dot(slot); };
+    a.slots.leading = [](Node& slot) { dot(slot, "14px", "7px"); };
     a.slots.trailing = [](Node& slot) { text_node(slot, 7002, "0:42"); };
-    a.slots.minimal_icon = [](Node& slot) { dot(slot); };
+    a.slots.minimal_icon = [](Node& slot) { dot(slot, "10px", "5px"); };
     a.slots.content = [](Node& body) { text_node(body, 7003, "Kitchen, 0:42 left"); };
     a.slots.card_width = 280.0F;
     a.slots.card_height = 120.0F;

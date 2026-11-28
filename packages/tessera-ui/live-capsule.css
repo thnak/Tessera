@@ -40,15 +40,16 @@
   padding-right: var(--space-3);
 }
 
+/* Beside the cutout, not over it: the dot sits in the trailing 12 px of the capsule. */
 .minimal-icon {
-  margin: 0px auto;
+  margin: 0px 2px 0px auto;
 }
 
 .card {
   display: flex;
   flex-direction: column;
   flex-grow: 1;
-  padding: var(--space-3) 0px;
+  padding: var(--space-3);
 }
 
 .title {
