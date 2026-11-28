@@ -56,6 +56,7 @@ std::set<std::string> var_names(const std::string& css) {
 struct Sheet {
     const char* file;
     std::vector<const char*> selectors;
+    std::size_t min_tokens = 8; // a small look (a track and a fill) reads fewer tokens
 };
 
 } // namespace
@@ -76,6 +77,17 @@ int main() {
         {"radio.css",
          {".trg ", ".trad ", ".trad-dot", ".trad-on .trad-dot", ".trad-mark", ".trad-label",
           ".trad:focus-visible", ".trad:hover", ".trad-disabled"}},
+        {"range.css",
+         {".trng ", ".trng-track", ".trng-fill", ".trng-rest", ".trng-thumb", ".trng:focus-visible",
+          ".trng:hover"},
+         6},
+        {"progress.css",
+         {".tprg-track", ".tprg-fill", ".tprg-rest", ".tmtr-track", ".tmtr-fill", ".tmtr-good",
+          ".tmtr-warn", ".tmtr-bad"},
+         4},
+        {"disclosure.css",
+         {".tdet ", ".tdet-summary", ".tdet-open .tdet-summary", ".tdet-body",
+          ".tdet-summary:focus-visible"}},
     };
     for (const Sheet& entry : sheets) {
         const std::string name = entry.file;
@@ -90,7 +102,7 @@ int main() {
         check(rules.find("rgb(") == std::string::npos && rules.find('#') == std::string::npos,
               name + " names no color literal");
         const std::set<std::string> names = var_names(css);
-        check(names.size() >= 8, name + " reads theme tokens");
+        check(names.size() >= entry.min_tokens, name + " reads theme tokens");
         for (const char* id : {"instrument-light", "instrument-dark", "instrument-high-contrast"}) {
             const style::Theme* theme = theme_asset->find(id);
             check(theme != nullptr, std::string(id) + " exists");

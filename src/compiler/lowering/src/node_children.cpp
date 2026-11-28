@@ -352,6 +352,15 @@ bool lower_slot_children(NodeState& state, const jsx::JsxNode& element, ir::Node
     if (!flatten_children(state, element, items, false)) {
         return false;
     }
+    // Issue #1041: the `<summary>` of a `<details>` became the Disclosure's `summary` prop.
+    if (element.tag == "details") {
+        const auto summary = std::find_if(items.begin(), items.end(), [](const ChildItem& item) {
+            return item.kind == ChildItem::Kind::Element && item.node->tag == "summary";
+        });
+        if (summary != items.end()) {
+            items.erase(summary);
+        }
+    }
     // Slot content is the caller's nodes; the Slot itself belongs in the component whose prop
     // declares it (ir-v1 section 3.4).
     for (const ChildItem& item : items) {

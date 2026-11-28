@@ -21,6 +21,7 @@
 #include "SafeAreaPage.hpp"
 #include "SwatchPage.hpp"
 #include "TablesPage.hpp"
+#include "TagsPage.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 
@@ -60,8 +61,8 @@ template<typename Page> struct Scene {
 // below is instantiated at the call site. `gallery_page_table_tests` walks both and fails if a name
 // here has no branch there, or the reverse - which is the drift a second list would otherwise
 // invite.
-inline constexpr std::array<std::string_view, 9> kPageNames{
-    "buttons", "safe-area", "form", "dash", "swatch", "icons", "lists", "controls", "tables"};
+inline constexpr std::array<std::string_view, 10> kPageNames{
+    "buttons", "safe-area", "form", "dash", "swatch", "icons", "lists", "controls", "tables", "tags"};
 
 // Whether `name` is a page. `--page`'s validation is this and nothing else, so an unknown page and
 // a known one are answered by the same list.
@@ -103,6 +104,8 @@ template<typename Visitor> [[nodiscard]] bool visit_page(std::string_view name, 
         visit(std::type_identity<ControlsPage>{});
     } else if (name == "tables") {
         visit(std::type_identity<TablesPage>{});
+    } else if (name == "tags") {
+        visit(std::type_identity<TagsPage>{});
     } else {
         return false;
     }

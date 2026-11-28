@@ -52,7 +52,7 @@ against it.
 | `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"`, `aria-level="1"`-`"6"` | mapped | The level is `aria-level`; the user-agent sheet sizes it ([ua-audit.md](../../reference/ua-audit.md)); not an inline span |
 | `a` | `Text` | `role="link"` | mapped | `href` is an absolute route path or a URL (section 3.5). As a child of `Text` it is an inline span: `onClick` works, `href` is not supported there yet |
 | `button` | `Button` | - | mapped | `type` rule in section 3.1 |
-| `input` | `TextInput` | by `type` | mapped | Section 3.2 |
+| `input` | `TextInput` | by `type` | mapped | Section 3.2; `type="checkbox"`, `"radio"` and `"range"` lower onto library components (section 3.8) |
 | `textarea` | `TextArea` | - | mapped | Section 3.3 |
 | `img` | `Image` | - | mapped | Section 3.4 |
 | `u` | `Text` | `style.text-decoration-line: underline` | mapped | Inline span inside `Text` ([`text-decoration.md`](../../design/text-decoration.md)) |
@@ -68,13 +68,14 @@ against it.
 | `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
 | `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |
 | `blockquote` | `View` | - | mapped | The user-agent sheet gives it `margin: 1em 40px` |
-| `table` | `View` | `role="table"` | partial | The user-agent sheet makes it `display: table` (`border-spacing: 2px`, shrink-to-fit); a table engine lays out the tree below it ([`table-layout.md`](../../design/table-layout.md), ADR-079): auto and fixed layout, `border-spacing`, `border-collapse`, captions. Named gaps (section 3.8) are tracked in #1049 |
+| `table` | `View` | `role="table"` | partial | The user-agent sheet makes it `display: table` (`border-spacing: 2px`, shrink-to-fit); a table engine lays out the tree below it ([`table-layout.md`](../../design/table-layout.md), ADR-079): auto and fixed layout, `border-spacing`, `border-collapse`, captions. Named gaps (section 3.9) are tracked in #1049 |
 | `thead`, `tbody`, `tfoot` | `View` | - | mapped | `display: table-header-group`, `table-row-group`, `table-footer-group`; the first `thead` shows above and the first `tfoot` below every body |
 | `tr` | `View` | `role="row"` | mapped | `display: table-row` |
-| `td` | `View` | `role="cell"` | mapped | `display: table-cell`, 1px padding; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan` (section 3.8). Write text in a `span`, as for `li` |
+| `td` | `View` | `role="cell"` | mapped | `display: table-cell`, 1px padding; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan` (section 3.9). Write text in a `span`, as for `li` |
 | `th` | `View` | `role="columnheader"` | mapped | As `td`, bold and centred; `scope` is `HTML_ATTR` |
 | `caption` | `View` | - | mapped | `display: table-caption`; `caption-side` puts it above or below the grid |
 | `colgroup`, `col` | `View` | - | mapped | `display: table-column-group` / `table-column`; take no space; `span` becomes `aria-colspan`; a `width` sizes the column |
+| `progress`, `meter`, `details`, `summary` | `View` (carrier for the typings) | - | mapped | Lower onto the library `ProgressBar`, `Meter` and `Details` (section 3.8); `summary` only as a child of `details` |
 
 The emphasis rows inject a **default run style**, not a wrapper element style: a user `className` or
 `style` of the same property wins, and only the properties of [`elements-basic.md`](elements-basic.md)
@@ -110,7 +111,8 @@ to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 | `"password"` | `secure` | |
 | `"email"`, `"tel"`, `"url"`, `"search"` | `inputMode` of the same name | No validation |
 | `"number"` | `inputMode="numeric"` | The value stays a `string`; no number parsing, no min/max/step ([Q26]) |
-| anything else (`checkbox`, `radio`, `range`, `file`, `date`, `time`, `color`, `hidden`, `submit`, `button`, `reset`, ...) | none: `TESSERA_JSX_SUBSET_HTML_INPUT_TYPE` | `checkbox`/`radio`: library `Checkbox`, `Radio` ([`component-library.md`](../../design/component-library.md) section 3, after V1); `submit`/`button`: `<Button>` |
+| `"checkbox"`, `"radio"`, `"range"` | the library `Checkbox`, `Radio`, `Range`, not a `TextInput` | Section 3.8 |
+| anything else (`file`, `date`, `time`, `color`, `hidden`, `submit`, `button`, `reset`, ...) | none: `TESSERA_JSX_SUBSET_HTML_INPUT_TYPE` | `submit`/`button`: `<Button>` |
 
 | Attribute | Result |
 |---|---|
@@ -192,7 +194,22 @@ literal (`-2` included); `reversed` also takes `{true}`/`{false}`. Anything else
 `TESSERA_IR_UNSUPPORTED`. A dynamic value would need a metadata slot per item and is not in V1. The
 counting rules are in [`list-style.md`](../../design/list-style.md) section 2.
 
-### 3.8 Table spans
+### 3.8 Tags that lower onto library components (issue #1041, ADR-059 group E)
+
+`input type="checkbox"|"radio"|"range"`, `progress`, `meter` and `details` resolve to a component of the library instead of an intrinsic ([`library_lowering.cpp`](../../../src/schema/src/library_lowering.cpp), `schema::find_library_lowering`). The file **imports the component under its library name** (`import { Checkbox } from "tessera-ui/Checkbox"`); a file without the import is `TESSERA_IR_UNRESOLVED` and the suggestion is the import line. The import is also how a project picks the styled component or its own. The `type` literal is dropped; every attribute below is rewritten onto a prop, and any other attribute (except `className`, `key`, `ref`, `automationId`) is `TESSERA_JSX_SUBSET_HTML_ATTR`.
+
+| Tag | Component | Rewrites | Rejected |
+|---|---|---|---|
+| `input type="checkbox"` | `Checkbox` | `checked`, `disabled`; `onChange` to `onToggle`; `aria-label` to `label` | `defaultChecked` (the control is controlled), `name`, `required`, `form`, `value`, `autoFocus` |
+| `input type="radio"` | `Radio` | `checked` to `selected`, `disabled`; `onChange` to `onSelect`; `aria-label` to `label` | as `checkbox` |
+| `input type="range"` | `Range` | `defaultValue`, `min`, `max`, `step`; `aria-label` to `label` | `value` and `onChange` (a controlled range, #1051), `disabled`, the form attributes |
+| `progress` | `ProgressBar` | `value`, `max`; `aria-label` to `label` | anything else |
+| `meter` | `Meter` | `value`, `min`, `max`, `low`, `high`, `optimum`; `aria-label` to `label` | anything else |
+| `details` | `Details` | `open` to `defaultOpen`; the first `<summary>` child is the `summary` prop | `name`, `onToggle` |
+
+Values are integers (the primitives are `int`): `progress` and `meter` have no fractional value, and a `progress` without `max` has `max=100`, not 1 as in a browser. A callback attribute takes no parameter (`onChange={() => setOn(!on)}`), as every component callback does. The `<summary>` of a `details` holds static text; a `summary` anywhere else, a `details` without one, or a summary with elements is `TESSERA_IR_UNSUPPORTED`. The styled components are in [`component-library.md`](../../design/component-library.md); the typings carry the attributes of every row (`checked?`, `min?`, `open?`, ...).
+
+### 3.9 Table spans
 
 `td`/`th` `colSpan` and `rowSpan` and `col`/`colgroup` `span` rename to `aria-colspan` and
 `aria-rowspan` (`aria-colspan` for `span`). The value is a static integer literal or string; the layout
@@ -228,8 +245,7 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 | `select`, `option`, `optgroup`, `datalist` | **Planned** (#544). Until then library `Select` |
 | `svg`, `g`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `text`, `defs`, `use`, `path` | `Path` with `d` and `viewBox` ([Q17] for an automatic single-path rewrite) |
 | `video`, `audio`, `picture`, `source`, `track`, `canvas` | **Planned** (#545). Until then `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
-| `dialog`, `details`, `summary`, `menu`, `popover` | Overlay service and library components ([`overlays-and-layers-v1.md`](../overlays-and-layers-v1.md)) |
-| `progress`, `meter` | Library `Progress` (after V1) |
+| `dialog`, `menu`, `popover` | **Planned** for `dialog` (#1052). Until then the overlay service and library components ([`overlays-and-layers-v1.md`](../overlays-and-layers-v1.md)) |
 | `html`, `head`, `body`, `title`, `meta`, `link`, `style`, `base`, `noscript`, `template`, `slot` | None: the app shell, `tessera.json` and `import "./file.css"` replace them |
 | `iframe`, `embed`, `object`, `script` | **Will not be done** (ADR-059 owner answer 5): they need a web engine or a JS runtime (ADR-024, ADR-036 item 6). Permanent `TESSERA_JSX_SUBSET_HTML_TAG` with the reason; the `dangerouslySetInnerHTML` prop is on the same list and keeps its own `TESSERA_JSX_SUBSET_DOM` |
 

@@ -473,9 +473,14 @@ export interface buttonProps extends ButtonProps {
   type?: "button" | "submit" | "reset";
 }
 
-export interface inputProps extends TextInputProps {
-  type?: "text" | "password" | "email" | "tel" | "url" | "search" | "number";
+export interface inputProps extends Omit<TextInputProps, "defaultValue"> {
+  type?: "text" | "checkbox" | "radio" | "range" | "password" | "email" | "tel" | "url" | "search" | "number";
   autoComplete?: string;
+  checked?: boolean;
+  defaultValue?: string | number;
+  min?: number;
+  max?: number;
+  step?: number;
 }
 
 export interface textareaProps extends TextAreaProps {
@@ -563,6 +568,27 @@ export interface colgroupProps extends ViewProps {
 
 export interface colProps extends ViewProps {
   span?: string;
+}
+
+export interface progressProps extends ViewProps {
+  value?: number;
+  max?: number;
+}
+
+export interface meterProps extends ViewProps {
+  value?: number;
+  min?: number;
+  max?: number;
+  low?: number;
+  high?: number;
+  optimum?: number;
+}
+
+export interface detailsProps extends ViewProps {
+  open?: boolean;
+}
+
+export interface summaryProps extends ViewProps {
 }
 
 export type HTMLDivElement = ViewElement;
@@ -653,6 +679,10 @@ declare global {
       caption: captionProps;
       colgroup: colgroupProps;
       col: colProps;
+      progress: progressProps;
+      meter: meterProps;
+      details: detailsProps;
+      summary: summaryProps;
     }
   }
 }

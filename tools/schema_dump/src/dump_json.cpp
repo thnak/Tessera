@@ -129,6 +129,29 @@ JsonValue attr_json(const AliasAttr& attr) {
     return json;
 }
 
+JsonValue library_json(const LibraryLowering& lowering) {
+    JsonValue json = JsonValue::object();
+    if (!lowering.type.empty()) {
+        json.set("type", JsonValue::string(std::string(lowering.type)));
+    }
+    json.set("component", JsonValue::string(std::string(lowering.component)));
+    json.set("import", JsonValue::string(std::string(lowering.import_path)));
+    JsonValue attrs = JsonValue::array();
+    for (const LibraryAttr& attr : lowering.attrs) {
+        JsonValue item = JsonValue::object();
+        item.set("name", JsonValue::string(std::string(attr.name)));
+        if (!attr.rename.empty()) {
+            item.set("rename", JsonValue::string(std::string(attr.rename)));
+        }
+        if (!attr.suggestion.empty()) {
+            item.set("suggestion", JsonValue::string(std::string(attr.suggestion)));
+        }
+        attrs.push(std::move(item));
+    }
+    json.set("attrs", std::move(attrs));
+    return json;
+}
+
 JsonValue alias_json(const AliasRow& alias) {
     JsonValue json = JsonValue::object();
     json.set("tag", JsonValue::string(std::string(alias.tag)));
@@ -160,6 +183,17 @@ JsonValue alias_json(const AliasRow& alias) {
     }
     if (alias.type_map_closed) {
         json.set("typeMapClosed", JsonValue::boolean(true));
+    }
+    JsonValue library = JsonValue::array();
+    bool lowers_to_library = false;
+    for (const LibraryLowering& lowering : library_lowerings()) {
+        if (lowering.tag == alias.tag) {
+            library.push(library_json(lowering));
+            lowers_to_library = true;
+        }
+    }
+    if (lowers_to_library) {
+        json.set("library", std::move(library));
     }
     if (!alias.alternative.empty()) {
         json.set("alternative", JsonValue::string(std::string(alias.alternative)));

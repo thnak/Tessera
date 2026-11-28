@@ -456,11 +456,163 @@
           "suggestion": "not in V1"
         }
       ],
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "checked",
+              "rename": "checked"
+            },
+            {
+              "name": "disabled",
+              "rename": "disabled"
+            },
+            {
+              "name": "onChange",
+              "rename": "onToggle"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "defaultChecked",
+              "suggestion": "the library `Checkbox` is controlled: keep `checked` in state"
+            }
+          ],
+          "component": "Checkbox",
+          "import": "tessera-ui/Checkbox",
+          "type": "checkbox"
+        },
+        {
+          "attrs": [
+            {
+              "name": "checked",
+              "rename": "selected"
+            },
+            {
+              "name": "disabled",
+              "rename": "disabled"
+            },
+            {
+              "name": "onChange",
+              "rename": "onSelect"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "defaultChecked",
+              "suggestion": "the library `Radio` is controlled: keep the selection in state"
+            }
+          ],
+          "component": "Radio",
+          "import": "tessera-ui/Radio",
+          "type": "radio"
+        },
+        {
+          "attrs": [
+            {
+              "name": "defaultValue",
+              "rename": "defaultValue"
+            },
+            {
+              "name": "min",
+              "rename": "min"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "step",
+              "rename": "step"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            },
+            {
+              "name": "name",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "required",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "form",
+              "suggestion": "form and validation belong to library `Form`/`Field`"
+            },
+            {
+              "name": "value",
+              "suggestion": "the checked state is `checked`; a submitted value is a form rule"
+            },
+            {
+              "name": "autoFocus",
+              "suggestion": "use `autoFocus` on a focusable `View`"
+            },
+            {
+              "name": "onChange",
+              "suggestion": "the library `Range` keeps its value; a controlled range is tracked in #1051"
+            },
+            {
+              "name": "disabled",
+              "suggestion": "the library `Range` has no disabled state yet (#1051)"
+            }
+          ],
+          "component": "Range",
+          "import": "tessera-ui/Range",
+          "type": "range"
+        }
+      ],
       "note": "`type` must be a string literal and is removed; [Q19] `autoComplete` tokens",
       "status": "mapped",
       "tag": "input",
       "target": "TextInput",
       "typeMap": {
+        "checkbox": {},
         "email": {
           "inputMode": "email"
         },
@@ -470,6 +622,8 @@
         "password": {
           "secure": "true"
         },
+        "radio": {},
+        "range": {},
         "search": {
           "inputMode": "search"
         },
@@ -786,6 +940,106 @@
       "target": "View"
     },
     {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "value",
+              "rename": "value"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            }
+          ],
+          "component": "ProgressBar",
+          "import": "tessera-ui/ProgressBar"
+        }
+      ],
+      "note": "lowers onto the library `ProgressBar` (`value`, `max` are integers; `max` defaults to 100)",
+      "status": "mapped",
+      "tag": "progress",
+      "target": "View"
+    },
+    {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "value",
+              "rename": "value"
+            },
+            {
+              "name": "min",
+              "rename": "min"
+            },
+            {
+              "name": "max",
+              "rename": "max"
+            },
+            {
+              "name": "low",
+              "rename": "low"
+            },
+            {
+              "name": "high",
+              "rename": "high"
+            },
+            {
+              "name": "optimum",
+              "rename": "optimum"
+            },
+            {
+              "name": "aria-label",
+              "rename": "label"
+            }
+          ],
+          "component": "Meter",
+          "import": "tessera-ui/Meter"
+        }
+      ],
+      "note": "lowers onto the library `Meter` (integer `value`, `min`, `max`, `low`, `high`, `optimum`)",
+      "status": "mapped",
+      "tag": "meter",
+      "target": "View"
+    },
+    {
+      "library": [
+        {
+          "attrs": [
+            {
+              "name": "open",
+              "rename": "defaultOpen"
+            },
+            {
+              "name": "name",
+              "suggestion": "an exclusive group of disclosures is not in V1"
+            },
+            {
+              "name": "onToggle",
+              "suggestion": "the open state is internal to the library `Details`"
+            }
+          ],
+          "component": "Details",
+          "import": "tessera-ui/Details"
+        }
+      ],
+      "note": "lowers onto the library `Details`; the first `summary` child with static text is its summary",
+      "status": "mapped",
+      "tag": "details",
+      "target": "View"
+    },
+    {
+      "note": "only as a child of `details`; a `summary` anywhere else is TESSERA_IR_UNSUPPORTED",
+      "status": "mapped",
+      "tag": "summary",
+      "target": "View"
+    },
+    {
       "alternative": "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` after V1",
       "status": "unsupported",
       "tag": "form"
@@ -923,32 +1177,12 @@
     {
       "alternative": "Overlay service and library components",
       "status": "unsupported",
-      "tag": "details"
-    },
-    {
-      "alternative": "Overlay service and library components",
-      "status": "unsupported",
-      "tag": "summary"
-    },
-    {
-      "alternative": "Overlay service and library components",
-      "status": "unsupported",
       "tag": "menu"
     },
     {
       "alternative": "Overlay service and library components",
       "status": "unsupported",
       "tag": "popover"
-    },
-    {
-      "alternative": "Library `Progress` (after V1)",
-      "status": "unsupported",
-      "tag": "progress"
-    },
-    {
-      "alternative": "Library `Progress` (after V1)",
-      "status": "unsupported",
-      "tag": "meter"
     },
     {
       "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
