@@ -12,7 +12,7 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0px var(--space-3);
+  padding: 0px;
   background-color: var(--surface-raised);
   border-width: var(--border-width);
   border-style: solid;
@@ -29,6 +29,19 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+}
+
+/* The slots own the edge padding, so the minimal dot (one cutout width plus 24 px) is not squeezed. */
+.leading {
+  padding-left: var(--space-3);
+}
+
+.trailing {
+  padding-right: var(--space-3);
+}
+
+.minimal-icon {
+  margin: 0px auto;
 }
 
 .card {
