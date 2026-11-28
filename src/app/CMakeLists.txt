@@ -168,3 +168,30 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
 
     target_compile_features(tessera_app_window PUBLIC cxx_std_23)
 endif()
+
+# The web app driver (issue #1023, ADR-046): the Emscripten counterpart of the window driver above.
+# It runs the same AppHost frame against the page's WebGPU device and canvas surface (src/platform/web)
+# and the DOM input queue, with the text and vector stacks of the window driver on that device. The
+# WGSL pipelines register by id, so it names no Vulkan header.
+if (EMSCRIPTEN)
+    add_library(tessera_app_web STATIC
+        web_driver.cpp
+        web_driver.hpp
+        web_gpu_stack.cpp
+        web_gpu_stack.hpp
+        text_stack.hpp
+        window_vector.cpp
+        window_vector.hpp)
+    target_include_directories(tessera_app_web PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(tessera_app_web PUBLIC
+        tessera_app
+        tessera_gpu
+        tessera_input_pump
+        tessera_paint
+        tessera_path
+        tessera_text
+        tessera_text_render
+        tessera_web_gpu
+        tessera_webgpu)
+    target_compile_features(tessera_app_web PUBLIC cxx_std_23)
+endif ()

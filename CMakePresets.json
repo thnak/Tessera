@@ -154,7 +154,8 @@
         "webgpu_compute_conformance",
         "webgpu_path_raster_conformance",
         "web_smoke",
-        "web_render"
+        "web_render",
+        "gallery_web"
       ]
     },
     {

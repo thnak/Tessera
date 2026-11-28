@@ -220,8 +220,11 @@ ui::InputEvent make_pointer_event(const DomPointerSample& sample) {
     event.timestamp_s = sample.timestamp_ms / 1000.0;
     event.x = sample.x;
     event.y = sample.y;
-    event.pointer_id = sample.pointer_id;
     event.pointer_kind = kind_of(sample.type);
+    // A DOM mouse reports a constant non-zero id (Chrome's is 1), but the router treats id 0 as the
+    // primary pointer until a press promotes another one, exactly as the native mouse (id 0) does.
+    // Carrying the DOM id would leave a mouse unable to hover until its first click.
+    event.pointer_id = event.pointer_kind == ui::PointerKind::Mouse ? 0U : sample.pointer_id;
     event.is_primary = sample.primary;
     event.modifiers = modifiers_from_bits(sample.modifiers);
     event.pressure =

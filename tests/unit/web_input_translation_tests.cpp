@@ -39,7 +39,8 @@ void pointer_cases() {
     expect(event.x == 10.5F && event.y == 20.0F, "coordinates are CSS pixels, untouched");
     expect(event.timestamp_s == 1.5, "timestamp converts to seconds");
     expect(event.pressure == 0.0F, "a mouse never reports pressure");
-    expect(event.pointer_id == 7 && event.is_primary, "id and primary carried");
+    expect(event.pointer_id == 0 && event.is_primary,
+           "a mouse is pointer 0 (the router's primary until a press) whatever id the DOM gave it");
     expect(ui::has_modifier(event.modifiers, ui::Modifier::Shift) &&
                ui::has_modifier(event.modifiers, ui::Modifier::Alt) &&
                !ui::has_modifier(event.modifiers, ui::Modifier::Control),
@@ -56,6 +57,7 @@ void pointer_cases() {
     event = make_pointer_event(pen);
     expect(event.pointer_kind == ui::PointerKind::Pen && event.pressure == 1.0F,
            "pen pressure is clamped");
+    expect(event.pointer_id == 7, "a pen keeps its DOM pointer id");
 
     DomPointerSample touch = down;
     touch.type = DomPointerType::Touch;

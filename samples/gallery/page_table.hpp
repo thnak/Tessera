@@ -24,8 +24,10 @@
 
 #include <array>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 
 namespace gallery {
 
@@ -77,43 +79,75 @@ inline constexpr std::array<std::string_view, 7> kPageNames{"buttons", "safe-are
     return name == "form";
 }
 
+// Calls `visit(std::type_identity<Page>{})` for the page named `name` and returns true; false for a
+// name that is not a page. This is the one place a name is mapped to a page type, so `run_page` and
+// `make_scene` (and anything added later) cannot disagree about which names exist.
+template<typename Visitor> [[nodiscard]] bool visit_page(std::string_view name, Visitor&& visit) {
+    if (name == "buttons") {
+        visit(std::type_identity<Gallery>{});
+    } else if (name == "safe-area") {
+        visit(std::type_identity<SafeAreaPage>{});
+    } else if (name == "form") {
+        visit(std::type_identity<FormPage>{});
+    } else if (name == "dash") {
+        visit(std::type_identity<DashPage>{});
+    } else if (name == "swatch") {
+        visit(std::type_identity<SwatchPage>{});
+    } else if (name == "icons") {
+        visit(std::type_identity<IconsPage>{});
+    } else if (name == "lists") {
+        visit(std::type_identity<ListsPage>{});
+    } else {
+        return false;
+    }
+    return true;
+}
+
 // Runs the named page through `runner`. `Runner` must be callable as `runner(Scene<Page>&)`: it is
 // the capture-or-window lambda in `main.cpp`, which captures the parsed arguments by reference, so
-// it is a template parameter rather than a `std::function`.
+// it is a template parameter rather than a `std::function`. The scene lives only for the call.
 //
 // A name that is not a page returns `std::nullopt`; the caller reports the diagnostic before it
 // gets here, so this only has to not guess.
 template<typename Runner>
 [[nodiscard]] std::optional<int> run_page(std::string_view name, const Runner& runner) {
-    if (name == "buttons") {
-        Scene<Gallery> scene;
-        return runner(scene);
+    std::optional<int> result;
+    const bool known = visit_page(name, [&](auto page) {
+        Scene<typename decltype(page)::type> scene;
+        result = runner(scene);
+    });
+    return known ? result : std::nullopt;
+}
+
+// A scene that outlives the call, for a driver that does not own the loop (the web build: the
+// browser calls back into the app long after `main` returned, issue #1023).
+class AnyScene {
+public:
+    virtual ~AnyScene() = default;
+    [[nodiscard]] virtual tessera::ui::Node& root() = 0;
+    [[nodiscard]] virtual tessera::ui::UpdateScheduler& scheduler() = 0;
+};
+
+template<typename Page> class PageScene final : public AnyScene {
+public:
+    [[nodiscard]] tessera::ui::Node& root() override {
+        return scene_.root;
     }
-    if (name == "safe-area") {
-        Scene<SafeAreaPage> scene;
-        return runner(scene);
+    [[nodiscard]] tessera::ui::UpdateScheduler& scheduler() override {
+        return scene_.scheduler;
     }
-    if (name == "form") {
-        Scene<FormPage> scene;
-        return runner(scene);
-    }
-    if (name == "dash") {
-        Scene<DashPage> scene;
-        return runner(scene);
-    }
-    if (name == "swatch") {
-        Scene<SwatchPage> scene;
-        return runner(scene);
-    }
-    if (name == "icons") {
-        Scene<IconsPage> scene;
-        return runner(scene);
-    }
-    if (name == "lists") {
-        Scene<ListsPage> scene;
-        return runner(scene);
-    }
-    return std::nullopt;
+
+private:
+    Scene<Page> scene_;
+};
+
+// The named page in a heap scene, or null for a name that is not a page.
+[[nodiscard]] inline std::unique_ptr<AnyScene> make_scene(std::string_view name) {
+    std::unique_ptr<AnyScene> scene;
+    (void)visit_page(name, [&](auto page) {
+        scene = std::make_unique<PageScene<typename decltype(page)::type>>();
+    });
+    return scene;
 }
 
 } // namespace gallery

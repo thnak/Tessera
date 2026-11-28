@@ -37,9 +37,12 @@ public:
     // the sink's vector draws stay no-ops.
     // `allow_gpu` false keeps every raster on ThorVG: a capture feeds goldens, and those are the
     // CPU rasterizer's bytes only.
+    // `gpu_descs` are the backend's compute pipelines for the GPU rasterizer (the Vulkan SPIR-V set
+    // or the WebGPU WGSL set), so this stack names no backend.
     VectorStack(rhi::Device& device, rhi::TextureFormat format,
                 const ui::assets::AssetBundle* assets,
-                const ui::assets::ComposedAssetBundle* bundles, bool allow_gpu = true);
+                const ui::assets::ComposedAssetBundle* bundles,
+                const rendering::path::GpuPathPipelineDescs& gpu_descs, bool allow_gpu = true);
 
     VectorStack(const VectorStack&) = delete;
     VectorStack& operator=(const VectorStack&) = delete;
