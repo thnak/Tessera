@@ -475,7 +475,18 @@ The dense scene (`--dense`: 13 overlapping full-frame fills, 177 KB document) ta
 912 bytes per frame and **4.23 ms** until the GPU is done (min 4.10, max 5.39; after the path mask 4.75 ms here, min 4.03, max 5.19, no gain: every tile overlaps every path, and 4.12 ms in another run; **3.22 ms** after the device-space records, f2fd15b5: five runs 3.20 to 3.22 ms): 0.06 ms over the
 4.17 ms budget of 240 Hz, so "inside the 240 Hz budget on the dGPU" is **not** met by a hair on the
 RTX 4060 at full 4K (the figure includes the 33 MB copy into the texture and the submit round trip;
-the sparse scene is 3.84 ms). The second GPU of the manual gate has not been run here.
+the sparse scene is 3.84 ms). The second GPU of the manual gate has not been run here (owner-run, issue #954 item 1).
+
+**Literal zero bytes, measured and closed as not needed (issue #954 item 2).** Re-measured on the RTX 4060
+(three runs each): CPU enqueue + flush median 42.6 to 45.2 us sparse and 41.7 to 42.5 us dense, 7,760 and
+912 bytes. That time contains everything the CPU does in a frame (encode of the job table, the 80 B job
+record, the 64 B per-path records, record, submit), so the byte writes are bounded by it: at most 1.3% of
+the 3.2 ms dense and 3.4% of the 1.26 ms sparse GPU time, and the CPU is not waiting on them. The bytes
+cannot reach zero while the scale animates, because the scale has to arrive somewhere: a resident path
+table with the scale only in the 80 B job record would save the 7,680 B (sparse) and would still write
+the job record, and it needs the shader to apply the scale to resident document-space records instead of
+reading device-space ones (which is what bought 3.84 to 1.26 ms above). A frame whose scale did not
+change writes zero already (texture cache hit). Not built.
 
 Against the ThorVG baseline above on the same machine (raster 5.2 ms, upload 1.2 ms CPU side, 33 MB
 copied), the CPU cost drops by about 150x and the bytes by about 4,000x. The issue's "zero bytes
