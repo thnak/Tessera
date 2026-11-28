@@ -202,14 +202,13 @@ Items are open (no decision yet) unless stated otherwise.
 - Virtualized overlay lists and large menus.
 - The `tessera-ui` surface (`Dialog`, `Popover` and friends): the compiler cannot yet open an
   overlay from TSX.
-- Initial focus and focus restore for non-modal overlays (the host has no `FocusManager` access).
-- Fallback content and the error-boundary report for a failed mount.
+- Re-anchoring by stable id, and the rest of the back order (modal route, route stack, OS exit).
 
 ## 10. Implementation (issue #302)
 
 Slice 1 is the layer core (section 10.1); slice 2 is placement, dismissal and the input hook
-(section 10.2). The `tessera-ui` library surface and non-modal initial focus are deferred (see
-section 9).
+(section 10.2). Section 10.3 adds non-modal focus and the failed-mount fallback (issue #305). The `tessera-ui`
+surface is owner-gated (see section 9).
 
 ### 10.1 Layer core
 
@@ -226,7 +225,7 @@ section 9).
   mounts.
 - Entries are ordered by `(priority, open order)` inside a layer. A mount callback runs before
   anything is attached; a throw is caught, counted (`failed_count()`) and leaves the scene
-  untouched. The fallback content and error-boundary report of section 8.1 are not wired yet.
+  untouched (fallback and report: section 10.3).
 - A modal entry adds a full-window scrim (it takes every pointer hit the content does not, so the
   base and lower layers are inert for the pointer) and a content root with `focus_trap`, role
   `dialog` and `aria-modal`. Focus moves in and is restored through the existing focus-scope code.
@@ -278,3 +277,26 @@ Tests: ctest `overlay_host` (`tests/unit/overlay_host_tests.cpp`).
   tree builder does not interpret `aria-live` yet, so announcements wait on that work.
 
 Tests: ctest `overlay_placement`, `overlay_dismiss`.
+
+### 10.3 Non-modal focus and failed mount (issue #305)
+
+- **Focus hook**: `AppHost::attach_focus_manager` lends the window's `FocusManager` to the overlay
+  host (`WindowHost` does it at construction). Without one, `OverlaySpec::focus` does nothing.
+- **`OverlayFocus`**: `Default` leaves focus alone (a modal uses its trap), `None` is explicit, and
+  `Content` on the overlay layer moves focus to the first focusable node of the content once layout
+  has run (`OverlayHost::apply_focus`, once per frame, free when nothing waits). Tooltips and toasts
+  never take focus, whatever they ask for.
+- **Restore**: the previous target is remembered when `Content` took focus. On close, focus inside
+  the content is cleared before the nodes go, and returns to the remembered target only if focus was
+  still inside the overlay, so a user who moved on is not pulled back.
+- **Failed mount**: a throwing `mount` is counted, `on_failure(handle, message)` reports it once
+  (message `mount threw: <what>` or `mount threw a non-standard exception`; `last_failure()` keeps
+  it), and a `fallback` callback, if set, rebuilds the content root from empty and the entry stays
+  open. No fallback, or one that throws too, drops the entry as before. The report never throws out.
+- **Owner-gated**: the `tessera-ui` `Dialog`/`Popover`/`Tooltip`/`Toast`/`Menu` components need a
+  compiler lowering story (a generated `open_overlay` with a component as `mount`) and a decision on
+  how a component names its anchor; `aria-live` announcements need the a11y tree builder to
+  interpret live regions. Both are tracked in the issue that replaces #305.
+
+Tests: ctest `overlay_host` (`test_non_modal_focus_and_restore`,
+`test_failed_mount_fallback_and_report`).

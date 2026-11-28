@@ -153,6 +153,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     // The first insets apply at once, so a SafeArea never animates in from zero on startup.
     host->set_window_metrics(metrics);
+    host->attach_focus_manager(pump.router().focus_manager());
     // Overlays see input first: Escape and back dismiss, a press outside closes popovers.
     pump.set_input_filter(
         [](void* user, ui::Node&, const ui::InputEvent& event) {
