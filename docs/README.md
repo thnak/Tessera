@@ -137,7 +137,7 @@ This page is the map and reading order for the framework.
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
   edges/sources/minimum (proposed, stage 1)
 - [`specs/live-capsule-v1.md`](specs/live-capsule-v1.md) — LiveCapsule: placement around the
-  cutout, states, activity queue, focus, accessibility, power (proposed, stage 2)
+  cutout, states, activity queue, focus, accessibility, power (stage 2, C++ core in)
 - [`specs/media-components-v1.md`](specs/media-components-v1.md) — Video and AudioPlayer: props,
   events, lifecycle, power, errors, parts, tests (proposed, stage 5)
 - [`specs/map-view-v1.md`](specs/map-view-v1.md) — MapView: tile source, camera, markers, network

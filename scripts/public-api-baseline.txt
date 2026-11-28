@@ -2443,6 +2443,42 @@ constant include/tessera/ui/boundary/retry_policy.hpp tessera::ui::boundary::kBa
 constant include/tessera/ui/boundary/retry_policy.hpp tessera::ui::boundary::kMaxAutoRetries
 constant include/tessera/ui/boundary/retry_policy.hpp tessera::ui::boundary::kMaxBackoffSeconds
 
+header include/tessera/ui/capsule/capsule_morph.hpp
+class include/tessera/ui/capsule/capsule_morph.hpp tessera::ui::capsule::CapsuleMorph
+
+header include/tessera/ui/capsule/capsule_placement.hpp
+struct include/tessera/ui/capsule/capsule_placement.hpp tessera::ui::capsule::CapsulePlacement
+struct include/tessera/ui/capsule/capsule_placement.hpp tessera::ui::capsule::CapsulePlacementInput
+function include/tessera/ui/capsule/capsule_placement.hpp tessera::ui::capsule::place_capsule
+function include/tessera/ui/capsule/capsule_placement.hpp tessera::ui::capsule::top_cutout
+constant include/tessera/ui/capsule/capsule_placement.hpp tessera::ui::capsule::kFallbackTopGap
+
+header include/tessera/ui/capsule/capsule_state.hpp
+class include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::CapsuleController
+struct include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::CapsuleSize
+struct include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::CapsuleSizeInput
+enum include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::CapsuleState
+function include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::capsule_size
+constant include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::kCapsuleHeight
+constant include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::kCompactMaxWidthFraction
+constant include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::kExpandedMaxHeightFraction
+constant include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::kExpandedMaxWidthFraction
+constant include/tessera/ui/capsule/capsule_state.hpp tessera::ui::capsule::kMinimalDotWidth
+
+header include/tessera/ui/capsule/live_capsule.hpp
+class include/tessera/ui/capsule/live_capsule.hpp tessera::ui::capsule::LiveCapsule
+struct include/tessera/ui/capsule/live_capsule.hpp tessera::ui::capsule::LiveCapsuleEnv
+
+header include/tessera/ui/capsule/live_capsule_host.hpp
+class include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::LiveCapsuleHost
+struct include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::ActionSlot
+struct include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Activity
+struct include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Slots
+enum include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::ActivityForm
+enum include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Priority
+alias include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::Duration
+constant include/tessera/ui/capsule/live_capsule_host.hpp tessera::ui::capsule::kMaxActions
+
 header include/tessera/ui/chart/chart_geometry.hpp
 class include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartDamage
 struct include/tessera/ui/chart/chart_geometry.hpp tessera::ui::chart::ChartPlot
