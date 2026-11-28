@@ -45,8 +45,8 @@ The three preview views are **panes inside the right-hand column**, not three to
 **No view switch changes the workspace's shape.** That is #431's acceptance sentence. Since W5 (#560) the
 workspace is the dock workbench ([`studio-workbench-dock.md`](studio-workbench-dock.md)): the views are
 panels (`regions/PreviewPanels.tsx`) in the preview group's tab strip, and the tree and the editor do not
-move, resize or re-render when the active view changes; `scripts/ci/preview_browser_layout.mjs` still
-measures their boxes before and after a switch.
+move or re-render when the active view changes; `scripts/ci/preview_browser_layout.mjs` (rewritten in #563)
+measures their boxes before and after a switch, with the other assertions of [the layout spec, 4.5](../specs/studio-workbench-layout-v1.md#45-rewrite-of-scriptscipreview_browser_layoutmjs).
 
 The three Wasm builds are **not** merged, by any of the three issues. Keeping them separate is also what
 keeps the failure modes separate: a browser without WebGPU keeps Diagnostics and Scene and sees a named
@@ -356,7 +356,7 @@ The phone rule is `display: block` rather than a shrinking grid, and the flexibl
 `minmax(0, ...)`: a grid item's default `min-width: auto` lets a `wrap="off"` textarea or a 1280-px canvas
 push its track wider than the page, which is exactly the horizontal scroll the acceptance forbids.
 `scripts/ci/preview_browser_layout.mjs` measures `document.documentElement.scrollWidth <= clientWidth` at
-390x844 (it reports `390 vs 390`) and confirms the preview is reachable in the single column.
+390x844 (`390 vs 390`), with one visible group and every panel reachable from its switcher.
 
 `[hidden] { display: none !important; }` is still in `base.css` because the panes are flex boxes: a user
 agent's `[hidden]` rule loses to `.pane { display: flex }` on order, so without it a "hidden" pane would

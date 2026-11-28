@@ -96,9 +96,10 @@ session's, driven by `onVisibility`.
 - Not run: the real-WebGPU checks (a hidden Canvas draws zero frames, the frames keep painting after a
   move), because no Wasm build exists on the development machine. The no-WebGPU check (Scene and
   Diagnostics keep working with `navigator.gpu` absent) is in `workbench_dock.mjs`.
-- `scripts/ci/preview_browser_layout.mjs` was edited minimally for the dock DOM; its
-  project-dependent checks were already stale after #391 (the workspace starts empty). W6 owns the
-  rewrite.
+- `scripts/ci/preview_browser_layout.mjs` is rewritten for the dock (W6, #563): the nine assertions of the layout
+  spec 4.5, boxes from `data-panel`, a project opened through the zip chooser for the Reset Layout case, shared
+  plumbing in `scripts/ci/studio_browser.mjs`. The two frame assertions (frames keep increasing after a move; a
+  hidden Canvas draws zero) need a WebGPU adapter and print `skip` without one, never a vacuous pass.
 
 ## 7. The commands over the dock
 
