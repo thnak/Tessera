@@ -106,7 +106,7 @@ Limits, which both sides enforce before parsing. A violation is answered with `e
 | Assets | Not sent as messages. `asset.update` lists paths; the viewer fetches each file by HTTP `GET /assets/<path>` from the origin that served it, or from the entry's `url` when present, within the limits of [`resources.md`](../design/resources.md) section 2.1 |
 
 There is no binary encoding; all messages are JSON ([`designer.md`](../design/designer.md) section 3).
-These values were chosen by the assistant as starting points.
+These values were chosen by the assistant as starting points. Studio services: [`studio-services-v1.md`](studio-services-v1.md).
 
 ## 3. Common types
 

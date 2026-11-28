@@ -53,6 +53,10 @@ and using Tessera itself to render the studio's own chrome.
   transferable buffers, not shared memory. If threads become necessary, the design must either add
   a service-worker cross-origin-isolation shim (a known hack with reload semantics) or move to a
   header-capable static host; this is a recorded constraint, not a silent fallback.
+- **Chromium only for the IDE features** ([ADR-060](../../decisions/ADR-060-studio-services-in-web-workers.md)):
+  project open/save uses the File System Access API. Other browsers keep the static viewer and the
+  read-only samples. The studio services run in workers behind the protocol of
+  [studio-services-v1.md](studio-services-v1.md).
 - **WebGPU floor.** The preview needs WebGPU (Chrome/Edge 113+, Safari 26+, Firefox 141+ on
   supported platforms). A browser without it gets a static "not supported" page listing the required
   versions and the local-run instructions; there is no CPU-preview fallback in V1.

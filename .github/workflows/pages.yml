@@ -65,6 +65,8 @@ on:
       - 'scripts/ci/preview_mock_host.mjs'
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
+      - 'scripts/ci/preview_studio_services.mjs'
+      - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
@@ -111,6 +113,8 @@ on:
       - 'scripts/ci/preview_mock_host.mjs'
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
+      - 'scripts/ci/preview_studio_services.mjs'
+      - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
@@ -308,6 +312,9 @@ jobs:
 
       - name: Studio mock sandbox (hostile fixtures, caps)
         run: node scripts/ci/preview_mock_sandbox.mjs
+
+      - name: Studio services protocol (no-UI harness, ADR-060)
+        run: node scripts/ci/preview_studio_services.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
