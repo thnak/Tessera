@@ -417,6 +417,22 @@ bool offscreen_max_mb_maps_to_pool_bytes() {
     return ok;
 }
 
+// `layerCacheBudgetMb` reaches the retained layer cache as bytes; 0 stays 0 so the caller can
+// disable the cache.
+bool layer_cache_budget_maps_to_retained_bytes() {
+    RuntimeConfig runtime;
+    bool ok = expect(tessera::app::window_retained_layer_bytes(runtime) == 64ull * 1024 * 1024,
+                     "the default maps to the engine's former 64 MiB");
+    runtime.layer_cache_budget_mb = 0;
+    ok = expect(tessera::app::window_retained_layer_bytes(runtime) == 0, "0 disables the cache") &&
+         ok;
+    runtime.layer_cache_budget_mb = 0xFFFFFFFFu;
+    ok = expect(tessera::app::window_retained_layer_bytes(runtime) == 4096ull * 1024 * 1024,
+                "an oversized hand-built value clamps to 4096 MiB") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -426,6 +442,7 @@ int main() {
     ok = cull_draws_key_maps_to_the_paint_cull() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
     ok = offscreen_max_mb_maps_to_pool_bytes() && ok;
+    ok = layer_cache_budget_maps_to_retained_bytes() && ok;
     ok = adaptive_quality_keys_map_to_the_policy() && ok;
     ok = msaa_rule_reaches_the_presentation() && ok;
     ok = mapped_interpolation_reaches_the_paint_seam() && ok;
