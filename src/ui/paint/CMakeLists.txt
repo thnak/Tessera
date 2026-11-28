@@ -8,6 +8,7 @@ add_library(tessera_paint STATIC
     paint_node_parts.cpp
     paint_canvas.cpp
     paint_filter.cpp
+    layer_promotion.cpp
     paint_layer_retention.cpp
     paint_pass.cpp
     paint_image.cpp
@@ -26,6 +27,7 @@ add_library(tessera_paint STATIC
     paint_text_shadow.cpp
     paint_text_spans.cpp
     scene_style_provider.cpp
+    text_field_geometry.cpp
     scene_style_sync.cpp
     subtree_paint_cache.cpp
     paint_gradient.cpp

@@ -1,7 +1,7 @@
 # Typed text in the canvas (#601)
 
-Status: engine side, Wasm export and page side implemented; real-browser IME pass pending (see
-[§8](#8-what-is-left)). Related: [`canvas-input-session.md`](canvas-input-session.md) (the export table and
+Status: engine side, Wasm export and page side implemented, including the caret-placed IME window and pointer
+caret and drag selection (#980); the real-browser IME pass is a manual gate (see [§8](#8-what-is-left)). Related: [`canvas-input-session.md`](canvas-input-session.md) (the export table and
 the keyboard rules this note extends), [`../specs/text-editing-v1.md`](../specs/text-editing-v1.md)
 (the editing contract), [`input.md`](input.md).
 
@@ -25,7 +25,8 @@ is in the browser's gift:
 | Hidden `textarea` or `EditContext` | A hidden `textarea` | `EditContext` is Chromium-only (no Firefox or Safari), and the studio targets all three. A textarea gets `beforeinput`, composition, the IME candidate window and mobile keyboards everywhere. The module boundary is the same either way (`tessera_canvas_text`), so an `EditContext` front end can replace the textarea later without touching the engine. |
 | What the textarea stores | Nothing: it is emptied after every commit | It is a text *source*. The engine's buffer is the only copy, so there is no second value to drift. |
 | Clipboard | The page's `copy`/`cut`/`paste` events on the textarea, engine owns the selection | The page cannot read the selection, so `copy` and `cut` ask the engine for it (`text` in the report) and the page writes the clipboard; `paste` is a commit. The engine never touches the OS clipboard in the preview. |
-| Where the IME window opens | At the field's box | The engine reports `fieldBox` (logical pixels) and the page scales it into layout pixels under the pane zoom. The caret's x is not reported yet (§8). |
+| Where the IME window opens | At the caret | The engine reports `caretBox` (logical pixels, the rectangle paint draws the caret at) and the page makes the textarea one caret-high line that starts there, scaled into layout pixels under the pane zoom. `fieldBox` is the fallback. |
+| Pointer caret and drag selection | The engine, from the press and move it already receives | `tessera_canvas_pointer` places the caret on a press inside the focused field and extends the selection while the press is held. The page adds nothing: pointer capture already delivers the drag. |
 
 ## 3. Engine side
 
@@ -63,10 +64,27 @@ tessera_canvas_text(kind, text)                          wasm_canvas_entry.cpp
   the key, so a key it ignored stays the browser's.
 - **Blur** cancels a composition in flight, as a browser does when its element loses focus.
 
+### Caret geometry and the pointer (#980)
+
+`paint::text_field_caret_box` and `text_field_hit` (`include/tessera/ui/paint/text_field_geometry.hpp`) resolve
+the field the way `paint_text_lines` does (padding, the wrap decision, a single-line field's vertical centring,
+line alignment) and then call the same `caret_box` paint calls, so the reported rectangle is the one drawn.
+`CanvasSceneSession` asks for it after every report that has a focused field (`scene_canvas_session_caret.cpp`),
+against the same cascade (`SceneStyleTree`) and the font the frame paints with (a provider the Wasm entry sets,
+`canvas_paint_metrics()`; none means the stub, as in paint). While composing, the offset is where the composition
+started, which is where the IME's window belongs.
+
+A press inside the focused field maps its point to the nearest grapheme boundary (`text_field_hit`: the line by y,
+then the point inside that line with the painted advances) and calls `place_caret_at`; the session remembers the
+press (`selecting_text_`), and each move until the release calls `extend_selection_to` with the point clamped to the
+text, so a drag that leaves the field still extends to the ends. A press outside the field starts nothing; a press
+during a composition leaves the caret to the composition. Shift+click is not wired (the pointer call carries no
+modifiers).
+
 ### The report
 
 Every pointer, key and text report carries, while a text field holds focus: `textFocus`, `composing`,
-`multiline`, `caret`, `selectionStart`, `selectionEnd` (UTF-8 byte offsets into the value) and `fieldBox`. With no
+`multiline`, `caret`, `selectionStart`, `selectionEnd` (UTF-8 byte offsets into the value), `fieldBox` and `caretBox`. With no
 field focused none of them is present, so existing reports are byte-identical and a missing `textFocus` means "not
 editing". `text` is present only on `copy`/`cut`.
 
@@ -122,7 +140,12 @@ the canvas module's `EXPORTED_FUNCTIONS` list in `src/compiler/codegen/CMakeList
   IME start/update/commit/cancel and blur mid-composition, select-all, copy, cut, paste and undo, a 700-byte paste,
   a controlled field taking back an edit its handler did not store, no field focused, the report fields.
 - `scripts/ci/preview_canvas_text.mjs` (CI: Pages workflow): the textarea against a fake DOM: placement under a
-  pane zoom, `beforeinput`, composition, clipboard, chord filtering, Tab `left`, Shift+Tab, focus hand-off.
+  pane zoom, the caret-high placement, `beforeinput`, composition, clipboard, chord filtering, Tab `left`, Shift+Tab,
+  focus hand-off.
+- `tests/unit/scene_canvas_text_caret_tests.cpp` (ctest `scene_canvas_text_caret`): the caret rectangle moves right with
+  the offset and stays inside the field, the composition offset, `caretBox` in the report, a press placing the caret
+  (nearest boundary, both ends, typing lands there), a drag selecting, extending past the field and collapsing back,
+  and a press outside the field or during a composition leaving the caret alone.
 
 ## 7. Alternatives rejected
 
@@ -133,14 +156,13 @@ the canvas module's `EXPORTED_FUNCTIONS` list in `src/compiler/codegen/CMakeList
 
 ## 8. What is left
 
-- **Caret x for the IME window.** The textarea covers the field, so the candidate window opens at the field,
-  not at the caret. The engine reports the caret's byte offset; mapping it to x needs the text layout's advance
-  measure (`hit_test.hpp` has the inverse).
-- **Pointer caret placement and drag selection** inside the field (`place_caret_at`/`extend_selection_to` exist; a
-  click only focuses, with the caret at the end).
+- **A real browser pass with an IME is a manual gate**, not automated: no CI lane drives a real IME. Before a release that
+  touches this path, on Chrome, Firefox and Safari (and one phone), with a Pinyin or Japanese IME: focus a TextInput by
+  click; type a composition and check the candidate window opens at the caret, not at the field's corner; move the
+  caret by click and by arrow keys mid-text and compose again (the window follows); commit, then cancel one with
+  Escape; drag-select across the field and copy. Record browser versions in the PR.
 - **Mobile Backspace in an empty field**: some soft keyboards send nothing when the textarea is empty. A
   sentinel character would fix it and is not done.
-- **A real browser pass** with an IME (Chrome, Firefox, Safari); this slice is covered by the engine tests and the
-  fake-DOM gate only.
 - Components that instantiate a `TextInput` inside an instance frame are built but their `onChange` runs
   against the instance's scope; the root-component path is the tested one.
+- **Shift+click and double-click word selection** in the field (the pointer call carries no modifiers or click count).

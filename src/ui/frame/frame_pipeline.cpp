@@ -114,7 +114,8 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
       damage_tracker_(&damage_tracker),
       damage_(&damage),
       dirty_(&dirty),
-      config_(config) {
+      config_(config),
+      layer_promotion_(config.layer_promotion) {
     subtree_cache_.set_config({512, config_.draw_list_cache_bytes});
     if (!std::isfinite(config_.dpi_scale) || config_.dpi_scale <= 0.0f) {
         throw std::invalid_argument("frame pipeline dpi scale must be finite and positive");
@@ -285,6 +286,10 @@ paint::SubtreePaintCacheStats FramePipeline::subtree_cache_stats() const {
     return subtree_cache_.stats();
 }
 
+paint::LayerPromotionStats FramePipeline::layer_promotion_stats() const {
+    return layer_promotion_.stats();
+}
+
 const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
     paint_cache_stats_snapshot_ = paint_cache_.stats();
     return paint_cache_stats_snapshot_;
@@ -410,6 +415,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         context.subtree_cache = &subtree_cache_;
         context.retain_layers = config_.retain_layers;
         context.retain_epoch = retain_epoch_;
+        context.layer_promotion = config_.promote_layers ? &layer_promotion_ : nullptr;
     }
     if (!view.empty()) {
         context.view = &view;
@@ -444,6 +450,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         context.retain_draw_list = plan.full_redraw;
         context.retain_layers = config_.retain_layers && plan.full_redraw;
         context.retain_epoch = retain_epoch_;
+        context.layer_promotion = config_.promote_layers ? &layer_promotion_ : nullptr;
     }
     if (!view.empty()) {
         context.view = &view;

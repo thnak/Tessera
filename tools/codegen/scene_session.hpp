@@ -161,15 +161,15 @@ public:
     [[nodiscard]] PreviewTextField focused_text_field() const;
     // The focused field's selected text (copy and cut read it), empty when nothing is selected.
     [[nodiscard]] std::string focused_text_selection() const;
-    // True when the last `dispatch()` was consumed by a text field (the page may prevent the
-    // default).
+    // True when the last `dispatch()` was consumed by a text field (the page may preventDefault).
     [[nodiscard]] bool text_consumed() const noexcept {
         return text_consumed_;
     }
-    // Publishes every field's caret, selection and preedit into its paint data. Cheap and
-    // idempotent (an unchanged decoration marks nothing dirty); `dispatch()` and `rebuild()` call
-    // it.
+    // Publishes every field's caret, selection and preedit into its paint data (idempotent; an
+    // unchanged decoration marks nothing dirty); `dispatch()` and `rebuild()` call it.
     void sync_text_fields();
+    // A press (caret) or drag (`extend`: selection focus) in the focused field, unless composing.
+    bool move_text_caret(std::size_t byte_offset, bool extend);
 
     // Every state and animated cell in declaration order, in the existing `ui::StateCell`
     // representation: what generated `snapshot_state()` returns and the parity runner compares.

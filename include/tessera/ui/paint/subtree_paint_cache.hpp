@@ -42,6 +42,7 @@ struct SubtreeStatsDelta {
     std::size_t hidden_subtrees = 0;
     std::size_t culled_nodes = 0;
     std::size_t culled_subtrees = 0;
+    std::size_t layers = 0;
 };
 
 struct SubtreeRecord {

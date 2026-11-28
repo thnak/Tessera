@@ -18,7 +18,12 @@ struct PreviewTextField {
     std::uint32_t caret = 0;
     std::uint32_t selection_start = 0;
     std::uint32_t selection_end = 0;
+    // Where the IME's window belongs: the composition's start while composing, else the caret.
+    std::uint32_t ime_offset = 0;
     tessera::ui::rhi::Rect box; // the field's box in logical viewport pixels
+    // The caret's painted rectangle (logical pixels), when the field's geometry resolved.
+    bool has_caret_box = false;
+    tessera::ui::rhi::Rect caret_box;
 };
 
 } // namespace tessera::compiler::codegen::cli

@@ -9,6 +9,7 @@
 #include "tessera/ui/animation/style_bridge.hpp"
 #include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
+#include "tessera/ui/paint/layer_promotion.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
@@ -54,6 +55,12 @@ struct FramePipelineConfig {
     // sink kept instead of being painted again. Only full repaints use it (a partial one goes
     // through a sink that cannot layer); needs `paint_cache`. False paints every layer fresh.
     bool retain_layers = true;
+    // Generic layer promotion (issue #967, offscreen-layers-retention.md section 11): a clean, big,
+    // expensive container with no glass inside is kept as a retained layer too, not only a masked,
+    // filtered or faded one. Off by default: the measured full paint of a large tree is cheap, so
+    // it is opt-in until a scene shows rasterization as the bottleneck. Needs `retain_layers`.
+    bool promote_layers = false;
+    paint::LayerPromotionConfig layer_promotion{};
     // Retained draw list per clean subtree (issue #476), sized by the runtime config key
     // `drawListCacheBudgetMb`; 0 turns it off and the output is unchanged (byte-identical).
     std::size_t draw_list_cache_bytes = 32u * 1024u * 1024u;
@@ -245,6 +252,8 @@ public:
     // `hits` equals the visible node count and the `recorded_draws` delta is zero. The returned
     // reference is owned by the pipeline and refreshed by every call; read it after paint_frame().
     [[nodiscard]] const paint::PaintCacheStats& paint_cache_stats() const;
+    // Promotion policy counters (issue #967); all zero while `promote_layers` is off.
+    [[nodiscard]] paint::LayerPromotionStats layer_promotion_stats() const;
     [[nodiscard]] paint::SubtreePaintCacheStats subtree_cache_stats() const;
 
     // True when the most recent finish_frame() reported should_render and tick() has not run since.
@@ -335,6 +344,7 @@ private:
     // cannot see may have changed: a style generation, or a frame with dirty nodes that was not
     // painted in full (a partial repaint cannot reach a layer's sink, so it cannot drop it).
     mutable std::uint64_t retain_epoch_ = 0;
+    mutable paint::LayerPromotion layer_promotion_;
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     // Parsed `background-image` layer lists, keyed by style identity (issue #733 item 2). Mutable
     // and owned here for the same reason as the paint cache: it must outlive one frame for a

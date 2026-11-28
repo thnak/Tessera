@@ -162,6 +162,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* component,
         // No running evaluation yet (the first automatic apply): this is a start, carrying nothing.
         // Treated exactly as an apply with no carry, so the page has one code path for both.
         g_session = std::make_unique<cli::CanvasSceneSession>();
+        g_session->set_text_metrics(&cli::canvas_paint_metrics);
     }
     const cli::ProjectStage& stage = cli::project_stage();
     if (!stage.has_entry()) {

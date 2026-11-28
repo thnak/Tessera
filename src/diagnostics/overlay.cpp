@@ -26,7 +26,7 @@ std::vector<std::string> OverlayModel::build(const OverlayFrame& frame,
                                              std::span<const MetricSample> metrics,
                                              std::size_t max_metrics) {
     std::vector<std::string> lines;
-    lines.reserve(3 + std::min(max_metrics, metrics.size()));
+    lines.reserve(4 + std::min(max_metrics, metrics.size()));
 
     lines.push_back("frame " + std::to_string(frame.frame) + "  steps " +
                     std::to_string(frame.steps) + "  completions " +
@@ -41,6 +41,18 @@ std::vector<std::string> OverlayModel::build(const OverlayFrame& frame,
                         milliseconds(frame.budget_ms) + "ms  " +
                         (frame.frame_ms > frame.budget_ms ? "OVER" : "ok") + "  overruns " +
                         std::to_string(frame.budget_overruns));
+    }
+
+    // After the budget line, before the metrics: hit/record/refuse/evict say whether the cache is
+    // paying for itself, and `promoted` how many layers the policy chose this frame.
+    if (frame.layers_enabled) {
+        lines.push_back("layers " + std::to_string(frame.layer_entries) + "  " +
+                        std::to_string(frame.layer_bytes / 1024) + "KiB  hit " +
+                        std::to_string(frame.layer_hits) + "  rec " +
+                        std::to_string(frame.layer_records) + "  refused " +
+                        std::to_string(frame.layer_refused) + "  evicted " +
+                        std::to_string(frame.layer_evicted) + "  promoted " +
+                        std::to_string(frame.layers_promoted));
     }
 
     for (const MetricSample& metric : metrics.first(std::min(max_metrics, metrics.size()))) {

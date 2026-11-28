@@ -40,6 +40,7 @@ struct PassState {
     // PaintContext::retain_layers (issue #617) and the epoch folded into every retained-layer key.
     bool retain_layers = false;
     std::uint64_t retain_epoch = 0;
+    LayerPromotion* promotion = nullptr; // PaintContext::layer_promotion (issue #967)
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
@@ -55,6 +56,34 @@ inline std::uint32_t float_bits(float value) {
     std::uint32_t bits = 0;
     std::memcpy(&bits, &value, sizeof(bits));
     return bits;
+}
+
+// The per-paint inputs of one `paint_scene` call, read once from the context.
+inline PassState make_pass_state(const PaintContext& context) {
+    PassState pass;
+    pass.cache = context.paint_cache;
+    pass.cacheable =
+        context.paint_cache != nullptr && context.paint_cache->enabled() && context.view == nullptr;
+    pass.metrics_source_id = context.text_metrics_source != nullptr
+                                 ? context.text_metrics_source->id()
+                                 : kStubTextMetricsId;
+    pass.device_scale_bits = float_bits(context.device_scale);
+    pass.reduce_effects = context.reduce_effects;
+    pass.high_contrast = context.high_contrast;
+    pass.lcd_text = context.lcd_text;
+    pass.isolate_group_opacity = context.isolate_group_opacity;
+    pass.retain_layers = context.retain_layers && pass.cacheable;
+    pass.retain_epoch = context.retain_epoch;
+    pass.promotion = context.layer_promotion;
+    pass.glass_max_blur_radius = context.glass.max_blur_radius;
+    pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
+    pass.cull = context.cull.has_value() ? &*context.cull : nullptr;
+    pass.subtree_replay = context.retain_draw_list;
+    pass.subtree =
+        pass.cacheable && context.subtree_cache != nullptr && context.subtree_cache->enabled()
+            ? context.subtree_cache
+            : nullptr;
+    return pass;
 }
 
 // Every input of the key is read without resolving style, which is what lets a hit skip style
@@ -149,6 +178,7 @@ inline void add_subtree_stats(PaintStats& stats, const SubtreeStatsDelta& delta)
     stats.hidden_subtrees += delta.hidden_subtrees;
     stats.culled_nodes += delta.culled_nodes;
     stats.culled_subtrees += delta.culled_subtrees;
+    stats.layers += delta.layers;
 }
 
 // Turns what a recording pass captured into the stored value; `nodes` is left out on purpose.
@@ -159,6 +189,7 @@ inline SubtreeRecord make_subtree_record(PaintCache::Recorder& recorder, const P
     record.stats.counts = paint_counts_since(current, before);
     record.stats.hidden_subtrees = current.hidden_subtrees - before.hidden_subtrees;
     record.stats.culled_nodes = current.culled_nodes - before.culled_nodes;
+    record.stats.layers = current.layers - before.layers;
     record.stats.culled_subtrees = current.culled_subtrees - before.culled_subtrees;
     if (captured.ops.size() < kMinSubtreeOps) {
         record.tombstone = true;

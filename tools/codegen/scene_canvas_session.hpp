@@ -14,6 +14,7 @@
 #include "tessera/compiler/ir/source_span.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/responsive/environment_set.hpp"
 #include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
@@ -32,14 +33,11 @@
 // tree, its `ui::InputRouter` (hover/active/focus/capture) and its state scope must outlive one
 // pointer event and be visible to the next frame.
 //
-// **The pointer path** is `PreviewSession::dispatch`, the production `ui::InputRouter`
-// (`src/ui/scene/input_dispatch.cpp`): hit testing, implicit capture, click synthesis and
-// capture/target/bubble propagation. The router sets `PseudoState::Hover`/`Active`, and
-// `style::SceneStyleTree` reads them as it computes, so `:hover`/`:active` match through the
-// ordinary cascade; nothing here parses a selector.
-//
-// **`changed`, not "always redraw"**: a static UI presents nothing
-// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's dirty domains.
+// **The pointer path** is `PreviewSession::dispatch`, the production `ui::InputRouter`: hit
+// testing, capture, click synthesis and propagation. The router sets `PseudoState::Hover`/`Active`
+// and `style::SceneStyleTree` reads them, so `:hover`/`:active` match through the ordinary cascade.
+// **`changed`, not "always redraw"**: "is a frame owed" is read from the scene's dirty domains
+// (docs/design/dirty-rendering.md), so a static UI presents nothing.
 namespace tessera::compiler::codegen::cli {
 
 class CanvasMotion;
@@ -105,10 +103,9 @@ struct CanvasPickResult {
 // them from its CSS box and never hands this layer a device pixel ratio.
 //
 // **The viewport and the posture are layout inputs, not part of the source's identity** (issue
-// #436). They are on this struct because a `start()` has to lay a FRESH evaluation out at the right
-// rectangle, but `start()` does not compare them when it decides to reuse a running evaluation:
-// `set_viewport()` and `set_posture()` re-lay the running tree out in place instead, which is what
-// keeps hover, focus and the state cells across a device, orientation or posture change.
+// #436): `start()` lays a FRESH evaluation out at them but does not compare them when it reuses a
+// running one; `set_viewport()` and `set_posture()` re-lay the running tree out in place, keeping
+// hover, focus and the state cells across a device, orientation or posture change.
 struct CanvasSessionSource {
     // The single-file form, for a caller that has one source and (optionally) one stylesheet: a
     // project of one (`start(const CanvasSessionSource&)`). The stylesheet is a project file and
@@ -200,17 +197,14 @@ public:
     CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y,
                                 std::uint32_t button = 0);
 
-    // What is under `(x, y)` in logical viewport pixels, for the picker overlay (issue #171).
-    // It reuses the router's hit test (`Node::hit_test_deep`), so it names the node a press at the
-    // same point would reach. It is a query, not an event: nothing is dispatched, no pseudo-class
-    // moves and no frame is owed. `found:false` (outside every node, or no tree) hides the overlay.
+    // What is under `(x, y)` in logical pixels, for the picker overlay (issue #171), by the
+    // router's own hit test (`Node::hit_test_deep`). A query: nothing is dispatched and no frame is
+    // owed. `found:false` (outside every node, or no tree) hides the overlay.
     [[nodiscard]] CanvasPickResult pick(float x, float y);
 
     // The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed
     // style, the matched rules with their provenance, and the box of the node with this automation
-    // id. A query, like `pick()`: nothing is dispatched and no frame is owed. The cascade answers
-    // it (a page that recomputed would be a second cascade); id 0 or an unknown id is
-    // `no_such_node`.
+    // id. A query like `pick()`; the cascade answers it. Id 0 or an unknown id is `no_such_node`.
     [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
 
     // The designer's override layer (issue #536, designer-protocol-v1 sections 9.2-9.4): values a
@@ -286,13 +280,16 @@ public:
     CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
                             bool repeat);
 
-    // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
-    // focused does not look as if it were. A frame is owed only when something was focused.
+    // The page's element lost the keyboard: drop focus (and the ring). A frame is owed only when
+    // something was focused.
     CanvasPointerResult blur();
     // Text for the focused text field (issue #601): committed bytes or an IME composition kind.
     CanvasPointerResult text(PreviewInput::Kind kind, std::string_view text);
     // Copy or cut of the focused field's selection (`has_text`/`text`); a cut deletes it.
     CanvasPointerResult text_clipboard(bool cut);
+    // Paint metrics for the caret box and pointer caret, asked per use (the font can change).
+    using TextMetricsProvider = const paint::PaintTextMetricsSource* (*)();
+    void set_text_metrics(TextMetricsProvider provider) noexcept;
     // `platform.event` (designer-protocol-v1 section 5.1, issue #446): one normalized hardware
     // button or environment event, through `PlatformEventDriver` (`scene_platform.hpp`). A relaunch
     // reply ends this evaluation so the page's next `start()` is a cold start, carrying the cells
@@ -425,6 +422,8 @@ public:
 private:
     // Fills `focused_id` / `focus_visible` from the router's focus manager.
     void fill_focus(CanvasPointerResult& result) const;
+    bool text_pointer(PreviewInput::Kind kind, float x, float y);
+    void fill_caret_box(CanvasPointerResult& result) const;
 
     [[nodiscard]] bool reused_ok(const ProjectInput& project, const std::string& component,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
@@ -488,7 +487,9 @@ private:
     std::shared_ptr<const text::TextMeasurer> measurer_;
     std::string error_;
     bool reused_ = false;
-    bool fresh_ = false; // a Run happened and its frame has not been painted yet
+    bool fresh_ = false;          // a Run happened and its frame has not been painted yet
+    bool selecting_text_ = false; // a press landed in a text field and has not been released
+    TextMetricsProvider text_metrics_ = nullptr;
     std::uint32_t frames_painted_ = 0;
     // What the last evaluating apply carried; unchanged by an apply that failed to evaluate.
     StateCarryReport carry_report_;

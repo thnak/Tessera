@@ -78,6 +78,29 @@ int main() {
         return 5;
     }
 
+    // Issue #967: the layer-cache line sits after the budget line and before the metrics, and is
+    // absent unless the cache is enabled.
+    frame.layers_enabled = true;
+    frame.layer_entries = 3;
+    frame.layer_bytes = 3 * 1024 * 1024 + 512;
+    frame.layer_hits = 40;
+    frame.layer_records = 3;
+    frame.layer_refused = 1;
+    frame.layer_evicted = 2;
+    frame.layers_promoted = 2;
+    const auto layered = OverlayModel::build(frame, metrics, 1);
+    if (!expect(layered.size() == 5, "summary + budget + layers + one metric") ||
+        !expect(layered[3] == "layers 3  3072KiB  hit 40  rec 3  refused 1  evicted 2  promoted 2",
+                "layer line") ||
+        !expect(layered[4] == "paint.draw_calls 12", "metric after the layer line")) {
+        return 6;
+    }
+    frame.layers_enabled = false;
+    if (!expect(OverlayModel::build(frame, metrics, 1).size() == 4,
+                "layer line omitted when off")) {
+        return 7;
+    }
+
     std::cout << "diagnostics_overlay: ok\n";
     return 0;
 }

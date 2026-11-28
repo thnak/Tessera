@@ -36,6 +36,10 @@ PreviewTextStack* canvas_text_stack() noexcept {
     return g_text.get();
 }
 
+const paint::PaintTextMetricsSource* canvas_paint_metrics() noexcept {
+    return g_text != nullptr ? &g_text->paint_metrics() : nullptr;
+}
+
 std::shared_ptr<const text::TextMeasurer> canvas_measurer() {
     return g_text != nullptr ? g_text->measurer() : nullptr;
 }

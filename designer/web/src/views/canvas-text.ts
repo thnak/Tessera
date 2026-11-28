@@ -34,6 +34,8 @@ export interface TextReport {
   caret?: number;
   /** The field's box in logical viewport pixels. */
   fieldBox?: { x: number; y: number; width: number; height: number };
+  /** The caret's painted rectangle in logical viewport pixels (where the IME window belongs). */
+  caretBox?: { x: number; y: number; width: number; height: number };
   /** The selection a `copy` or `cut` returned. */
   text?: string;
 }
@@ -121,6 +123,7 @@ export function attachCanvasText(options: CanvasTextOptions): CanvasText {
     outline: "none",
     resize: "none",
     overflow: "hidden",
+    whiteSpace: "pre",
     background: "transparent",
     color: "transparent",
     caretColor: "transparent",
@@ -147,10 +150,27 @@ export function attachCanvasText(options: CanvasTextOptions): CanvasText {
     const zoom = cssZoomOf(canvasRect.width, canvas.offsetWidth);
     const scale = options.cssPerLogical();
     const clamp = (value: number): number => (Number.isFinite(value) && value > 0 ? value : 1);
-    area.style.left = `${(canvasRect.left - hostRect.left) / zoom + box.x * scale}px`;
-    area.style.top = `${(canvasRect.top - hostRect.top) / zoom + box.y * scale}px`;
-    area.style.width = `${clamp(box.width * scale)}px`;
-    area.style.height = `${clamp(box.height * scale)}px`;
+    const originX = (canvasRect.left - hostRect.left) / zoom;
+    const originY = (canvasRect.top - hostRect.top) / zoom;
+    const caret = report.caretBox;
+    if (caret === undefined) {
+      area.style.left = `${originX + box.x * scale}px`;
+      area.style.top = `${originY + box.y * scale}px`;
+      area.style.width = `${clamp(box.width * scale)}px`;
+      area.style.height = `${clamp(box.height * scale)}px`;
+      return;
+    }
+    // The IME opens its candidate window at the textarea's caret, which for an empty one is the start of
+    // its first line. So the textarea is one caret-high line that begins at the engine's caret: the window
+    // follows the insertion point instead of sitting at the field's corner (docs/design/canvas-text-input.md
+    // section 8). It still ends at the field's right edge.
+    const height = clamp(caret.height * scale);
+    area.style.left = `${originX + caret.x * scale}px`;
+    area.style.top = `${originY + caret.y * scale}px`;
+    area.style.width = `${clamp((box.x + box.width - caret.x) * scale)}px`;
+    area.style.height = `${height}px`;
+    area.style.fontSize = `${height}px`;
+    area.style.lineHeight = `${height}px`;
   }
 
   function reset(): void {
