@@ -78,6 +78,10 @@ public:
     [[nodiscard]] std::vector<Diagnostic>
     diagnostics(std::optional<FileId> file = std::nullopt) const;
 
+    // The declaration a symbol id stands for, following imports to their origin; the import
+    // itself when it does not resolve. Null for an unknown id.
+    [[nodiscard]] const Symbol* declaration_of(std::string_view id) const;
+
     [[nodiscard]] std::optional<Located> locate(FileId file, std::uint32_t offset) const;
     // Every use of a declaration, directly or through imports, plus the declaration itself when
     // `include_declaration`; sorted by file, then offset.

@@ -205,7 +205,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | mbedTLS | Apache-2.0 | ARM Limited |
 | OpenSSL | Apache-2.0 | The OpenSSL Project |
 | libsodium | ISC | Frank Denis and contributors |
-| sqlite3 | Public domain | SQLite authors |
+| sqlite3 (3.54.1, opt-in module) | Public domain | SQLite authors |
 | zstd | BSD-3-Clause | Meta Platforms, Inc. |
 | spdlog | MIT | Gabi Melman and contributors |
 | Tracy | BSD-3-Clause | Bartosz Taudul |

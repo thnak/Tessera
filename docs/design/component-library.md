@@ -46,7 +46,7 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `FocusScope` | `group` with `focusTrap`: Tab trapped, focus moves in, previous focus restored on hide | done |
 | `RovingFocus`, `RovingFocusVertical` | `group` with `focusGroup`: one Tab stop, arrows wrap, Home/End | done |
 | `ListNavigation` | `listbox` with a vertical `focusGroup` and `typeahead`; selection is the composer's; grid navigation is not done | done |
-| `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is not done (a handler cannot read layout bounds) | done |
+| `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is unblocked (a handler reads node-local `e.x` and the width from `onSizeChange`, [common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532) but not wired into the primitive yet | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
 
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`

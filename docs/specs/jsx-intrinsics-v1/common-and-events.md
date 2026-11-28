@@ -62,7 +62,7 @@ The field lists are the proposal of this spec; the normative event model is
 
 | Record | Fields (all required) | Used by |
 |---|---|---|
-| `PointerEvent` | `x: float`, `y: float` (node-local logical px), `pointerId: int`, `pointerType: "mouse" \| "touch" \| "pen"`, `button: int` (0 left, 1 middle, 2 right, 3 back, 4 forward, 5 other), `shift: bool`, `ctrl: bool`, `alt: bool`, `meta: bool` | `onPointerDown/Up/Move/Enter/Leave/Cancel` |
+| `PointerEvent` | `x: float`, `y: float` (logical px in the box space of the node the handler is written on: `(0, 0)` is its top-left corner, so a captured drag can read below 0 or past the width, section 3.1), `pointerId: int`, `pointerType: "mouse" \| "touch" \| "pen"`, `button: int` (0 left, 1 middle, 2 right, 3 back, 4 forward, 5 other), `shift: bool`, `ctrl: bool`, `alt: bool`, `meta: bool` | `onPointerDown/Up/Move/Enter/Leave/Cancel` |
 | `ClickEvent` | the fields of `PointerEvent`, but `pointerType` also allows `"keyboard"` and `"assistive"`; for those, `x`,`y` are the node center and `button` is `0` | `onClick` |
 | `KeyEvent` | `key: string` (W3C key value: `"Enter"`, `"Escape"`, `"a"`), `code: string`, `repeat: bool`, `shift`, `ctrl`, `alt`, `meta: bool` | `onKeyDown`, `onKeyUp` |
 | `FocusEvent` | no fields | `onFocus`, `onBlur` |
@@ -130,6 +130,39 @@ Not defined in V1, so rejected as unknown: `onDoubleClick`, `onContextMenu`, `on
 elements, `onDrag*`, `onTouch*`, `onMouse*`, `onInput`, `onLongPress` and the gesture recognizers of
 [`scroll-and-gestures-v1.md`](../scroll-and-gestures-v1.md) section 5, which name no handler props
 [Q21]. `onEditCommand` (advanced) is deferred until `text-editing-v1.md` defines its record.
+
+### 3.1 Reading the node's own box in a pointer handler (issue #532)
+
+A handler never reads a layout box directly: there is no `getBoundingClientRect`, no `currentTarget`
+accessor and no new IR expression. A node's geometry reaches its handler by two existing paths that
+compose:
+
+- **Where the pointer is.** `x`/`y` of `PointerEvent` and `ClickEvent` are in the box space of the
+  node that declared the handler (bubbled clicks included), so no origin arithmetic is needed. The
+  runtime maps the scene position through the inverse of that node's world transform (the one hit
+  testing uses), so scale and rotation are accounted for. A native C++ listener added with
+  `Node::on_event` still sees scene coordinates; only generated bindings are mapped. A keyboard or
+  assistive `ClickEvent` reports the node center, that is `(width / 2, height / 2)`.
+- **How big the node is.** `onSizeChange` ([`size-change-events-v1.md`](../size-change-events-v1.md))
+  stores `e.width` in a `float` state. The value is the box of the last layout, and the state
+  starts at its initial value until the first delivery, so guard the division with `w > 0 &&`.
+
+```tsx
+const [w, setW] = useState<float>(0);
+const [frac, setFrac] = useState<float>(0);
+<View
+  onSizeChange={(e: SizeChangeEvent) => setW(e.width)}
+  onPointerDown={(e: PointerEvent) => w > 0 && setFrac(clamp(e.x / w, 0, 1))}
+  onPointerMove={(e: PointerEvent) => w > 0 && setFrac(clamp(e.x / w, 0, 1))}
+/>
+```
+
+A press captures its pointer implicitly, so moves keep reaching the node outside its box (`e.x` goes
+negative or past `w`; `clamp` handles it). This is what unblocks `Slider`, a splitter, a drag handle
+and a color-picker square. Not provided in V1: a position read outside an event, `e.height`-style box
+fields on the pointer payload, and `hasPointerCapture`/`setPointerCapture` (capture is implicit).
+Decision record: this composes ADR-041 (observation) and the event contract above, so it adds no
+surface and needs no ADR.
 
 ## 4. Focusable `View` and `Text` (issue #226, closes Q13)
 

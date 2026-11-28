@@ -473,6 +473,21 @@ constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropByte
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropFiles
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kShellCapabilityCount
 
+header include/tessera/appfw/sql.hpp
+class include/tessera/appfw/sql.hpp tessera::appfw::sql::Database
+class include/tessera/appfw/sql.hpp tessera::appfw::sql::Transaction
+class include/tessera/appfw/sql.hpp tessera::appfw::sql::Value
+struct include/tessera/appfw/sql.hpp tessera::appfw::sql::ExecResult
+struct include/tessera/appfw/sql.hpp tessera::appfw::sql::Migration
+struct include/tessera/appfw/sql.hpp tessera::appfw::sql::OpenOptions
+struct include/tessera/appfw/sql.hpp tessera::appfw::sql::Rows
+struct include/tessera/appfw/sql.hpp tessera::appfw::sql::SqlError
+enum include/tessera/appfw/sql.hpp tessera::appfw::sql::SqlErrorCode
+alias include/tessera/appfw/sql.hpp tessera::appfw::sql::Binds
+alias include/tessera/appfw/sql.hpp tessera::appfw::sql::Blob
+alias include/tessera/appfw/sql.hpp tessera::appfw::sql::Row
+function include/tessera/appfw/sql.hpp tessera::appfw::sql::sql_error_code_name
+
 header include/tessera/appfw/storage.hpp
 class include/tessera/appfw/storage.hpp tessera::appfw::Storage
 struct include/tessera/appfw/storage.hpp tessera::appfw::AtomicWriteTrace

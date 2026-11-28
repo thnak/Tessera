@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -15,6 +16,42 @@ namespace {
 // Typical scene depth fits the inline buffer, so an event never allocates; only a tree deeper than
 // this takes one allocation for the whole dispatch (hot-path rule, issue #286 performance gate).
 constexpr std::size_t kInlinePathDepth = 64;
+
+bool carries_pointer_position(EventType type) {
+    switch (type) {
+    case EventType::PointerDown:
+    case EventType::PointerUp:
+    case EventType::PointerMove:
+    case EventType::PointerOver:
+    case EventType::PointerOut:
+    case EventType::PointerEnter:
+    case EventType::PointerLeave:
+    case EventType::Click:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Generated bindings read `x`/`y` as node-local logical px (jsx-intrinsics-v1 common-and-events
+// section 2), so a handler can turn a pointer position into a fraction of its own box (a slider
+// track). Dispatch carries scene coordinates, which `Node::on_event` listeners keep; only the
+// read-only copy a binding receives is mapped into the bound node's box space, through the same
+// inverse world transform hit testing uses. A node without bindings pays nothing, and a singular
+// transform leaves the scene position (nothing meaningful to map to).
+void run_bindings_in_node_space(const Node& node, const Event& event) {
+    if (node.event_bindings().empty()) {
+        return;
+    }
+    rendering::rhi::Mat3 inverse;
+    if (!carries_pointer_position(event.type) || !node.world_transform().try_inverse(inverse)) {
+        node.run_event_bindings(event);
+        return;
+    }
+    Event local = event;
+    inverse.transform_point(event.x, event.y, local.x, local.y);
+    node.run_event_bindings(local);
+}
 
 } // namespace
 
@@ -52,7 +89,7 @@ bool dispatch_event_to(Node& target, Event& event) {
     }
     // Generated bindings run after the node's own listeners and before bubbling. They receive a
     // read-only copy, so they cannot consume the event (docs/design/scene-graph.md section 6).
-    target.run_event_bindings(event);
+    run_bindings_in_node_space(target, event);
     if (event.stopped) {
         return true;
     }
@@ -66,7 +103,7 @@ bool dispatch_event_to(Node& target, Event& event) {
         // Click bubbles through generated bindings too: `onClick` on a Button must fire when the
         // pressed node is its label. Other event types keep Target-only bindings.
         if (event.type == EventType::Click) {
-            path[i - 1]->run_event_bindings(event);
+            run_bindings_in_node_space(*path[i - 1], event);
             if (event.stopped) {
                 break;
             }

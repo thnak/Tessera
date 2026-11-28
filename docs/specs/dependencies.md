@@ -221,7 +221,7 @@ APIs. No platform type leaks into `ui/`. See [`os-events-v1.md`](os-events-v1.md
 | mbedTLS | V1 optional | Apache-2.0 | `services/networking` | TLS |
 | OpenSSL | V1 optional alternative | Apache-2.0 | `services/networking` | TLS alternative |
 | libsodium | V1 optional | ISC | `services/networking` | Crypto primitives |
-| sqlite3 | V1 optional | Public domain | `services/storage` | Local structured storage |
+| sqlite3 | V1 optional | Public domain | `services/storage` | Local structured storage; opt-in `tessera_appfw_storage_sqlite` (`TESSERA_APPFW_SQLITE`, #837): amalgamation 3.54.1, SHA-256 `0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9` ([note](../design/storage-sqlite.md)) |
 | zstd | V1 optional | BSD-3-Clause | `services/storage` | Compression |
 
 ## 8. Diagnostics

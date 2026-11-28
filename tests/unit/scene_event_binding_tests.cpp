@@ -198,9 +198,69 @@ void test_dispatch_contract() {
     check(cleared.log == never_bound.log, "the route log matches when no binding is installed");
 }
 
+// Issue #532: a binding sees x/y in the bound node's box space; a native listener keeps the scene
+// position. The child is offset inside its parent, so scene and node-local differ.
+void test_bindings_read_node_local_position() {
+    ui::Node root(1);
+    auto child = std::make_unique<ui::Node>(2);
+    ui::Node& child_ref = *child;
+    root.add_child(std::move(child));
+    child_ref.set_bounds(tessera::rendering::rhi::Rect{100.0f, 50.0f, 200.0f, 20.0f});
+
+    struct Seen {
+        float x = -1.0f;
+        float y = -1.0f;
+        int calls = 0;
+    } seen;
+    check(child_ref.bind_event(
+              ui::EventType::PointerMove,
+              [](void* context, const ui::Event& event) {
+                  auto* out = static_cast<Seen*>(context);
+                  out->x = event.x;
+                  out->y = event.y;
+                  ++out->calls;
+              },
+              &seen),
+          "the position binding installs");
+
+    ui::Event move;
+    move.type = ui::EventType::PointerMove;
+    move.x = 150.0f;
+    move.y = 55.0f;
+    ui::dispatch_event_to(child_ref, move);
+    check(seen.calls == 1 && seen.x == 50.0f && seen.y == 5.0f,
+          "the binding reads node-local x/y (150-100, 55-50)");
+    check(move.x == 150.0f && move.y == 55.0f, "the dispatched event keeps scene coordinates");
+
+    // A drag past the box edge (pointer capture) maps outside [0, width]: the handler clamps.
+    move.x = 500.0f;
+    ui::dispatch_event_to(child_ref, move);
+    check(seen.x == 400.0f, "a position past the right edge maps beyond the width");
+
+    // A non-pointer event is not remapped.
+    ui::Node key_root(3);
+    auto key_child = std::make_unique<ui::Node>(4);
+    ui::Node& key_ref = *key_child;
+    key_root.add_child(std::move(key_child));
+    key_ref.set_bounds(tessera::rendering::rhi::Rect{10.0f, 10.0f, 5.0f, 5.0f});
+    Seen key_seen;
+    check(
+        key_ref.bind_event(
+            ui::EventType::KeyDown,
+            [](void* context, const ui::Event& event) { static_cast<Seen*>(context)->x = event.x; },
+            &key_seen),
+        "the key binding installs");
+    ui::Event key;
+    key.type = ui::EventType::KeyDown;
+    key.x = 12.0f;
+    ui::dispatch_event_to(key_ref, key);
+    check(key_seen.x == 12.0f, "a key event keeps its fields untouched");
+}
+
 } // namespace
 
 int main() {
+    test_bindings_read_node_local_position();
     test_payload_mapping();
     test_binding_capacity();
     test_dispatch_contract();

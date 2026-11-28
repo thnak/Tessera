@@ -93,9 +93,9 @@ The hardest phase and the one where parity pays most. These need caret and selec
 rings, disabled and error states, and `::part()` styling. Known engine-side risks to resolve here
 rather than work around:
 
-- `Slider`'s primitive records that **pointer drag is not done** because a handler cannot read
-  layout bounds (`component-library.md` section 3, the `Slider` row). Either the JSX subset grows a
-  bounds read or the component ships keyboard-only; that is a decision, not a detail.
+- `Slider`'s pointer drag is unblocked (#532): a pointer handler reads node-local `e.x` and the width
+  from `onSizeChange` ([common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md)).
+  Wiring it into the primitive is a phase 3 item.
 - `TextInput` single-line centring and the `text-align` single-line fast path are both recent fixes
   with open follow-ups; the parity page is the regression test for them.
 
@@ -191,7 +191,7 @@ parity page.
 | # | Decision | Blocks |
 |---|---|---|
 | 5 | The concrete V1 widget set (#527) | every phase |
-| 6 | `Slider` pointer drag: a bounds read in the JSX subset, or keyboard-only (#532) | phase 3 |
+| 6 | `Slider` pointer drag: decided, node-local `e.x` plus `onSizeChange` width (#532) | none |
 
 ### The ThorVG exit triggers (ADR-057 decision 3)
 

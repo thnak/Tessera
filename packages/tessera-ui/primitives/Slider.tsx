@@ -5,8 +5,9 @@
 // `aria-valuemin` and `aria-valuemax`. Right/Up add `step`, Left/Down subtract it, PageUp/PageDown
 // move ten steps, Home and End jump to the bounds; the value is clamped.
 //
-// Known gap: pointer dragging is not here. A handler cannot read the node's layout bounds, so a
-// pointer position cannot become a value in the JSX subset yet; the styled Slider needs that.
+// Known gap: pointer dragging is not wired here yet. It is unblocked (issue #532): a pointer handler
+// reads its node-local `e.x` and the track width stored from `onSizeChange`
+// (docs/specs/jsx-intrinsics-v1/common-and-events.md section 3.1); the styled Slider adds it.
 
 import { Children, KeyEvent, useState } from "tessera";
 

@@ -48,6 +48,14 @@ target_link_libraries(analysis_diagnostics_tests PRIVATE tessera_analysis_entry)
 
 add_test(NAME analysis_diagnostics COMMAND analysis_diagnostics_tests)
 
+# Definition, references and hover (issues #571 and #572, ADR-060).
+add_executable(analysis_language_tests
+    analysis_language_tests.cpp)
+
+target_link_libraries(analysis_language_tests PRIVATE tessera_analysis_entry)
+
+add_test(NAME analysis_language COMMAND analysis_language_tests)
+
 add_executable(jsx_module_tests
     jsx_module_tests.cpp)
 

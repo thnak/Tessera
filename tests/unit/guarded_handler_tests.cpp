@@ -11,6 +11,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace {
@@ -129,9 +130,81 @@ void test_key_is_maps_w3c_names_to_codes() {
     check(!tessera::ui::key_is(KeyEventInfo{key::kEnter}, "Bogus"), "an unknown name");
 }
 
+// Issue #532: a pointer handler divides the node-local `e.x` by the width the node reported through
+// `onSizeChange`, so a slider track can turn a pointer position into a value.
+const std::string kDragPage =
+    "import { useState, PointerEvent, SizeChangeEvent } from \"tessera\";\n"
+    "function Drag() {\n"
+    "  const [w, setW] = useState<float>(0);\n"
+    "  const [v, setV] = useState<float>(0);\n"
+    "  return (\n"
+    "    <View\n"
+    "      onSizeChange={(e: SizeChangeEvent) => setW(e.width)}\n"
+    "      onPointerMove={(e: PointerEvent) => w > 0 && setV(clamp(e.x / w, 0, 1))}>\n"
+    "      <Text>{v}</Text>\n"
+    "    </View>\n"
+    "  );\n"
+    "}\n";
+
+void test_pointer_position_reads_in_a_handler() {
+    std::unique_ptr<FileFixture> keep = parse_file("ui/Drag.tsx", kDragPage);
+    auto lowered = lowering::lower_module(keep->module_source(), "demo");
+    check(lowered.has_value(), "a pointer handler reading e.x lowers: " + first_message(lowered));
+    if (!lowered) {
+        return;
+    }
+    const ir::Component* component = find_component(*lowered, "Drag");
+    const ir::Handler* move = nullptr;
+    if (component != nullptr) {
+        for (const ir::Handler& handler : component->handlers) {
+            if (!handler.params.empty() && handler.params[0].type == "PointerEvent") {
+                move = &handler;
+            }
+        }
+    }
+    check(move != nullptr, "the pointer handler is in the IR");
+    if (move != nullptr) {
+        for (const auto& [x, width, expected] :
+             {std::tuple<double, double, double>{50.0, 200.0, 0.25},
+              std::tuple<double, double, double>{-10.0, 200.0, 0.0},
+              std::tuple<double, double, double>{500.0, 200.0, 1.0},
+              std::tuple<double, double, double>{50.0, 0.0, -1.0}}) {
+            eval::Scope scope;
+            scope["state::w"] = eval::Value::of_float(width);
+            scope["state::v"] = eval::Value::of_float(-1.0);
+            scope["e.x"] = eval::Value::of_float(x);
+            eval::Evaluator evaluator;
+            const auto ran = evaluator.run(move->actions, scope);
+            const double* value = scope["state::v"].as_float();
+            check(ran.has_value() && value != nullptr && *value == expected,
+                  "x=" + std::to_string(x) + " width=" + std::to_string(width) +
+                      " clamps to the fraction (zero width leaves the value alone)");
+        }
+    }
+    ir::IrModule module;
+    module.name = lowered->name;
+    module.components = std::move(lowered->components);
+    module.bindings = std::move(lowered->bindings);
+    module.stylesheets = std::move(lowered->stylesheets);
+    const auto generated = codegen::generate(module);
+    check(generated.has_value(),
+          "codegen accepts e.x: " +
+              (generated || generated.error().empty() ? std::string() : generated.error().front()));
+    if (!generated) {
+        return;
+    }
+    std::string source;
+    for (const codegen::GeneratedFile& file : *generated) {
+        source += file.text;
+    }
+    check(source.find("static_cast<double>(e.x)") != std::string::npos,
+          "the generated handler reads the PointerEventInfo x member");
+}
+
 } // namespace
 
 int main() {
+    test_pointer_position_reads_in_a_handler();
     test_key_is_maps_w3c_names_to_codes();
     test_guard_lowers_onto_the_action();
     test_evaluator_skips_a_false_guard();

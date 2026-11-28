@@ -14,8 +14,8 @@ Every studio service (`viewer`, `analysis`, `format`, `mock`) is a Wasm module i
 and speaks the protocol below. The protocol is plain data over `postMessage`: nothing in it names
 React, the DOM or CodeMirror, so the page of today and the Tessera-built studio of V1 use the same
 workers. This document defines the envelope, versioning, cancellation, text ownership, capabilities
-and restart. It does not define the language requests themselves (definition, hover, completions,
-rename); each of those issues adds its request and response types to section 8.
+and restart. It does not define the language requests themselves; each of those issues adds its request and response types
+to section 8 and a section of its own.
 
 ## 2. Plain data
 
@@ -102,7 +102,7 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 | Service | Features at this version |
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
-| `analysis` | `symbols` (section 10, #570) and `diagnostics` (section 11, #568); the language requests (definition, hover, completions, rename) are the analysis issues that follow |
+| `analysis` | `symbols` (section 10, #570), `diagnostics` (section 11, #568), `definition`, `references` and `hover` (section 12, #571, #572); completions and rename are the analysis issues that follow |
 | `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
@@ -215,3 +215,48 @@ request. The page-side client and the gate are the generic ones of section 9.
 - **Budget.** The module is lazy, so it is not in `download_gzip_bytes`; `lazy_service_modules_gzip_bytes` in
   `tests/golden/perf/preview_budget.json` weighs it with the format module (`scripts/preview_budget_measure.py`,
   from the assembled `build/pages`).
+
+## 12. Definition, references and hover (`definition`, `references`, `hover`)
+
+Position requests of the `analysis` service (#571, #572), answered from the index of section 10 by
+`src/compiler/analysis/include/tessera/compiler/analysis/language.hpp`. Feature names `definition`, `references` and
+`hover`. Every request carries `{ file, offset }`: a file id (required, `TESSERA_ANALYSIS_NO_FILE` when it is not in the
+snapshot) and a non-negative integer UTF-16 `offset` of the caret (`TESSERA_STUDIO_MALFORMED` otherwise). A caret at the end
+of a name still names it; a name that starts at the caret wins. An offset past the end or on no name is an empty
+answer, not an error. Spans are the `Span` of section 2 with the file id. As for every request, a response older than
+the page's version is dropped by the client (`TESSERA_STUDIO_STALE`), so a hover that arrives after an edit never shows.
+
+- **`definition`**: result `{ definitions: [{ file, from, to }], unresolved? }`. The span is the declared name. An import
+  binding (and every use of one) is followed through imports and `export { X } from` chains to the declaration, so
+  F12 on `<Card />` lands in the file that declares `Card`, and an attribute on a component tag lands on that
+  component's destructured prop. An import that does not resolve (a package, a missing file or name) answers with the
+  import binding itself. When there is no declaration `definitions` is empty and `unresolved` carries the reason of
+  section 10 (`external` for a CSS class, `builtin`, `intrinsic`, `needsType`, `unbound`); on no name at all it is
+  absent. There is at most one definition today; the list leaves room for overloads.
+- **`references`**: payload adds `includeDeclaration` (boolean, default true). Result `{ symbol, name?, references:
+  [{ file, from, to, kind }], unresolved? }`. `symbol` is the id of the declaration the caret resolves to (imports
+  followed, so the caret on a use, an import binding or the declaration gives the same list), `null` when there is
+  none. Each entry is a use of the declaration directly or through an import; `kind` is the reference kind of section 10,
+  or `declaration` for the declared name and for the import bindings that stand for it (omitted when
+  `includeDeclaration` is false). Sorted by file id, then offset.
+- **`hover`**: result `{ hover: null | { from, to, kind, name, signature?, doc?, container?, exported?, declaration?,
+  unresolved?, diagnostics } }`. `from`/`to` is the name under the caret (the tooltip's anchor; for a diagnostic with
+  no name there, the diagnostic's span). `kind` is the declaration's symbol kind, or the reference kind of an
+  unresolved name (`cssClass`, `tag`, ...) with `unresolved` giving the reason. For a resolved name: `signature` is
+  the first line of the declaring statement with a function body cut off at its `{` (at most 200 characters; empty for
+  props and parameters, whose types the index does not keep), `doc` the contiguous `//` or `/** */` comment lines
+  directly above that statement with the markers removed, `container` the enclosing component or hook name, and
+  `declaration` the span of the declared name, possibly in another file. `diagnostics` lists the project diagnostics of
+  section 11 of the file that cover the caret (`{ code, severity, message, from, to }`; an empty span covers only its
+  own offset). `{ hover: null }` when the caret names nothing and no diagnostic covers it. Type information beyond the
+  signature text is not available until the type checker feeds the index.
+- **Engine ABI.** `tessera_analysis_request_json(type, file, offset, flag)` in `analysis_entry.h` (`flag` is
+  `includeDeclaration`); null for an unknown type or a negative file or offset, which the worker reports as
+  `TESSERA_ANALYSIS_ENGINE`. The engine function of the worker is `tesseraAnalysisQuery(type, file, offset, flag)`.
+  Capabilities: `features: ["symbols", "diagnostics", "definition", "references", "hover"]`.
+- **Tests and gate.** `tests/unit/analysis_language_tests.cpp` (cross-file definition and references through imports,
+  props and CSS classes, UTF-16 offsets, hover signature, doc and diagnostics, edits, ABI parity);
+  `scripts/ci/preview_analysis_service.mjs` (request validation, argument passing and stale drop against the stand-in
+  engine and, with `TESSERA_ANALYSIS_WASM`, the same requests against the C++ library). The editor wiring (F12,
+  Shift+F12, tooltip, the `go.*` commands gated on `service.analysis.ready`) and its Playwright cases are separate studio
+  work.
