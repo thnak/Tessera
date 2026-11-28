@@ -90,7 +90,7 @@ function LayoutPane({ workbench, onChanged }: { workbench: Workbench; onChanged:
           ))}
         </ul>
       )}
-      <p className={outcome !== null && !outcome.ok ? "settings-outcome is-error" : "settings-outcome"} id="layout-outcome" role="status">
+      <p className={outcome !== null && !outcome.ok ? "settings-outcome is-error" : "settings-outcome"} id="layout-preset-outcome" role="status">
         {outcome?.message ?? ""}
       </p>
       <h3 className="settings-heading">Import or export</h3>
@@ -131,6 +131,19 @@ export function SettingsDialog({ workbench, tab, onTab, onClose }: { workbench: 
       }
     };
   }, []);
+
+  // Escape closes the dialog even when focus has just left it (a control that unmounts or is disabled drops focus to the
+  // body). Fields that use Escape themselves (the shortcut editor) stop the event first, so this only sees the rest.
+  useEffect(() => {
+    const onWindowKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onWindowKey);
+    return () => window.removeEventListener("keydown", onWindowKey);
+  }, [onClose]);
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {

@@ -168,6 +168,40 @@ palette key `Mod+Shift+P` and `F1` are both bound (VS Code parity). VS Code's `C
 tabs; fallbacks are `Ctrl+Alt+N` (new file), `Alt+W` (close editor) and `Ctrl+PageDown/Up` is also
 reserved, so there is no default for editor-tab cycling in a browser tab (open decision 11).
 
+### 2.6 Keybinding overrides and the settings dialog (W8, issue #565)
+
+`view.openSettings` (`Mod+,`) and `view.openKeybindings` (`Mod+K Mod+S`) open one modal with three tabs: Keyboard
+shortcuts, Layout and Appearance. The overrides are one document in `localStorage` (`tessera.studio.keybindings`)
+and the file the pane imports and exports:
+
+```json
+{ "format": "tessera-studio-keybindings", "version": 1,
+  "bindings": [ { "key": "Mod+Shift+L", "command": "view.toggleSideBar", "when": "layout.sideBar" },
+                { "key": "Mod+B", "command": "-view.toggleSideBar" } ] }
+```
+
+A bare array of the same entries is also accepted on import. A `-` before the command removes that command's
+default chord (VS Code's convention); the recorder writes the removal for you, so a rebind replaces the default
+instead of adding a second chord. `Mod` keeps the file portable between Windows/Linux and macOS.
+
+- **Import is all-or-nothing.** Every entry is checked (known live command, parseable and not browser-reserved
+  chord, a `when` that parses and names published context keys, at most 500 entries and 64 KiB); one bad entry
+  refuses the document with a sentence per problem, and nothing stored or running changes. A document from a newer
+  version is refused by name; a retired command is refused with its replacement.
+- **Conflicts.** Two commands on one chord collide when their scopes can both be true: either has no `when`, or the
+  clauses are equal. The pane marks both rows and the Set message names the other command (it is a warning, not a
+  refusal). Different scopes (F2 in the tree, F2 in the editor) are listed as shared, not as a conflict.
+- **Storage.** Load and save are wrapped: a blocked or throwing store gives the defaults and a rebind applies to the
+  session with the sentence "the browser would not store it"; a corrupt stored document gives the defaults and a
+  notification, and is never overwritten by loading it.
+- **Layout.** The Layout tab exports the current layout (the stored form, zen cleared) and imports a layout
+  through the same migrate, validate and reconcile steps as a stored one, with one Undo layout change step. Saved
+  layouts (at most 12, per viewer, `tessera.studio.layout.presets`) can be applied and deleted. The layout stays per
+  viewer: there is no project-suggested layout in V1. The Appearance tab's theme picker runs `view.setTheme`.
+
+Gates: `scripts/ci/preview_workbench_keybindings.mjs` and `workbench_layout.mjs` (Node), the static render in
+`preview_studio_smoke.mjs`, and `scripts/ci/preview_browser_settings.mjs` (developer-run, real Chromium).
+
 ## 3. Menu bar model
 
 ### 3.1 Menu record
@@ -471,15 +505,15 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Status bar | left: branch, problems; right: language, position; clickable items | `StatusLine.tsx`: Problems (split counts; opens and focuses the Problems panel), caret (Go to Line), language, bell; items are `menus.json` `statusBar` | done (owner feedback on #586) |
 | Notifications / toasts | bell, toasts with actions, do-not-disturb | page `role="status"` lines scattered per region | W3b |
 | Context menus | right-click, `Shift+F10` | none | W3 |
-| Keybindings JSON | `keybindings.json`, conflict display, chords | hard-coded CodeMirror keymap | W8 |
-| Settings UI | `Ctrl+,` search + JSON | `localStorage` preferences, no UI | W8 |
+| Keybindings JSON | `keybindings.json`, conflict display, chords | done (W8): overrides document, recorder, conflict rows, import/export (section 2.6) | done (W8) |
+| Settings UI | `Ctrl+,` search + JSON | done (W8): `Ctrl+,` dialog with Keyboard shortcuts, Layout and Appearance tabs; no search box over settings | done (W8) |
 | Zen mode | `Ctrl+K Z`, hides chrome, `Esc Esc` | done (transient, never stored; gate in `workbench_commands_dock.mjs`) | done (W7) |
 | Layout presets | VS: Window > Apply Window Layout, Save; VS Code: layout picker, customize layout | done: four presets, one Undo step | done (W7) |
 | Toggle side bar / panel | `Ctrl+B`, `Ctrl+J` | none | W5b |
 | Focus cycling | `F6`, `Ctrl+1..3` groups | `F6` / `Shift+F6` ring over every region | done (W7; `Ctrl+1` not capturable, use `F6`) |
 | Panel keyboard move | VS Code: command "Move View/Panel To..." | `Alt+Shift+Arrow`, tab menu Move Left/Right/Top/Bottom/Into Group, live message | done (W7) |
 | Floating / pop-out windows | VS and VS Code: Move into new window | none | out of scope (decision 8) |
-| Theme | color themes, light/dark/high contrast | light/dark/system | exists; picker W8 |
+| Theme | color themes, light/dark/high contrast | light/dark/system, picker in Settings | done (W8) |
 | Format / rename / go to definition / references | `Shift+Alt+F`, `F2`, `F12`, `Shift+F12` | none | IDE slices (reserved ids) |
 | Problems panel | `Ctrl+Shift+M`; list with severity, code, message, file:line:col; filter; click to jump | `problems` panel (`regions/ProblemsPanel.tsx`), `view.problems`, status-bar split counts; project-wide rows grouped by file ([studio-services-v1.md](studio-services-v1.md) section 14) | done (owner decision, studio focus pass; #575 project-wide) |
 | Terminal, debugger, extensions, remote | present | none; not applicable in a browser studio | not planned |
@@ -504,9 +538,9 @@ size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard
 | W5 | Dock renderer (the library adapter), panel area (collapsed by default), maximize, drop-zone overlays, sash snapping, panel host contract | W4, W0, the CodeMirror editor panel ([#517](https://github.com/thnak/Tessera/issues/517)) | #516 acceptance: drag/split/tab/resize, reload restores, canvas never remounts, hidden never draws, phone collapse |
 | W5b | Activity bar and side bar shell (Explorer live; Search and Source Control reserved), `Ctrl+B`/`Ctrl+J` | W5 | VS Code region model; side bar is a dock region holding views |
 | W5c | Editor groups, preview tabs, breadcrumbs (path) | W5, editor panel | decision 12; may move after V1 |
-| W6 | Rewrite `scripts/ci/preview_browser_layout.mjs` for the dock | W5 | layout spec section 4.5 |
+| W6 | Rewrite `scripts/ci/preview_browser_layout.mjs` for the dock | W5 | layout spec section 4.5; rewritten (#563), the frame assertions need WebGPU |
 | W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, zen mode, layout presets, a11y audit | W5, W3 | WAI-ARIA checks in the browser script; implemented, see [`guides/studio-keyboard.md`](../guides/studio-keyboard.md) (the remaining keyboard gap is collapse by key, below) |
-| W8 | Keybindings JSON and settings UI | W3, W4 | `view.openKeybindings`, `view.openSettings` (`Ctrl+,`), JSON import/export of overrides and layout, conflict display |
+| W8 | Keybindings JSON and settings UI | W3, W4 | `view.openKeybindings`, `view.openSettings` (`Ctrl+,`), JSON import/export of overrides and layout, conflict display; implemented (#565), section 2.6 |
 | W9 | MCP projection | W1, ADR-060 services | `commands-tools.json` generator and equality test (open decision 5) |
 | IDE slices (E2-E8) | Format, go to definition, rename, Source Control panel | W1/W2 for menu items; W5 for panels | each one flips `reserved` commands and panels to `live`; the menu tree does not change |
 

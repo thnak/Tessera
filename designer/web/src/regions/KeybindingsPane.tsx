@@ -93,8 +93,12 @@ export function KeybindingsPane({ tools, onChanged }: { tools: KeybindingTools; 
   const all = tools.rows();
   const rows = all.filter((row) => needle === "" || `${row.title} ${row.category} ${row.chord} ${row.id}`.toLowerCase().includes(needle));
   const conflicts = all.filter((row) => row.conflicts.length > 0).length;
-  const done = (next: Outcome | null) => {
+  /** Closes the editor and puts focus back on the row's Change button (the editor's own field is gone). */
+  const done = (next: Outcome | null, id?: string) => {
     setEditing(null);
+    if (id !== undefined) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-command="${id}"] .kb-change`)?.focus());
+    }
     if (next !== null) {
       setOutcome(next);
     }
@@ -140,7 +144,7 @@ export function KeybindingsPane({ tools, onChanged }: { tools: KeybindingTools; 
                 </td>
                 <td>
                   {editing === row.id ? (
-                    <Editor row={row} tools={tools} onDone={done} />
+                    <Editor row={row} tools={tools} onDone={(next) => done(next, row.id)} />
                   ) : (
                     <>
                       <kbd className="kb-chord">{row.chord === "" ? "Unbound" : row.chord}</kbd>
@@ -153,11 +157,11 @@ export function KeybindingsPane({ tools, onChanged }: { tools: KeybindingTools; 
                 </td>
                 <td>{SOURCE_LABELS[row.source]}</td>
                 <td className="kb-actions">
-                  <button type="button" aria-label={`Change shortcut for ${row.title}`} onClick={() => setEditing(row.id)}>
+                  <button type="button" className="kb-change" aria-label={`Change shortcut for ${row.title}`} onClick={() => setEditing(row.id)}>
                     Change
                   </button>
                   {row.source === "user" || row.source === "removed" ? (
-                    <button type="button" aria-label={`Reset shortcut for ${row.title}`} onClick={() => done(tools.reset(row.id))}>
+                    <button type="button" aria-label={`Reset shortcut for ${row.title}`} onClick={() => done(tools.reset(row.id), row.id)}>
                       Reset
                     </button>
                   ) : null}

@@ -149,6 +149,17 @@ reserved commands (`go.symbol`, `view.problems`, `view.search`, the dock's
 two CodeMirror search bindings that collided with VS Code (`Ctrl+G` and `Shift+Ctrl+G`) are removed so Go to Line
 works with the editor focused.
 
+## 5b. Keybinding overrides and layout import/export (W8, issue #565)
+
+`workbench/keybindings.js` is the pure half of the settings dialog: `validateOverrides` (all-or-nothing, a sentence
+per problem), `setBinding`/`clearBinding`/`resetBinding` (a rebind removes the default chord and adds one user chord),
+`keybindingRows`/`collisionsFor` (conflicts, with different scopes listed as shared), `chordOfEvent` (the recorder,
+portable `Mod+` text) and `loadOverrides`/`saveOverrides` (every storage access wrapped). `workbench/layout-io.ts`
+does the same for layouts (`importLayout` reuses migrate, validate and reconcile) and the viewer's saved presets.
+`page-settings.ts` joins them to the registry, `localStorage` and the dock store; `regions/SettingsDialog.tsx`,
+`KeybindingsPane.tsx` and `JsonTransfer.tsx` draw it. The rules are in
+[the spec, section 2.6](../specs/studio-workbench-v1.md#26-keybinding-overrides-and-the-settings-dialog-w8-issue-565).
+
 ## 6. Notifications (W3b, issue #559)
 
 One service replaces the `role="status"` line each region used to carry. `workbench/notifications.js` is pure

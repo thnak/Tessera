@@ -30,6 +30,7 @@ export function JsonTransfer(props: {
   const [text, setText] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   const run = (source: string) => {
     const result = props.onImport(source);
@@ -37,6 +38,8 @@ export function JsonTransfer(props: {
     if (result.ok) {
       setText("");
       props.onChanged();
+      // The Import button is disabled once the box is empty, and a disabled button drops focus (and with it Escape).
+      box.current?.focus();
     }
   };
 
@@ -74,7 +77,7 @@ export function JsonTransfer(props: {
       <label className="settings-label" htmlFor={`${kind}-json`}>
         JSON (exported text appears here; paste to import)
       </label>
-      <textarea id={`${kind}-json`} className="settings-json" rows={6} spellCheck={false} value={text} onChange={(event) => setText(event.target.value)} />
+      <textarea ref={box} id={`${kind}-json`} className="settings-json" rows={6} spellCheck={false} value={text} onChange={(event) => setText(event.target.value)} />
       <div className="settings-row">
         <button type="button" id={`${kind}-import-text`} disabled={text.trim() === ""} onClick={() => run(text)}>
           Import pasted JSON
