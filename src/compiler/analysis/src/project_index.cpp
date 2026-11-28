@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/compiler/analysis/project_index.hpp"
-
 #include "file_indexer.hpp"
+#include "tessera/compiler/analysis/project_index.hpp"
 #include "utf16_map.hpp"
 
 #include <algorithm>
@@ -165,8 +164,9 @@ const Symbol* ProjectIndex::exported(FileId file, std::string_view name, int dep
     const FileIndex& index = entry->second.index;
     const auto top_level = [&](std::string_view wanted, bool require_export) -> const Symbol* {
         for (const Symbol& symbol : index.symbols) {
-            if (symbol.name == wanted && symbol.parent.empty() && (symbol.exported || !require_export) &&
-                symbol.kind != SymbolKind::Param && symbol.kind != SymbolKind::Prop) {
+            if (symbol.name == wanted && symbol.parent.empty() &&
+                (symbol.exported || !require_export) && symbol.kind != SymbolKind::Param &&
+                symbol.kind != SymbolKind::Prop) {
                 return &symbol;
             }
         }
@@ -247,7 +247,8 @@ void ProjectIndex::resolve_project() {
                 const Symbol* tag = this->symbol(reference.via);
                 const Symbol* component = follow(tag);
                 if (component == nullptr || component->kind != SymbolKind::Component) {
-                    if (tag != nullptr && tag->kind == SymbolKind::Import && !tag->target.resolved()) {
+                    if (tag != nullptr && tag->kind == SymbolKind::Import &&
+                        !tag->target.resolved()) {
                         reference.resolution.reason = tag->target.reason;
                     }
                     continue;

@@ -55,7 +55,8 @@ private:
     [[nodiscard]] std::optional<std::uint32_t> find_ident(std::string_view name, std::uint32_t from,
                                                           std::uint32_t to) const;
     // The span of `name` found at or after `*cursor` inside `within`; advances the cursor.
-    [[nodiscard]] Span next_name(std::string_view name, jsx::Span within, std::uint32_t* cursor) const;
+    [[nodiscard]] Span next_name(std::string_view name, jsx::Span within,
+                                 std::uint32_t* cursor) const;
     [[nodiscard]] std::optional<std::size_t> lookup(const std::string& name) const;
     [[nodiscard]] std::optional<std::size_t> lookup_type(const std::string& name) const;
     void add_reference(Span span, ReferenceKind kind, std::string name, Resolution resolution,

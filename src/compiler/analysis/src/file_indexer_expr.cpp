@@ -88,7 +88,8 @@ void FileIndexer::walk_arrow(const jsx::Expr& arrow) {
     push_scope(anonymous_label());
     std::uint32_t cursor = arrow.span.offset;
     for (std::size_t i = 0; i < arrow.params.size(); ++i) {
-        declare(arrow.params[i], SymbolKind::Param, next_name(arrow.params[i], arrow.span, &cursor));
+        declare(arrow.params[i], SymbolKind::Param,
+                next_name(arrow.params[i], arrow.span, &cursor));
         if (i < arrow.param_types.size()) {
             walk_type(arrow.param_types[i].get());
         }
@@ -125,8 +126,8 @@ void FileIndexer::walk_member(const jsx::Expr& member) {
     if (object != nullptr && object->kind == jsx::ExprKind::Identifier) {
         if (const auto binding = lookup(object->text);
             binding && out_.symbols[*binding].kind == SymbolKind::CssModule) {
-            add_reference(span, ReferenceKind::CssClass, member.text, Resolution{{}, Unresolved::External},
-                          out_.symbols[*binding].id);
+            add_reference(span, ReferenceKind::CssClass, member.text,
+                          Resolution{{}, Unresolved::External}, out_.symbols[*binding].id);
             return;
         }
     }
@@ -179,8 +180,8 @@ void FileIndexer::walk_jsx(const jsx::JsxNode* node) {
                     resolution.reason = Unresolved::NeedsType;
                     via = out_.symbols[*tag_symbol].id;
                 }
-                add_reference(span_of(attribute.name_span), ReferenceKind::Attribute, attribute.name,
-                              resolution, via);
+                add_reference(span_of(attribute.name_span), ReferenceKind::Attribute,
+                              attribute.name, resolution, via);
             }
             walk(attribute.expr.get());
         }
@@ -195,16 +196,16 @@ void FileIndexer::walk_type(const jsx::TypeNode* type) {
         return;
     }
     if (type->kind == jsx::TypeKind::Name && !type->text.empty()) {
-        static constexpr std::string_view kBuiltins[] = {"int",  "float", "string", "bool", "color",
-                                                         "null", "void",  "Array",  "optional"};
+        static constexpr std::string_view kBuiltins[] = {
+            "int", "float", "string", "bool", "color", "null", "void", "Array", "optional"};
         Resolution resolution{{}, Unresolved::Unbound};
         if (const auto found = lookup_type(type->text)) {
             resolution = Resolution{out_.symbols[*found].id, {}};
         } else if (std::ranges::find(kBuiltins, type->text) != std::end(kBuiltins)) {
             resolution.reason = Unresolved::Builtin;
         }
-        add_reference(span_at(type->span.offset, type->text.size()), ReferenceKind::Type, type->text,
-                      std::move(resolution));
+        add_reference(span_at(type->span.offset, type->text.size()), ReferenceKind::Type,
+                      type->text, std::move(resolution));
     }
     for (const auto& child : type->children) {
         walk_type(child.get());

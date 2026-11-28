@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "file_indexer.hpp"
-
 #include "tessera/compiler/jsx/parser.hpp"
 
 #include <algorithm>
@@ -79,7 +78,8 @@ Span FileIndexer::span_of(jsx::Span bytes) const {
 }
 
 Span FileIndexer::span_at(std::uint32_t byte, std::size_t length) const {
-    return Span{file_, map_.to_utf16(byte), map_.to_utf16(byte + static_cast<std::uint32_t>(length))};
+    return Span{file_, map_.to_utf16(byte),
+                map_.to_utf16(byte + static_cast<std::uint32_t>(length))};
 }
 
 std::optional<std::uint32_t> FileIndexer::find_ident(std::string_view name, std::uint32_t from,
@@ -92,7 +92,8 @@ std::optional<std::uint32_t> FileIndexer::find_ident(std::string_view name, std:
             return std::nullopt;
         }
         const bool left = pos == 0 || !is_ident_char(source_[pos - 1]);
-        const bool right = pos + name.size() >= source_.size() || !is_ident_char(source_[pos + name.size()]);
+        const bool right =
+            pos + name.size() >= source_.size() || !is_ident_char(source_[pos + name.size()]);
         if (left && right) {
             return static_cast<std::uint32_t>(pos);
         }
@@ -166,8 +167,8 @@ std::optional<std::size_t> FileIndexer::lookup_type(const std::string& name) con
     return std::nullopt;
 }
 
-void FileIndexer::add_reference(Span span, ReferenceKind kind, std::string name, Resolution resolution,
-                                std::string via) {
+void FileIndexer::add_reference(Span span, ReferenceKind kind, std::string name,
+                                Resolution resolution, std::string via) {
     out_.references.push_back(
         Reference{span, kind, std::move(name), std::move(resolution), std::move(via)});
 }
@@ -178,8 +179,8 @@ void FileIndexer::reference_value(std::string name, Span span) {
         return;
     }
     static constexpr std::string_view kGlobals[] = {
-        "undefined", "NaN", "Infinity", "Math", "JSON", "console", "Number", "String", "Boolean",
-        "Array", "Object", "Date", "parseInt", "parseFloat"};
+        "undefined", "NaN",     "Infinity", "Math",   "JSON", "console",  "Number",
+        "String",    "Boolean", "Array",    "Object", "Date", "parseInt", "parseFloat"};
     const bool hook = name.size() > 3 && name.starts_with("use") &&
                       std::isupper(static_cast<unsigned char>(name[3])) != 0;
     const bool global = std::ranges::find(kGlobals, name) != std::end(kGlobals);
@@ -198,7 +199,8 @@ void FileIndexer::declare_items(const jsx::Module& module) {
             if (!item.css_module_binding.empty()) {
                 std::uint32_t cursor = all.offset;
                 const Span span = next_name(item.css_module_binding, all, &cursor);
-                Symbol* symbol = &out_.symbols[declare(item.css_module_binding, SymbolKind::CssModule, span)];
+                Symbol* symbol =
+                    &out_.symbols[declare(item.css_module_binding, SymbolKind::CssModule, span)];
                 symbol->import_source = item.source;
             }
             for (const jsx::ImportName& imported : item.names) {
@@ -207,7 +209,8 @@ void FileIndexer::declare_items(const jsx::Module& module) {
                     std::uint32_t cursor = imported.span.end();
                     span = next_name(imported.local_name, all, &cursor);
                 }
-                const std::size_t index = declare(std::string(imported.local()), SymbolKind::Import, span);
+                const std::size_t index =
+                    declare(std::string(imported.local()), SymbolKind::Import, span);
                 out_.symbols[index].import_source = item.source;
                 out_.symbols[index].import_name = imported.name;
             }
@@ -223,11 +226,20 @@ void FileIndexer::declare_items(const jsx::Module& module) {
             }
             SymbolKind kind = SymbolKind::Const;
             switch (item.kind) {
-            case jsx::ItemKind::TypeAlias: kind = SymbolKind::TypeAlias; break;
-            case jsx::ItemKind::Component: kind = SymbolKind::Component; break;
-            case jsx::ItemKind::Hook: kind = SymbolKind::Hook; break;
-            case jsx::ItemKind::Helper: kind = SymbolKind::Helper; break;
-            default: break;
+            case jsx::ItemKind::TypeAlias:
+                kind = SymbolKind::TypeAlias;
+                break;
+            case jsx::ItemKind::Component:
+                kind = SymbolKind::Component;
+                break;
+            case jsx::ItemKind::Hook:
+                kind = SymbolKind::Hook;
+                break;
+            case jsx::ItemKind::Helper:
+                kind = SymbolKind::Helper;
+                break;
+            default:
+                break;
             }
             const std::size_t index = declare(item.name, kind, span_of(item.name_span));
             out_.symbols[index].exported = item.exported;
@@ -262,7 +274,8 @@ void FileIndexer::index_item(const jsx::ModuleItem& item) {
         // The body of a helper is skipped by the parser, so only its signature is indexed.
         const auto owner = item_symbols_.find(&item);
         push_scope(item.name);
-        parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id : std::string());
+        parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id
+                                                        : std::string());
         for (const jsx::HelperParam& param : item.helper_params) {
             std::uint32_t cursor = param.span.offset;
             declare(param.name, SymbolKind::Param, next_name(param.name, param.span, &cursor));
@@ -283,8 +296,8 @@ void FileIndexer::index_re_export(const jsx::ModuleItem& item) {
         const std::string exported = std::string(entry.local());
         out_.re_exports.push_back(ReExport{exported, entry.name, item.source});
         if (!item.source.empty()) {
-            add_reference(span, ReferenceKind::Export, entry.name, Resolution{{}, Unresolved::ImportUnresolved},
-                          item.source);
+            add_reference(span, ReferenceKind::Export, entry.name,
+                          Resolution{{}, Unresolved::ImportUnresolved}, item.source);
             continue;
         }
         const auto local = lookup(entry.name);
@@ -292,21 +305,24 @@ void FileIndexer::index_re_export(const jsx::ModuleItem& item) {
             out_.symbols[*local].exported = true;
         }
         add_reference(span, ReferenceKind::Export, entry.name,
-                      local ? Resolution{out_.symbols[*local].id, {}} : Resolution{{}, Unresolved::Unbound});
+                      local ? Resolution{out_.symbols[*local].id, {}}
+                            : Resolution{{}, Unresolved::Unbound});
     }
 }
 
 void FileIndexer::index_component(const jsx::ModuleItem& item) {
     const auto owner = item_symbols_.find(&item);
     push_scope(item.name);
-    parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id : std::string());
+    parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id
+                                                    : std::string());
     for (const jsx::PropBinding& binding : item.props_bindings) {
         std::uint32_t cursor = binding.span.offset;
         declare(binding.name, SymbolKind::Prop, next_name(binding.name, binding.span, &cursor));
     }
     if (!item.props_name.empty()) {
         std::uint32_t cursor = item.name_span.end();
-        declare(item.props_name, SymbolKind::PropsParam, next_name(item.props_name, item.span, &cursor));
+        declare(item.props_name, SymbolKind::PropsParam,
+                next_name(item.props_name, item.span, &cursor));
     }
     walk_type(item.props_type.get());
     walk_type(item.type.get());
@@ -324,7 +340,8 @@ void FileIndexer::index_component(const jsx::ModuleItem& item) {
 void FileIndexer::index_hook(const jsx::ModuleItem& item) {
     const auto owner = item_symbols_.find(&item);
     push_scope(item.name);
-    parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id : std::string());
+    parents_.push_back(owner != item_symbols_.end() ? out_.symbols[owner->second].id
+                                                    : std::string());
     for (const jsx::CustomHookParam& param : item.hook_params) {
         std::uint32_t cursor = param.span.offset;
         declare(param.name, SymbolKind::Param, next_name(param.name, param.span, &cursor));
@@ -351,7 +368,8 @@ void FileIndexer::index_statement(const jsx::Statement& statement) {
     if (!statement.object_pattern.empty()) {
         for (const jsx::PatternBinding& binding : statement.object_pattern) {
             std::uint32_t cursor = binding.span.offset;
-            declare(binding.local, SymbolKind::Local, next_name(binding.local, binding.span, &cursor));
+            declare(binding.local, SymbolKind::Local,
+                    next_name(binding.local, binding.span, &cursor));
         }
         return;
     }

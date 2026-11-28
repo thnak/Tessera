@@ -10,46 +10,74 @@ namespace {
 
 std::string_view name_of(SymbolKind kind) {
     switch (kind) {
-    case SymbolKind::Component: return "component";
-    case SymbolKind::Hook: return "hook";
-    case SymbolKind::Helper: return "helper";
-    case SymbolKind::TypeAlias: return "type";
-    case SymbolKind::Const: return "const";
-    case SymbolKind::Import: return "import";
-    case SymbolKind::CssModule: return "cssModule";
-    case SymbolKind::Prop: return "prop";
-    case SymbolKind::PropsParam: return "propsParam";
-    case SymbolKind::State: return "state";
-    case SymbolKind::Setter: return "setter";
-    case SymbolKind::Handler: return "handler";
-    case SymbolKind::Local: return "local";
-    case SymbolKind::Param: return "param";
+    case SymbolKind::Component:
+        return "component";
+    case SymbolKind::Hook:
+        return "hook";
+    case SymbolKind::Helper:
+        return "helper";
+    case SymbolKind::TypeAlias:
+        return "type";
+    case SymbolKind::Const:
+        return "const";
+    case SymbolKind::Import:
+        return "import";
+    case SymbolKind::CssModule:
+        return "cssModule";
+    case SymbolKind::Prop:
+        return "prop";
+    case SymbolKind::PropsParam:
+        return "propsParam";
+    case SymbolKind::State:
+        return "state";
+    case SymbolKind::Setter:
+        return "setter";
+    case SymbolKind::Handler:
+        return "handler";
+    case SymbolKind::Local:
+        return "local";
+    case SymbolKind::Param:
+        return "param";
     }
     return "local";
 }
 
 std::string_view name_of(ReferenceKind kind) {
     switch (kind) {
-    case ReferenceKind::Value: return "value";
-    case ReferenceKind::Type: return "type";
-    case ReferenceKind::Tag: return "tag";
-    case ReferenceKind::Attribute: return "attribute";
-    case ReferenceKind::CssClass: return "cssClass";
-    case ReferenceKind::Member: return "member";
-    case ReferenceKind::Export: return "export";
+    case ReferenceKind::Value:
+        return "value";
+    case ReferenceKind::Type:
+        return "type";
+    case ReferenceKind::Tag:
+        return "tag";
+    case ReferenceKind::Attribute:
+        return "attribute";
+    case ReferenceKind::CssClass:
+        return "cssClass";
+    case ReferenceKind::Member:
+        return "member";
+    case ReferenceKind::Export:
+        return "export";
     }
     return "value";
 }
 
 std::string_view name_of(Unresolved reason) {
     switch (reason) {
-    case Unresolved::None: return "none";
-    case Unresolved::Unbound: return "unbound";
-    case Unresolved::Builtin: return "builtin";
-    case Unresolved::Intrinsic: return "intrinsic";
-    case Unresolved::External: return "external";
-    case Unresolved::NeedsType: return "needsType";
-    case Unresolved::ImportUnresolved: return "importUnresolved";
+    case Unresolved::None:
+        return "none";
+    case Unresolved::Unbound:
+        return "unbound";
+    case Unresolved::Builtin:
+        return "builtin";
+    case Unresolved::Intrinsic:
+        return "intrinsic";
+    case Unresolved::External:
+        return "external";
+    case Unresolved::NeedsType:
+        return "needsType";
+    case Unresolved::ImportUnresolved:
+        return "importUnresolved";
     }
     return "unbound";
 }
@@ -84,7 +112,8 @@ void resolution(std::string& out, const Resolution& value) {
 }
 
 void file_json(std::string& out, const FileIndex& index) {
-    out += "{\"file\":" + std::to_string(index.file) + ",\"indexed\":" + (index.indexed ? "true" : "false");
+    out += "{\"file\":" + std::to_string(index.file) +
+           ",\"indexed\":" + (index.indexed ? "true" : "false");
     out += ",\"symbols\":[";
     for (std::size_t i = 0; i < index.symbols.size(); ++i) {
         const Symbol& symbol = index.symbols[i];
@@ -94,7 +123,8 @@ void file_json(std::string& out, const FileIndex& index) {
         quote(out, name_of(symbol.kind));
         out += ",\"name\":";
         quote(out, symbol.name);
-        out += ",\"from\":" + std::to_string(symbol.span.from) + ",\"to\":" + std::to_string(symbol.span.to);
+        out += ",\"from\":" + std::to_string(symbol.span.from) +
+               ",\"to\":" + std::to_string(symbol.span.to);
         out += ",\"parent\":";
         quote(out, symbol.parent);
         out += std::string(",\"exported\":") + (symbol.exported ? "true" : "false");

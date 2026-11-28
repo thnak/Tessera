@@ -113,7 +113,7 @@ await test('build: reserved items are hidden; separators fall between groups onl
   const view = bar.find((menu) => menu.id === 'view');
   assert.ok(labelsOf(view.items).includes('Problems'), 'Problems is live now (the panel exists)');
   assert.ok(!labelsOf(view.items).includes('Source Control'), 'a reserved panel stays hidden');
-  assert.ok(!labelsOf(bar.find((menu) => menu.id === 'edit').items).includes('Format Document'));
+  assert.ok(labelsOf(bar.find((menu) => menu.id === 'edit').items).includes('Format Document'), 'Format Document is live (ADR-061 slice 2)');
 });
 
 await test('build: chords come from the keymap, disabled items carry a reason', () => {

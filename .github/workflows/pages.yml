@@ -68,6 +68,7 @@ on:
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
+      - 'scripts/ci/preview_format_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
@@ -118,6 +119,7 @@ on:
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
+      - 'scripts/ci/preview_format_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
@@ -227,6 +229,10 @@ jobs:
       - name: Build browser diagnostics module
         run: cmake --build build/wasm-webgpu --target tessera_diagnostics_wasm --parallel
 
+      # The format worker's module (#577, ADR-061 slice 2): the minimal edit list for Format Document.
+      - name: Build browser format module
+        run: cmake --build build/wasm-webgpu --target tessera_format_wasm --parallel
+
       # P2 (issue #166): the scene-preview module behind the merged page's Scene view. Same configure
       # and the same pattern; issue #392 merged the pages without merging the modules.
       - name: Build browser scene-preview module
@@ -323,6 +329,9 @@ jobs:
 
       - name: Studio services protocol (no-UI harness, ADR-060)
         run: node scripts/ci/preview_studio_services.mjs
+
+      - name: Format service (edit list over the worker protocol, ADR-061)
+        run: node scripts/ci/preview_format_service.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
@@ -460,6 +469,9 @@ jobs:
             cp "build/wasm-webgpu/src/compiler/codegen/$module.js" "$site/"
             cp "build/wasm-webgpu/src/compiler/codegen/$module.wasm" "$site/"
           done
+          # The format worker's module is its own file: a lazy `import()` on the first Format Document.
+          cp build/wasm-webgpu/tools/fmt/tessera_format.js "$site/"
+          cp build/wasm-webgpu/tools/fmt/tessera_format.wasm "$site/"
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
           printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
           # A static host resolves the directory to index.html; make the intent explicit and fail loudly

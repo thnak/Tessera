@@ -30,7 +30,8 @@ struct TextEdit {
     std::string new_text; // UTF-8
 };
 
-// What a position names: a declaration or a reference. `symbol` is empty for an unresolved reference.
+// What a position names: a declaration or a reference. `symbol` is empty for an unresolved
+// reference.
 struct Located {
     std::string symbol;
     bool declaration = false;

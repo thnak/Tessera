@@ -7,7 +7,8 @@
 #include <vector>
 
 // Symbol and span index data model (issue #570, ADR-060, docs/specs/studio-services-v1.md section
-// 10). Plain data only: the same structs back the native CLI/MCP hosts and the Wasm analysis worker.
+// 10). Plain data only: the same structs back the native CLI/MCP hosts and the Wasm analysis
+// worker.
 namespace tessera::compiler::analysis {
 
 // A file id is assigned by the page for the open project; a path is never a key (spec section 2).
@@ -34,9 +35,9 @@ enum class SymbolKind : std::uint8_t {
     CssModule, // `import styles from "./X.module.css"`
     Prop,      // a destructured props binding of a component
     PropsParam,
-    State,     // the value of `const [x, setX] = useState(...)`
-    Setter,    // the setter or dispatch of the same pattern
-    Handler,   // a `const f = (...) => ...` of a component or hook body
+    State,   // the value of `const [x, setX] = useState(...)`
+    Setter,  // the setter or dispatch of the same pattern
+    Handler, // a `const f = (...) => ...` of a component or hook body
     Local,
     Param,
 };
@@ -45,12 +46,12 @@ enum class SymbolKind : std::uint8_t {
 // resolves, or it carries one of these.
 enum class Unresolved : std::uint8_t {
     None,
-    Unbound,           // no declaration in scope (a library component, a typo, a global)
-    Builtin,           // a builtin type, hook or global the language itself provides
-    Intrinsic,         // a lowercase JSX tag and its attributes
-    External,          // declared outside the indexed text (a CSS class in the .css file)
-    NeedsType,         // a member access: resolving it needs the type of the receiver
-    ImportUnresolved,  // the import's file or exported name is not in the project snapshot
+    Unbound,          // no declaration in scope (a library component, a typo, a global)
+    Builtin,          // a builtin type, hook or global the language itself provides
+    Intrinsic,        // a lowercase JSX tag and its attributes
+    External,         // declared outside the indexed text (a CSS class in the .css file)
+    NeedsType,        // a member access: resolving it needs the type of the receiver
+    ImportUnresolved, // the import's file or exported name is not in the project snapshot
 };
 
 enum class ReferenceKind : std::uint8_t {
@@ -75,13 +76,14 @@ struct Resolution {
 };
 
 struct Symbol {
-    // Stable across edits that do not rename or move the declaration: `f<file>:` plus the scope path
+    // Stable across edits that do not rename or move the declaration: `f<file>:` plus the scope
+    // path
     // (`Card/count`, `Card/~1/e` for the first anonymous function of `Card`), with `#n` appended to
     // the n-th duplicate. It never contains an offset.
     std::string id;
     SymbolKind kind = SymbolKind::Local;
     std::string name;
-    Span span; // the declared name
+    Span span;          // the declared name
     std::string parent; // the enclosing component or hook; empty at module scope
     bool exported = false;
     // Imports and CSS modules: what the binding names, and (once the project resolves it) the
