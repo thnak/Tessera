@@ -162,6 +162,8 @@ export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandA
     },
     // Version History (#583): show the side bar group's History tab.
     "view.history": () => reveal(dock(), "history"),
+    // Theme tokens (#582): show the side bar group's Theme tab.
+    "view.theme": () => reveal(dock(), "theme"),
     "view.toggleStatusBar": () => {
       const d = dock();
       return d.commands.setStatusBar(!d.layout.shell.statusBar);

@@ -419,6 +419,9 @@ jobs:
       - name: Studio accent tokens (WCAG AA contrast, light/dark parity)
         run: node scripts/ci/studio_accent_contrast.mjs
 
+      - name: Studio theme editor (token round trip, WCAG vectors)
+        run: node scripts/ci/studio_theme.mjs
+
       - name: Studio notifications (queue, dedupe, history, do not disturb)
         run: node scripts/ci/preview_workbench_notifications.mjs
 

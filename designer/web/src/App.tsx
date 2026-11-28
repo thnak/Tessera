@@ -45,6 +45,7 @@ import { usePanelVisibility, useViewFromUrl } from "./page-panels";
 import { useProblems, useProblemsStore } from "./page-problems";
 import { useSearch } from "./page-search";
 import { useHistory, type ProjectHistoryHooks } from "./page-history";
+import { useTheme } from "./page-theme";
 import { useProjectProblems } from "./page-project-problems";
 import { useAnalysisHub } from "./page-analysis";
 import { WorkbenchSurface } from "./page-workbench";
@@ -375,6 +376,7 @@ export function App() {
     onWritten: onSearchWritten,
     visible: workbench.visible.has("history"),
   });
+  const theme = useTheme({ workspace, onWritten: onSearchWritten, visible: workbench.visible.has("theme") });
   const search = useSearch({ workspace, reveal: problems.jump, onWritten: onSearchWritten, visible: workbench.visible.has("search") });
 
   const onEdit = useCallback(
@@ -503,6 +505,7 @@ export function App() {
           problems={problems}
           search={search}
           history={history}
+          theme={theme}
           onSelectTab={onSelectTab}
           onEdit={onEdit}
           onRestart={restartActiveView}
