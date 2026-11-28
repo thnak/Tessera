@@ -48,7 +48,7 @@ Ordered by dependency, within [library-farm-plan.md](library-farm-plan.md) phase
 3. Actions: IconButton, Link. Inputs on the existing primitives: TextInput, TextArea.
 4. Feedback: Spinner, Progress, Badge, EmptyState. Media and data: Image, List. Tooltip.
 5. Select, once its popup is decided (section 4).
-6. The Settings starter template, assembled from the above (option C's artifact). It is built
+6. The Settings starter template (**started**: [`samples/settings`](../../samples/settings/README.md), `gallery --page settings`, goldens `settings_*`; its gap list is the README's), assembled from the above (option C's artifact). It is built
    incrementally as soon as step 2 exists, so the set is measured, not guessed.
 
 Each component lands as one component per issue (a phase 3 input per PR), with the ADR-047 item 10
