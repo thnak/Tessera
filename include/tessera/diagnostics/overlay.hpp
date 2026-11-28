@@ -27,6 +27,9 @@ struct OverlayFrame {
     // configured, and the overlay then omits the budget line entirely rather than printing a
     // meaningless ratio.
     double frame_ms = 0.0;
+    // Smoothed frames per second (issue #1024). 0 means unknown and omits the fps line, so an
+    // overlay built without a meter (the PoC) is unchanged.
+    double fps = 0.0;
     double budget_ms = 0.0;
     std::uint64_t budget_overruns = 0;
     // Layer cache (issue #967): the retained-layer cache and the promotion policy. `layers_enabled`

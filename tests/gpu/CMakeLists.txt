@@ -1242,6 +1242,16 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_offscreen PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # The diagnostics overlay panel (issue #1024) recorded after the scene on a real window.
+    add_executable(app_window_overlay_tests
+        app_window_overlay_tests.cpp)
+    target_compile_definitions(app_window_overlay_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_overlay_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_overlay COMMAND app_window_overlay_tests)
+    set_tests_properties(app_window_overlay PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     add_executable(app_window_multi_tests
         app_window_multi_tests.cpp)
     target_compile_definitions(app_window_multi_tests PRIVATE

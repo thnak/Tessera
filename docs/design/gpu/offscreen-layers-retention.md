@@ -274,5 +274,5 @@ structs; the window driver draws no overlay yet, so only the helper is wired.
 **Tests.** `paint_layer_promotion` (policy and paint pass: earns the promotion, records then hits,
 a dirty node never hits a stale layer, flat for few draws, small area, glass inside, faded, LCD,
 no policy, retention off, a new epoch, over the subtree draw list, bounded table) and
-`diagnostics_overlay` (the layer line), `window_config` (the `layerPromotion` key and the overlay
+`diagnostics_overlay` (the layer line), `window_overlay` and `app_window_overlay` (the window driver draws the panel when `diagnosticsOverlay` is on, issue #1024), `window_config` (the `layerPromotion` key and the overlay
 helper) and `layer_promotion_gpu` (promoted vs flat pixels, release on dirty).
