@@ -177,11 +177,10 @@ This page is the map and reading order for the framework.
   validation, submit/focus/reset
 - [`specs/navigation-v1.md`](specs/navigation-v1.md) — route table, back stack, guards, modal
   routes, deep-link/startup integration
-- [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/
-  focus/draft restoration
+- [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/focus/draft restoration
 - [`specs/platform-shell-v1.md`](specs/platform-shell-v1.md) — clipboard, drag/drop, context
   menus, file dialogs, menu bar/tray; [`specs/permissions-v1.md`](specs/permissions-v1.md) — the
-  permission state model, request flow and `tessera.json` declaration
+  permission state model and declaration; [`specs/notifications-v1.md`](specs/notifications-v1.md) — local notifications, consent, activation
 - [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU catalogs, formatting, RTL, pseudo-localization
 - [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
   announcements/platform bridges/tests

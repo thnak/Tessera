@@ -288,6 +288,22 @@ target_compile_features(tessera_appfw_permission PUBLIC cxx_std_23)
 target_link_libraries(tessera_appfw_permission
     PUBLIC tessera_appfw_core tessera_runtime)
 
+# ADR-050 layer 1 module: `tessera_appfw_notification` (issue #452, docs/specs/notifications-v1.md).
+# Policy (consent, channels, deduplication, cold/hot activation) over a `NotificationBackend` seam;
+# no platform back end ships, the fake is the in-tree one. It sits on the permission and navigation
+# modules because consent and activation routing are theirs.
+add_library(tessera_appfw_notification STATIC
+    notification_fake.cpp
+    notification_service.cpp)
+
+target_include_directories(tessera_appfw_notification PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_notification PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_notification
+    PUBLIC tessera_appfw_permission tessera_appfw_navigation)
+
 # ADR-078 (Proposed) spike: the secret store seam, its async front end and the in-memory test double.
 # No platform back end is built here; the ADR decides which ones ship and when. It needs only the
 # layer-0 executor and cancellation seams.
@@ -537,6 +553,17 @@ if (TESSERA_BUILD_TESTS)
     # Two TUs, one counter and one exit code: `permissions_test_support.hpp` declares the failure count
     # inline, so a failure in either half fails the one binary.
     add_test(NAME appfw_permission COMMAND appfw_permission_tests)
+
+    # The notification contract suite (issue #452, docs/specs/notifications-v1.md section 10):
+    # schedule/cancel, consent, and cold/hot activation into deep links. Fake back ends, a manual
+    # clock and a hand-drained completion queue: no OS, no wall clock.
+    add_executable(appfw_notification_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_notification_tests.cpp)
+    target_include_directories(appfw_notification_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_notification_tests PRIVATE
+        tessera_appfw_notification tessera_scene tessera_runtime)
+    add_test(NAME appfw_notification COMMAND appfw_notification_tests)
 endif()
 
 if (TESSERA_APPFW_SQLITE)
