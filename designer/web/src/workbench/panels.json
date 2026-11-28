@@ -5,6 +5,8 @@
     "defaultLocation": { "group": "project" }, "minSize": { "w": 160, "h": 120 } },
   { "id": "history", "title": "History", "icon": "history", "singleton": true, "closable": true,
     "defaultLocation": { "group": "project" }, "minSize": { "w": 160, "h": 120 } },
+  { "id": "theme", "title": "Theme", "icon": "palette", "singleton": true, "closable": true,
+    "defaultLocation": { "group": "project" }, "minSize": { "w": 160, "h": 120 } },
   { "id": "editor", "title": "Editor", "icon": "code", "singleton": true, "closable": false,
     "defaultLocation": { "group": "editor" }, "minSize": { "w": 280, "h": 160 } },
   { "id": "canvas", "title": "Canvas", "icon": "canvas", "singleton": true, "closable": true,

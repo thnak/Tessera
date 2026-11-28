@@ -32,6 +32,7 @@ import "./styles/dock.css";
 import "./styles/problems.css";
 import "./styles/search.css";
 import "./styles/history.css";
+import "./styles/theme.css";
 import "./styles/workbench.css";
 import "./styles/responsive.css";
 

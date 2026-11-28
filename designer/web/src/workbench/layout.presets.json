@@ -3,7 +3,7 @@
     "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "column", "sizes": [0.72, 0.28], "children": [
       { "type": "split", "dir": "row", "sizes": [0.18, 0.82], "children": [
-        { "type": "group", "id": "g-project", "panels": ["project", "search", "history"], "active": "project" },
+        { "type": "group", "id": "g-project", "panels": ["project", "search", "history", "theme"], "active": "project" },
         { "type": "group", "id": "g-editor", "panels": ["editor"], "active": "editor" }
       ] },
       { "type": "group", "id": "g-bottom",
@@ -16,7 +16,7 @@
   "preview-focus": {
     "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "row", "sizes": [0.18, 0.22, 0.6], "children": [
-      { "type": "group", "id": "g-project", "panels": ["project", "search", "history"], "active": "project" },
+      { "type": "group", "id": "g-project", "panels": ["project", "search", "history", "theme"], "active": "project" },
       { "type": "group", "id": "g-editor", "panels": ["editor"], "active": "editor" },
       { "type": "group", "id": "g-preview",
         "panels": ["canvas", "scene", "problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "canvas" }
@@ -29,7 +29,7 @@
     "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "column", "sizes": [0.68, 0.32], "children": [
       { "type": "split", "dir": "row", "sizes": [0.16, 0.42, 0.42], "children": [
-        { "type": "group", "id": "g-project", "panels": ["project", "search", "history"], "active": "project" },
+        { "type": "group", "id": "g-project", "panels": ["project", "search", "history", "theme"], "active": "project" },
         { "type": "group", "id": "g-editor", "panels": ["editor"], "active": "editor" },
         { "type": "group", "id": "g-preview", "panels": ["canvas", "scene"], "active": "canvas" }
       ] },

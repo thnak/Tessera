@@ -1071,6 +1071,13 @@
       "status": "live"
     },
     {
+      "id": "view.theme",
+      "title": "Theme Tokens",
+      "category": "View",
+      "description": "Edit the project's theme tokens per variant with WCAG contrast results",
+      "status": "live"
+    },
+    {
       "id": "history.restorePrevious",
       "title": "Restore Previous Version",
       "category": "Edit",
