@@ -27,13 +27,21 @@
 
 namespace tessera::compiler::codegen::internal {
 // `e.width`, `e.contentHeight`, ...: the fields of a SizeChangeEvent parameter, spelled the way the
-// C++ record names them, so an expression like `e.width >= 600` has a C++ form.
+// C++ record names them, so an expression like `e.width >= 600` has a C++ form. `e.x`/`e.y` of a
+// PointerEvent or ClickEvent are read the same way (issue #532).
 namespace {
 LocalBindings payload_field_locals(std::span<const ir::Param> params) {
     LocalBindings locals;
     for (const ir::Param& param : params) {
         if (param.type == "KeyEvent" && !param.name.empty()) {
             locals.push_back({param.name + ".key", param.name, "KeyName"});
+            continue;
+        }
+        if ((param.type == "PointerEvent" || param.type == "ClickEvent") && !param.name.empty()) {
+            // Node-local logical px (the binding adapter maps the position into the bound node's
+            // box space), so `e.x / width` is a fraction of the node's own box.
+            locals.push_back({param.name + ".x", param.name + ".x", "float"});
+            locals.push_back({param.name + ".y", param.name + ".y", "float"});
             continue;
         }
         if (param.type != "SizeChangeEvent" || param.name.empty()) {

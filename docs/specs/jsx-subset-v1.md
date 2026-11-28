@@ -487,7 +487,7 @@ expressions, separated by `;`:
 <Button onClick={() => setCount(count + 1)}>Increment</Button>
 ```
 
-- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
+- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments. A pointer handler reads its node-local `e.x`/`e.y` and divides by the width its own `onSizeChange` stored ([`common-and-events.md`](jsx-intrinsics-v1/common-and-events.md) section 3.1, issue #532).
 - A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
   holds (issue #236). A key handler uses it as `(e) => e.key === "Escape" && setOpen(false)`; the
   `KeyEvent` `key` is compared with a W3C key-value string literal (`"Escape"`, `"ArrowDown"`, `" "`,

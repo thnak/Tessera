@@ -228,8 +228,8 @@ bool keyboard_and_invoke() {
     router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kEnter));
     if (!expect(scene.a.clicks == 1, "Enter on a focused button clicks it") ||
         !expect(scene.a.last_source == ClickSource::Keyboard, "keyboard source") ||
-        !expect(scene.a.last_x == 50.0f && scene.a.last_y == 30.0f,
-                "keyboard click is at the node center")) {
+        !expect(scene.a.last_x == 40.0f && scene.a.last_y == 20.0f,
+                "keyboard click is at the node center, in node-local px (issue #532)")) {
         return false;
     }
     router.dispatch(scene.root, keyboard(InputEventType::KeyDown, key::kEnter, true));
