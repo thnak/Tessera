@@ -177,7 +177,8 @@ Capability negotiation:
 ```cpp
 enum class ShellCapability {
     ClipboardText, ClipboardFiles, DragInternal, DragExternal, DropFiles,
-    ContextMenu, FileOpen, FileSave, FolderPick, MenuBar, Tray, GlobalShortcut
+    ContextMenu, FileOpen, FileSave, FolderPick, MenuBar, Tray, GlobalShortcut,
+    OpenUrl // hand a URL to the system handler: the external form of `a href` (issue #542)
 };
 
 struct ShellCapabilities {
@@ -202,6 +203,7 @@ public:
     Task<Result<std::optional<FileHandle>>> open_file(OpenDialogSpec);
     Task<Result<std::optional<Path>>> save_file(SaveDialogSpec);
     Task<Result<std::optional<Path>>> pick_folder(FolderDialogSpec);
+    Status submit_open_url(std::string url, WriteCallback);   // fire and forget; scheme policy is the caller's
 };
 ```
 

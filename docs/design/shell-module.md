@@ -103,6 +103,17 @@ The awaiter is the same shape `NetClient::send` uses, for the same reason: the c
 before the coroutine reaches `await_suspend`, so "which came first" is carried in shared state rather
 than assumed, and a destroyed frame is never resumed.
 
+## 5.1 Opening a URL
+
+`submit_open_url` (issue #542) hands a URL to the system handler through `ShellBackend::start_open_url`. It is the one
+operation with no `begin`/`end` gate: it is not modal and several may be in flight. The module bounds the length
+(`kMaxShellUrlBytes`) and checks `ShellCapability::OpenUrl`; **which schemes may be opened is the caller's policy**
+(`appfw::LinkRouter`, an allow list that defaults to `https`, `http`, `mailto` and `tel`), because the shell cannot
+know whether `file:` is an attack or an app feature. `start_open_url` defaults to "refused", so a back end with no
+handler needs no code and the service reports `Unsupported`. `FakeShell` records the call and completes it on the
+next queue drain (`set_open_url_ok(false)` makes the platform fail it). No platform back end implements it yet
+(follow-up issue linked from #542), so the Win32 capability set does not claim `OpenUrl`.
+
 ## 6. The Win32 back end
 
 - **Clipboard** goes through `hal::Clipboard` (`tessera_hal_clipboard`), which already owns the

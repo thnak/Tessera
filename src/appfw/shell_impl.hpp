@@ -65,6 +65,11 @@ public:
     submit_clipboard_write(ClipboardContent content, ShellService::WriteCallback on_done);
     bool cancel_clipboard();
 
+    // --- external URLs ----------------------------------------------------------------------
+
+    [[nodiscard]] std::expected<void, ShellError>
+    submit_open_url(std::string url, ShellService::WriteCallback on_done);
+
     // --- dialogs ----------------------------------------------------------------------------
 
     [[nodiscard]] std::expected<void, ShellError>

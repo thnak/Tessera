@@ -34,6 +34,7 @@
 
 #pragma once
 
+#include "tessera/appfw/storage_migration.hpp"
 #include "tessera/hal/filesystem.hpp"
 #include "tessera/runtime/async.hpp"
 #include "tessera/runtime/io_task_executor.hpp"
@@ -55,14 +56,16 @@ namespace tessera::appfw {
 // and "tell the user".
 enum class StorageErrorCode : std::uint8_t {
     None = 0,
-    NotFound,    // no entry under that name
-    Corrupted,   // header/checksum mismatch, or an unsupported format version
-    TooLarge,    // the stored or supplied payload exceeds the configured cap
-    InvalidName, // empty, absolute, or containing a separator / `..`
-    Io,          // the file system reported a failure (see `native`)
-    Cancelled,   // the caller cancelled the operation
-    Busy,        // the executor refused the submission (at its bound)
-    Unsupported, // the durability/file-system guarantee is unavailable on this platform
+    NotFound,        // no entry under that name
+    Corrupted,       // header/checksum mismatch, or an unsupported format version
+    TooLarge,        // the stored or supplied payload exceeds the configured cap
+    InvalidName,     // empty, absolute, or containing a separator / `..`
+    Io,              // the file system reported a failure (see `native`)
+    Cancelled,       // the caller cancelled the operation
+    Busy,            // the executor refused the submission (at its bound)
+    Unsupported,     // the durability/file-system guarantee is unavailable on this platform
+    FutureVersion,   // stored by a newer build than this one; left untouched (migration)
+    MigrationFailed, // the migration chain has a gap or a step rejected the data
 };
 
 [[nodiscard]] constexpr std::string_view storage_error_code_name(StorageErrorCode code) noexcept {
@@ -85,6 +88,10 @@ enum class StorageErrorCode : std::uint8_t {
         return "busy";
     case StorageErrorCode::Unsupported:
         return "unsupported";
+    case StorageErrorCode::FutureVersion:
+        return "future version";
+    case StorageErrorCode::MigrationFailed:
+        return "migration failed";
     }
     return "unknown";
 }
@@ -124,12 +131,16 @@ struct StorageDiagnostics {
     std::uint64_t aborted_writes = 0;
     // Temp files removed by an aborted write (equal to `aborted_writes` when cleanup succeeded).
     std::uint64_t temp_files_removed = 0;
+    // Entries upgraded by `load_migrated` and rewritten at the current version.
+    std::uint64_t migrations = 0;
 };
 
 // A decoded document.
 struct StoredValue {
     std::string data;
     std::uint32_t version = 0;
+    // True when `load_migrated` upgraded the payload from an older stored version.
+    bool migrated = false;
 };
 
 using Settings = std::vector<std::pair<std::string, std::string>>;
@@ -143,9 +154,8 @@ struct StorageConfig {
     std::size_t max_entry_bytes = 4 * 1024 * 1024;
     // Durability requested of every write (see `hal::Durability`).
     hal::Durability durability = hal::Durability::BestEffort;
-    // Format version written into the envelope header. A read of any other version reports
-    // `Corrupted` rather than guessing; migration is a later slice
-    // (docs/design/services/storage.md).
+    // Format version written into the envelope header. `load` of a newer version reports
+    // `Corrupted` rather than guessing; `load_migrated` upgrades older ones and names a newer one.
     std::uint32_t format_version = 1;
     // How many failures the diagnostics ring keeps. 0 disables the ring but keeps the counters.
     std::size_t diagnostic_capacity = 16;
@@ -182,6 +192,16 @@ public:
 
     // Reads a document. See the submit contract above.
     bool load(std::string name, runtime::CancellationToken token, ValueCallback completion);
+
+    // Reads a document and upgrades it to `config().format_version` with `chain` (issue #411). The
+    // chain runs inside the I/O body, after the checksum passed. On a successful upgrade the entry
+    // is rewritten atomically at the current version, so the chain runs once per entry; a failed
+    // rewrite is a diagnostic, not a failed load, because the caller already has usable data.
+    // Outcomes: an older version loads migrated (`StoredValue::migrated`); a newer one reports
+    // `FutureVersion` and the file is left untouched; a gap or a rejecting step reports
+    // `MigrationFailed` and the file is left untouched. Returns false for a null chain too.
+    bool load_migrated(std::string name, std::shared_ptr<const MigrationChain> chain,
+                       runtime::CancellationToken token, ValueCallback completion);
 
     // Atomically replaces a document with `data`.
     bool save(std::string name, std::string data, runtime::CancellationToken token,

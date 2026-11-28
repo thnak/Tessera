@@ -118,6 +118,43 @@ ShellServiceImpl::submit_clipboard_write(ClipboardContent content,
     return {};
 }
 
+std::expected<void, ShellError>
+ShellServiceImpl::submit_open_url(std::string url, ShellService::WriteCallback on_done) {
+    if (url.empty() || url.size() > kMaxShellUrlBytes) {
+        ShellError error{url.empty() ? ShellErrorKind::Failed : ShellErrorKind::TooLarge,
+                         "open url"};
+        record(error.kind, error.detail);
+        return std::unexpected(std::move(error));
+    }
+    if (auto allowed = require(ShellCapability::OpenUrl); !allowed) {
+        record(allowed.error().kind, allowed.error().detail);
+        return allowed;
+    }
+    ++counters_.urls_opened;
+    std::weak_ptr<ShellServiceImpl> weak = weak_from_this();
+    const bool accepted = backend_->start_open_url(
+        std::move(url), runtime::CancellationToken{},
+        [weak, on_done = std::move(on_done)](bool ok) {
+            auto self = weak.lock();
+            if (self == nullptr || !on_done) {
+                return;
+            }
+            self->post([on_done = std::move(on_done), ok]() {
+                if (ok) {
+                    on_done(std::expected<void, ShellError>{});
+                } else {
+                    on_done(std::unexpected(ShellError{ShellErrorKind::Failed, "open url"}));
+                }
+            });
+        });
+    if (!accepted) {
+        ShellError error{ShellErrorKind::Unsupported, "open url refused"};
+        record(error.kind, error.detail);
+        return std::unexpected(std::move(error));
+    }
+    return {};
+}
+
 bool ShellServiceImpl::cancel_clipboard() {
     if (!clipboard_in_flight_ || clipboard_cancelled_) {
         return false;

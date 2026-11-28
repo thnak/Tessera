@@ -129,6 +129,21 @@ public:
     virtual bool start_clipboard_write(ClipboardContent content, runtime::CancellationToken token,
                                        ClipboardWriteCompletion on_done) = 0;
 
+    // --- external URLs ----------------------------------------------------------------------
+
+    // Hands `url` to the system handler (the external form of `a href`). The module has already
+    // checked the length; the scheme policy is the caller's (`LinkRouter`). Returns false when this
+    // back end has no handler, in which case `on_done` is never invoked. The default is that
+    // refusal, so a back end that cannot open URLs needs no code.
+    using OpenUrlCompletion = std::function<void(bool)>;
+    virtual bool start_open_url(std::string url, runtime::CancellationToken token,
+                                OpenUrlCompletion on_done) {
+        (void)url;
+        (void)token;
+        (void)on_done;
+        return false;
+    }
+
     // --- dialogs (section 5) ----------------------------------------------------------------
 
     // Starts one dialog. Returns false when the back end cannot serve this request at all (no
