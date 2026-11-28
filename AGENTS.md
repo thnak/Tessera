@@ -1334,7 +1334,12 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       `chart_series_ring_allocation.cpp` replaced-global-`operator new` zero-allocation proof across
       five wrap-arounds).
 - [x] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
-- [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
+- [x] #184: Streaming dashboard sample under sustained load with deterministic goldens. Evidence:
+      `samples/stream_dashboard/` (four chart panels on a scripted integer load, work meter, shared
+      damage -> redraw plan path, `stream_dashboard` CLI reporting frame-budget overruns),
+      `docs/specs/chart-node-v1.md` section 11, ctest `stream_dashboard_golden` (bit-exact CPU-rasterizer
+      goldens `tests/golden/baseline/stream_dashboard/`, damage-only repaint == full paint over 900
+      frames, budget accounting) and `stream_dashboard_allocation` (zero allocations after the rings wrap).
 - [x] #233: `DataStore::set/update` push entry for app-fed data —
       `include/tessera/runtime/data_store.hpp`, `src/runtime/data_store_core.cpp` (per-key version +
       fetch epoch, CompletionQueue tick notification, bounded LRU), `docs/specs/async-data-v1.md`
