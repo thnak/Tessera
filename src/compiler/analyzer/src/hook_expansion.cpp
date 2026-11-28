@@ -12,6 +12,7 @@
 // and the front end keeps the `TESSERA_REACT_CUSTOM_HOOK` rejection.
 
 #include "hook_expansion_expander.hpp"
+#include "tessera/compiler/jsx/shim_expansion.hpp"
 
 #include <algorithm>
 #include <string>
@@ -137,6 +138,9 @@ ExpansionMetrics expand_custom_hooks(Module& module, const SourceMap& map,
                                      const FrontEndOptions& options, DiagnosticSink& sink) {
     (void)map;
     ExpansionMetrics metrics;
+    // Shim packages (ADR-058 class B) are source-to-source too and independent of the custom-hook
+    // switch: a shim import is checked and rewritten before any hook is expanded.
+    expand_shims(module, sink);
     if (!options.custom_hooks) {
         return metrics;
     }

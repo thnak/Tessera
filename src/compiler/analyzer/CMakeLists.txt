@@ -24,6 +24,8 @@ add_library(tessera_jsx_frontend STATIC
     src/parser_reducer.cpp
     src/parser_hook.cpp
     src/hook_expansion.cpp
+    src/shim_expansion.cpp
+    src/shim_table.cpp
     src/hook_expansion_call.cpp
     src/hook_expansion_bind.cpp
     src/hook_expansion_clone.cpp

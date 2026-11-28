@@ -1,6 +1,6 @@
-# Background work: `TaskScope` and the timer wake source
+# Background work: `TaskScope`, the timer wake source and the background policy
 
-Status: implemented (AF2, issue #174). ADR-050 section 5 is the decision; this note records the shape
+Status: implemented (AF2, issue #174; policy slice issue #453). ADR-050 section 5 is the decision; this note records the shape
 that landed, the two mechanisms it reuses from layer 0, and the concurrency rules a caller has to
 respect.
 
@@ -168,5 +168,60 @@ carries the clause.
   until AF5/AF7. Adding a scope with no caller would be untestable dead wiring, the same reasoning
   [`services/app-lifecycle-rulings.md`](services/app-lifecycle-rulings.md#111-who-marks-the-in-frame-lookup-region-the-appfw-tick-wrapper) section 11.1 records for the
   in-frame mark.
-- **Pausing timers on `Suspended`.** ADR-050 section 5 item 4 assigns that to the mobile lifecycle
-  work; the queue's `clear()` and per-timer `cancel()` are the primitives it will use.
+- **OS-scheduled jobs.** Section 6 records the decision: not V1.
+
+## 5. The in-process policy (issue #453)
+
+`appfw::BackgroundCoordinator` (`include/tessera/appfw/background.hpp`) turns the normalized
+`AppState` into ADR-050 section 5 items 3 and 4. A host feeds it the state `Application` just
+entered; it owns no thread and never blocks.
+
+| App state entered | Action |
+|---|---|
+| `Hidden` (from a visible state) | every registered checkpoint runs once; nothing is cancelled and timers keep running (desktop `Continue`) |
+| `Suspended` | checkpoints run if `Hidden` was skipped; the timer queue is paused; scopes registered `Throttle` or `Pause` are cancelled |
+| leaving `Suspended` | the timer queue resumes; a cancelled scope stays cancelled and the owner builds a new one |
+| `Active` / `Inactive` | background flag clears, so the next `Hidden` checkpoints again |
+| `Terminating` / `Terminated` | nothing: the shutdown sequencer owns `close()` |
+
+- `BackgroundPolicy { Continue, Throttle, Pause }` is per scope, set at `register_scope`. Both
+  non-`Continue` values are cancelled at `Suspended` because a frozen process honors neither; the
+  difference between them is the service's own reaction at `Hidden` (its checkpoint callback).
+- Cancel is the scope's cooperative flip (section 2): the coordinator never runs, joins or waits for
+  a child, so the platform grace period is the host's `close(deadline)` on the same scope.
+- `TimerQueue::set_paused` is the layer-0 seam. Paused, `fire_due` fires nothing and
+  `next_deadline_seconds()` is `kNoDeadline`, so a parked loop does not wake for a timer it may not
+  run. Deadlines are kept; after resume overdue timers fire on the next tick and a periodic timer
+  coalesces to one fire (section 3.2).
+- Registration storage is one allocation at construction; a full coordinator or a null scope is
+  refused and counted. Ids are never reused. The scope must outlive its registration.
+- Evidence is counters (`checkpoints_run`, `scopes_cancelled`, `refused`) under `ManualClock`, a
+  hand-drained `CompletionQueue` and explicit timer instants: `tests/unit/appfw_background_tests.cpp`.
+
+Composition with `Application` (AF3): `dispatch` derives the state and notifies observers; a host
+(or a service implementing `AppLifecycleObserver`) forwards `on_app_state` to the coordinator.
+Wiring it into `Application` as an owned member waits for the app root scope (section 4), for the
+same no-dead-wiring reason.
+
+## 6. OS-scheduled jobs: decision
+
+**V1 background work is the in-process `TaskScope` while the process is alive. OS-scheduled jobs
+(Android WorkManager, iOS `BGTaskScheduler`, Windows background tasks) are not V1.**
+
+Why: no mobile back end exists to run one (iOS and Android are not shipping targets yet), a headless
+start needs startup phases that stop at P3 with no window, and updates, sync and notification
+handling can all be served in V1 by running while the app is open or by the OS delivering a
+notification that opens the app. Nothing in V1 depends on work that outlives the visible app.
+
+Owner-gated, so this note records the intended shape without committing it:
+
+| Question | Intended answer when it is taken up |
+|---|---|
+| Abstraction | one `BackgroundJob { id, constraints{network, charging, deadline}, run(JobContext) }`; `JobContext` has a `TaskScope`, a hard time budget and a checkpoint callback |
+| Entry | the same `Application` started headless: no window, a declared subset of services, startup stops after the service phase |
+| Budget | the OS budget minus a margin; at budget the scope is closed with the section 2 deadline rules and the checkpoint callback runs first |
+| Platform map | Android: WorkManager (constraints map 1:1; foreground service only for user-visible work). iOS: `BGAppRefreshTask` / `BGProcessingTask` with the expiration handler as the checkpoint. Windows: none in V1 (a packaged app would use background tasks; unpackaged has no equivalent) |
+| Out of scope | audio, location and download continuation are separate platform modes and stay out unless the media spec asks |
+
+No ADR: the V1 decision is the status quo of ADR-050 section 5, and the deferral changes no accepted
+interface. The follow-up issue tracks the OS-job design for when a mobile back end is scheduled.

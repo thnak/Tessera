@@ -66,6 +66,8 @@ cannot silently drop a method.
 
 ## 3. What the compiler does with it
 
+0. **Built-in interfaces.** `RouterService` ([`router-shim-v1.md`](router-shim-v1.md)) resolves without a manifest
+   entry (`builtin_services.hpp`); a manifest entry of the same name wins.
 1. **`useService<Name>()`** (rules of hooks, top level of the component body) resolves `Name` against
    `services[].name`. A name not in the manifest, a concrete class, a string or a variable is
    `TESSERA_REACT_SERVICE_UNKNOWN` with the TSX location (ADR-050 section 3.1 item 2).

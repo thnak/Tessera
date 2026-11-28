@@ -20,6 +20,36 @@ void fill_pointer(Event& event, const InputEvent& input) {
     event.modifiers = input.modifiers;
 }
 
+std::string_view aria_value(const Node& node, std::string_view name) {
+    for (const AriaAttribute& pair : node.aria_attributes()) {
+        if (pair.name == name) {
+            return pair.value;
+        }
+    }
+    return {};
+}
+
+// First node under `node`, in tree order, whose `id` is `id`.
+Node* find_by_element_id(Node& node, std::string_view id) {
+    if (node.element_id() == id) {
+        return &node;
+    }
+    for (const auto& child : node.children()) {
+        if (Node* found = find_by_element_id(*child, id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+// What a label's click activates once the control has focus: the controls whose own click is their
+// meaning. A text field just takes focus, as in a browser.
+bool activates_on_click(const Node& control) {
+    const std::string_view role = control.role();
+    return control.element_kind() == "Button" || role == "button" || role == "checkbox" ||
+           role == "radio" || role == "switch" || role == "link";
+}
+
 } // namespace
 
 bool InputRouter::dispatch_click(Node& target, ClickSource source, const InputEvent* input) {
@@ -41,7 +71,44 @@ bool InputRouter::dispatch_click(Node& target, ClickSource source, const InputEv
             event.modifiers = Modifier::None;
         }
     }
-    return dispatch_event_to(target, event);
+    const bool dispatched = dispatch_event_to(target, event);
+    if (dispatched && !event.stopped && !in_default_action_) {
+        run_click_default_action(target);
+    }
+    return dispatched;
+}
+
+void InputRouter::run_click_default_action(Node& target) {
+    // The nearest link or label around the click: a click on a span's parent, or on an icon inside
+    // the link, still follows it.
+    for (Node* node = &target; node != nullptr; node = node->parent()) {
+        if (node->role() == "link") {
+            const std::string_view href = aria_value(*node, "aria-href");
+            if (!href.empty()) {
+                if (link_handler_) {
+                    in_default_action_ = true;
+                    link_handler_(*node, href);
+                    in_default_action_ = false;
+                }
+                return;
+            }
+        }
+        const std::string_view control_id = aria_value(*node, "aria-for");
+        if (control_id.empty() || root_ == nullptr) {
+            continue;
+        }
+        Node* const control = find_by_element_id(*root_, control_id);
+        if (control == nullptr || control == node) {
+            return;
+        }
+        in_default_action_ = true;
+        (void)focus_manager_.request_focus(control);
+        if (activates_on_click(*control)) {
+            (void)dispatch_click(*control, ClickSource::Accessibility, nullptr);
+        }
+        in_default_action_ = false;
+        return;
+    }
 }
 
 void InputRouter::synthesize_pointer_click(Node& root, const InputEvent& input) {

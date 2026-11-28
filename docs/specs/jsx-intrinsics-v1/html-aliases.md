@@ -44,12 +44,13 @@ against it.
 | `ul`, `ol` | `View` | `role="list"` | mapped | The user-agent sheet gives the list its marker type (`disc`, `circle`, `square` by depth; `decimal` for `ol`); the items draw it ([`list-style.md`](../../design/list-style.md)). `ol start` and `reversed` become `aria-start` and `aria-reversed` (section 3.7) |
 | `p` | `Text` | `role="paragraph"` | mapped | the role lets the user-agent sheet give it a margin ([`ua-audit.md`](../../reference/ua-audit.md)) |
 | `li` | `View` | `role="listitem"` | mapped | Draws the inherited `list-style-type` marker outside its box, or inside the first line of its first `Text` for `list-style-position: inside` ([`list-style-inside.md`](../../design/list-style-inside.md)); numbered by position among the list's items, moved by `ol start`/`reversed` and reset by `value` (section 3.7) |
-| `span`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
+| `span`, `figcaption` | `Text` | - | mapped | As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
+| `label` | `Text` | - | mapped | `htmlFor` (a string or an expression) becomes `aria-for`: a click focuses the control with that `id` and activates it (section 3.5). As an inline span `htmlFor` is `TESSERA_JSX_SPAN_ATTRIBUTE` until spans have an activation target |
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |
 | `code` | `Text` | `style.font-family: monospace` | mapped | Inline span inside `Text`; the V1 text stack paints one app face, so the family is recorded but changes no metrics (no font selection yet) |
 | `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"`, `aria-level="1"`-`"6"` | mapped | The level is `aria-level`; the user-agent sheet sizes it ([ua-audit.md](../../reference/ua-audit.md)); not an inline span |
-| `a` | `Text` | `role="link"` | partial | `href`, `target`, `rel` are rejected; use `onClick`. See [Q11]. As a child of `Text` it is an inline clickable span |
+| `a` | `Text` | `role="link"` | mapped | `href` is an absolute route path or a URL (section 3.5). As a child of `Text` it is an inline span: `onClick` works, `href` is not supported there yet |
 | `button` | `Button` | - | mapped | `type` rule in section 3.1 |
 | `input` | `TextInput` | by `type` | mapped | Section 3.2 |
 | `textarea` | `TextArea` | - | mapped | Section 3.3 |
@@ -136,11 +137,39 @@ to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 | `width`, `height` | becomes `style.width` / `style.height`: a number or numeric string is dp, a string with a unit keeps it. Together with the same key in `style` it is `TESSERA_JSX_PROP_CONFLICT` |
 | `srcSet`, `sizes`, `loading`, `decoding`, `crossOrigin`, `onLoad`, `onError` | `HTML_ATTR` |
 
-### 3.5 `a`
+### 3.5 `a` and `label`
 
-`onClick` and the common attributes only. `href`, `target`, `rel`, `download` are `HTML_ATTR` with the
-suggestion `onClick` [Q11]. As a child of `Text`, `a` is an inline span: the injected `role="link"`
-plus `onClick` make the run a clickable, accessible link.
+`a` takes `onClick`, the common attributes and:
+
+| Attribute | Result |
+|---|---|
+| `href` | a non-empty string literal of at most 128 bytes (a longer one would be truncated by the aria pair, so it is `TESSERA_IR_UNSUPPORTED`), renamed `aria-href`. The node is also a Tab stop (`tabIndex={0}`) unless the author wrote one. Enter or a click follows it; Space does not |
+| `target` | `"_self"` and `"_blank"` are accepted and dropped (an external URL always opens through the shell service); any other value is `HTML_ATTR` |
+| `rel` | `noopener`, `noreferrer`, `noopener noreferrer`, `nofollow`, `external` are accepted and dropped; any other value is `HTML_ATTR` |
+| `download` | `HTML_ATTR` |
+
+What a followed link does is `appfw::LinkRouter` ([`link_router.hpp`](../../../include/tessera/appfw/link_router.hpp)),
+installed as `InputRouter::set_link_handler`:
+
+- A value that starts with `/` is an internal path: `NavController::push`. The route table validates it, an
+  unresolvable path is `LinkOutcome::UnresolvedPath` and leaves the stack alone, and back restores the
+  previous entry.
+- A value with a scheme on the policy's allow list (`https`, `http`, `mailto`, `tel` by default) goes to
+  `ShellService::submit_open_url` (`ShellCapability::OpenUrl`). Any other scheme (`javascript:`,
+  `file:`, `data:`) is `LinkOutcome::SchemeNotOpened` and never reaches the shell.
+- Empty, protocol-relative (`//host`), relative and over-long values are `Malformed`; a missing service or
+  capability is `ServiceUnavailable`. Every outcome has a counter ([`LinkDiagnostics`]) and a detail that
+  never repeats the URL.
+
+`label htmlFor="id"` takes a non-empty string literal or an expression (`htmlFor={id}`, `useId()`), renamed `aria-for`. A click on the label (or on
+anything inside it) focuses the first node whose `id` is that string and, when the control's own click is its
+meaning (role `checkbox`, `radio`, `switch`, `button`, `link`, or a `Button`), activates it once with the
+accessibility click source; a text field only takes focus. A missing id or a label that names itself does
+nothing, and a forwarded click never forwards again.
+
+As a child of `Text`, `a` is an inline span: the injected `role="link"` plus `onClick` make the run a
+clickable, accessible link. `href` and `htmlFor` on a span are `TESSERA_JSX_SPAN_ATTRIBUTE`: a span is not a
+node, so it has no activation target (tracked in the follow-up issue linked from #542).
 
 ### 3.6 Inline spans (`span`, `b`, `strong`, `i`, `em`, `code`, `a`, `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr`, `cite`, `q`, `br` inside `Text`)
 

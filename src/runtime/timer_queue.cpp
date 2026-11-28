@@ -104,7 +104,7 @@ std::size_t TimerQueue::clear() {
 }
 
 std::size_t TimerQueue::fire_due(double now_seconds) {
-    if (!std::isfinite(now_seconds) || firing_) {
+    if (!std::isfinite(now_seconds) || firing_ || paused_) {
         // A non-finite instant would fire nothing sensible; a nested call would let a callback
         // fire the timer that is currently running. Both are no-ops, and neither throws here:
         // this runs on the frame path.
@@ -140,6 +140,9 @@ std::size_t TimerQueue::fire_due(double now_seconds) {
 
 double TimerQueue::next_deadline_seconds() const noexcept {
     double earliest = kNoDeadline;
+    if (paused_) {
+        return earliest;
+    }
     for (std::size_t index = 0; index < capacity_; ++index) {
         const Slot& slot = slots_[index];
         if (slot.active && slot.deadline < earliest) {

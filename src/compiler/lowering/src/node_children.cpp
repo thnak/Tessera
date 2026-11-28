@@ -68,6 +68,17 @@ bool check_span_node(NodeState& state, const ir::Node& span, std::string_view ta
         fail_node(state, "TESSERA_JSX_SPAN_ATTRIBUTE", "a span has no `key`", source);
         return false;
     }
+    for (const char* reference : {"aria-href", "aria-for"}) {
+        if (span.props.find(reference) != span.props.end()) {
+            fail_node(
+                state, "TESSERA_JSX_SPAN_ATTRIBUTE",
+                std::string(reference == std::string_view("aria-href") ? "`href`" : "`htmlFor`") +
+                    " is not supported on an inline span yet: a span is not a node, so it "
+                    "has no activation target",
+                source, "write the `<a>` or `<label>` as a node of its own, outside the `Text`");
+            return false;
+        }
+    }
     for (const auto& [name, value] : span.props) {
         (void)value;
         if (!is_span_prop(name)) {

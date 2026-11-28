@@ -8,6 +8,7 @@
 add_library(tessera_appfw_core STATIC
     application.cpp
     application_lifecycle_sink.cpp
+    background.cpp
     lifecycle_script.cpp
     saved_state.cpp
     service_bridge.cpp
@@ -42,7 +43,9 @@ target_link_libraries(tessera_appfw_core
 add_library(tessera_appfw_storage STATIC
     storage.cpp
     storage_atomic.cpp
+    storage_cache.cpp
     storage_envelope.cpp
+    storage_migration.cpp
     storage_settings.cpp
     # The in-tree `hal::FileSystem` double (issue #454). It lives in the module for the same reason
     # `net_fake.cpp` lives in `tessera_appfw_net`: it fakes the module's *seam*, so an app's own test
@@ -114,6 +117,7 @@ add_library(tessera_appfw_navigation STATIC
     navigation_restore_encode.cpp
     navigation_restore_store.cpp
     navigation_route.cpp
+    navigation_router_service.cpp
     navigation_stack.cpp)
 
 target_include_directories(tessera_appfw_navigation PUBLIC
@@ -232,6 +236,19 @@ target_compile_features(tessera_appfw_shell PUBLIC cxx_std_23)
 
 target_link_libraries(tessera_appfw_shell
     PUBLIC tessera_appfw_core tessera_runtime)
+
+# `LinkRouter` (issue #542, ADR-059 group B): what an `a href` does. It joins two optional modules,
+# so it is its own target and an app that links neither navigation nor the shell links none of it.
+add_library(tessera_appfw_link STATIC
+    link_router.cpp)
+
+target_include_directories(tessera_appfw_link PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_link PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_link
+    PUBLIC tessera_appfw_navigation tessera_appfw_shell)
 
 # The Win32 back end (issue #450, section 1's Windows column). It is its own target so the platform
 # libraries are linked only where they exist, and so a Linux or Wasm build never sees a `windows.h`.
@@ -401,7 +418,9 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_atomic_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_cancel_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_corruption_tests.cpp
-        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_executor_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_executor_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_migration_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_cache_tests.cpp)
     target_include_directories(appfw_storage_tests PRIVATE
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_storage_tests PRIVATE tessera_appfw_storage tessera_runtime)
@@ -420,6 +439,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_task_scope_tests PRIVATE tessera_appfw_core)
     add_test(NAME appfw_task_scope COMMAND appfw_task_scope_tests)
+    # Issue #453: the in-process background policy (checkpoint, timer pause, scope cancel).
+    add_executable(appfw_background_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_background_tests.cpp)
+    target_include_directories(appfw_background_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_background_tests PRIVATE tessera_appfw_core)
+    add_test(NAME appfw_background COMMAND appfw_background_tests)
 
     # AF8 (issue #195, docs/specs/i18n-v1.md): locale negotiation, the compiled message catalog, the
     # locale service's change signal, and the locale-change dirty classification. The relayout
@@ -454,6 +480,17 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(appfw_navigation_tests PRIVATE
         tessera_appfw_navigation tessera_scene tessera_runtime)
     add_test(NAME appfw_navigation COMMAND appfw_navigation_tests)
+
+    # The router shim's service (docs/specs/router-shim-v1.md, issue #549): `navigate` over the real
+    # controller, so route match, params, back and a deep link are asserted through the service the
+    # TSX shim lowers to.
+    add_executable(appfw_router_service_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_router_service_tests.cpp)
+    target_include_directories(appfw_router_service_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_router_service_tests PRIVATE
+        tessera_appfw_navigation tessera_scene tessera_runtime)
+    add_test(NAME appfw_router_service COMMAND appfw_router_service_tests)
 
     # Networking (issue #197, docs/specs/networking-v1.md): the contract suite of section 5, one TU
     # per acceptance group so a failure names the group. Deterministic end to end - `ManualClock` for
@@ -537,6 +574,16 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_shell_tests PRIVATE tessera_appfw_shell tessera_runtime)
     add_test(NAME appfw_shell COMMAND appfw_shell_tests)
+
+    # `LinkRouter` (issue #542): internal href through NavController, external URL through the fake
+    # shell, scheme policy. Deterministic like both suites it borrows fixtures from.
+    add_executable(appfw_link_router_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_link_router_tests.cpp)
+    target_include_directories(appfw_link_router_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_link_router_tests PRIVATE
+        tessera_appfw_link tessera_scene tessera_runtime)
+    add_test(NAME appfw_link_router COMMAND appfw_link_router_tests)
 
     # The permissions contract suite (issue #451, docs/specs/permissions-v1.md). Deterministic end to
     # end - `ManualClock` for every instant, `FakePermissionBackend` for the platform, a hand-drained

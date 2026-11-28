@@ -102,6 +102,9 @@ inline constexpr std::string_view kDiagnosticCodes[] = {
     "TESSERA_REACT_SETTER_IN_RENDER",
     "TESSERA_REACT_UNKNOWN_HOOK",
     "TESSERA_REACT_UNSUPPORTED_API",
+    "TESSERA_SHIM_FORM",
+    "TESSERA_SHIM_PENDING",
+    "TESSERA_SHIM_UNSUPPORTED",
 };
 
 // The same list as a span, for iteration and for tooling that consumes the registry.

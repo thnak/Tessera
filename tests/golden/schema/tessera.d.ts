@@ -156,6 +156,8 @@ export interface CommonProps {
   'aria-value'?: string;
   'aria-colspan'?: string;
   'aria-rowspan'?: string;
+  'aria-href'?: string;
+  'aria-for'?: string;
   'aria-hidden'?: boolean;
   'aria-disabled'?: boolean;
   'aria-selected'?: boolean;
@@ -437,6 +439,7 @@ export interface pProps extends TextProps {
 }
 
 export interface labelProps extends TextProps {
+  htmlFor?: string;
 }
 
 export interface figcaptionProps extends TextProps {
@@ -461,6 +464,9 @@ export interface h6Props extends TextProps {
 }
 
 export interface aProps extends TextProps {
+  href?: string;
+  target?: "_self" | "_blank";
+  rel?: "noopener" | "noreferrer" | "noopener noreferrer" | "nofollow" | "external";
 }
 
 export interface buttonProps extends ButtonProps {

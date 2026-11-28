@@ -144,6 +144,88 @@ void test_toggle() {
     generates(toggle, "Toggle");
 }
 
+void test_checkbox() {
+    Primitive checkbox = load("Checkbox");
+    if (checkbox.component == nullptr) {
+        return;
+    }
+    const ir::Node& root = checkbox.component->root;
+    check_eq(prop_text(root, "role"), "checkbox", "Checkbox is a checkbox");
+    check(root.props.count("aria-checked") == 1 && root.props.count("tabIndex") == 1,
+          "the state is exposed and the box is focusable");
+    check(checkbox.component->handlers.size() == 1, "one click handler");
+    if (checkbox.component->handlers.size() == 1) {
+        const auto& actions = checkbox.component->handlers[0].actions;
+        check(actions.size() == 2 && actions[1].kind == ir::ActionKind::CallProp &&
+                  actions[1].target == "prop::onToggle",
+              "a click flips the state, then tells the caller");
+        eval::Scope scope;
+        scope["state::checked"] = eval::Value::of_bool(false);
+        eval::Evaluator evaluator;
+        check(evaluator.run(actions, scope).has_value(), "the first click runs");
+        check(*scope["state::checked"].as_bool(), "the first click checks it");
+        check(evaluator.run(actions, scope).has_value(), "the second click runs");
+        check(!*scope["state::checked"].as_bool(), "the second click unchecks it");
+    }
+    generates(checkbox, "Checkbox");
+}
+
+void test_radio() {
+    Primitive radio = load("Radio");
+    if (radio.component == nullptr) {
+        return;
+    }
+    const ir::Node& root = radio.component->root;
+    check_eq(prop_text(root, "role"), "radio", "Radio is a radio");
+    check(root.props.count("aria-checked") == 1 && root.props.count("tabIndex") == 1,
+          "the group's state is exposed and the radio is focusable");
+    check(radio.component->state.empty(), "the checked state belongs to the group, not the radio");
+    check(radio.component->handlers.size() == 1, "one click handler");
+    generates(radio, "Radio");
+}
+
+void test_progress() {
+    Primitive progress = load("Progress");
+    if (progress.component == nullptr) {
+        return;
+    }
+    const ir::Node& root = progress.component->root;
+    check_eq(prop_text(root, "role"), "progressbar", "Progress is a progressbar");
+    check(root.props.count("aria-valuenow") == 1 && root.props.count("aria-valuemin") == 1 &&
+              root.props.count("aria-valuemax") == 1,
+          "value and bounds are exposed");
+    check(root.props.count("tabIndex") == 0, "progress is not focusable");
+    check(progress.component->handlers.empty(), "progress has no handlers");
+    generates(progress, "Progress");
+}
+
+void test_disclosure() {
+    Primitive disclosure = load("Disclosure");
+    if (disclosure.component == nullptr) {
+        return;
+    }
+    const ir::Node& root = disclosure.component->root;
+    check(root.children.size() == 2, "a summary and a content View");
+    if (root.children.size() == 2) {
+        const ir::Node& summary = root.children[0];
+        check_eq(prop_text(summary, "role"), "button", "the summary is a button");
+        check(summary.props.count("aria-expanded") == 1, "the open state is exposed");
+        check(root.children[1].style.count("display") == 1, "closing hides the content");
+    }
+    check(disclosure.component->handlers.size() == 1, "one click handler");
+    if (disclosure.component->handlers.size() == 1) {
+        const auto& actions = disclosure.component->handlers[0].actions;
+        eval::Scope scope;
+        scope["state::open"] = eval::Value::of_bool(false);
+        eval::Evaluator evaluator;
+        check(evaluator.run(actions, scope).has_value(), "the first click runs");
+        check(*scope["state::open"].as_bool(), "the first click opens it");
+        check(evaluator.run(actions, scope).has_value(), "the second click runs");
+        check(!*scope["state::open"].as_bool(), "the second click closes it");
+    }
+    generates(disclosure, "Disclosure");
+}
+
 void test_dismissable_layer() {
     Primitive layer = load("DismissableLayer");
     if (layer.component == nullptr) {
@@ -356,6 +438,10 @@ int main() {
     test_press();
     test_toggle();
     test_dismissable_layer();
+    test_checkbox();
+    test_radio();
+    test_progress();
+    test_disclosure();
     if (jsx_test::failures != 0) {
         std::cerr << jsx_test::failures << " check(s) failed\n";
         return 1;

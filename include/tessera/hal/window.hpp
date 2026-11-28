@@ -257,6 +257,14 @@ struct AccessibilityRoot {
 
 // Platform window seam. Implementations live under src/platform/<os>/ and own every OS handle;
 // this header stays OS-free so UI and rendering code can depend on it.
+// Caret rectangle of the focused text input, in logical window pixels (top-left origin).
+struct TextInputRect {
+    float x = 0.0F;
+    float y = 0.0F;
+    float width = 0.0F;
+    float height = 0.0F;
+};
+
 class Window {
 public:
     virtual ~Window() = default;
@@ -440,6 +448,13 @@ public:
     // because the OS re-asserts the class cursor on every non-client transition.
     virtual void set_cursor(CursorShape shape) {
         (void)shape;
+    }
+
+    // Caret rect of the focused text input (logical pixels) so the platform can anchor the IME
+    // candidate window (issue #55). Call when it changes; never blocks. X11 maps the rect's
+    // bottom-left to XNSpotLocation; the default ignores it.
+    virtual void set_text_input_rect(const TextInputRect& rect) {
+        (void)rect;
     }
 
     // False when the pointer shape cannot be requested at all on this platform, so a caller can

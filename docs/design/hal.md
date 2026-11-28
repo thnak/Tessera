@@ -525,12 +525,14 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   types nothing. Every event goes through `XFilterEvent` first; with no input-method server the
   built-in `@im=none` method still composes. A window left at the `C` locale gets `C.UTF-8` for
   `LC_CTYPE` only. `MappingNotify` refreshes Xlib's keymap, so a layout switch applies to a
-  running app. Pre-edit text is not drawn and the candidate window is not positioned
-  (`XNSpotLocation`), and only the built-in method is tested, not a real ibus or fcitx server. Tests: `window_x11_input` sends
+  running app. XInput2 (smooth scroll, touch, pen) and client-side pre-edit
+  (`XIMPreeditCallbacks`) are translated in `x11_xi2*.cpp`; `Window::set_text_input_rect` anchors the
+  candidate window via `XNSpotLocation` (`x11_ime_spot.*`, the app does not call it yet). Only the built-in
+  method is tested, not a real ibus or fcitx server. Tests: `window_x11_input` sends
   synthetic events with `XSendEvent`; `window_x11_real_input` drives the window through the XTEST
   extension (what `xdotool` uses) so the X server itself generates the pointer, wheel, key and
-  focus events (verified under Xvfb on Linux; it skips without `DISPLAY` or libXtst). There is no
-  XInput2 (smooth scroll, touch, pen), no pre-edit display, no occlusion/minimize signal, no RandR
+  focus events (verified under Xvfb on Linux; it skips without `DISPLAY` or libXtst). There is
+  no occlusion/minimize signal, no RandR
   or display-hotplug handling, and DPI is a global `Xft.dpi` heuristic (96 fallback). Wayland is a
   separate backend (issue #155). See [`window-resize.md`](window-resize.md) §0.
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).

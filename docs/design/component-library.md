@@ -47,6 +47,10 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `RovingFocus`, `RovingFocusVertical`, `ListNavigation` | now `useListFocus` (#643; wrappers deleted): one Tab stop, arrows wrap, Home/End, `typeahead`; grid navigation is not done | done |
 | `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag maps node-local `e.x` over the width from `onSizeChange` to a step-snapped, clamped value ([common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532, #982) | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
+| `Checkbox` | `checkbox`, focusable, `aria-checked` flips on activation, payload-free `onToggle` tells the caller (#544) | done |
+| `Radio` | `radio`, focusable, `aria-checked` is the group's `checked` prop, `onSelect` fires only when unchecked; the group owns the value and a `focusGroup` parent owns the arrows (#544) | done |
+| `Progress` | `progressbar` with the caller's `aria-valuenow/min/max` (value clamped), not focusable; the children slot draws the fill; serves `progress` and `meter` (#544) | done |
+| `Disclosure` | `details`/`summary`: a focusable `button` summary with `aria-expanded`, content `display: none` while closed (#544) | done |
 
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
 (variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
@@ -91,7 +95,7 @@ pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel`
 - AnimatePresence and SharedElement are specified in [`element-transitions-v1`](../specs/element-transitions-v1.md).
 - ViewTransition, SharedElement and Navigator transitions wrap
   [`view-transitions-v1`](../specs/view-transitions-v1.md) ([ADR-035](../../decisions/ADR-035-view-transitions.md)).
-- Charts are drawn with vector paths ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)); 3D and map components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
+- Charts are drawn with vector paths: polylines and arcs are `PathShape`s through the path seam ([ADR-057](../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md), [`chart-node-v1`](../specs/chart-node-v1.md) section 11), built in the order Sparkline, Line, Area, Bar, Pie/Donut with shared axis/legend/crosshair parts and #184 as the parity page; `filter` and `clip-path` are `Later`, so no glow, line shadow or clipped plot area; 3D and map components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
 - Image decodes at display size times device pixel ratio (issue [#14](https://github.com/thnak/Tessera/issues/14)); Video and AudioPlayer use the platform media services of [`media-and-export.md`](media-and-export.md) and are specified in [`media-components-v1`](../specs/media-components-v1.md); Map is specified in [`map-view-v1`](../specs/map-view-v1.md) and PDFViewer in [`pdf-viewer-v1`](../specs/pdf-viewer-v1.md).
 - `AppBar` and `WindowChrome` are framework shell components, not library components: they ship in
   the runtime, are imported from `"tessera"`, and are specified in

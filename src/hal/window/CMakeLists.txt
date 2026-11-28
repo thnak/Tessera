@@ -172,7 +172,8 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_composition.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_events.cpp
-            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_ime.cpp)
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_ime.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_spot.cpp)
         target_link_libraries(tessera_hal_window PUBLIC X11::X11 PRIVATE tessera_input)
         # XInput2 (XI 2.1 smooth-scroll valuators, XI 2.2 touch, tablet pressure) needs the XInput2
         # headers and libXi. Without them the browser-independent pure rules still compile and the

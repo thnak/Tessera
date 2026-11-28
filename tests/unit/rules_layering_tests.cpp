@@ -58,6 +58,8 @@ int main() {
                     include.rfind("tessera/compiler/rules/", 0) == 0 ||
                     // The manifest types are header-only and dependency-free (ADR-050 3.1).
                     include == "tessera/compiler/services/manifest_types.hpp" ||
+                    // The shims' built-in interfaces, same rule (ADR-058 class B).
+                    include == "tessera/compiler/services/builtin_services.hpp" ||
                     include.find('/') == std::string::npos;
                 check(allowed,
                       entry.path().filename().string() +

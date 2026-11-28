@@ -69,7 +69,8 @@ struct FakeShellCall {
         ClipboardRead,
         ClipboardWrite,
         Dialog,
-        Drop
+        Drop,
+        OpenUrl
     } kind = Kind::ClipboardRead;
     // The dialog kind, meaningful for `Dialog` only.
     DialogKind dialog_kind = DialogKind::Open;
@@ -119,6 +120,10 @@ public:
 
     // "The back end cannot serve this request": every `start_*` returns false and never completes.
     void set_available(bool available) noexcept;
+    // What the next `start_open_url` completions report; true by default.
+    void set_open_url_ok(bool ok) noexcept {
+        open_url_ok_ = ok;
+    }
     [[nodiscard]] bool available() const noexcept {
         return available_;
     }
@@ -161,6 +166,8 @@ public:
                               ClipboardReadCompletion on_done) override;
     bool start_clipboard_write(ClipboardContent content, runtime::CancellationToken token,
                                ClipboardWriteCompletion on_done) override;
+    bool start_open_url(std::string url, runtime::CancellationToken token,
+                        OpenUrlCompletion on_done) override;
     bool start_dialog(DialogRequest request, runtime::CancellationToken token,
                       DialogCompletion on_done) override;
     bool start_drop(DropRequest request, runtime::CancellationToken token,
@@ -203,6 +210,7 @@ private:
     std::vector<FakeShellCall> received_;
     std::size_t cancelled_operations_ = 0;
     bool available_ = true;
+    bool open_url_ok_ = true;
 };
 
 } // namespace tessera::appfw

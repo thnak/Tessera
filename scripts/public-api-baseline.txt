@@ -86,6 +86,12 @@ struct include/tessera/appfw/application.hpp tessera::appfw::LifecycleDispatchRe
 enum include/tessera/appfw/application.hpp tessera::appfw::TerminationOutcome
 function include/tessera/appfw/application.hpp tessera::appfw::termination_outcome_name
 
+header include/tessera/appfw/background.hpp
+class include/tessera/appfw/background.hpp tessera::appfw::BackgroundCoordinator
+struct include/tessera/appfw/background.hpp tessera::appfw::BackgroundRegistration
+enum include/tessera/appfw/background.hpp tessera::appfw::BackgroundPolicy
+function include/tessera/appfw/background.hpp tessera::appfw::to_string
+
 header include/tessera/appfw/filesystem_fake.hpp
 class include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileSystem
 struct include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileCall
@@ -159,6 +165,14 @@ function include/tessera/appfw/lifecycle_script.hpp tessera::appfw::parse_lifecy
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycleScriptBytes
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycleScriptSteps
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kNoLifecycleStep
+
+header include/tessera/appfw/link_router.hpp
+class include/tessera/appfw/link_router.hpp tessera::appfw::LinkRouter
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkDiagnostics
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkPolicy
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkResult
+enum include/tessera/appfw/link_router.hpp tessera::appfw::LinkOutcome
+function include/tessera/appfw/link_router.hpp tessera::appfw::link_outcome_name
 
 header include/tessera/appfw/navigation_deep_link.hpp
 struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLink
@@ -378,6 +392,10 @@ struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionCo
 struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionTicket
 constant include/tessera/appfw/permission_service.hpp tessera::appfw::kMaxPendingPermissionRequests
 
+header include/tessera/appfw/router_service.hpp
+class include/tessera/appfw/router_service.hpp tessera::appfw::NavRouterService
+class include/tessera/appfw/router_service.hpp tessera::appfw::RouterService
+
 header include/tessera/appfw/saved_state.hpp
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecord
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder
@@ -510,6 +528,7 @@ constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellClipboar
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDragTextBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropFiles
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellUrlBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kShellCapabilityCount
 
 header include/tessera/appfw/sql.hpp
@@ -541,6 +560,17 @@ function include/tessera/appfw/storage.hpp tessera::appfw::atomic_replace
 function include/tessera/appfw/storage.hpp tessera::appfw::is_valid_entry_name
 function include/tessera/appfw/storage.hpp tessera::appfw::storage_error_code_name
 function include/tessera/appfw/storage.hpp tessera::appfw::temp_path_for
+
+header include/tessera/appfw/storage_cache.hpp
+class include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheStore
+struct include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheConfig
+struct include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheStats
+
+header include/tessera/appfw/storage_migration.hpp
+class include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationChain
+struct include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationResult
+enum include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationOutcome
+function include/tessera/appfw/storage_migration.hpp tessera::appfw::migration_outcome_name
 
 header include/tessera/appfw/task_scope.hpp
 class include/tessera/appfw/task_scope.hpp tessera::appfw::TaskScope
@@ -1016,6 +1046,7 @@ header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue
 struct include/tessera/hal/window.hpp tessera::hal::AccessibilityRoot
+struct include/tessera/hal/window.hpp tessera::hal::TextInputRect
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
 struct include/tessera/hal/window.hpp tessera::ui::InputEvent
@@ -4033,6 +4064,17 @@ prop packages/tessera-ui/Switch.tsx Switch.onToggle
 component packages/tessera-ui/icons/IconGlyph.tsx IconGlyph
 prop packages/tessera-ui/icons/IconGlyph.tsx IconGlyph.name
 
+component packages/tessera-ui/primitives/Checkbox.tsx Checkbox
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.children
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.defaultChecked
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.label
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.onToggle
+
+component packages/tessera-ui/primitives/Disclosure.tsx Disclosure
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.children
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.defaultOpen
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.summary
+
 component packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.children
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.defaultOpen
@@ -4042,6 +4084,19 @@ component packages/tessera-ui/primitives/Press.tsx Press
 prop packages/tessera-ui/primitives/Press.tsx Press.children
 prop packages/tessera-ui/primitives/Press.tsx Press.label
 prop packages/tessera-ui/primitives/Press.tsx Press.onPress
+
+component packages/tessera-ui/primitives/Progress.tsx Progress
+prop packages/tessera-ui/primitives/Progress.tsx Progress.children
+prop packages/tessera-ui/primitives/Progress.tsx Progress.label
+prop packages/tessera-ui/primitives/Progress.tsx Progress.max
+prop packages/tessera-ui/primitives/Progress.tsx Progress.min
+prop packages/tessera-ui/primitives/Progress.tsx Progress.value
+
+component packages/tessera-ui/primitives/Radio.tsx Radio
+prop packages/tessera-ui/primitives/Radio.tsx Radio.checked
+prop packages/tessera-ui/primitives/Radio.tsx Radio.children
+prop packages/tessera-ui/primitives/Radio.tsx Radio.label
+prop packages/tessera-ui/primitives/Radio.tsx Radio.onSelect
 
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children
