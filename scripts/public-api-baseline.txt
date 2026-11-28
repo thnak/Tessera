@@ -392,6 +392,10 @@ struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionCo
 struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionTicket
 constant include/tessera/appfw/permission_service.hpp tessera::appfw::kMaxPendingPermissionRequests
 
+header include/tessera/appfw/router_service.hpp
+class include/tessera/appfw/router_service.hpp tessera::appfw::NavRouterService
+class include/tessera/appfw/router_service.hpp tessera::appfw::RouterService
+
 header include/tessera/appfw/saved_state.hpp
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecord
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder

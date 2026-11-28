@@ -403,6 +403,27 @@ inline const std::vector<Case> kCases = {
             "  return <View/>;\n"
             "}\n",
             27, 7, 2),
+    // Shim packages (ADR-058 class B, issues #549 and #550): the coverage tables of
+    // docs/specs/router-shim-v1.md and store-i18n-shims-v1.md. The pass runs with the expansion.
+    fixture("TESSERA_SHIM_FORM", "shim-form", Entry::kExpansion,
+            "import { useNavigate } from \"react-router-dom\";\n"
+            "function A() {\n"
+            "  const navigate = useNavigate(\"x\");\n"
+            "  return <View/>;\n"
+            "}\n",
+            65, 34, 3),
+    fixture("TESSERA_SHIM_PENDING", "shim-pending", Entry::kExpansion,
+            "import { useParams } from \"react-router-dom\";\n"
+            "function A() {\n"
+            "  return <View/>;\n"
+            "}\n",
+            9, 9, 1),
+    fixture("TESSERA_SHIM_UNSUPPORTED", "shim-unsupported", Entry::kExpansion,
+            "import { BrowserRouter } from \"react-router-dom\";\n"
+            "function A() {\n"
+            "  return <View/>;\n"
+            "}\n",
+            9, 13, 1),
 };
 
 inline const std::vector<Skip> kSkips = {

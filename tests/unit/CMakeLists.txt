@@ -3715,6 +3715,15 @@ target_link_libraries(services_frontend_tests PRIVATE tessera_lowering tessera_i
 
 add_test(NAME services_frontend COMMAND services_frontend_tests)
 
+# Shim packages (ADR-058 class B; issues #549 and #550): the coverage-table diagnostics and the
+# `useNavigate` lowering to the built-in router service.
+add_executable(shim_router_tests
+    shim_router_tests.cpp)
+
+target_link_libraries(shim_router_tests PRIVATE tessera_lowering tessera_ir_eval)
+
+add_test(NAME shim_router COMMAND shim_router_tests)
+
 # Generic layer promotion policy and its paint-pass path (issue #967).
 add_executable(paint_layer_promotion_tests
     paint_layer_promotion_tests.cpp)
