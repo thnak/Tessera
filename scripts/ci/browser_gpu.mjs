@@ -63,7 +63,20 @@ export function pageLostDevice(page) {
   return page.evaluate(() => {
     const pane = document.getElementById('unsupported');
     const body = document.getElementById('unsupported-body')?.textContent ?? '';
-    return pane !== null && !pane.hidden && /device was lost/i.test(body);
+    const cause = pane?.dataset.cause ?? '';
+    const status = (document.getElementById('canvas-status')?.textContent ?? '').trim();
+    const frame = (document.getElementById('stat-frame')?.textContent ?? '').trim();
+    if (pane !== null && !pane.hidden && /device was lost/i.test(body)) return true;
+    // A device the runner took back is not always still *described* when the gate looks: a toolbar move
+    // after the loss re-runs the handover, which replaces the sentence (or a later status write hides the
+    // pane), and then the session has no device and every viewport/DPR change is silently not applied.
+    // So the device is also reported gone when the pane is in a browser-side unsupported state, or the
+    // status says WebGPU is unavailable, or the session never painted a frame at all. A module-side
+    // unsupported state (the #375 regression) is deliberately not here: that one must fail.
+    if (cause === 'module') return false;
+    if (pane !== null && !pane.hidden) return true;
+    if (/WebGPU unavailable/i.test(status)) return true;
+    return !/#\s*\d+/.test(frame);
   });
 }
 

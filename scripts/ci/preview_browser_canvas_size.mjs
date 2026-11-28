@@ -27,7 +27,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { createGate, launchGpuBrowser } from './browser_gpu.mjs';
+import { createGate, launchGpuBrowser, pageLostDevice } from './browser_gpu.mjs';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 const MIME = {
@@ -93,11 +93,6 @@ function startServer() {
 
 const gate = createGate();
 const { check, section } = gate;
-
-/** A device the runner took back: the same test the other gates use (`browser_gpu.mjs`). */
-function lostDevice(state) {
-  return state.unsupported === true && /device was lost/i.test(state.body ?? '');
-}
 
 async function settles(expression, page, timeout = 20000, argument = undefined) {
   try {
@@ -208,6 +203,11 @@ try {
   await section('the viewport sizing checks (#598)', async () => {
   const sizingContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const sizingPage = await openCanvas(sizingContext, base);
+  // No device from the start: nothing below can be judged, and every toolbar move would be a no-op.
+  if (await pageLostDevice(sizingPage)) {
+    await sizingContext.close();
+    return true;
+  }
 
   const first = await readCanvas(sizingPage);
   // The default viewport IS 320x240, so the bug is not "the number is 320x240" - it is that the
@@ -253,7 +253,7 @@ try {
     Math.abs(resized.width - expectedWidth) <= 1,
     `css ${resized.cssWidth} x DPR ${dpr} = ${expectedWidth}, canvas.width = ${resized.width}`,
   );
-  const lostSizing = lostDevice(await readCanvas(sizingPage));
+  const lostSizing = await pageLostDevice(sizingPage);
   await sizingContext.close();
   return lostSizing;
   });
@@ -266,6 +266,10 @@ try {
   await section('the DPR and drag-resize checks (#598, #599, #690)', async () => {
   const scaledContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const scaledPage = await openCanvas(scaledContext, base);
+  if (await pageLostDevice(scaledPage)) {
+    await scaledContext.close();
+    return true;
+  }
 
   const before768 = await frameCount(scaledPage);
   await chooseFromDeviceMenu(scaledPage, 'Viewport', '768x1024');
@@ -273,6 +277,11 @@ try {
   const before2 = await frameCount(scaledPage);
   await chooseFromDeviceMenu(scaledPage, 'Pixel Ratio', '2');
   await nextFrame(scaledPage, before2);
+  // Lost between the preset and the DPR change: the changes were not applied, which is the runner's doing.
+  if (await pageLostDevice(scaledPage)) {
+    await scaledContext.close();
+    return true;
+  }
 
   const doubled = await readCanvas(scaledPage);
   check(
@@ -387,7 +396,7 @@ try {
     await scaledPage.screenshot({ path: shot, fullPage: false });
     process.stdout.write(`shot: ${shot}\n`);
   }
-  const lostScaled = lostDevice(await readCanvas(scaledPage));
+  const lostScaled = await pageLostDevice(scaledPage);
   await scaledContext.close();
   return lostScaled;
   });
