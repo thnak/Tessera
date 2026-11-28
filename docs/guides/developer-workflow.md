@@ -139,6 +139,11 @@ to hide bugs. See [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
 ## 4. Regeneration
 
+Format the sources first: `tessera_fmt [--check] [paths]` (`tessera fmt` once ADR-077 lands) is the
+compiler-owned printer of [`source-format-v1.md`](../specs/source-format-v1.md). It rewrites `.tsx` in the
+single canonical style, refuses a file that does not parse or holds a comment it cannot place, and
+`--check` lists the files that would change (exit 1) for CI.
+
 The generator is the codegen CLI (Big Step C):
 
 ```bash
