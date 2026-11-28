@@ -79,6 +79,11 @@ void PropertyRegistry::register_extension_properties() {
     // inherited, like `box-shadow`; the initial `none` paints nothing. Registered here rather than
     // in the physical-longhand table because that table is at its source-size baseline.
     properties_["text-shadow"] = PropertyInfo{"none", false};
+    // `font-variant` expands to its five longhands (property_font_variant.cpp, issue #998).
+    shorthands_["font-variant"] =
+        ShorthandInfo{{"font-variant-ligatures", "font-variant-numeric", "font-variant-caps",
+                       "font-variant-east-asian", "font-variant-position"},
+                      ShorthandKind::Pair};
     shorthands_["text-decoration"] =
         ShorthandInfo{{"text-decoration-line", "text-decoration-style", "text-decoration-color",
                        "text-decoration-thickness"},

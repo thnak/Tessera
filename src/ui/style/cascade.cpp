@@ -10,6 +10,9 @@
 namespace tessera::ui::style {
 namespace {
 
+// The engine-provided direction signal (see compute_style); documented in stylesheet-v1.
+constexpr std::string_view kDirectionSign = "--tessera-dir-sign";
+
 int origin_rank(Origin origin, bool important) {
     if (important) {
         switch (origin) {
@@ -467,6 +470,22 @@ ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cas
 
     for (const CascadeDeclaration& declaration : cascade.winners()) {
         apply_keyword(style, declaration.property, declaration.value, parent);
+    }
+    // The engine's direction signal: `--tessera-dir-sign` is -1 where the computed `direction` is
+    // rtl and absent otherwise, so a stylesheet can mirror by `var(--tessera-dir-sign,1)` without a
+    // direction selector. It is a custom property, hence inherited, and recomputed per node so an
+    // ltr island inside an rtl root drops it again. Set only for rtl to cost ltr styles nothing.
+    {
+        const std::string* direction = style.find("direction");
+        const bool rtl = direction != nullptr && *direction == "rtl";
+        const std::string* sign = style.find(kDirectionSign);
+        if (rtl) {
+            if (sign == nullptr || *sign != "-1") {
+                style.set(std::string(kDirectionSign), "-1");
+            }
+        } else if (sign != nullptr) {
+            style.erase(kDirectionSign);
+        }
     }
     // var() is resolved at computed-value time (stylesheet-v1 section 9), after inheritance and
     // the cascade so custom properties from both are visible to every dependent declaration.

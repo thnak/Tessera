@@ -30,16 +30,23 @@ target_include_directories(tessera_sqlite3 PUBLIC ${_tessera_sqlite_dir})
 # Features the module does not use are compiled out; the connection is serialized by Database, and
 # no extension loading means no dlopen.
 target_compile_definitions(tessera_sqlite3 PRIVATE
-    SQLITE_THREADSAFE=1
     SQLITE_DQS=0
     SQLITE_DEFAULT_MEMSTATUS=0
     SQLITE_OMIT_DEPRECATED
     SQLITE_OMIT_LOAD_EXTENSION
     SQLITE_OMIT_SHARED_CACHE
     SQLITE_USE_ALLOCA)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-target_link_libraries(tessera_sqlite3 PUBLIC Threads::Threads)
+if (EMSCRIPTEN)
+    # Wasm is in-memory only (issue #983): single-threaded, no write-ahead log, temp tables in memory.
+    # File databases are refused by the adapter (OpenOptions::memory_only), not by the engine.
+    target_compile_definitions(tessera_sqlite3 PRIVATE
+        SQLITE_THREADSAFE=0 SQLITE_OMIT_WAL SQLITE_TEMP_STORE=3)
+else()
+    target_compile_definitions(tessera_sqlite3 PRIVATE SQLITE_THREADSAFE=1)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(tessera_sqlite3 PUBLIC Threads::Threads)
+endif()
 if (MSVC)
     target_compile_options(tessera_sqlite3 PRIVATE /W0)
 else()
@@ -65,4 +72,15 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(appfw_sql_tests PRIVATE
         TESSERA_SQL_SCRATCH_DIR="${PROJECT_BINARY_DIR}/sql-scratch")
     add_test(NAME appfw_sql COMMAND appfw_sql_tests)
+
+    # Fault-injecting VFS cases (issue #983). They use the engine header and a rollback journal, so
+    # they build only for native targets.
+    if (NOT EMSCRIPTEN)
+        add_executable(appfw_sql_vfs_tests ${PROJECT_SOURCE_DIR}/tests/unit/appfw_sql_vfs_tests.cpp)
+        target_link_libraries(appfw_sql_vfs_tests PRIVATE
+            tessera_appfw_storage_sqlite tessera_sqlite3 tessera_runtime)
+        target_compile_definitions(appfw_sql_vfs_tests PRIVATE
+            TESSERA_SQL_SCRATCH_DIR="${PROJECT_BINARY_DIR}/sql-scratch")
+        add_test(NAME appfw_sql_vfs COMMAND appfw_sql_vfs_tests)
+    endif()
 endif()

@@ -12,6 +12,7 @@
 // node identity) so inserting an unrelated node does not rename it.
 
 #include "emit_vector.hpp"
+#include "emit_vector_stroke.hpp"
 
 #include <algorithm>
 #include <array>
@@ -188,7 +189,8 @@ bool is_current_color(std::string_view value) {
 }
 
 bool build_svg(std::string_view view_box, std::string_view d, std::string_view fill,
-               std::string_view stroke, std::string_view stroke_width, std::string& svg) {
+               std::string_view stroke, std::string_view stroke_width, const PathExtras& extras,
+               std::string& svg) {
     // Fixed attribute order and no optional attributes: the bytes are a pure function of the IR.
     svg.clear();
     svg += "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"";
@@ -201,7 +203,9 @@ bool build_svg(std::string_view view_box, std::string_view d, std::string_view f
     svg += xml_attribute(stroke);
     svg += "\" stroke-width=\"";
     svg += stroke_width; // already formatted number text, never user text
-    svg += "\"/></svg>";
+    svg += "\"";
+    append_path_extras(extras, svg);
+    svg += "/></svg>";
     return true;
 }
 
@@ -269,6 +273,11 @@ bool build_vector_payload(std::string_view component_name, const ir::Node& node,
         }
     }
 
+    PathExtras extras;
+    if (!read_path_extras(node, extras, error)) {
+        return false;
+    }
+
     // `currentColor` is a tint, not a document color: the document paints it white and the paint
     // pass multiplies by the node's `color`. A tint colors the whole document, so it cannot be
     // mixed with a literal color on the same node.
@@ -291,7 +300,7 @@ bool build_vector_payload(std::string_view component_name, const ir::Node& node,
     payload = VectorPayload{};
     payload.tint_current_color = fill_current || stroke_current;
     payload.asset_name = asset_name_of(component_name, node, ordinal);
-    build_svg(*view_box, *d, fill, stroke, stroke_width, payload.svg);
+    build_svg(*view_box, *d, fill, stroke, stroke_width, extras, payload.svg);
     if (const ir::Expr* label = prop_of(node, "label")) {
         const std::optional<std::string_view> text = literal_text_of(label);
         if (!text) {

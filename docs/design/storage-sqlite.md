@@ -74,10 +74,21 @@ database whose version is newer than the newest migration is refused rather than
 - CI: `.github/workflows/appfw-sqlite.yml` builds and runs only `appfw_sql_tests` with
   `-DTESSERA_APPFW_SQLITE=ON` on GCC, path-filtered to `src/appfw/**` and the public appfw headers.
 
-## 6. Not in this landing
+## 6. Wasm, VFS faults and what is left
 
-- The AF7 fake `FileSystem` cannot cover file-level failures here: SQLite opens files through its own
-  VFS, not `hal::FileSystem`. Corrupt-file behaviour is tested with a real scratch file; full-disk
-  and failed-rename cases would need a custom VFS.
-- Concurrent readers (additive, if measured), Wasm in-memory-only wiring and a durable browser store
-  (the open risk in the questions note), the `tessera.json` module key (needs a manifest `dependencies` reader first).
+- Wasm is in-memory only (#983). Under Emscripten the engine is built single-threaded with no WAL and
+  in-memory temp storage, and `OpenOptions::memory_only` is forced on: any path but `:memory:` is
+  refused with `SqlErrorCode::Unsupported` (settable on native, so the refusal is tested there).
+  Verified with emsdk 7.0.0 on the Linux box: the module builds and `appfw_sql_tests` passes under
+  Node (file, worker-thread and thread-based cancel cases are compiled out there).
+- Fault-injecting VFS (`tests/unit/appfw_sql_vfs_tests.cpp`, `OpenOptions::vfs`): a shim over the
+  platform VFS fails a write (full disk: `SQLITE_FULL`), a sync and the journal delete. SQLite never
+  renames its database; the journal delete is the last step of a commit and the nearest analogue of a
+  failed rename. Each case returns a typed error, leaves a consistent table and the connection
+  writable once the fault clears. The AF7 fake `FileSystem` cannot reach these: SQLite opens files
+  through its own VFS.
+- The `tessera.json` `dependencies.modules` key (`"sqlite"`) is read and validated by the codegen
+  loader; wiring it to the generated CMake target is not done (the build still uses
+  `TESSERA_APPFW_SQLITE`).
+- Left: a durable browser store (IndexedDB or OPFS VFS; the open risk in the questions note),
+  concurrent readers (additive, only if measured) and the generated-CMake wiring above.

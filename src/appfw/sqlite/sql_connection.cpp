@@ -148,12 +148,21 @@ std::expected<void, SqlError> Connection::open(const std::string& path,
         return std::unexpected(make_error(SqlErrorCode::AlreadyOpen, "open", "already open"));
     }
     options_ = options;
+#if defined(__EMSCRIPTEN__)
+    constexpr bool kPlatformMemoryOnly = true;
+#else
+    constexpr bool kPlatformMemoryOnly = false;
+#endif
+    if ((options.memory_only || kPlatformMemoryOnly) && path != ":memory:" && !path.empty()) {
+        return std::unexpected(make_error(SqlErrorCode::Unsupported, "open",
+                                          "only :memory: databases are available here"));
+    }
     sqlite3* handle = nullptr;
     // FULLMUTEX is not needed (the owner serializes) but costs nothing next to I/O and keeps a
     // misuse from corrupting memory.
     const int rc = sqlite3_open_v2(
         path.c_str(), &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-        nullptr);
+        options.vfs.empty() ? nullptr : options.vfs.c_str());
     if (rc != SQLITE_OK) {
         SqlError error = make_error(
             classify(rc), "open", handle != nullptr ? sqlite3_errmsg(handle) : "out of memory", rc);

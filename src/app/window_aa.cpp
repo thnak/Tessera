@@ -22,7 +22,22 @@ void WindowHost::Impl::apply_aa_policy(const hal::WindowMetrics& metrics) {
     // compared), so a metrics event that moved nothing releases no atlas page. The text stack is
     // the group's (issue #228), so this reaches it through the accessor rather than a member.
     if (detail::TextStack* stack = text(); stack != nullptr) {
-        stack->renderer->set_aa_policy(aa_policy);
+        stack->apply_policy(aa_policy);
+    }
+}
+
+// Once per loop iteration, before the frame decision. The completion drain is bounded and the
+// renderer poll is a flag read, so nothing here waits. A landed step repaints (the glyphs changed
+// scale); a step still in flight keeps the loop ticking so it lands on the first tick after the
+// worker finishes instead of after the idle clamp.
+void WindowHost::Impl::tick_text_scale() {
+    detail::TextStack* stack = text();
+    if (stack == nullptr || stack->scale_executor == nullptr) {
+        return;
+    }
+    bool pending = false;
+    if (stack->poll_scale_step(pending) || pending) {
+        loop->mark_render_dirty();
     }
 }
 

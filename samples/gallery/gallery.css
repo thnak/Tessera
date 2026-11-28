@@ -64,8 +64,6 @@
 
 .g-root.g-rtl {
   direction: rtl;
-  /* The Icon flips a directional glyph by this token (packages/tessera-ui/icon.css). */
-  --icon-flip: -1;
 }
 
 .ip-accent {

@@ -95,6 +95,18 @@ namespace icon_demo {
       std::uint64_t branch_10_hash_ = 0;
       bool branch_10_set_ = false;
       bool branch_10_present_ = false;
+      // `node::11` conditional branch (attached at its source position while the condition holds).
+      std::unique_ptr<tessera::ui::Node> branch_11_owned_;
+      tessera::ui::Node* branch_11_node_ = nullptr;
+      std::uint64_t branch_11_hash_ = 0;
+      bool branch_11_set_ = false;
+      bool branch_11_present_ = false;
+      // `node::12` conditional branch (attached at its source position while the condition holds).
+      std::unique_ptr<tessera::ui::Node> branch_12_owned_;
+      tessera::ui::Node* branch_12_node_ = nullptr;
+      std::uint64_t branch_12_hash_ = 0;
+      bool branch_12_set_ = false;
+      bool branch_12_present_ = false;
       // Dynamic child set of `node::1`.
       tessera::ui::Node* children_parent_1_ = nullptr;
     public:
@@ -217,6 +229,10 @@ namespace icon_demo {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_meta_9_className = tessera::ui::DirtyMask<2>::of({1});
       // meta binding of node::10 `className` reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_meta_10_className = tessera::ui::DirtyMask<2>::of({1});
+      // meta binding of node::11 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_meta_11_className = tessera::ui::DirtyMask<2>::of({1});
+      // meta binding of node::12 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_meta_12_className = tessera::ui::DirtyMask<2>::of({1});
       // cond binding of node::2 reads: prop::name.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_cond_2 = tessera::ui::DirtyMask<2>::of({0, 1});
       // cond binding of node::3 reads: prop::name.
@@ -235,6 +251,10 @@ namespace icon_demo {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_cond_9 = tessera::ui::DirtyMask<2>::of({0, 1});
       // cond binding of node::10 reads: prop::name.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_cond_10 = tessera::ui::DirtyMask<2>::of({0, 1});
+      // cond binding of node::11 reads: prop::name.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_cond_11 = tessera::ui::DirtyMask<2>::of({0, 1});
+      // cond binding of node::12 reads: prop::name.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_cond_12 = tessera::ui::DirtyMask<2>::of({0, 1});
     }
     template <class Self>
     inline void IconGlyphBase<Self>::build(tessera::ui::Node& parent) {
@@ -345,6 +365,28 @@ namespace icon_demo {
       paint_node_10.vector.tint_current_color = true;
       node_10->set_paint_data(std::move(paint_node_10));
       this->branch_10_owned_ = std::move(node_10);
+      // node::11
+      auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3301105740381922028ull + node_id_base_));
+      node_11->set_element_kind("Path");
+      node_11->set_class_name("ticon-path");
+      node_11->set_automation_id(3301105740381922028ull);
+      tessera::ui::PaintData paint_node_11;
+      paint_node_11.kind = tessera::ui::PaintKind::Vector;
+      paint_node_11.vector.asset = "vector/IconGlyph/3301105740381922028.svg";
+      paint_node_11.vector.tint_current_color = true;
+      node_11->set_paint_data(std::move(paint_node_11));
+      this->branch_11_owned_ = std::move(node_11);
+      // node::12
+      auto node_12 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9244173713681347149ull + node_id_base_));
+      node_12->set_element_kind("Path");
+      node_12->set_class_name("ticon-path");
+      node_12->set_automation_id(9244173713681347149ull);
+      tessera::ui::PaintData paint_node_12;
+      paint_node_12.kind = tessera::ui::PaintKind::Vector;
+      paint_node_12.vector.asset = "vector/IconGlyph/9244173713681347149.svg";
+      paint_node_12.vector.tint_current_color = true;
+      node_12->set_paint_data(std::move(paint_node_12));
+      this->branch_12_owned_ = std::move(node_12);
       parent.add_child(std::move(node_1));
       apply_state();
     }
@@ -535,8 +577,8 @@ namespace icon_demo {
         if (dirty_.intersects(kDirty_cond_9)) {
           TESSERA_BINDING_RAN(this, "cond:9");
           std::uint64_t branch_9_hash = tessera::ui::kEffectHashSeed;
-          branch_9_hash = tessera::ui::effect_hash(branch_9_hash, (prop_name_ == "tabler:trash"));
-          const bool branch_9_show = (prop_name_ == "tabler:trash");
+          branch_9_hash = tessera::ui::effect_hash(branch_9_hash, (prop_name_ == "tabler:search"));
+          const bool branch_9_show = (prop_name_ == "tabler:search");
           if (!branch_9_set_ || branch_9_hash != branch_9_hash_ || branch_9_show != branch_9_present_) {
             branch_9_hash_ = branch_9_hash;
             branch_9_set_ = true;
@@ -557,8 +599,8 @@ namespace icon_demo {
         if (dirty_.intersects(kDirty_cond_10)) {
           TESSERA_BINDING_RAN(this, "cond:10");
           std::uint64_t branch_10_hash = tessera::ui::kEffectHashSeed;
-          branch_10_hash = tessera::ui::effect_hash(branch_10_hash, (prop_name_ == "tabler:trash"));
-          const bool branch_10_show = (prop_name_ == "tabler:trash");
+          branch_10_hash = tessera::ui::effect_hash(branch_10_hash, (prop_name_ == "tabler:search"));
+          const bool branch_10_show = (prop_name_ == "tabler:search");
           if (!branch_10_set_ || branch_10_hash != branch_10_hash_ || branch_10_show != branch_10_present_) {
             branch_10_hash_ = branch_10_hash;
             branch_10_set_ = true;
@@ -572,6 +614,50 @@ namespace icon_demo {
           }
         }
         if (branch_10_present_) {
+          ++position;
+        }
+      }
+      {
+        if (dirty_.intersects(kDirty_cond_11)) {
+          TESSERA_BINDING_RAN(this, "cond:11");
+          std::uint64_t branch_11_hash = tessera::ui::kEffectHashSeed;
+          branch_11_hash = tessera::ui::effect_hash(branch_11_hash, (prop_name_ == "tabler:trash"));
+          const bool branch_11_show = (prop_name_ == "tabler:trash");
+          if (!branch_11_set_ || branch_11_hash != branch_11_hash_ || branch_11_show != branch_11_present_) {
+            branch_11_hash_ = branch_11_hash;
+            branch_11_set_ = true;
+            branch_11_present_ = branch_11_show;
+            if (branch_11_show) {
+              attach_child_at(parent, position, branch_11_owned_, branch_11_node_);
+            }
+            else {
+              detach_child(parent, branch_11_owned_, branch_11_node_);
+            }
+          }
+        }
+        if (branch_11_present_) {
+          ++position;
+        }
+      }
+      {
+        if (dirty_.intersects(kDirty_cond_12)) {
+          TESSERA_BINDING_RAN(this, "cond:12");
+          std::uint64_t branch_12_hash = tessera::ui::kEffectHashSeed;
+          branch_12_hash = tessera::ui::effect_hash(branch_12_hash, (prop_name_ == "tabler:trash"));
+          const bool branch_12_show = (prop_name_ == "tabler:trash");
+          if (!branch_12_set_ || branch_12_hash != branch_12_hash_ || branch_12_show != branch_12_present_) {
+            branch_12_hash_ = branch_12_hash;
+            branch_12_set_ = true;
+            branch_12_present_ = branch_12_show;
+            if (branch_12_show) {
+              attach_child_at(parent, position, branch_12_owned_, branch_12_node_);
+            }
+            else {
+              detach_child(parent, branch_12_owned_, branch_12_node_);
+            }
+          }
+        }
+        if (branch_12_present_) {
           ++position;
         }
       }

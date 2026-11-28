@@ -40,7 +40,8 @@ bool value_is(const style::ComputedStyle& computed, const char* property,
 // cascade.
 style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
                                  std::vector<style::AttributeView> attributes = {},
-                                 bool component_host = false, std::string_view alias_tag = {}) {
+                                 bool component_host = false, std::string_view alias_tag = {},
+                                 style::PseudoState state = style::PseudoState::None) {
     const style::PreparedStyleSheet authored = style::prepare_stylesheet(author);
     std::array<style::StylesheetSource, 2> sources{
         style::StylesheetSource{"user-agent", &style::ua_prepared_stylesheet(),
@@ -54,6 +55,7 @@ style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
     node.tag = tag; // a view: the callers pass string literals
     node.component_host = component_host;
     node.alias_tag = alias_tag;
+    node.state = state;
     node.attributes = std::move(attributes);
     node.parent = &root;
     root.children.push_back(&node);
@@ -152,6 +154,22 @@ int main() {
     ok &= value_is(input, "border-top-width", "1px");
     ok &= value_is(input, "font-size", "13.3333px");
     ok &= value_is(compute_for("TextArea", ""), "min-width", "153px");
+
+    // States (issue #606): a disabled control is faded like Chrome's, and does not take the hover
+    // colour; a keyboard-focused control gets the focus ring.
+    ok &= value_is(compute_for("Button", "", {}, false, {}, style::PseudoState::Hover),
+                   "background-color", "#e5e5e5");
+    const style::ComputedStyle disabled = compute_for(
+        "Button", "", {}, false, {}, style::PseudoState::Disabled | style::PseudoState::Hover);
+    ok &= value_is(disabled, "background-color", "rgba(239, 239, 239, 0.3)");
+    ok &= value_is(disabled, "color", "rgba(16, 16, 16, 0.3)");
+    ok &= value_is(compute_for("TextInput", "", {}, false, {}, style::PseudoState::Disabled),
+                   "color", "#545454");
+    ok &= value_is(compute_for("TextInput", "", {}, false, {}, style::PseudoState::FocusVisible),
+                   "box-shadow", "0 0 0 2px #101010");
+    ok &= expect(compute_for("TextInput", "").find("box-shadow") == nullptr ||
+                     *compute_for("TextInput", "").find("box-shadow") == "none",
+                 "no focus ring without :focus-visible");
 
     // Every author declaration wins over the user-agent one, with the weakest possible selector,
     // and the user-agent defaults the author did not touch stay.

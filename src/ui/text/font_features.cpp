@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/detail/text_util.hpp"
+#include "tessera/ui/style/font_variant.hpp"
 #include "tessera/ui/text/font_features.hpp"
 
+#include <atomic>
 #include <cstddef>
-#include <iterator>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -19,55 +20,23 @@ constexpr std::uint32_t tag(const char (&t)[5]) {
     return font_feature_tag(t[0], t[1], t[2], t[3]);
 }
 
-struct Keyword {
-    std::string_view name;
-    std::uint32_t tag;
-    std::uint32_t value;
-};
-
 bool is_blank(char c) {
     return c == ' ' || c == '\t' || c == '\n';
 }
 
-std::vector<std::string_view> words(std::string_view text) {
-    std::vector<std::string_view> out;
-    std::size_t i = 0;
-    while (i < text.size()) {
-        while (i < text.size() && is_blank(text[i])) {
-            ++i;
-        }
-        const std::size_t begin = i;
-        while (i < text.size() && !is_blank(text[i])) {
-            ++i;
-        }
-        if (i > begin) {
-            out.push_back(text.substr(begin, i - begin));
-        }
-    }
-    return out;
-}
-
-// Applies a space-separated keyword list; false (and 'out' untouched) on an unknown token.
-bool apply_keywords(std::string_view value, const Keyword* table, std::size_t table_size,
-                    FontFeatures& out) {
-    const std::string text = lower(trim(value));
-    if (text.empty()) {
+// Applies one font-variant group value; false (and 'out' untouched) when it is invalid. The
+// keyword grammar and the feature each keyword selects live in style/font_variant.cpp.
+bool apply_group(style::FontVariantGroup group, std::string_view value, FontFeatures& out) {
+    const auto parsed = style::parse_font_variant_value(group, value);
+    if (!parsed) {
         return false;
     }
-    if (text == "normal") {
-        return true;
-    }
     FontFeatures next = out;
-    for (const std::string_view word : words(text)) {
-        bool known = false;
-        for (std::size_t i = 0; i < table_size && !known; ++i) {
-            if (table[i].name == word) {
-                known = true;
-                next.set(table[i].tag, table[i].value);
-            }
-        }
-        if (!known) {
-            return false;
+    for (std::size_t i = 0; i < parsed->count; ++i) {
+        const style::FontVariantKeyword& keyword = *parsed->items[i];
+        for (std::size_t s = 0; s < keyword.count; ++s) {
+            const style::FontVariantSetting& setting = keyword.settings[s];
+            next.set(tag(setting.tag), setting.value);
         }
     }
     out = next;
@@ -90,42 +59,24 @@ bool FontFeatures::set(std::uint32_t feature_tag, std::uint32_t value) noexcept 
     return true;
 }
 
-bool parse_font_variant_numeric(std::string_view value, FontFeatures& out) {
-    static const Keyword kTable[] = {
-        {"lining-nums", tag("lnum"), 1},
-        {"oldstyle-nums", tag("onum"), 1},
-        {"proportional-nums", tag("pnum"), 1},
-        {"tabular-nums", tag("tnum"), 1},
-        {"diagonal-fractions", tag("frac"), 1},
-        {"stacked-fractions", tag("afrc"), 1},
-        {"ordinal", tag("ordn"), 1},
-        {"slashed-zero", tag("zero"), 1},
-    };
-    return apply_keywords(value, kTable, std::size(kTable), out);
+bool parse_font_variant_ligatures(std::string_view value, FontFeatures& out) {
+    return apply_group(style::FontVariantGroup::Ligatures, value, out);
 }
 
-bool parse_font_variant_ligatures(std::string_view value, FontFeatures& out) {
-    static const Keyword kTable[] = {
-        {"common-ligatures", tag("liga"), 1},
-        {"no-common-ligatures", tag("liga"), 0},
-        {"discretionary-ligatures", tag("dlig"), 1},
-        {"no-discretionary-ligatures", tag("dlig"), 0},
-        {"historical-ligatures", tag("hlig"), 1},
-        {"no-historical-ligatures", tag("hlig"), 0},
-        {"contextual", tag("calt"), 1},
-        {"no-contextual", tag("calt"), 0},
-    };
-    if (lower(trim(value)) == "none") {
-        FontFeatures next = out;
-        next.set(tag("liga"), 0);
-        next.set(tag("clig"), 0);
-        next.set(tag("dlig"), 0);
-        next.set(tag("hlig"), 0);
-        next.set(tag("calt"), 0);
-        out = next;
-        return true;
-    }
-    return apply_keywords(value, kTable, std::size(kTable), out);
+bool parse_font_variant_numeric(std::string_view value, FontFeatures& out) {
+    return apply_group(style::FontVariantGroup::Numeric, value, out);
+}
+
+bool parse_font_variant_caps(std::string_view value, FontFeatures& out) {
+    return apply_group(style::FontVariantGroup::Caps, value, out);
+}
+
+bool parse_font_variant_east_asian(std::string_view value, FontFeatures& out) {
+    return apply_group(style::FontVariantGroup::EastAsian, value, out);
+}
+
+bool parse_font_variant_position(std::string_view value, FontFeatures& out) {
+    return apply_group(style::FontVariantGroup::Position, value, out);
 }
 
 bool parse_font_feature_settings(std::string_view value, FontFeatures& out) {
@@ -211,6 +162,11 @@ InternTable& intern_table() {
     return table;
 }
 
+std::atomic<std::uint64_t>& dropped_count() {
+    static std::atomic<std::uint64_t> count{0};
+    return count;
+}
+
 } // namespace
 
 FontFeaturesId intern_font_features(const FontFeatures& features) {
@@ -225,10 +181,15 @@ FontFeaturesId intern_font_features(const FontFeatures& features) {
         }
     }
     if (table.lists.size() >= kMaxInternedFontFeatures) {
+        dropped_count().fetch_add(1, std::memory_order_relaxed);
         return {};
     }
     table.lists.push_back(features);
     return {static_cast<std::uint32_t>(table.lists.size())};
+}
+
+std::uint64_t font_features_intern_dropped() noexcept {
+    return dropped_count().load(std::memory_order_relaxed);
 }
 
 FontFeatures resolve_font_features(FontFeaturesId id) {
@@ -240,17 +201,25 @@ FontFeatures resolve_font_features(FontFeaturesId id) {
     return id.value <= table.lists.size() ? table.lists[id.value - 1] : FontFeatures{};
 }
 
-FontFeatures parse_font_features(std::string_view ligatures, std::string_view numeric,
-                                 std::string_view settings) {
+FontFeatures parse_font_features(const FontVariantValues& values) {
     FontFeatures result;
-    if (!ligatures.empty()) {
-        parse_font_variant_ligatures(ligatures, result);
+    if (values.letter_spaced) {
+        for (const char* optional : {"liga", "clig", "dlig", "hlig"}) {
+            result.set(font_feature_tag(optional[0], optional[1], optional[2], optional[3]), 0);
+        }
     }
-    if (!numeric.empty()) {
-        parse_font_variant_numeric(numeric, result);
-    }
-    if (!settings.empty()) {
-        parse_font_feature_settings(settings, result);
+    const auto apply = [&](style::FontVariantGroup group, std::string_view value) {
+        if (!value.empty()) {
+            apply_group(group, value, result);
+        }
+    };
+    apply(style::FontVariantGroup::Ligatures, values.ligatures);
+    apply(style::FontVariantGroup::Numeric, values.numeric);
+    apply(style::FontVariantGroup::Caps, values.caps);
+    apply(style::FontVariantGroup::EastAsian, values.east_asian);
+    apply(style::FontVariantGroup::Position, values.position);
+    if (!values.settings.empty()) {
+        parse_font_feature_settings(values.settings, result);
     }
     return result;
 }

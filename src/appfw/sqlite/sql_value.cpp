@@ -30,6 +30,8 @@ std::string_view sql_error_code_name(SqlErrorCode code) noexcept {
         return "migration";
     case SqlErrorCode::Sqlite:
         return "sqlite";
+    case SqlErrorCode::Unsupported:
+        return "unsupported";
     }
     return "unknown";
 }

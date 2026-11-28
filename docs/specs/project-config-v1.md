@@ -424,7 +424,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `includeDirs` | string[] | `[]` | Added to the generated CMake target |
-| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable ([ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md)). The opt-in SQLite module is switched by CMake `TESSERA_APPFW_SQLITE`; no manifest key yet, as the loader reads no `dependencies` ([storage-sqlite](../design/storage-sqlite.md)) |
+| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable ([ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md)). |
+| `modules` | string[] | `[]` | Opt-in framework modules; closed set, today `sqlite` (`tessera_appfw_storage_sqlite`, CMake `TESSERA_APPFW_SQLITE`, [storage-sqlite](../design/storage-sqlite.md)). The codegen loader validates it; the build option still turns the module on |
 | `licenseReview` | boolean | `true` | Must be `true`; `tessera doctor` checks notices |
 
 ## Validation rules
@@ -436,9 +437,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 5. `bindings.manifest` must be under `codegen.outDir`.
 6. `codegen.outDir` must not be inside `ui.sourceDirs`.
 7. `build.staticRuntime` must be `true`.
-8. `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
-9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names and a `packages[].version` that is not `X.Y.Z` or `^X.Y.Z` are
-   errors; a `packages[].root` is a project-relative directory inside the project.
+8. `dependencies` unknown keys, a non-project-relative `includeDirs` entry, an unknown `modules` id and `licenseReview: false` are errors; `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
+9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names and a `packages[].version` that is not `X.Y.Z` or `^X.Y.Z` are errors; a `packages[].root` is a project-relative directory inside the project.
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
     is forced for golden/headless runs.

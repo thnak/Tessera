@@ -10,6 +10,7 @@
 #include "tessera/runtime/async.hpp"
 #include "tessera/runtime/manual_io_executor.hpp"
 #include "tessera/runtime/worker_io_executor.hpp"
+#include "tessera/ui/scale/aa_policy.hpp"
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/glyph_atlas.hpp"
 #include "tessera/ui/text/glyph_prewarm.hpp"
@@ -292,6 +293,90 @@ bool renderer_level(const FontFace& face) {
     return ok;
 }
 
+// The window's entry point (issue #993): a policy change that moves the render-scale step, and the
+// hinting and AA mode that come with it, lands only at the poll, with the glyphs already placed.
+bool policy_step(const FontFace& face) {
+    using tessera::ui::scale::AaConfig;
+    using tessera::ui::scale::AaFacts;
+    auto policy_at = [](float scale) {
+        AaFacts facts;
+        facts.render_scale = scale;
+        return tessera::ui::scale::resolve_aa_policy(facts, AaConfig{});
+    };
+    bool ok = true;
+    RecordingDevice device;
+    auto target = device.create_render_target({{256, 64}});
+    auto white = device.create_texture({{1, 1}});
+    auto pipeline = device.create_pipeline({});
+    GlyphRasterizer rasterizer(face);
+    GlyphRasterizer sync_rasterizer(face);
+    HarfBuzzShaper shaper(face);
+    Batched2DRenderer renderer(device, *pipeline, *white);
+    TextRenderer text(device, rasterizer, {256, 256, 4, 1});
+    TextRenderer sync_text(device, sync_rasterizer, {256, 256, 4, 1});
+    TextStyle style;
+    style.font_size = 16.0f;
+    const ShapedRun run = shaper.shape("Hello, policy 0123", style);
+    auto draw = [&](TextRenderer& renderer_text) {
+        renderer_text.begin_frame();
+        auto commands = device.create_command_list();
+        renderer.begin(*commands, *target, tessera::rendering::rhi::RenderTargetDesc{{256, 64}});
+        renderer_text.draw(renderer, run, 4.0f, 40.0f, 16, rgba8(255, 255, 255));
+        renderer.end();
+        commands->submit();
+    };
+    ManualIoExecutor executor;
+
+    // Nothing drawn yet: the first policy has nothing to rebuild and applies at once.
+    ok &= expect(text.begin_aa_policy_step(policy_at(1.25f), executor) &&
+                     text.render_scale() == 1.25f && executor.stats().posted == 0,
+                 "an empty atlas adopts the policy without a worker");
+    draw(text);
+    // 1.25 -> 2.0 changes the scale and turns hinting off: both wait for the worker.
+    const GlyphHinting before = text.hinting();
+    ok &= expect(text.begin_aa_policy_step(policy_at(2.0f), executor) &&
+                     text.render_scale_step_pending() && text.render_scale() == 1.25f &&
+                     text.hinting() == before && executor.stats().posted == 1,
+                 "a scale step with a hinting change stays on the old policy while pending");
+    static_cast<void>(executor.run_one());
+    static_cast<void>(executor.run_completion_one());
+    ok &= expect(text.poll_render_scale_step() && text.render_scale() == 2.0f &&
+                     text.hinting() == GlyphHinting::None,
+                 "the poll lands the scale and the hinting together");
+    sync_text.set_aa_policy(policy_at(1.25f));
+    draw(sync_text);
+    sync_text.set_aa_policy(policy_at(2.0f));
+    draw(text);
+    draw(sync_text);
+    // Subpixel origins are on at 2.0, so only glyphs whose origin fraction is unchanged are
+    // prewarmed exactly; the first glyph sits on a whole pixel at both scales.
+    const auto& first = run.glyphs.front();
+    const GlyphAtlasEntry* a = text.atlas().find_glyph(first.id, 32, first.face, 0);
+    const GlyphAtlasEntry* b = sync_text.atlas().find_glyph(first.id, 32, first.face, 0);
+    ok &=
+        expect(a != nullptr && b != nullptr && same_glyph(text.atlas(), *a, sync_text.atlas(), *b),
+               "the prewarmed glyph equals the synchronous policy change");
+
+    // A refused step reports false and changes nothing, so the caller can fall back.
+    ManualIoExecutor tiny(1);
+    GlyphRasterizer* stack[] = {&rasterizer};
+    GlyphPrewarm occupant;
+    static_cast<void>(occupant.start(tiny, stack, ascii_keys(rasterizer, 16), GlyphHinting::Font,
+                                     GlyphAaMode::Grayscale));
+    ok &= expect(!text.begin_aa_policy_step(policy_at(1.25f), tiny) &&
+                     text.render_scale() == 2.0f && !text.render_scale_step_pending(),
+                 "a refused policy step changes nothing");
+    static_cast<void>(tiny.clear());
+    // Back at the active scale a pending step is dropped.
+    ok &= expect(text.begin_aa_policy_step(policy_at(1.25f), executor) &&
+                     text.render_scale_step_pending(),
+                 "a step back is pending");
+    ok &= expect(text.begin_aa_policy_step(policy_at(2.0f), executor) &&
+                     !text.render_scale_step_pending(),
+                 "returning to the active policy abandons the pending step");
+    return ok;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -308,6 +393,7 @@ int main(int argc, char** argv) {
     bool ok = atlas_level(rasterizer);
     ok &= real_thread(rasterizer);
     ok &= renderer_level(*loaded);
+    ok &= policy_step(*loaded);
     if (!ok) {
         std::cerr << "text_prewarm: FAILED\n";
         return 2;

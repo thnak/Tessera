@@ -5,6 +5,7 @@
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
+#include "tessera/ui/style/font_variant.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/list_style.hpp"
 #include "tessera/ui/style/mask_layers.hpp"
@@ -179,6 +180,29 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                       "into the first line"});
         }
         return ok;
+    }
+    if (property.starts_with("font-variant-")) {
+        // The five keyword groups (font_variant.hpp). An unknown or conflicting value drops the
+        // declaration whole, as CSS does for an invalid value. A `var()` is judged once resolved.
+        constexpr FontVariantGroup kGroups[] = {
+            FontVariantGroup::Ligatures, FontVariantGroup::Numeric, FontVariantGroup::Caps,
+            FontVariantGroup::EastAsian, FontVariantGroup::Position};
+        for (const FontVariantGroup group : kGroups) {
+            if (font_variant_property(group) != property) {
+                continue;
+            }
+            if (detail::has_substitution_function(value) ||
+                parse_font_variant_value(group, value)) {
+                return true;
+            }
+            out.push_back(StyleDiagnostic{
+                StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
+                std::string(property) +
+                    " takes normal or its keywords without conflicts (docs/design/text.md "
+                    "section 3.1); the declaration is ignored"});
+            return false;
+        }
+        return true;
     }
     if (property.starts_with("text-decoration-") || property == "vertical-align") {
         // A `var()` reference is substituted after this check; judge the resolved text then.

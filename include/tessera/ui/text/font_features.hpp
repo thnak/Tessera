@@ -31,7 +31,9 @@ struct FontFeature {
 // measure and shape paths) and every cache key can compare and order it. Unused slots stay zero,
 // so the defaulted comparisons are exact. A request past kMax is dropped silently.
 struct FontFeatures {
-    static constexpr std::size_t kMax = 12;
+    // Room for a worst-case variant set (five ligature, four numeric, two caps, three east-asian,
+    // one position feature) plus a handful of raw font-feature-settings.
+    static constexpr std::size_t kMax = 24;
 
     std::array<FontFeature, kMax> items{};
     std::uint8_t count = 0;
@@ -67,18 +69,38 @@ inline constexpr std::size_t kMaxInternedFontFeatures = 256;
 // The list behind an id; an unknown id (including 0) resolves to the empty list.
 [[nodiscard]] FontFeatures resolve_font_features(FontFeaturesId id);
 
-// Combined font-variant-ligatures, font-variant-numeric, then font-feature-settings, in that
-// order, so a raw feature setting overrides the matching variant keyword (CSS Fonts 4 section
-// 6.12). Each argument is the computed value text, or empty when the property is not set. An
-// invalid value is ignored as a whole (the CSS rule for an invalid declaration), never partly
-// applied.
-[[nodiscard]] FontFeatures parse_font_features(std::string_view ligatures, std::string_view numeric,
-                                               std::string_view settings);
+// How many times the intern table was full and a new list fell back to "no features". A non-zero
+// value means a page uses more than kMaxInternedFontFeatures distinct feature sets (issue #998).
+[[nodiscard]] std::uint64_t font_features_intern_dropped() noexcept;
 
-// The three parsers, exposed for tests. Each appends to 'out' and returns false (leaving 'out'
+// The computed font-variant-* values and font-feature-settings of one text style. Each view is the
+// computed value text, or empty when the property is not set.
+struct FontVariantValues {
+    std::string_view ligatures;
+    std::string_view numeric;
+    std::string_view caps;
+    std::string_view east_asian;
+    std::string_view position;
+    std::string_view settings;
+    // True when the style's letter-spacing is not zero: optional ligatures (liga, clig, dlig, hlig)
+    // start off then (CSS Text 3 section 7.3), and an explicit variant or feature setting below
+    // still turns them back on.
+    bool letter_spaced = false;
+};
+
+// Combined features in CSS order: the letter-spacing ligature default, then ligatures, numeric,
+// caps, east-asian, position, then font-feature-settings, so a raw feature setting overrides the
+// matching variant keyword (CSS Fonts 4 section 6.12). An invalid value is ignored as a whole (the
+// CSS rule for an invalid declaration), never partly applied.
+[[nodiscard]] FontFeatures parse_font_features(const FontVariantValues& values);
+
+// The parsers, exposed for tests. Each appends to 'out' and returns false (leaving 'out'
 // unchanged) when the value is invalid; 'normal' is valid and adds nothing.
 bool parse_font_variant_ligatures(std::string_view value, FontFeatures& out);
 bool parse_font_variant_numeric(std::string_view value, FontFeatures& out);
+bool parse_font_variant_caps(std::string_view value, FontFeatures& out);
+bool parse_font_variant_east_asian(std::string_view value, FontFeatures& out);
+bool parse_font_variant_position(std::string_view value, FontFeatures& out);
 bool parse_font_feature_settings(std::string_view value, FontFeatures& out);
 
 } // namespace tessera::ui::text

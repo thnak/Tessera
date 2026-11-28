@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "property_background.hpp"
+#include "property_font_variant.hpp"
 #include "property_list_style.hpp"
 #include "property_mask.hpp"
 #include "property_table.hpp"
@@ -291,6 +292,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     }
     if (property == "mask") {
         return expand_mask_shorthand(declaration);
+    }
+    if (property == "font-variant") {
+        return expand_font_variant_shorthand(declaration);
     }
     if (property == "background" || property == "text-decoration") {
         return property == "background" ? expand_background_shorthand(declaration)
