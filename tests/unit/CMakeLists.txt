@@ -3175,6 +3175,14 @@ target_link_libraries(a11y_tree_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_tree COMMAND a11y_tree_tests)
 
+# Live regions: aria-live resolution in the builder and snapshot-diff announcements.
+add_executable(a11y_live_tests
+    a11y_live_tests.cpp)
+
+target_link_libraries(a11y_live_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_live COMMAND a11y_live_tests)
+
 add_executable(schema_tests
     schema_tests.cpp)
 

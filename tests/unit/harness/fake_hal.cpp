@@ -136,6 +136,11 @@ void FakeWindow::set_cursor(hal::CursorShape shape) {
     metrics_.cursor = shape;
 }
 
+void FakeWindow::set_text_input_rect(const hal::TextInputRect& rect) {
+    ++text_input_rect_requests_;
+    last_text_input_rect_ = rect;
+}
+
 void FakeWindow::set_cursor_supported(bool supported) noexcept {
     cursor_supported_ = supported;
 }

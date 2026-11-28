@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/accessibility/atspi_bridge.hpp"
+#include "tessera/ui/accessibility/live_regions.hpp"
 
 #include <algorithm>
 #include <string>
@@ -35,6 +36,15 @@ AtspiBridge::AtspiBridge(BridgeConfig config)
 
 void AtspiBridge::publish(const A11ySnapshot& snapshot) {
     std::lock_guard lock(mutex_);
+    // A live region whose text changed (or that just appeared, like a toast) speaks: diff against
+    // the snapshot being replaced before it is overwritten. Publishing happens on dirty changes, so
+    // the temporary queue is not a frame cost.
+    {
+        accessibility::AnnouncementQueue spoken;
+        if (collect_live_announcements(snapshot_, snapshot, spoken) > 0) {
+            (void)post_announcements(spoken);
+        }
+    }
     // A plain copy keeps the bridge thread free of scene/shared_ptr lifetime rules; the builder
     // already bounds the snapshot at kMaxNodes, and publishing happens on dirty changes, not
     // frames.
