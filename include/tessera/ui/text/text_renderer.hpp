@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/runtime/io_task_executor.hpp"
 #include "tessera/ui/scale/aa_policy.hpp"
 #include "tessera/ui/text/glyph_atlas.hpp"
 #include "tessera/ui/text/text_shaper.hpp"
@@ -44,6 +45,23 @@ public:
     // its pages are still batched would leave those quads with a dead texture.
     void set_render_scale(float render_scale);
     [[nodiscard]] float render_scale() const;
+
+    // Moves to a new render-scale step without rasterizing on the UI thread (issue #948).
+    // `set_render_scale` releases the old step and re-rasterizes every glyph the next draws need on
+    // the UI thread (11 to 13 ms for 380 glyphs). This instead hands the active step's working set,
+    // mapped to the new scale, to `executor` and keeps drawing the current step. Call
+    // `poll_render_scale_step` once per frame between frames: when the worker is done it switches
+    // to the new step with its glyphs already placed, so the first draw at the new scale misses
+    // nothing it prewarmed. Anything not prewarmed is rasterized on demand as before.
+    //
+    // Returns whether the new step is now pending or already active: false when the executor
+    // refused the task, in which case the caller may fall back to `set_render_scale`. A newer
+    // request, `set_render_scale`, or a hinting or AA-mode change abandons a pending step. Nothing
+    // here waits, and the worker uses its own FreeType face.
+    bool begin_render_scale_step(float render_scale, runtime::IoTaskExecutor& executor);
+    // True once the pending step was installed by this call (the active scale changed).
+    bool poll_render_scale_step();
+    [[nodiscard]] bool render_scale_step_pending() const;
 
     // Applies the per-window AA policy (display-aware-rendering.md sections 3.2, 3.3 and 3.4): the
     // policy's render scale, its glyph hinting, whether glyph origins keep a quarter-pixel

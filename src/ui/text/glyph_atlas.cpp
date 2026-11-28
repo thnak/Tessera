@@ -67,7 +67,46 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     ++stats_.misses;
     const GlyphBitmap bitmap = rasterizers_[face]->rasterize_glyph(
         glyph_index, pixel_size, config_.hinting, x_subpixel, config_.aa_mode);
+    return place(key, bitmap);
+}
 
+std::vector<GlyphAtlasKey> GlyphAtlas::working_set() const {
+    std::vector<GlyphAtlasKey> keys;
+    keys.reserve(entries_.size());
+    for (const auto& item : entries_) {
+        keys.push_back({item.first.glyph_index, item.first.pixel_size, item.first.face,
+                        item.first.x_subpixel});
+    }
+    std::sort(keys.begin(), keys.end(), [](const GlyphAtlasKey& lhs, const GlyphAtlasKey& rhs) {
+        if (lhs.face != rhs.face) {
+            return lhs.face < rhs.face;
+        }
+        if (lhs.pixel_size != rhs.pixel_size) {
+            return lhs.pixel_size < rhs.pixel_size;
+        }
+        if (lhs.glyph_index != rhs.glyph_index) {
+            return lhs.glyph_index < rhs.glyph_index;
+        }
+        return lhs.x_subpixel < rhs.x_subpixel;
+    });
+    return keys;
+}
+
+bool GlyphAtlas::insert_prerasterized(const GlyphAtlasKey& wanted, const GlyphBitmap& bitmap) {
+    if (wanted.face >= rasterizers_.size()) {
+        return false;
+    }
+    const Key key{wanted.glyph_index, wanted.pixel_size, wanted.face,
+                  std::min<std::uint8_t>(wanted.x_subpixel, kSubpixelSteps - 1)};
+    if (entries_.find(key) != entries_.end()) {
+        return true;
+    }
+    const std::uint64_t dropped = stats_.dropped;
+    place(key, bitmap);
+    return stats_.dropped == dropped;
+}
+
+const GlyphAtlasEntry& GlyphAtlas::place(const Key& key, const GlyphBitmap& bitmap) {
     GlyphAtlasEntry entry;
     entry.bearing_x = bitmap.bearing_x;
     entry.bearing_y = bitmap.bearing_y;

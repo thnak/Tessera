@@ -53,6 +53,31 @@ so every row above the used extent is in sync; the #681 rectangle path is otherw
 It scales with the shelves in use, so the saving is 83% at scale 1 and 24% at 3.0 where the page is nearly
 full. The rows are full width (a shelf's unused right side is uploaded), which keeps the invariant simple.
 
+**Fixed by #948 (2026-11-28).** `GlyphPrewarm` (`include/tessera/ui/text/glyph_prewarm.hpp`) rasterizes the
+rebuild on an `IoTaskExecutor`: `TextRenderer::begin_render_scale_step` maps the active step's working set
+(`GlyphAtlas::working_set`) to the new device sizes and posts it, drawing continues from the old step, and
+`poll_render_scale_step` (once per frame, between frames) switches when the completion has run and places the
+finished bitmaps (`GlyphAtlas::insert_prerasterized`, the same placement a miss uses, so every glyph is
+byte-identical to rasterizing on demand). The worker owns its own FreeType library
+(`FontFace::clone_independent`, which reads only the immutable font bytes), so it never shares a face with the
+UI thread; nothing waits, nothing is detached, and a newer request, `set_render_scale`, or a hinting or AA-mode
+change abandons the job. A glyph that was not prewarmed is rasterized on demand as before. Measured with
+`glyph_raster_measure` section 4 (380 glyphs, 1024x1024 pages, median of 5, UI thread only):
+
+| Scale | 1.25 | 1.50 | 2.00 | 3.00 |
+|---|---|---|---|---|
+| Before: rasterize on the UI thread (ms) | 10.9 | 10.9 | 11.0 | 11.4 |
+| After: hand the job over (ms) | 0.010 | 0.013 | 0.008 | 0.012 |
+| After: place the finished glyphs (ms) | 0.63 | 0.86 | 0.89 | 0.97 |
+| After: UI thread total (ms) | 0.64 | 0.88 | 0.90 | 0.98 |
+| Worker time, off the UI thread (ms) | 10.9 | 14.6 | 15.0 | 15.3 |
+
+The UI thread now pays under 1 ms per step (the placement is mostly the allocation and clear of the new
+page), and the worker takes 11 to 15 ms, so the new step is visible a frame or two later; until then text is
+drawn from the old step's glyphs, slightly soft. Not done: the window host does not call these yet (it still
+steps synchronously through `set_aa_policy`); that needs an executor owned by the window and a poll in the frame
+loop.
+
 ## 3. Scrolling a text column
 
 A 400-line, 80-column column, 40 lines visible, one line per frame: the cold frame misses 95 glyphs (2.7 ms)

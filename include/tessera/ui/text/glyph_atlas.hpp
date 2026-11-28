@@ -68,6 +68,14 @@ struct GlyphAtlasEntry {
     bool color = false;
 };
 
+// One cached glyph's identity, as `GlyphAtlas::working_set` reports it.
+struct GlyphAtlasKey {
+    std::uint32_t glyph_index = 0;
+    std::uint16_t pixel_size = 0;
+    std::uint16_t face = 0;
+    std::uint8_t x_subpixel = 0;
+};
+
 struct GlyphAtlasStats {
     std::uint64_t hits = 0;
     std::uint64_t misses = 0;
@@ -105,6 +113,15 @@ public:
                                                     std::uint16_t pixel_size,
                                                     std::uint16_t face = 0,
                                                     std::uint8_t x_subpixel = 0) const;
+    // Every glyph the atlas holds (with or without a bitmap), sorted by (face, size, glyph,
+    // subpixel) so the result does not depend on hash order. Allocates; a scale-step call, never a
+    // frame-path call.
+    [[nodiscard]] std::vector<GlyphAtlasKey> working_set() const;
+    // Adds a glyph whose bitmap was rasterized elsewhere (a worker, #948) exactly as a cache miss
+    // would have placed it, so the page bytes equal what `get_glyph` produces for the same key and
+    // bitmap. A key already present is left alone. Returns whether the glyph is now cached (false
+    // when the atlas had no room; the glyph is then rasterized on demand like any other miss).
+    bool insert_prerasterized(const GlyphAtlasKey& key, const GlyphBitmap& bitmap);
     [[nodiscard]] std::size_t face_count() const {
         return rasterizers_.size();
     }
@@ -183,6 +200,9 @@ private:
         std::uint32_t generation = 0;
     };
 
+    // Places `bitmap` for `key` and records the entry; the shared tail of a miss and a prewarm.
+    // Returns the cached entry, or the uncached one when no page had room.
+    const GlyphAtlasEntry& place(const Key& key, const GlyphBitmap& bitmap);
     bool pack(Page& page, std::uint32_t width, std::uint32_t height, std::uint32_t& x,
               std::uint32_t& y);
     void reset_page(Page& page);
