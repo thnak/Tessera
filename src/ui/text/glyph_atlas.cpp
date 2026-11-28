@@ -67,7 +67,46 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     ++stats_.misses;
     const GlyphBitmap bitmap = rasterizers_[face]->rasterize_glyph(
         glyph_index, pixel_size, config_.hinting, x_subpixel, config_.aa_mode);
+    return place(key, bitmap);
+}
 
+std::vector<GlyphAtlasKey> GlyphAtlas::working_set() const {
+    std::vector<GlyphAtlasKey> keys;
+    keys.reserve(entries_.size());
+    for (const auto& item : entries_) {
+        keys.push_back({item.first.glyph_index, item.first.pixel_size, item.first.face,
+                        item.first.x_subpixel});
+    }
+    std::sort(keys.begin(), keys.end(), [](const GlyphAtlasKey& lhs, const GlyphAtlasKey& rhs) {
+        if (lhs.face != rhs.face) {
+            return lhs.face < rhs.face;
+        }
+        if (lhs.pixel_size != rhs.pixel_size) {
+            return lhs.pixel_size < rhs.pixel_size;
+        }
+        if (lhs.glyph_index != rhs.glyph_index) {
+            return lhs.glyph_index < rhs.glyph_index;
+        }
+        return lhs.x_subpixel < rhs.x_subpixel;
+    });
+    return keys;
+}
+
+bool GlyphAtlas::insert_prerasterized(const GlyphAtlasKey& wanted, const GlyphBitmap& bitmap) {
+    if (wanted.face >= rasterizers_.size()) {
+        return false;
+    }
+    const Key key{wanted.glyph_index, wanted.pixel_size, wanted.face,
+                  std::min<std::uint8_t>(wanted.x_subpixel, kSubpixelSteps - 1)};
+    if (entries_.find(key) != entries_.end()) {
+        return true;
+    }
+    const std::uint64_t dropped = stats_.dropped;
+    place(key, bitmap);
+    return stats_.dropped == dropped;
+}
+
+const GlyphAtlasEntry& GlyphAtlas::place(const Key& key, const GlyphBitmap& bitmap) {
     GlyphAtlasEntry entry;
     entry.bearing_x = bitmap.bearing_x;
     entry.bearing_y = bitmap.bearing_y;
@@ -103,7 +142,6 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
             Page page;
             page.pixels =
                 make_page_pixels(config_.page_width, config_.page_height, config_.aa_mode);
-            page.dirty = {0, 0, config_.page_width, config_.page_height};
             pages_.push_back(std::move(page));
             Page& candidate = pages_.back();
             std::uint32_t x = 0;
@@ -230,7 +268,10 @@ void GlyphAtlas::reset_page(Page& page) {
     page.shelf_height = 0;
     page.shelf_x = 0;
     ++page.generation;
-    page.dirty = {0, 0, config_.page_width, config_.page_height};
+    // Nothing is written yet: the first glyph placed after the reset marks its own rectangle, and
+    // `take_dirty` widens it to the used extent because `synced_rows` is back at zero.
+    page.synced_rows = 0;
+    page.dirty = {};
 }
 
 std::int32_t GlyphAtlas::evict_page() {
@@ -284,9 +325,30 @@ GlyphAtlasRect GlyphAtlas::take_dirty(std::uint16_t page) {
     if (page >= pages_.size()) {
         return {};
     }
-    const GlyphAtlasRect dirty = pages_[page].dirty;
-    pages_[page].dirty = {};
+    Page& target = pages_[page];
+    GlyphAtlasRect dirty = target.dirty;
+    target.dirty = {};
+    if (dirty.empty()) {
+        return {};
+    }
+    const std::uint32_t bottom =
+        std::min(config_.page_height, dirty.y + dirty.height + std::max(config_.padding, 1u));
+    if (bottom > target.synced_rows) {
+        const std::uint32_t top = std::min(dirty.y, target.synced_rows);
+        dirty = {0, top, config_.page_width, bottom - top};
+        target.synced_rows = bottom;
+    }
     return dirty;
+}
+
+GlyphAtlasRect GlyphAtlas::take_used_extent(std::uint16_t page) {
+    if (page >= pages_.size()) {
+        return {};
+    }
+    Page& target = pages_[page];
+    target.synced_rows = 0;
+    target.dirty = {0, 0, config_.page_width, target.shelf_y + target.shelf_height};
+    return take_dirty(page);
 }
 
 void GlyphAtlas::upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y) {

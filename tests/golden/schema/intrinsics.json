@@ -54,30 +54,53 @@
           "value": "list"
         }
       ],
-      "note": "no list markers and no numbering",
+      "note": "the user-agent sheet gives the list its marker type",
       "status": "mapped",
       "tag": "ul",
       "target": "View"
     },
     {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "start",
+          "note": "a static integer",
+          "rename": "aria-start"
+        },
+        {
+          "kind": "rename",
+          "name": "reversed",
+          "note": "a bare flag or a static boolean",
+          "rename": "aria-reversed"
+        }
+      ],
       "inject": [
         {
           "name": "role",
           "value": "list"
         }
       ],
-      "note": "no list markers and no numbering",
+      "note": "`start` and `reversed` number the items; `::marker` and counters are not modelled",
       "status": "mapped",
       "tag": "ol",
       "target": "View"
     },
     {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "value",
+          "note": "a static integer",
+          "rename": "aria-value"
+        }
+      ],
       "inject": [
         {
           "name": "role",
           "value": "listitem"
         }
       ],
+      "note": "`value` resets the counter",
       "status": "mapped",
       "tag": "li",
       "target": "View"
@@ -1006,6 +1029,43 @@
         "Suspense"
       ],
       "note": "heading level 1-6; `h1`-`h6` inject it and the user-agent sheet sizes by it",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-start",
+      "name": "aria-start",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "first number of an ordered list; `ol start` is rewritten to it (a static integer)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-reversed",
+      "name": "aria-reversed",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "an ordered list counts down; `ol reversed` is rewritten to it",
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-value",
+      "name": "aria-value",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary",
+        "Suspense"
+      ],
+      "note": "the number of a list item; `li value` is rewritten to it (a static integer)",
       "type": "string",
       "value": "expr"
     },

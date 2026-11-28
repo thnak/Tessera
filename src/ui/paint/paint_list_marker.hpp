@@ -8,10 +8,18 @@
 
 namespace tessera::ui::paint::detail {
 
-// The 1-based position of a list item among the `role="listitem"` children of its parent, or 0 when
-// the node is not a list item. It is the counter an ordered marker shows and part of the paint
-// cache key: inserting a sibling before an item changes its marker without dirtying the item.
-[[nodiscard]] std::uint32_t list_item_ordinal(const Node& node);
+struct ListNumber {
+    bool item = false;
+    std::int32_t value = 0;
+};
+
+// The counter of a list item: its 1-based position among the `role="listitem"` children of its
+// parent, moved by the parent's `aria-start` (HTML `ol start`) and `aria-reversed` (`reversed`,
+// which counts down from the item count when there is no start) and reset by an item's `aria-value`
+// (`li value`), as HTML numbers an `ol`. `item` is false when the node is not a list item. It is
+// part of the paint cache key: inserting a sibling or changing the list's start changes a marker
+// without dirtying the item.
+[[nodiscard]] ListNumber list_item_number(const Node& node);
 
 // Paints the marker of a list item (docs/design/list-style.md): a disc, ring or square drawn as
 // geometry, or the counter text of an ordered type, in the item's colour, outside its border box

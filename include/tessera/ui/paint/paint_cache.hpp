@@ -316,9 +316,11 @@ struct PaintCacheSignature {
     bool in_layer = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
-    // Position of a list item among its parent's list items (0 for any other node): the counter of
-    // an ordered marker. It depends on siblings, not on the node, so it is part of the key.
-    std::uint32_t list_ordinal = 0;
+    // The counter of a list item's ordered marker (its position among the parent's list items,
+    // moved by the list's `start`/`reversed` and the item's `value`); `list_item` is false for any
+    // other node. It depends on siblings and the parent, not on the node, so it is part of the key.
+    std::int32_t list_ordinal = 0;
+    bool list_item = false;
 };
 
 // Seed of the deterministic FNV-1a clip-stack fingerprint. A paint starts from this value; every

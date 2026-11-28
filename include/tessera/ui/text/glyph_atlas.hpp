@@ -68,6 +68,14 @@ struct GlyphAtlasEntry {
     bool color = false;
 };
 
+// One cached glyph's identity, as `GlyphAtlas::working_set` reports it.
+struct GlyphAtlasKey {
+    std::uint32_t glyph_index = 0;
+    std::uint16_t pixel_size = 0;
+    std::uint16_t face = 0;
+    std::uint8_t x_subpixel = 0;
+};
+
 struct GlyphAtlasStats {
     std::uint64_t hits = 0;
     std::uint64_t misses = 0;
@@ -105,6 +113,15 @@ public:
                                                     std::uint16_t pixel_size,
                                                     std::uint16_t face = 0,
                                                     std::uint8_t x_subpixel = 0) const;
+    // Every glyph the atlas holds (with or without a bitmap), sorted by (face, size, glyph,
+    // subpixel) so the result does not depend on hash order. Allocates; a scale-step call, never a
+    // frame-path call.
+    [[nodiscard]] std::vector<GlyphAtlasKey> working_set() const;
+    // Adds a glyph whose bitmap was rasterized elsewhere (a worker, #948) exactly as a cache miss
+    // would have placed it, so the page bytes equal what `get_glyph` produces for the same key and
+    // bitmap. A key already present is left alone. Returns whether the glyph is now cached (false
+    // when the atlas had no room; the glyph is then rasterized on demand like any other miss).
+    bool insert_prerasterized(const GlyphAtlasKey& key, const GlyphBitmap& bitmap);
     [[nodiscard]] std::size_t face_count() const {
         return rasterizers_.size();
     }
@@ -119,9 +136,18 @@ public:
     // texels (an LCD entry counts its physical, three-samples-per-pixel width). Empty when nothing
     // was written. Taking clears it, so the consumer owns "what the GPU copy lacks": the renderer
     // takes it when it creates or refreshes the page texture and uploads just that rectangle
-    // (RHI 1.9 `Texture::write_region`) instead of the whole page (issue #681). A reset page or a
-    // new page reports its whole extent.
+    // (RHI 1.9 `Texture::write_region`) instead of the whole page (issue #681).
+    //
+    // A new or reset page does not report its whole extent (issue #949): the texture holds no
+    // glyph below the used shelf extent, so the first take reports full-width rows from the top
+    // down to the used extent plus one padding row (a linear filter reads one texel past a glyph).
+    // Whenever a later glyph reaches rows the GPU copy has never been given, the rect widens to
+    // those rows at full width, so every row above the used extent is always in sync and a sampled
+    // texel is never one the texture was merely created with.
     [[nodiscard]] GlyphAtlasRect take_dirty(std::uint16_t page);
+    // What a texture created without pixels needs: the used extent of `page` from the top, however
+    // much of it an earlier `take_dirty` already reported. Clears the dirty rectangle.
+    [[nodiscard]] GlyphAtlasRect take_used_extent(std::uint16_t page);
     [[nodiscard]] std::uint32_t page_count() const {
         return static_cast<std::uint32_t>(pages_.size());
     }
@@ -167,10 +193,16 @@ private:
         std::uint32_t shelf_y = 0;
         std::uint32_t shelf_height = 0;
         std::uint32_t shelf_x = 0;
+        // Rows [0, synced_rows) of the GPU copy match `pixels`; the rows below are whatever the
+        // texture was created with. `take_dirty` grows it as the used extent grows.
+        std::uint32_t synced_rows = 0;
         std::uint64_t last_used_frame = 0;
         std::uint32_t generation = 0;
     };
 
+    // Places `bitmap` for `key` and records the entry; the shared tail of a miss and a prewarm.
+    // Returns the cached entry, or the uncached one when no page had room.
+    const GlyphAtlasEntry& place(const Key& key, const GlyphBitmap& bitmap);
     bool pack(Page& page, std::uint32_t width, std::uint32_t height, std::uint32_t& x,
               std::uint32_t& y);
     void reset_page(Page& page);

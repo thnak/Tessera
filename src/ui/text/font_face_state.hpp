@@ -16,6 +16,9 @@ struct FontFaceState {
     FT_Library library = nullptr;
     FT_Face face = nullptr;
     std::vector<std::uint8_t> owned_bytes;
+    // The collection index the face was opened with, kept so clone_independent() reopens the same
+    // face.
+    std::uint32_t face_index = 0;
 
     FontFaceState() = default;
     FontFaceState(const FontFaceState&) = delete;

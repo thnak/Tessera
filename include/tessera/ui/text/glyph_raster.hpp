@@ -63,6 +63,12 @@ public:
     GlyphRasterizer(GlyphRasterizer&&) noexcept = default;
     GlyphRasterizer& operator=(GlyphRasterizer&&) noexcept = default;
 
+    // The face this rasterizer draws from, for `FontFace::clone_independent` (worker
+    // rasterization).
+    [[nodiscard]] const FontFace& face() const noexcept {
+        return face_;
+    }
+
     [[nodiscard]] std::uint32_t glyph_index(char32_t codepoint) const;
     [[nodiscard]] GlyphBitmap rasterize(char32_t codepoint, std::uint16_t pixel_size) const;
     // `x_subpixel` shifts the outline right by x_subpixel / kSubpixelSteps pixels before rendering,

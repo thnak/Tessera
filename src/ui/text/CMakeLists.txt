@@ -10,6 +10,7 @@ add_library(tessera_text STATIC
     font_text_measurer.cpp
     freetype_metrics.cpp
     glyph_atlas.cpp
+    glyph_prewarm.cpp
     glyph_raster.cpp
     scale_glyph_atlas.cpp
     fallback_shaper.cpp

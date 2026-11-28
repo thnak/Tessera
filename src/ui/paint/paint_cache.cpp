@@ -46,7 +46,7 @@ bool same_signature_impl(const PaintCacheSignature& lhs, const PaintCacheSignatu
            lhs.lcd_text == rhs.lcd_text && lhs.isolate_groups == rhs.isolate_groups &&
            lhs.in_layer == rhs.in_layer && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
            lhs.glass_max_backdrop_area == rhs.glass_max_backdrop_area &&
-           lhs.list_ordinal == rhs.list_ordinal;
+           lhs.list_ordinal == rhs.list_ordinal && lhs.list_item == rhs.list_item;
 }
 
 std::uint64_t mix(std::uint64_t seed, std::uint64_t value) {

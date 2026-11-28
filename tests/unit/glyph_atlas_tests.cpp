@@ -177,10 +177,13 @@ int main(int argc, char** argv) {
     GlyphAtlas dirty_atlas(rasterizer, config);
     dirty_atlas.begin_frame();
     const GlyphAtlasEntry first = dirty_atlas.get(U'A', 16);
+    // Issue #949: a new page reports full-width rows down to the used extent (plus one padding
+    // row), not the whole page.
     const GlyphAtlasRect fresh = dirty_atlas.take_dirty(first.page);
     if (!expect(fresh.x == 0 && fresh.y == 0 && fresh.width == config.page_width &&
-                    fresh.height == config.page_height,
-                "a new page is dirty over its whole extent") ||
+                    fresh.height == first.y + first.height + config.padding &&
+                    fresh.height < config.page_height,
+                "a new page is dirty over its used extent only") ||
         !expect(dirty_atlas.take_dirty(first.page).empty(), "taking clears the dirty rectangle") ||
         !expect(dirty_atlas.take_dirty(60000).empty(), "an unknown page has nothing dirty")) {
         return 15;
@@ -225,9 +228,31 @@ int main(int argc, char** argv) {
     const GlyphAtlasRect after_eviction = evicting_dirty.take_dirty(reused.page);
     if (!expect(after_eviction.x == 0 && after_eviction.y == 0 &&
                     after_eviction.width == tight.page_width &&
-                    after_eviction.height == tight.page_height,
-                "a reset page is dirty over its whole extent")) {
+                    after_eviction.height == reused.y + reused.height + tight.padding &&
+                    after_eviction.height < tight.page_height,
+                "a reset page is dirty over its used extent only")) {
         return 19;
+    }
+    // A glyph that opens a new shelf widens the rectangle to the rows the GPU copy never got, so
+    // the padding rows the filter reads are background, not leftovers.
+    GlyphAtlas shelves(rasterizer, config);
+    shelves.begin_frame();
+    const GlyphAtlasEntry shelf_a = shelves.get(U'A', 16);
+    static_cast<void>(shelves.take_dirty(shelf_a.page));
+    const GlyphAtlasEntry shelf_tall = shelves.get(U'A', 28);
+    const GlyphAtlasRect grown = shelves.take_dirty(shelf_tall.page);
+    if (!expect(shelf_tall.y > shelf_a.y, "a taller glyph opens a new shelf") ||
+        !expect(grown.x == 0 && grown.width == config.page_width &&
+                    grown.y == shelf_a.y + shelf_a.height + config.padding &&
+                    grown.y + grown.height == shelf_tall.y + shelf_tall.height + config.padding,
+                "reaching new rows uploads them at full width")) {
+        return 20;
+    }
+    const GlyphAtlasRect whole_used = shelves.take_used_extent(shelf_tall.page);
+    if (!expect(whole_used.y == 0 && whole_used.height == grown.y + grown.height &&
+                    shelves.take_dirty(shelf_tall.page).empty(),
+                "take_used_extent restarts from the top and clears the dirty rectangle")) {
+        return 21;
     }
 
     std::cout << "glyph_atlas: ok\n";

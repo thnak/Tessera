@@ -66,6 +66,11 @@ public:
     [[nodiscard]] bool has_glyph(char32_t codepoint) const noexcept;
     [[nodiscard]] std::string family_name() const;
 
+    // A second face over the same bytes with its own FreeType library, so a worker thread can
+    // rasterize while the original keeps serving the UI thread. It reads only the immutable bytes,
+    // so it may run on any thread; the clone is then owned by that thread alone. Copies the bytes.
+    [[nodiscard]] std::expected<FontFace, FontError> clone_independent() const;
+
     // The original font file bytes; shapers parse the same pinned asset that FreeType loaded.
     [[nodiscard]] std::span<const std::uint8_t> data() const noexcept;
 

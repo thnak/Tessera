@@ -33,7 +33,12 @@ and a change marks paint dirty only (`paint_list_marker.cpp`).
 
 - **Which nodes.** A node with `role="listitem"` (the `li` alias injects it) whose computed type is not
   `none`. The counter is the 1-based position among the `listitem` children of its parent, so a sibling
-  that is not a list item is not counted. `start`, `reversed` and `value` do not exist.
+  that is not a list item is not counted. The list's `aria-start`, `aria-reversed` and an item's
+  `aria-value` (the targets of `ol start`, `reversed` and `li value`,
+  [`html-aliases.md`](../specs/jsx-intrinsics-v1/html-aliases.md) section 3.7) number it as HTML does: the
+  counter starts at `start` (1, or the item count when reversed), a `value` resets it for that item and the
+  rest, and it moves by +1 or -1 (reversed). It may be zero or negative; alphabetic and roman types fall
+  back to decimal below 1.
 - **Shapes.** `disc`, `circle` and `square` are geometry (a rounded rect, a ring, a rect), 0.3125 em wide,
   with the right edge 0.55 em before the item and the centre 0.35 em above the first baseline: the
   measurements of Chrome's disc at 16 px. Geometry rather than a glyph, because the app face has no
@@ -50,6 +55,7 @@ and a change marks paint dirty only (`paint_list_marker.cpp`).
 
 - `list-style-position: inside` and `list-style-image` are rejected: flowing a marker into the first
   line needs inline layout the engine does not have.
+- `sub`/`sup`/`small` inside a `Text` still keep the parent's size (spans are not metric); they need mixed-size runs in the text measurer.
 - No `::marker` pseudo-element, no `counter()`, no `@counter-style`; `display: list-item` does not exist.
 - Right-to-left lists draw the marker on the left; the logical (start-side) placement is not modelled.
 

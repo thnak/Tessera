@@ -75,7 +75,9 @@ void test_schema_version_and_counts() {
     check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
     // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
     // id-reference attributes `useId` exists to fill.
-    check(schema::common_props().size() == 26, "26 common attributes");
+    // 29 with `aria-start`, `aria-reversed` and `aria-value`, the targets of `ol start`,
+    // `ol reversed` and `li value` (issue #912).
+    check(schema::common_props().size() == 29, "29 common attributes");
 }
 
 void test_element_rows() {
@@ -321,7 +323,8 @@ void test_aliases() {
         }
         for (const schema::AliasAttr& attr : alias.attrs) {
             if (attr.kind == schema::AliasAttrKind::Rename) {
-                check(find_prop(target->props, attr.rename) != nullptr,
+                check(find_prop(target->props, attr.rename) != nullptr ||
+                          find_prop(schema::common_props(), attr.rename) != nullptr,
                       "a renamed alias attribute names a target prop");
             }
             if (attr.kind == schema::AliasAttrKind::ToStyle) {

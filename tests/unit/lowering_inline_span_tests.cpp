@@ -399,7 +399,34 @@ void test_pre_quote_blockquote() {
     }
 }
 
+// `ol start`/`reversed` and `li value` become aria-start/aria-reversed/aria-value (issue #912).
+void test_list_numbering_attributes() {
+    const auto fixture = parse(component(
+        "", "<ol start={-2} reversed><li value={7}>a</li><li value=\"9\">b</li></ol>", "props: P"));
+    const auto result = lower(*fixture);
+    check(result.has_value(), "list numbering lowers: " + describe_errors(*fixture, result));
+    if (result) {
+        const ir::Node& list = result->component.root;
+        check_eq(expr_text(list.props.at("aria-start").get()), literal("-2"), "start");
+        check_eq(expr_text(list.props.at("aria-reversed").get()), literal("true"), "reversed flag");
+        check(list.children.size() == 2 &&
+                  expr_text(list.children[0].props.at("aria-value").get()) == literal("7") &&
+                  expr_text(list.children[1].props.at("aria-value").get()) == literal("9"),
+              "item values");
+    }
+    const auto off = parse(component("", "<ol reversed={false} start=\"3\"/>", "props: P"));
+    const auto off_result = lower(*off);
+    check(off_result.has_value() &&
+              expr_text(off_result->component.root.props.at("aria-reversed").get()) ==
+                  literal("false"),
+          "reversed={false}");
+    const auto dynamic =
+        parse(component("  const [n, setN] = useState<int>(1);\n", "<ol start={n}/>", "props: P"));
+    check(!lower(*dynamic).has_value(), "a dynamic start is rejected");
+}
+
 int main() {
+    test_list_numbering_attributes();
     test_group_a_spans();
     test_explicit_decoration_wins();
     test_break_and_rule();
