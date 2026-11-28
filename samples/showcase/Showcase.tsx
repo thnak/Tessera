@@ -21,8 +21,8 @@ export function Showcase() {
         <p className={styles.eyebrow}>Tessera</p>
         <h1>React-style UI, native speed</h1>
         <p className={styles.lead}>
-          Write TSX and CSS the way you already do. Tessera compiles it to C++ and draws it with its own
-          renderer, so the page below is the same code in the Studio and in a shipped app.
+          Write TSX and CSS the way you already do. Tessera compiles it to C++ and draws it with its
+          own renderer, so the page below is the same code in the Studio and in a shipped app.
         </p>
         <div className={styles.actions}>
           <button className={styles.primary} onClick={() => setCount(count + 1)}>

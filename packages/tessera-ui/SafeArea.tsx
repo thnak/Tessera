@@ -35,9 +35,7 @@ export function SafeArea({
   children,
 }: SafeAreaProps) {
   return (
-    <View
-      className={`tsafe safe-edges-${edges} safe-sources-${sources} safe-min-${minimum} safe-mode-${mode}`}
-    >
+    <View className={`tsafe safe-edges-${edges} safe-sources-${sources} safe-min-${minimum} safe-mode-${mode}`}>
       {children}
     </View>
   );

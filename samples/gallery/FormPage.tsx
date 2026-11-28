@@ -18,16 +18,14 @@ export function FormPage() {
     <View className={styles.page}>
       <View className={styles.card}>
         <View className={styles.head}>
-          <View className={styles.logo}>
-            <Text className={styles.logoMark}>T</Text>
-          </View>
+          <View className={styles.logo}><Text className={styles.logoMark}>T</Text></View>
           <View className={styles.headText}>
             <Text className={styles.title}>Create workspace</Text>
-            <Text className={styles.sub}>Invite your team and pick a plan. You can change this later.</Text>
+            <Text className={styles.sub}>
+              Invite your team and pick a plan. You can change this later.
+            </Text>
           </View>
-          <View className={styles.badge}>
-            <Text className={styles.badgeText}>Pro trial</Text>
-          </View>
+          <View className={styles.badge}><Text className={styles.badgeText}>Pro trial</Text></View>
         </View>
 
         <View className={styles.grid}>
@@ -41,8 +39,14 @@ export function FormPage() {
           </View>
           <View className={`${styles.field} ${styles.span}`}>
             <Text className={styles.label}>Work email</Text>
-            <TextInput className={`${styles.input} ${styles.inputError}`} aria-label="Work email" defaultValue="ada@analytical" />
-            <Text className={styles.error}>Enter a full address, for example ada@analytical.engine</Text>
+            <TextInput
+              className={`${styles.input} ${styles.inputError}`}
+              aria-label="Work email"
+              defaultValue="ada@analytical"
+            />
+            <Text className={styles.error}>
+              Enter a full address, for example ada@analytical.engine
+            </Text>
           </View>
           <View className={`${styles.field} ${styles.span}`}>
             <Text className={styles.label}>Region</Text>
@@ -50,19 +54,37 @@ export function FormPage() {
               <Text className={styles.selectValue}>Europe / Berlin (UTC+01:00)</Text>
               <Text className={styles.selectCaret}>v</Text>
             </View>
-            <Text className={`${styles.help} ${styles.ellipsis}`}>Data stays in this region. Backups are kept in the same country unless you opt in to a second site later.</Text>
+            <Text className={`${styles.help} ${styles.ellipsis}`}>
+              Data stays in this region. Backups are kept in the same country unless you opt in to a
+              second site later.
+            </Text>
           </View>
         </View>
 
         <View className={styles.segment}>
-          <View className={`${styles.seg} ${plan === 0 ? styles.segOn : ""}`} onClick={() => setPlan(0)}>
-            <Text className={`${styles.segText} ${plan === 0 ? styles.segTextOn : ""}`}>Monthly</Text>
+          <View
+            className={`${styles.seg} ${plan === 0 ? styles.segOn : ""}`}
+            onClick={() => setPlan(0)}
+          >
+            <Text className={`${styles.segText} ${plan === 0 ? styles.segTextOn : ""}`}>
+              Monthly
+            </Text>
           </View>
-          <View className={`${styles.seg} ${plan === 1 ? styles.segOn : ""}`} onClick={() => setPlan(1)}>
-            <Text className={`${styles.segText} ${plan === 1 ? styles.segTextOn : ""}`}>Yearly</Text>
+          <View
+            className={`${styles.seg} ${plan === 1 ? styles.segOn : ""}`}
+            onClick={() => setPlan(1)}
+          >
+            <Text className={`${styles.segText} ${plan === 1 ? styles.segTextOn : ""}`}>
+              Yearly
+            </Text>
           </View>
-          <View className={`${styles.seg} ${plan === 2 ? styles.segOn : ""}`} onClick={() => setPlan(2)}>
-            <Text className={`${styles.segText} ${plan === 2 ? styles.segTextOn : ""}`}>Invoice</Text>
+          <View
+            className={`${styles.seg} ${plan === 2 ? styles.segOn : ""}`}
+            onClick={() => setPlan(2)}
+          >
+            <Text className={`${styles.segText} ${plan === 2 ? styles.segTextOn : ""}`}>
+              Invoice
+            </Text>
           </View>
         </View>
 
@@ -72,7 +94,9 @@ export function FormPage() {
               <Text className={styles.rowTitle}>Weekly digest</Text>
               <Text className={styles.help}>A summary every Monday morning.</Text>
             </View>
-            <View className={`${styles.toggle} ${styles.toggleOn}`}><View className={`${styles.knob} ${styles.knobOn}`} /></View>
+            <View className={`${styles.toggle} ${styles.toggleOn}`}>
+              <View className={`${styles.knob} ${styles.knobOn}`} />
+            </View>
           </View>
           <View className={styles.row}>
             <View className={styles.rowText}>
@@ -82,22 +106,35 @@ export function FormPage() {
             <View className={styles.toggle}><View className={styles.knob} /></View>
           </View>
           <View className={styles.checkRow}>
-            <View className={`${styles.check} ${styles.checkOn}`}><Text className={styles.checkMark}>x</Text></View>
-            <Text className={styles.checkLabel}>I agree to the terms and the data processing addendum</Text>
+            <View className={`${styles.check} ${styles.checkOn}`}>
+              <Text className={styles.checkMark}>x</Text>
+            </View>
+            <Text className={styles.checkLabel}>
+              I agree to the terms and the data processing addendum
+            </Text>
           </View>
         </View>
 
         <View className={styles.rule} />
 
         <View className={styles.foot}>
-          <Button label="Delete draft" variant="ghost" disabled={true} onPress={() => setSubmits(submits + 1)}>
+          <Button
+            label="Delete draft"
+            variant="ghost"
+            disabled={true}
+            onPress={() => setSubmits(submits + 1)}
+          >
             <Text>Delete draft</Text>
           </Button>
           <View className={styles.spacer} />
           <Button label="Cancel" variant="secondary" onPress={() => setSubmits(submits + 1)}>
             <Text>Cancel</Text>
           </Button>
-          <Button label="Create workspace" variant="primary" onPress={() => setSubmits(submits + 1)}>
+          <Button
+            label="Create workspace"
+            variant="primary"
+            onPress={() => setSubmits(submits + 1)}
+          >
             <Text>Create workspace</Text>
           </Button>
         </View>

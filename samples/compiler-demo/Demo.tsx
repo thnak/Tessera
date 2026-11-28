@@ -9,7 +9,6 @@ export function Demo() {
   const box = useRef<View>(null);
   const fade = useAnimatedValue(1.0);
 
-
   // Note: bind::sync
   useEffect(() => {
     log(count);

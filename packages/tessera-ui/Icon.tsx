@@ -12,20 +12,13 @@
 
 import { IconGlyph } from "./icons/IconGlyph";
 
-export type IconProps = {
-  name: string;
-  label?: string;
-  size?: string;
-  mirror?: boolean;
-};
+export type IconProps = { name: string; label?: string; size?: string; mirror?: boolean };
 
 export function Icon({ name, label = "", size = "md", mirror = false }: IconProps) {
   return (
     <View className={`ticon ticon-${size} ${mirror ? "ticon-mirror" : "ticon-fixed"}`}>
       {label !== "" && (
-        <View role="img" aria-label={label} className="ticon-box">
-          <IconGlyph name={name} />
-        </View>
+        <View role="img" aria-label={label} className="ticon-box"><IconGlyph name={name} /></View>
       )}
       {label === "" && (
         <View role="presentation" aria-hidden={true} className="ticon-box">

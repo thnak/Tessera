@@ -140,9 +140,8 @@ spelling works on either.
   the number formatted keeps the corpus from silently shrinking. A grammar form the printer cannot
   print therefore fails the build (the refusal is `TESSERA_FMT_UNSUPPORTED` or `..._VERIFY`).
 - `ctest -R fmt_check_samples` (`scripts/check_fmt_canonical.py`) runs `tessera_fmt --check` over
-  `samples/` and `packages/tessera-ui/` as a ratchet: the files in `tools/fmt/fmt-baseline.txt` predate the
-  formatter (reformatting them moves line numbers that several goldens read) and must stay listed
-  until formatted; every other file must be canonical. Generated templates are not covered yet.
+  `samples/` and `packages/tessera-ui/` as a ratchet: `tools/fmt/fmt-baseline.txt` lists files known not to be canonical (empty since #1008, when
+  the last 20 were formatted and the committed library IR regenerated); every other file must be canonical. Generated templates are not covered yet.
 - A port (ADR-058) runs `tessera fmt` once after translation so the project starts canonical.
 
 ## 10. Known limits of slice 1
@@ -267,4 +266,5 @@ The formatter reuses that boundary instead of inventing one:
 **Still refused** (`TESSERA_FMT_SYNTAX`, no edits): a file with no tree (over the size limit), an error outside every
 invalid item, and a file with nothing but broken items (nothing recovered, and a silent no-op would hide the
 errors). CSS and `tessera.json` are never recovered: an unbalanced brace or a JSON syntax error leaves no
-boundary that can be trusted. Format-on-type and an editor selection range are not planned.
+boundary that can be trusted (decided in #1008: refuse and report, no range formatting for them;
+`source_format_recover_tests.cpp` pins it). Format-on-type and an editor selection range are not planned.

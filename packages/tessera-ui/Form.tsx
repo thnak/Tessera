@@ -32,9 +32,5 @@ export type FormProps = {
 
 // The tree is the hand-written one: the `form` container and its Slot.
 export function Form({ initial = [], validate, onSubmit, children }: FormProps) {
-  return (
-    <View className="form">
-      {children}
-    </View>
-  );
+  return <View className="form">{children}</View>;
 }
