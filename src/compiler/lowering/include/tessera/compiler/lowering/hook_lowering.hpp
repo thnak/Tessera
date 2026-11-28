@@ -144,6 +144,8 @@ struct LoweredHooks {
     std::vector<ir::Service> services;
     // ADR-067 item 1: `useResource` reads, in declaration order. Empty for a component with none.
     std::vector<ir::Resource> resources;
+    // ADR-050 open question 6: `useObservable` reads, in declaration order. Empty for none.
+    std::vector<ir::Observable> observables;
     std::vector<ir::Ref> refs; // `target` stays empty until the node lowering of slice 7
     std::vector<ir::AnimatedValue> animated_values;
     std::vector<ir::Binding> bindings; // event, effect and `_cleanup` bindings, sorted by id

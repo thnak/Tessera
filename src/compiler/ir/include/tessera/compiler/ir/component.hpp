@@ -141,6 +141,20 @@ struct Service {
     std::string registry_id{};
 };
 
+// One `const <name> = useObservable(service.member)` read (ADR-050 open question 6,
+// docs/design/observable-render-read.md). The member is a service-owned `Observable<T>` the
+// project manifest lists; `obs::<name>` (and `obs::<name>.<field>` for a record) is the reference
+// id that reads its current value. Codegen caches the observable's address at attach, subscribes
+// the component's update at mount and unsubscribes at unmount, so a change re-renders the bindings
+// that read it. Additive: a component without observables writes the bytes it wrote before.
+struct Observable {
+    std::string id;      // `obs::<name>`
+    std::string service; // the `svc::` id of a declared service of this component
+    std::string member;  // the manifest observable (the C++ accessor name)
+    std::string type;    // the IR type of the value (`string`, `int`, a declared record, ...)
+    SourceSpan source;
+};
+
 // One `const <name> = useResource(service.method, key, { suspend })` read (ADR-067 item 1;
 // docs/specs/pending-ui-v1.md section 3.4). The resource is the typed, keyed record of
 // async-data-v1.md section 1; its fetch goes through the declared service, never a URL.
@@ -195,6 +209,9 @@ struct Component {
     // ADR-067 item 1: the `useResource` reads, in declaration order. Empty for every component that
     // calls none, which keeps the IR JSON and the generated base byte-identical to before.
     std::vector<Resource> resources;
+    // ADR-050 open question 6: the `useObservable` reads, in declaration order. Empty for every
+    // component that calls none, which keeps the IR JSON and the generated base byte-identical.
+    std::vector<Observable> observables;
     Node root;
 };
 

@@ -264,6 +264,11 @@ std::vector<std::string> declared_cells(const ir::Component& component,
     if (has_pending_cell(component)) {
         cells.emplace_back(kPendingCell);
     }
+    // ADR-050 open question 6: one cell per observable read; its subscription marks the bit, and a
+    // record-typed value is one bit because the subscription cannot tell which field changed.
+    for (const ir::Observable& observable : component.observables) {
+        cells.push_back(observable.id);
+    }
     std::sort(cells.begin(), cells.end());
     cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
     return cells;
@@ -280,6 +285,10 @@ void ReadCollector::add_ref_id(const std::string& id) {
     if (starts_with(base, "res::") && has_pending_cell(component_)) {
         // A resource read changes when the model publishes a new state (pending-ui-v1.md 6.1).
         cells_.emplace_back(kPendingCell);
+        return;
+    }
+    if (starts_with(base, "obs::")) {
+        cells_.push_back(base); // the observable's own bit, whole or by field
         return;
     }
     const bool namespace_cell = starts_with(base, "state::") || starts_with(base, "prop::") ||

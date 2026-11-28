@@ -69,6 +69,11 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
             // Resolved by the behavior loop below: the value is the behavior's one output
             // (`beh::<name>.isPending`, `beh::<name>.value`), not an entry of its own.
             break;
+        case rules::SymbolKind::Observable:
+            // `const route = useObservable(nav.route);` reads `obs::route`; a record's field is
+            // the entry's id plus the field (`obs::route.title`), like a record-typed state.
+            entries_.push_back({symbol.name, "obs::" + symbol.name});
+            break;
         case rules::SymbolKind::Resource:
             // `feed.status`, `feed.data` and `feed.error` resolve through `resource_names_`
             // below; the bare `feed` is a record, not a value.

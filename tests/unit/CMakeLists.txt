@@ -3740,6 +3740,16 @@ target_link_libraries(shim_router_tests PRIVATE tessera_lowering tessera_ir_eval
 
 add_test(NAME shim_router COMMAND shim_router_tests)
 
+# `useObservable(svc.member)` from TSX (ADR-050 open question 6, docs/design/observable-render-read.md):
+# the rules, the lowering, the IR validation, the evaluator and the shape of the generated base.
+add_executable(observable_frontend_tests
+    observable_frontend_tests.cpp)
+
+target_link_libraries(observable_frontend_tests PRIVATE
+    tessera_lowering tessera_ir_eval tessera_codegen tessera_ir_ids)
+
+add_test(NAME observable_frontend COMMAND observable_frontend_tests)
+
 # Generic layer promotion policy and its paint-pass path (issue #967).
 add_executable(paint_layer_promotion_tests
     paint_layer_promotion_tests.cpp)

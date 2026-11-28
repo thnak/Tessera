@@ -13,6 +13,7 @@ add_library(tessera_react_rules STATIC
     src/hooks.cpp
     src/memo_deps.cpp
     src/reducer.cpp
+    src/observable.cpp
     src/resource.cpp
     src/service.cpp)
 

@@ -59,10 +59,21 @@ file. The file is a build input: the compiler reads it, never the C++ header.
 | `methods[].params[]` | array | `{name, type}`, in call order. `type` is an IR type |
 | `methods[].returns` | string | An IR type or `void`. A non-`void` result may be bound with `const` in a handler |
 
-Not in V1, reserved so a later version is additive: `observables` (service-owned `Observable<T>` readable in
-render, ADR-050 open question 6), `events`, and per-method `threading` notes. A reader ignores a key it
-does not know only inside `cpp`; elsewhere an unknown key is `TESSERA_SVC_MANIFEST_UNKNOWN_KEY` so a typo
-cannot silently drop a method.
+`services[].observables[]` (optional, default none) lists the service-owned `Observable<T>` TSX may read in
+render through `useObservable(svc.member)` (ADR-050 open question 6,
+[`observable-render-read.md`](../design/observable-render-read.md)):
+
+| Field | Type | Rule |
+|---|---|---|
+| `observables[].name` | string | The C++ accessor name and the TSX member; an identifier, unique across the service's observables and methods (`TESSERA_SVC_MANIFEST_DUPLICATE`) |
+| `observables[].type` | string | An IR value type (never `void`, `TESSERA_SVC_MANIFEST_TYPE`); a declared record is read by field |
+
+The C++ interface exposes each as `tessera::appfw::Observable<T>& name()` (non-const: subscribing
+registers an observer), `T` being the C++ form of the IR type.
+
+Not in V1, reserved so a later version is additive: `events` and per-method `threading` notes. A reader
+ignores a key it does not know only inside `cpp`; elsewhere an unknown key is
+`TESSERA_SVC_MANIFEST_UNKNOWN_KEY` so a typo cannot silently drop a method.
 
 ## 3. What the compiler does with it
 
@@ -86,6 +97,16 @@ cannot silently drop a method.
    composition root takes the union of the components it mounts and checks it with
    `find_missing_services` against the frozen scopes before P4, reporting every missing provider with
    the component and TSX location (`TESSERA_APPFW_SERVICE_MISSING`).
+
+7. **`useObservable(svc.member)`** (rules of hooks, top level, after the `useService` it names) resolves the
+   member against `observables[]`. A form that is not `const x = useObservable(binding.member)` is
+   `TESSERA_REACT_HOOK_FORM`; an argument that is not a member of a `useService` binding, or a member the
+   manifest does not list as an observable, is `TESSERA_REACT_HOOK_ARG` (the message lists the members
+   the manifest does declare); a use inside a handler or before its service is
+   `TESSERA_REACT_HOOK_ORDER`. Lowering adds one `ir::Component::observables` entry (`obs::<name>`), and
+   codegen caches the observable at attach, subscribes at mount and releases at unmount.
+8. **`services.d.ts`** types each observable as a `readonly` member and, when any service has one,
+   declares `useObservable<T>(source: T): T`.
 
 ## 4. Diagnostics
 

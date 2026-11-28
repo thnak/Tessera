@@ -72,7 +72,9 @@ inline bool is_core_hook(std::string_view name) {
            name == "useContext" ||
            // ADR-050 section 3.1 (issue #177): `useService<T>()`, whose form its own pass
            // (service.cpp) checks against the project's services manifest.
-           name == "useService";
+           name == "useService" ||
+           // ADR-050 open question 6: `useObservable(svc.member)`, checked by observable.cpp.
+           name == "useObservable";
 }
 
 // True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion

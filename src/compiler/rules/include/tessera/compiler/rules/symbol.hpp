@@ -42,6 +42,9 @@ enum class SymbolKind : std::uint8_t {
     // ADR-067 item 5 (issue #656): `d` of `const d = useDeferredValue(x)`, a read-only scalar, the
     // one output of the `deferred_value` behavior (`beh::d.value`).
     DeferredValue,
+    // ADR-050 open question 6: `route` of `const route = useObservable(nav.route)`, a read-only
+    // value. `route` (a scalar) and `route.field` (a record) resolve to `obs::route[.field]`.
+    Observable,
 };
 
 inline constexpr std::size_t kNoStatement = static_cast<std::size_t>(-1);
