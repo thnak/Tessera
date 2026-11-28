@@ -169,7 +169,7 @@ bool job_runs_to_success_and_services_stop() {
 
 bool finish_results_map_to_outcomes() {
     bool ok = true;
-    for (const auto [result, expected] :
+    for (const auto& [result, expected] :
          {std::pair{appfw::JobResult::Retry, JobOutcome::RetryRequested},
           std::pair{appfw::JobResult::Failed, JobOutcome::Failed}}) {
         Host f;
