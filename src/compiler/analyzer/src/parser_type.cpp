@@ -160,8 +160,12 @@ TypePtr Parser::parse_type_primary() {
         fail("TESSERA_JSX_SUBSET_TYPES", "tuple types are not supported", cur_.span,
              "use an array type such as `int[]`");
         return nullptr;
-    } else if (cur_.is_keyword("typeof") || cur_.is_keyword("interface") ||
-               cur_.is_keyword("enum")) {
+    } else if (cur_.is_keyword("typeof")) {
+        type = parse_typeof_values(begin);
+        if (!type) {
+            return nullptr;
+        }
+    } else if (cur_.is_keyword("interface") || cur_.is_keyword("enum")) {
         fail("TESSERA_JSX_SUBSET_TYPES", "`" + std::string(cur_.text) + "` types are not supported",
              cur_.span, "use the types of the subset specification, section 5");
         return nullptr;
@@ -185,6 +189,61 @@ TypePtr Parser::parse_type_primary() {
         type = std::move(array);
     }
     return fatal_ ? nullptr : std::move(type);
+}
+
+// ADR-058 typing rule 1 (#547): `typeof NS[keyof typeof NS]` is the type of the values of an `as
+// const` object, which is the union of its string literals. It needs the namespace declared earlier
+// in the file; any other `typeof` is rejected with the fix.
+TypePtr Parser::parse_typeof_values(std::uint32_t begin) {
+    const auto reject = [&](const std::string& message, const std::string& fix) -> TypePtr {
+        fail("TESSERA_JSX_SUBSET_TYPES", message, span_from(begin), fix);
+        return nullptr;
+    };
+    const std::string kUseUnion = "write the union of string literals, or use the enum's name";
+    advance(LexMode::Code); // `typeof`
+    if (cur_.kind != TokenKind::Identifier) {
+        return reject("`typeof` types are not supported", kUseUnion);
+    }
+    const std::string name(cur_.text);
+    advance(LexMode::Code);
+    const auto space = value_namespaces_.find(name);
+    const bool indexed = at_punct("[");
+    if (!indexed || space == value_namespaces_.end()) {
+        return reject("`typeof` types are only supported as `typeof X[keyof typeof X]` over an `as "
+                      "const` object declared earlier",
+                      kUseUnion);
+    }
+    advance(LexMode::Code);
+    bool shaped = cur_.text == "keyof";
+    if (shaped) {
+        advance(LexMode::Code);
+        shaped = cur_.is_keyword("typeof");
+    }
+    if (shaped) {
+        advance(LexMode::Code);
+        shaped = cur_.kind == TokenKind::Identifier && cur_.text == name;
+    }
+    if (!shaped) {
+        return reject("only `typeof " + name + "[keyof typeof " + name + "]` is supported",
+                      kUseUnion);
+    }
+    advance(LexMode::Code);
+    if (!expect_punct("]", LexMode::Code)) {
+        return nullptr;
+    }
+    TypePtr uni = make_type(TypeKind::Union, span_from(begin));
+    for (const NamespaceMember& member : space->second) {
+        if (member.kind != ExprKind::String) {
+            return reject("`typeof " + name + "` has a non-string value", kUseUnion);
+        }
+        TypePtr literal = make_type(TypeKind::StringLiteral, span_from(begin));
+        literal->text = member.text;
+        uni->children.push_back(std::move(literal));
+    }
+    if (uni->children.size() == 1) {
+        return std::move(uni->children[0]);
+    }
+    return uni;
 }
 
 TypePtr Parser::parse_type_object(std::uint32_t begin) {

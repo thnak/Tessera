@@ -73,6 +73,15 @@ void test_forms() {
              "an auto-numbered member is rejected");
     check_eq(codes(parse_module("enum E { A = \"a\" }\nconst k = E.B;")), "TESSERA_JSX_TYPE_ENUM;",
              "an unknown member names the known ones");
+    check_eq(dump_module("const T = { dark: \"d\", light: \"l\" } as const;\n"
+                         "type Theme = typeof T[keyof typeof T];"),
+             dump_module("const T = { dark: \"d\", light: \"l\" };\ntype Theme = \"d\" | \"l\";"),
+             "typeof NS[keyof typeof NS] is the union of the namespace values");
+    check_eq(codes(parse_module("type Theme = typeof T[keyof typeof T];")),
+             "TESSERA_JSX_SUBSET_TYPES;",
+             "typeof over an undeclared namespace is rejected with the fix");
+    check_eq(codes(parse_module("const T = { a: \"a\" } as const;\ntype X = typeof T;")),
+             "TESSERA_JSX_SUBSET_TYPES;", "a bare typeof type stays rejected");
     check_eq(codes(parse_module("const a = 1 as int;")), "TESSERA_JSX_SUBSET_TYPES;",
              "only as const is accepted as an assertion");
 }

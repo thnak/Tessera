@@ -252,8 +252,8 @@ ParamType  = IDENT ":" TypeExpr ;
 - `Ref<T>` is not written by developers; refs use the element type directly (`useRef<Text>(null)`,
   section 7). Element types are the intrinsic names of section 11.
 - Not accepted: `any`, `unknown`, `never`, `object`, `Function`, intersections (`&`), conditional or
-  mapped types, `keyof`/`typeof` types, tuple types, enums (`enum`), interfaces (`interface`),
-  generics on user declarations, `as` assertions, non-null `!` assertions, `satisfies`, decorators.
+  mapped types, `keyof`/`typeof` types (except `typeof X[keyof typeof X]`), tuple types, numeric
+  enums and `interface extends` (string `enum` and plain `interface` are absorbed, see react-compat), generics on user declarations, `as` assertions, non-null `!` assertions, `satisfies`, decorators.
 
 ## 6. Components
 
