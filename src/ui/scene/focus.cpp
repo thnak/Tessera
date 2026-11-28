@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "focus_internal.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -55,6 +56,9 @@ const Node* roving_stop(const Node& group, NodeId active, const std::vector<Node
     const Node* first = nullptr;
     for (const Node* node : tree_order) {
         if (!inside(group, *node) || node == &group) {
+            continue;
+        }
+        if (aria_disabled(*node)) {
             continue;
         }
         if (node->id() == active) {
