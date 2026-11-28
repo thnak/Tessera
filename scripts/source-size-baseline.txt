@@ -15,7 +15,6 @@ src/platform/windows/window.cpp 608
 src/rendering/backend/vulkan/src/vulkan_command_list.cpp 685
 src/rendering/backend/vulkan/src/vulkan_internal.hpp 599
 src/rendering/backend/vulkan/src/vulkan_swapchain.cpp 591
-src/schema/src/aliases.cpp 515
 src/ui/layout/layout_style.cpp 538
 src/ui/scene/input_dispatch.cpp 516
 src/ui/style/property_registry.cpp 507
