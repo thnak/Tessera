@@ -320,7 +320,7 @@ if (wasm) {
     assert.deepEqual(names(cls), ['wide']);
     const imp = await client.request('completion', { file: 0, offset: app.indexOf('"./Card"') + 3 });
     assert.equal(imp.context, 'importPath');
-    assert.deepEqual(names(imp), ['./Card']);
+    assert.deepEqual(names(imp), ['./App.module.css', './Card']);
     const tag = await client.request('completion', { file: 0, offset: app.indexOf('<Card ti') + 1 });
     assert.equal(tag.context, 'tag');
     assert.deepEqual(names(tag), ['App', 'Card']);
@@ -335,6 +335,7 @@ if (wasm) {
     const prep = (await client.request('prepareRename', { file: 0, offset: tag })).prepare;
     assert.equal(prep.placeholder, 'Card');
     assert.equal(app.slice(prep.from, prep.to), 'Card');
+    const before = await client.request('diagnostics');
     const result = await client.request('rename', { file: 0, offset: tag, newName: 'Tile' });
     assert.equal(result.refusal, undefined);
     assert.deepEqual([...new Set(result.edits.map((e) => e.file))], [0, 1]);
@@ -342,7 +343,7 @@ if (wasm) {
     await client.applyEdits(result.edits);
     const moved = await client.request('definition', { file: 0, offset: tag });
     assert.equal(moved.definitions[0].file, 1);
-    assert.equal((await client.request('diagnostics')).files.every((f) => f.diagnostics.length === 0), true);
+    assert.deepEqual((await client.request('diagnostics')).files, before.files, 'renaming adds no diagnostic');
     const refused = await client.request('rename', { file: 0, offset: tag, newName: 'App' });
     assert.deepEqual(refused.edits, []);
     assert.equal(refused.refusal.code, 'TESSERA_ANALYSIS_RENAME_COLLISION');
