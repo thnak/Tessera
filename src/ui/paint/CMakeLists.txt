@@ -8,6 +8,7 @@ add_library(tessera_paint STATIC
     paint_node_parts.cpp
     paint_canvas.cpp
     paint_filter.cpp
+    layer_promotion.cpp
     paint_layer_retention.cpp
     paint_pass.cpp
     paint_image.cpp

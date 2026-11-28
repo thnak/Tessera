@@ -2812,6 +2812,12 @@ function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::conic_fi
 function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::linear_fill
 function include/tessera/ui/paint/gradient_fill.hpp tessera::ui::paint::radial_fill
 
+header include/tessera/ui/paint/layer_promotion.hpp
+class include/tessera/ui/paint/layer_promotion.hpp tessera::ui::paint::LayerPromotion
+struct include/tessera/ui/paint/layer_promotion.hpp tessera::ui::paint::LayerPromotionConfig
+struct include/tessera/ui/paint/layer_promotion.hpp tessera::ui::paint::LayerPromotionObservation
+struct include/tessera/ui/paint/layer_promotion.hpp tessera::ui::paint::LayerPromotionStats
+
 header include/tessera/ui/paint/layer_retention.hpp
 struct include/tessera/ui/paint/layer_retention.hpp tessera::ui::paint::LayerRetention
 

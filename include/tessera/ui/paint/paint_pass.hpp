@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/ui/paint/background_layer_cache.hpp"
+#include "tessera/ui/paint/layer_promotion.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/subtree_paint_cache.hpp"
@@ -87,6 +88,12 @@ struct PaintStats {
     // Layers the sink composited from pixels it retained (issue #617): their box, children and mask
     // were not emitted, so their nodes are counted in neither `nodes` nor the draw counters.
     std::size_t retained_layers = 0;
+    // Layers the pass opened because the promotion policy chose the node (issue #967), whether the
+    // sink then held its pixels or recorded them. Zero without a `LayerPromotion`.
+    std::size_t promoted_layers = 0;
+    // Layers the pass opened for the node's own style (mask, filter, group opacity), retained or
+    // not; a promoted layer is not counted. The promotion policy refuses a subtree with one inside.
+    std::size_t layers = 0;
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
@@ -181,6 +188,11 @@ struct PaintContext {
     // Folded into every retained-layer key: the owner bumps it when anything the key and the dirty
     // flags cannot see may have changed (a style generation, a frame painted without the pass).
     std::uint64_t retain_epoch = 0;
+    // Generic layer promotion (issue #967): a clean, expensive, big container with no glass inside
+    // takes the retained-layer path too. Null (the default) promotes nothing and paints exactly as
+    // before. Needs `retain_layers`, and is ignored while `lcd_text` is on (a layer cannot carry
+    // LCD text). The policy is owned by the caller so its history outlives one frame.
+    LayerPromotion* layer_promotion = nullptr;
     rendering::gpu::GlassLimits glass{};
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.

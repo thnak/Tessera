@@ -100,6 +100,49 @@ rhi::Rect retained_layer_box(const Node& node, const rhi::Rect& rect) {
     return rhi::Rect{rect.x + local.x, rect.y + local.y, local.width, local.height};
 }
 
+namespace {
+
+// A container worth tracking: it has children (a leaf is already one draw) and a real box.
+bool promotion_shape(const Node& node, const rhi::Rect& rect) {
+    return !node.children().empty() && rect.width > 0.0f && rect.height > 0.0f;
+}
+
+} // namespace
+
+bool promote_now(const PassState& pass, const Node& node, const rhi::Rect& rect,
+                 float inherited_opacity, bool in_layer) {
+    return pass.promotion != nullptr && pass.retain_layers && !pass.lcd_text && !in_layer &&
+           inherited_opacity == 1.0f && promotion_shape(node, rect) &&
+           node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean &&
+           pass.promotion->promotes(node.id(), pass.retain_epoch);
+}
+
+void observe_promotion(const PassState& pass, const Node& node, float inherited_opacity,
+                       bool in_layer, bool held, const PaintStats& before,
+                       const PaintStats& after) {
+    const rhi::Rect box = node.bounds();
+    if (pass.promotion == nullptr || !pass.retain_layers || pass.lcd_text || in_layer ||
+        inherited_opacity != 1.0f || !promotion_shape(node, box) ||
+        (held && after.retained_layers != before.retained_layers)) {
+        return;
+    }
+    const PaintCounts counts = paint_counts_since(after, before);
+    LayerPromotionObservation observation;
+    observation.draws = static_cast<std::uint32_t>(
+        counts.backgrounds + counts.borders + counts.texts + counts.vectors + counts.images +
+        counts.gradients + counts.shadows + counts.text_shadows + counts.backdrops);
+    observation.area = box.width * box.height;
+    observation.backdrop = counts.backdrops != 0;
+    observation.nested_layer = after.layers != before.layers;
+    observation.clean = node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean;
+    observation.epoch = pass.retain_epoch;
+    pass.promotion->observe(node.id(), observation);
+}
+
+std::uint64_t layer_key_epoch(const PassState& pass, const Node& node, bool promoted) {
+    return promoted ? pass.promotion->key_epoch(node.id(), pass.retain_epoch) : pass.retain_epoch;
+}
+
 bool push_layer_retained(PaintSink& sink, const Node& node, const PaintCacheSignature& signature,
                          const LayerDraw& layer, bool masked, std::uint64_t epoch) {
     const bool clean = node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean;

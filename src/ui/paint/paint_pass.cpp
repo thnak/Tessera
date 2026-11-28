@@ -57,7 +57,11 @@ bool is_inline_span_child(const Node& parent, const Node& child) {
 
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
                 const PaintContext& context, Frame frame, const PaintScope& scope,
-                const detail::ClipScope& clip_scope, const detail::PassState& pass) {
+                const detail::ClipScope& clip_scope, const detail::PassState& pass);
+
+void paint_node_body(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
+                     const PaintContext& context, Frame frame, const PaintScope& scope,
+                     const detail::ClipScope& clip_scope, const detail::PassState& pass) {
     if (!node.rendered()) {
         ++stats.hidden_subtrees;
         return;
@@ -105,11 +109,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // Paint-pass culling (PaintContext::cull; issue #487, dirty-rendering.md section 6.8): the
     // reach test is style-free, and a node painted in its own transform frame is never culled (its
     // children are expressed relative to the matrix it would push). A dirty node with a cache
-    // record is painted too, so its record is refreshed rather than going stale for a later clean
-    // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
-    // Only a dirty node that actually has a record can leave a stale one behind (a node with none
-    // is simply painted fresh whenever it is next visited), so the first frame of a scene, whose
-    // cache is empty, culls as freely as a clean one (issue #257).
+    // record is painted too, so its record is refreshed rather than going stale; a node with none
+    // culls as freely as a clean one (issue #257).
     // A retained layer (#617) goes stale the same way: a dirty node that may hold one is never
     // culled (it must be seen to drop its layer), and a dirty subtree is kept only while some layer
     // is held at all. With none held, culling is exactly as without retention.
@@ -188,18 +189,20 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // since the paint that recorded it may have a different computed style, which the style-free
     // key cannot see, so it never hits: it re-records and replaces its entry.
     std::optional<PaintCacheSignature> signature;
+    bool promote = false; // the promotion policy chose this node (issue #967)
     if (pass.cacheable) {
         signature = detail::make_paint_cache_signature(
             node, painted_world, painted_frame.inverse, open_frame, rect, interpolated,
             sink.supports_transform(), clip_scope, pass, scope.opacity, sink.supports_layers(),
             scope.in_layer);
+        promote = detail::promote_now(pass, node, rect, scope.opacity, scope.in_layer);
         // Retained draw list (issue #476): a clean subtree is replayed as one flat list, or
         // recorded as one when it has none yet. The recording pass re-enters this node with
         // `in_subtree`.
         if (pass.subtree != nullptr && !pass.in_subtree && node.subtree_dirty() != Dirty::Clean) {
             pass.subtree->erase(node.id()); // a list that predates this change must not come back
         }
-        if (pass.subtree != nullptr && pass.subtree_replay && !pass.in_subtree &&
+        if (pass.subtree != nullptr && pass.subtree_replay && !pass.in_subtree && !promote &&
             node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean &&
             !node.children().empty()) {
             const std::optional<rhi::Rect> cull = detail::cull_key(pass);
@@ -222,7 +225,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         }
         if (node.dirty() != Dirty::Clean) {
             pass.cache->note_miss();
-        } else if (const PaintRecord* record = pass.cache->find(*signature, node.paint_data())) {
+        } else if (const PaintRecord* record =
+                       promote ? nullptr : pass.cache->find(*signature, node.paint_data())) {
             const PaintCounts counts = record->counts;
             const bool pushed_clip = record->pushed_clip;
             const bool pushed_layer = record->pushed_layer;
@@ -282,8 +286,12 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const bool group_candidate = pass.isolate_group_opacity && own_opacity < 1.0f &&
                                  own_opacity > 0.0f && !node.children().empty() &&
                                  rect.width > 0.0f && rect.height > 0.0f && sink.supports_layers();
-    const bool retaining = pass.retain_layers && signature.has_value() &&
-                           (masked || !filter.empty() || group_candidate);
+    const bool natural_layer = masked || !filter.empty() || group_candidate;
+    const bool promoted = promote && !natural_layer && own_opacity == 1.0f;
+    const bool retaining =
+        pass.retain_layers && signature.has_value() && (natural_layer || promoted);
+    stats.promoted_layers += promoted ? 1u : 0u;
+    stats.layers += natural_layer ? 1u : 0u;
     const bool layered = masked || !filter.empty() || retaining;
     if (layered && pass.cache != nullptr) {
         pass.cache->erase(node.id());
@@ -304,14 +312,12 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         ++stats.transforms;
     }
 
-    // Effective opacity: the ancestor product times this node's own `opacity` (both clamped 0..1).
-    // It multiplies every primitive this node emits and is what its children inherit, so a group
-    // fades as a whole without an offscreen layer (paint-pass.md 14.1); `opacity: 0` still walks.
-    // A faded node with children paints as one isolated layer when the context asks for it and the
-    // sink can render one (issue #227): its own opacity is applied once at the composite, so the
-    // primitives inside carry only the ancestor product. The box is the whole frame for now (the
-    // renderer clamps it to the frame, the clip and the damage); a tighter subtree box is a later
-    // refinement. `opacity: 0` paints nothing either way and stays on the flat path.
+    // Effective opacity: the ancestor product times this node's own `opacity`; it multiplies every
+    // primitive this node emits and is what its children inherit (paint-pass.md 14.1). A faded node
+    // with children paints as one isolated layer when the context asks for it and the sink can
+    // render one (issue #227): its own opacity is applied once at the composite, so the primitives
+    // inside carry only the ancestor product. An unretained layer's box is the whole frame (the
+    // renderer clamps it). `opacity: 0` paints nothing and stays on the flat path.
     const bool isolate_group =
         layered || (pass.isolate_group_opacity && own_opacity < 1.0f && own_opacity > 0.0f &&
                     !node.children().empty() && rect.width > 0.0f && rect.height > 0.0f &&
@@ -329,7 +335,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
                                                            node.subtree_dirty() == Dirty::Clean);
         }
         if (retaining &&
-            detail::push_layer_retained(*own, node, *signature, layer, masked, pass.retain_epoch)) {
+            detail::push_layer_retained(*own, node, *signature, layer, masked,
+                                        detail::layer_key_epoch(pass, node, promoted))) {
             // The sink composites the pixels it holds at the pop: no box, children or mask.
             own->pop_layer();
             if (open_frame) {
@@ -449,6 +456,21 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
 }
 
+// Reports what the subtree emitted so the policy can decide the next frame (issue #967). Skipped
+// while a draw list records (the outer call observes) and when the policy is off.
+void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
+                const PaintContext& context, Frame frame, const PaintScope& scope,
+                const detail::ClipScope& clip_scope, const detail::PassState& pass) {
+    if (pass.promotion == nullptr || pass.in_subtree) {
+        paint_node_body(node, styles, sink, stats, context, frame, scope, clip_scope, pass);
+        return;
+    }
+    const bool held = detail::promote_now(pass, node, node.bounds(), scope.opacity, scope.in_layer);
+    const PaintStats before = stats;
+    paint_node_body(node, styles, sink, stats, context, frame, scope, clip_scope, pass);
+    detail::observe_promotion(pass, node, scope.opacity, scope.in_layer, held, before, stats);
+}
+
 } // namespace
 
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
@@ -458,28 +480,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     if (effective_context.styles == nullptr) {
         effective_context.styles = &styles;
     }
-    detail::PassState pass;
-    pass.cache = context.paint_cache;
-    pass.cacheable =
-        context.paint_cache != nullptr && context.paint_cache->enabled() && context.view == nullptr;
-    pass.metrics_source_id = context.text_metrics_source != nullptr
-                                 ? context.text_metrics_source->id()
-                                 : kStubTextMetricsId;
-    pass.device_scale_bits = detail::float_bits(context.device_scale);
-    pass.reduce_effects = context.reduce_effects;
-    pass.high_contrast = context.high_contrast;
-    pass.lcd_text = context.lcd_text;
-    pass.isolate_group_opacity = context.isolate_group_opacity;
-    pass.retain_layers = context.retain_layers && pass.cacheable;
-    pass.retain_epoch = context.retain_epoch;
-    pass.glass_max_blur_radius = context.glass.max_blur_radius;
-    pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
-    pass.cull = context.cull.has_value() ? &*context.cull : nullptr;
-    pass.subtree_replay = context.retain_draw_list;
-    pass.subtree =
-        pass.cacheable && context.subtree_cache != nullptr && context.subtree_cache->enabled()
-            ? context.subtree_cache
-            : nullptr;
+    const detail::PassState pass = detail::make_pass_state(context);
     if (context.canvas.has_value() && root.rendered()) {
         const rhi::Rect rect = detail::paint_rect(root, Frame{}, false, root.world_transform());
         if (rect.width > 0.0f && rect.height > 0.0f) {
