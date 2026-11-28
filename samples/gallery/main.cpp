@@ -74,6 +74,10 @@ struct Args {
     std::string artifact_dir = "gallery-artifacts";
     bool update_goldens = false;
     std::string font = TESSERA_GALLERY_FONT;
+    // More `--font` files after the first: further faces of the family (a bold file), picked per
+    // run by `font-weight` from the weight each file declares.
+    std::vector<std::string> extra_fonts;
+    bool font_given = false;
     std::string theme = "instrument-light";
     std::string density = "comfortable";
     std::string state = "none";
@@ -328,6 +332,7 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     options.width = static_cast<std::uint32_t>(args.width);
     options.height = static_cast<std::uint32_t>(args.height);
     options.font_path = args.font;
+    options.extra_font_paths = args.extra_fonts;
     options.scheduler = &scene.scheduler;
     const tessera::ui::assets::AssetBundle vector_bundle = gallery::gen::vector_assets::bundle();
     options.vector_assets = &vector_bundle;
@@ -367,6 +372,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     options.visible = !args.hidden;
     options.vsync = true;
     options.font_path = args.font;
+    options.extra_font_paths = args.extra_fonts;
     tessera::app::WindowHost host(scene.root, make_sheet(resources), options, &scene.scheduler);
     if (!host.available()) {
         std::cout << "gallery: skipped (no window backend or presentation surface)\n";
@@ -387,7 +393,8 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
            "               [--page buttons|safe-area|form|dash|swatch|icons] [--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
-           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";
+           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]... "
+           "(repeat for more weights)\n";
     std::exit(code);
 }
 
@@ -424,7 +431,13 @@ Args parse_args(int argc, char** argv) {
         } else if (arg == "--text-scale" && has_value) {
             args.text_scale = std::stoi(argv[++index]);
         } else if (arg == "--font" && has_value) {
-            args.font = argv[++index];
+            // The first `--font` replaces the default face; each further one adds a face.
+            if (args.font_given) {
+                args.extra_fonts.emplace_back(argv[++index]);
+            } else {
+                args.font = argv[++index];
+                args.font_given = true;
+            }
         } else if (arg == "--width" && has_value) {
             args.width = std::stoi(argv[++index]);
         } else if (arg == "--height" && has_value) {

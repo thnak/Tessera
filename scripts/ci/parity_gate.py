@@ -41,10 +41,16 @@ DEFAULT_THRESHOLD = 0.5
 DEFAULT_WIDTH = 640
 DEFAULT_HEIGHT = 720
 
-# The font both halves are handed: Plex Sans Regular from the bundled pack (#970), the family the
-# Instrument theme names, so the gate no longer measures a stand-in. The engine's text stack loads
-# one face, so only the regular weight is shared: bold is still not compared.
+# The fonts both halves are handed: IBM Plex Sans from the bundled pack (#970), the family the
+# Instrument theme names, so the gate no longer measures a stand-in. The first is the primary face; the
+# engine picks the others per run by the weight each file declares (repeatable `--font`, #973), and
+# chrome_parity.mjs declares the same three files as 400, 600 and 700 so neither side synthesizes bold.
 PARITY_FONT = "packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
+PARITY_FONT_FACES = (
+    PARITY_FONT,
+    "packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-SemiBold.ttf",
+    "packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Bold.ttf",
+)
 
 # Exit codes, named so the messages and the returns cannot drift.
 EXIT_PASS = 0
@@ -160,8 +166,7 @@ def main() -> int:
             args.page,
             "--capture",
             str(out / "engine.png"),
-            "--font",
-            str(repo / PARITY_FONT),
+            *[arg for face in PARITY_FONT_FACES for arg in ("--font", str(repo / face))],
             "--width",
             str(args.width),
             "--height",

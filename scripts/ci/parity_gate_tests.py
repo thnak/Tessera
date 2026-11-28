@@ -170,9 +170,15 @@ class ParityGateTests(unittest.TestCase):
         self.assertEqual(code, 0)
         captures = [call for call in tools.calls if "--capture" in call]
         self.assertEqual(len(captures), 1)
-        font = Path(captures[0][captures[0].index("--font") + 1])
-        self.assertEqual(font.name, "IBMPlexSans-Regular.ttf")
-        self.assertIn("tessera-fonts", font.parts)
+        call = captures[0]
+        fonts = [Path(call[i + 1]) for i, arg in enumerate(call) if arg == "--font"]
+        # #973: the regular face first (the primary), then the weights the engine picks per run.
+        self.assertEqual(
+            [f.name for f in fonts],
+            ["IBMPlexSans-Regular.ttf", "IBMPlexSans-SemiBold.ttf", "IBMPlexSans-Bold.ttf"],
+        )
+        for font in fonts:
+            self.assertIn("tessera-fonts", font.parts)
 
     def test_a_module_page_emits_first(self) -> None:
         tools = FakeTools(structure=0.1)

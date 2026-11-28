@@ -1186,6 +1186,17 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_capture PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Weight-selected faces (issue #973): a 700 label paints with the extra bold face.
+    add_executable(app_window_font_weight_tests
+        app_window_font_weight_tests.cpp)
+    target_compile_definitions(app_window_font_weight_tests PRIVATE
+        TESSERA_PLEX_REGULAR="${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
+        TESSERA_PLEX_BOLD="${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Bold.ttf")
+    target_link_libraries(app_window_font_weight_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_font_weight COMMAND app_window_font_weight_tests)
+    set_tests_properties(app_window_font_weight PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # A filtered card (issue #617) presented through a real swapchain: the direct path reopens the
     # swapchain image with a Load pass for its layer passes. Prints `skipped` without a presentation
     # surface, which the property below turns into a skip.

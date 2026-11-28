@@ -5,6 +5,7 @@
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
+#include "tessera/ui/text/weighted_shaper.hpp"
 
 #include <cstddef>
 #include <string>
@@ -18,25 +19,33 @@ namespace {
 // adds `word-spacing` per separator and applies `text-transform` itself, so this callback must
 // return the bare advance of the bytes it receives (docs/design/text.md section 6.4).
 float shaped_advance(std::string_view text, const TextStyle& style, const void* user) {
-    return static_cast<const HarfBuzzShaper*>(user)->shape(text, style).advance;
+    return static_cast<const WeightedShaper*>(user)->shape(text, style).advance;
 }
 
 } // namespace
 
 struct FontTextMeasurer::Impl {
-    explicit Impl(FontFace face)
-        : shaper(face),
-          metrics_provider(face) {}
+    explicit Impl(std::vector<FontFace> faces)
+        : shaper(faces) {
+        for (FontFace& face : faces) {
+            if (face.valid()) {
+                metrics_providers.emplace_back(std::move(face));
+            }
+        }
+    }
 
-    // Member order matters: `metrics_provider` holds another copy of the shared face state, and the
-    // shaper borrows the font file bytes, so both outlive it. The face itself is not stored: the
-    // shaper and the provider each keep what they need.
-    HarfBuzzShaper shaper;
-    FreeTypeFontMetricsProvider metrics_provider;
+    // Member order matters: the providers hold another copy of the shared face state, and the
+    // shaper borrows the font file bytes, so both outlive it. One provider per valid face, in the
+    // shaper's face order, so `shaper.index_for(weight)` indexes both.
+    WeightedShaper shaper;
+    std::vector<FreeTypeFontMetricsProvider> metrics_providers;
 };
 
 FontTextMeasurer::FontTextMeasurer(FontFace face)
-    : impl_(std::make_unique<Impl>(std::move(face))) {}
+    : FontTextMeasurer(std::vector<FontFace>{std::move(face)}) {}
+
+FontTextMeasurer::FontTextMeasurer(std::vector<FontFace> faces)
+    : impl_(std::make_unique<Impl>(std::move(faces))) {}
 
 FontTextMeasurer::~FontTextMeasurer() = default;
 FontTextMeasurer::FontTextMeasurer(FontTextMeasurer&&) noexcept = default;
@@ -47,7 +56,11 @@ TextMetrics FontTextMeasurer::measure(std::string_view text, const TextStyle& st
     if (text.empty()) {
         return {};
     }
-    const FontMetrics metrics = impl_->metrics_provider.metrics(style);
+    if (impl_->metrics_providers.empty()) {
+        return {};
+    }
+    const FontMetrics metrics =
+        impl_->metrics_providers[impl_->shaper.index_for(style.font_weight)].metrics(style);
     const TextLayout layout =
         layout_text_measured(text, style, metrics, constraints, &shaped_advance, &impl_->shaper);
     return TextMetrics{layout.width, layout.height, layout.baseline,

@@ -69,6 +69,9 @@ struct WindowOptions {
     // documented deadline pacing (runtime-config-v1.md section 5.2).
     double refresh_hz = 0.0;
     std::string font_path;
+    // Further faces of the family (a bold file), picked per run by `font-weight` from the weight
+    // each file declares; empty keeps the single `font_path` face for every weight.
+    std::vector<std::string> extra_font_paths;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // The embedded assets a `Path` / SVG node names (the generated `vector_assets()` bundle, the
     // project manifest bundle, or both composed). Borrowed: they must outlive the window group.
@@ -464,6 +467,7 @@ struct CaptureOptions {
     std::uint32_t height = 260;
     float dpi_scale = 1.0f;
     std::string font_path;
+    std::vector<std::string> extra_font_paths; // see WindowOptions::extra_font_paths
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // Optional update scheduler (generated components flush their state changes at its flush).
     ui::UpdateScheduler* scheduler = nullptr;

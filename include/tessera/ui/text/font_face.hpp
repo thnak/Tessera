@@ -65,6 +65,9 @@ public:
     [[nodiscard]] std::uint32_t face_count() const noexcept;
     [[nodiscard]] bool has_glyph(char32_t codepoint) const noexcept;
     [[nodiscard]] std::string family_name() const;
+    // The CSS weight (1..1000) this face is: the OS/2 `usWeightClass` when the font has one, else
+    // 700 for a face flagged bold and 400 otherwise. Used to pick a face for a `font-weight`.
+    [[nodiscard]] int weight() const noexcept;
 
     // A second face over the same bytes with its own FreeType library, so a worker thread can
     // rasterize while the original keeps serving the UI thread. It reads only the immutable bytes,
