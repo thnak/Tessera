@@ -158,7 +158,8 @@ if (wasm) {
   const emoji = '\u{1F600}';
   const bad = 'export function Bad() { const [n] = useState<number>(0); return <View />; }';
   await protocolCases('tessera_diagnostics.wasm', engine, {
-    files: [[0, 'export function App() { return <View><Text>a</Text></View>; }\n', 'ui/App.tsx'], [1, bad + '\n', 'ui/Bad.tsx']],
+    // The compiler walks from the entry, so App must import Bad for Bad's finding to be reported.
+    files: [[0, 'import { Bad } from "./Bad";\nexport function App() { return <View><Bad /></View>; }\n', 'ui/App.tsx'], [1, bad + '\n', 'ui/Bad.tsx']],
     entry: 'ui/App.tsx',
     repair: [{ file: 1, offset: 0, length: bad.length, newText: 'export function Bad() { return <View />; }' }],
   });
