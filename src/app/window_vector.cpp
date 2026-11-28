@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/path/svg_loader.hpp"
-#include "tessera/rendering/vulkan/path_raster_pipeline.hpp"
 #include "window_vector.hpp"
 
 #include <exception>
@@ -25,7 +24,8 @@ constexpr std::uint64_t kMaxTextureBytes = 64ULL * 1024ULL * 1024ULL;
 
 VectorStack::VectorStack(rhi::Device& device, rhi::TextureFormat format,
                          const ui::assets::AssetBundle* assets,
-                         const ui::assets::ComposedAssetBundle* bundles, bool allow_gpu)
+                         const ui::assets::ComposedAssetBundle* bundles,
+                         const path::GpuPathPipelineDescs& gpu_descs, bool allow_gpu)
     : assets_(assets),
       bundles_(bundles) {
     if (assets == nullptr && bundles == nullptr) {
@@ -57,8 +57,7 @@ VectorStack::VectorStack(rhi::Device& device, rhi::TextureFormat format,
         // (measured in gpu_path_animated_measure, ADR-071).
         path::GpuPathRasterizerConfig gpu_config;
         gpu_config.max_pooled_bytes = 96ULL * 1024ULL * 1024ULL;
-        auto gpu = std::make_unique<path::GpuPathRasterizer>(
-            device, tessera::rendering::vulkan::path_raster_pipeline_descs(), gpu_config);
+        auto gpu = std::make_unique<path::GpuPathRasterizer>(device, gpu_descs, gpu_config);
         if (gpu->warm(kWarmSlots).has_value()) {
             gpu_ = std::move(gpu);
             textures_->set_gpu_rasterizer(gpu_.get());

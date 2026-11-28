@@ -11,6 +11,7 @@
 #include "page_table.hpp"
 
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -54,6 +55,17 @@ void test_every_name_has_a_branch() {
     }
 }
 
+void test_a_heap_scene_exists_for_every_name() {
+    // The web driver keeps the scene alive after main returns, so it builds through make_scene.
+    for (const std::string_view name : gallery::kPageNames) {
+        const std::unique_ptr<gallery::AnyScene> scene = gallery::make_scene(name);
+        check(scene != nullptr, std::string("`") + std::string(name) + "` has a heap scene");
+        check(scene != nullptr && scene->root().id() == gallery::kRootId,
+              std::string("`") + std::string(name) + "` heap scene uses the shared root id");
+    }
+    check(gallery::make_scene("nope") == nullptr, "an unknown name has no heap scene");
+}
+
 void test_an_unknown_name_is_refused_by_both_lists() {
     CountingRunner runner;
     check(!gallery::is_page("nope"), "`nope` is not a page");
@@ -92,6 +104,7 @@ void test_the_default_page_is_first() {
 
 int main() {
     test_every_name_has_a_branch();
+    test_a_heap_scene_exists_for_every_name();
     test_an_unknown_name_is_refused_by_both_lists();
     test_only_the_form_page_has_a_module();
     test_the_default_page_is_first();

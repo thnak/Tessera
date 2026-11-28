@@ -4,7 +4,7 @@
 // callback runs the C++ frame step once, an input event is consumed, and a parked app holds no pending
 // frame. Then it checks the download budgets in tools/web_budgets.json.
 //
-// Usage: node web_smoke.mjs <app dir> <budgets.json> [--app web_smoke]
+// Usage: node web_smoke.mjs <app dir> <budgets.json> [--app web_smoke|web_render|gallery_web]
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,7 +34,8 @@ const bridge = createFrameBridge({
 
 const started = performance.now();
 const { default: createModule } = await import(pathToFileURL(resolve(dir, 'app.js')).href);
-const instance = await createModule({ canvas: {}, tesseraBridge: bridge });
+// Under Node, relative files (app.data) resolve against the working directory, so name the folder.
+const instance = await createModule({ canvas: {}, tesseraBridge: bridge, locateFile: (name) => resolve(dir, name) });
 const call = (name, types, args) => instance.ccall(name, 'number', types, args);
 
 assert.equal(rafCallbacks, 0, 'booting requests no frame by itself');
@@ -65,6 +66,11 @@ const budgets = JSON.parse(readFileSync(budgetsPath, 'utf8'))[appName];
 assert.ok(budgets, 'no budget entry for ' + appName);
 const size = (file) => gzipSync(readFileSync(join(dir, file)), { level: 9 }).length;
 const measured = { wasm_gzip: size('app.wasm'), js_gzip: size('app.js'), host_gzip: size('tessera_web_host.js') };
+// An app with preloaded files (the gallery's CSS, theme and font) ships them as app.data, which a first
+// visit fetches too, so its budget has a data_gzip entry and the check measures that file.
+if ('data_gzip' in budgets) {
+  measured.data_gzip = size('app.data');
+}
 let failed = false;
 for (const [key, value] of Object.entries(measured)) {
   const ok = value <= budgets[key];

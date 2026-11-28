@@ -5,7 +5,8 @@
 // surface submit frames, a pointer change repaints once, and an idle page holds no requestAnimationFrame.
 // Dev tooling, not shipped; CI has no WebGPU adapter, so this is run by hand (docs/design/web-target.md).
 //
-//   node run_web_app.mjs <app dir> [--out dir] [--flags a,b] [--pixels]
+//   node run_web_app.mjs <app dir> [--app web_render|gallery_web] [--query page=form] [--out dir]
+//                        [--flags a,b] [--pixels]
 //
 // Needs the `playwright` package (NODE_PATH or a local node_modules) and its Chromium. Software
 // WebGPU (SwiftShader) is enough for the frame accounting; the pixel check (--pixels) needs a GPU.
@@ -23,6 +24,12 @@ const dir = path.resolve(argv[0] ?? '');
 const flag = (name, fallback) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback);
 const out = path.resolve(flag('--out', '.'));
 const extra = flag('--flags', '').split(',').filter(Boolean);
+// web_render is the button card; gallery_web is the gallery (issue #1023), whose log lines carry the
+// web_gallery prefix and whose first control the Tab key focuses.
+const app = flag('--app', 'web_render');
+const gallery = app === 'gallery_web';
+const prefix = gallery ? 'web_gallery' : 'web_render';
+const query = flag('--query', '');
 if (!argv[0] || !fs.existsSync(path.join(dir, 'app.js'))) {
   console.error('usage: run_web_app.mjs <app dir with app.js> [--out dir] [--flags a,b]');
   process.exit(2);
@@ -30,7 +37,9 @@ if (!argv[0] || !fs.existsSync(path.join(dir, 'app.js'))) {
 
 const types = { '.js': 'text/javascript', '.wasm': 'application/wasm', '.html': 'text/html' };
 const server = http.createServer((req, res) => {
-  const name = path.join(dir, req.url === '/' ? 'index.html' : path.basename(req.url.split('?')[0]));
+  if (req.url === '/favicon.ico') { res.statusCode = 204; return res.end(); }
+  const pathname = req.url.split('?')[0];
+  const name = path.join(dir, pathname === '/' ? 'index.html' : path.basename(pathname));
   if (!fs.existsSync(name)) { res.statusCode = 404; return res.end('missing'); }
   res.setHeader('Content-Type', types[path.extname(name)] ?? 'application/octet-stream');
   res.end(fs.readFileSync(name));
@@ -58,7 +67,7 @@ try {
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => { window.__raf += 1; return raf(cb); };
   });
-  await page.goto(url);
+  await page.goto(query ? `${url}?${query}` : url);
   await page.waitForTimeout(2500);
   const supported = await page.evaluate(() => Boolean(navigator.gpu));
   check(supported, 'navigator.gpu present');
@@ -66,34 +75,74 @@ try {
   check(!unsupportedShown, 'the unsupported page is not shown');
   fs.mkdirSync(out, { recursive: true });
 
-  const frames = () => logs.filter((l) => l.startsWith('web_render: canvas frame')).length;
+  const frames = () => logs.filter((l) => l.startsWith(`${prefix}: canvas frame`)).length;
   const settle = () => page.waitForTimeout(400);
 
   check(frames() >= 1, `the first canvas frame was submitted (${frames()} so far)`);
-  check(logs.some((l) => /canvas frame 1 at 400x300 scale 1\.00/.test(l)), 'the backing store is 400x300 at scale 1');
+  check(logs.some((l) => new RegExp(`canvas frame 1 at 400x300 scale 1\\.00`).test(l)), 'the backing store is 400x300 at scale 1');
   check(!logs.some((l) => l.startsWith('pageerror') || l.includes('frame failed') || l.includes('no renderer')),
     'no page error, failed frame or missing renderer');
 
-  // Each pointer change that alters the button (hover in, press, release, leave) is exactly one
-  // canvas frame; a move that changes nothing is none.
-  let count = frames();
-  const step = async (what, expected, act) => {
-    await act();
+  if (gallery) {
+    // Input -> scene -> repaint on the gallery: Tab (focus ring on the first control) and a pointer
+    // sweep (a hover) each repaint, and a settled page repaints nothing. The exact counts depend on
+    // the page, so this asserts the direction (>= 1) and that settling returns to zero.
+    const passive = /page=(icons|swatch|lists)/.test(query);
+    let count = frames();
+    const moved = async (what, act, atLeast) => {
+      await act();
+      await settle();
+      const now = frames();
+      // Pages with no control (icons, swatch, lists, ...) have nothing to focus or hover, so only the
+      // first frame and the idle rule apply to them.
+      const expected = atLeast && !passive ? now - count >= 1 : (passive ? true : now - count === 0);
+      check(expected, `${what}: ${now - count} canvas frame(s)${passive ? ' (not asserted: passive page)' : ''}`);
+      count = now;
+    };
+    // Keys reach the canvas only while it has focus, which is why the page makes it focusable.
+    await page.focus('#tessera-canvas');
     await settle();
-    const now = frames();
-    check(now - count === expected, `${what}: ${now - count} canvas frame(s), expected ${expected}`);
-    count = now;
-  };
-  await step('hover into the button', 1, () => page.mouse.move(100, 48));
-  await step('move inside the button', 0, () => page.mouse.move(110, 50));
-  await step('press', 1, () => page.mouse.down());
-  await step('release', 1, () => page.mouse.up());
-  await step('leave the button', 1, () => page.mouse.move(350, 280));
-  await step('move outside the button', 0, () => page.mouse.move(360, 290));
+    count = frames();
+    await moved('Tab focuses the first control', () => page.keyboard.press('Tab'), true);
+    await moved('pointer sweep across the page repaints a hover', async () => {
+      for (let y = 20; y < 300; y += 20) for (let x = 20; x < 400; x += 20) await page.mouse.move(x, y);
+    }, true);
+    await moved('settled page stays still', () => page.waitForTimeout(200), false);
+  } else {
+    // Each pointer change that alters the button (hover in, press, release, leave) is exactly one
+    // canvas frame; a move that changes nothing is none.
+    let count = frames();
+    const step = async (what, expected, act) => {
+      await act();
+      await settle();
+      const now = frames();
+      check(now - count === expected, `${what}: ${now - count} canvas frame(s), expected ${expected}`);
+      count = now;
+    };
+    await step('hover into the button', 1, () => page.mouse.move(100, 48));
+    await step('move inside the button', 0, () => page.mouse.move(110, 50));
+    await step('press', 1, () => page.mouse.down());
+    await step('release', 1, () => page.mouse.up());
+    await step('leave the button', 1, () => page.mouse.move(350, 280));
+    await step('move outside the button', 0, () => page.mouse.move(360, 290));
+
+  }
 
   // Pixels only mean something on a real GPU compositor: headless software WebGPU screenshots show
   // the canvas as blank, so this is opt-in (--pixels) and not part of the default run.
-  if (argv.includes('--pixels')) {
+  if (argv.includes('--pixels') && gallery) {
+    // A drawn gallery is not one flat colour: sample a grid and require both the white clear and ink.
+    const shot = await page.screenshot({ path: path.join(out, 'gallery.png') });
+    const colours = await page.evaluate(async (bytes) => {
+      const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+      const c = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d');
+      c.drawImage(bitmap, 0, 0);
+      const seen = new Set();
+      for (let y = 0; y < bitmap.height; y += 8) for (let x = 0; x < bitmap.width; x += 8) seen.add(c.getImageData(x, y, 1, 1).data.join(','));
+      return seen.size;
+    }, Array.from(shot));
+    check(colours > 3, `the gallery draws more than a flat canvas (${colours} distinct colours)`);
+  } else if (argv.includes('--pixels')) {
     const pixel = async (name, x, y) => {
       const shot = await page.screenshot({ path: path.join(out, name + '.png') });
       return page.evaluate(async ([bytes, px, py]) => {
