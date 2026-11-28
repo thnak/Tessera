@@ -3,6 +3,7 @@
 #include "tessera/ui/text/freetype_metrics.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -73,8 +74,13 @@ ShapedRun HarfBuzzShaper::shape_directed(std::string_view utf8, const TextStyle&
     return shape_impl(utf8, style, right_to_left ? 1 : 0);
 }
 
-ShapedRun HarfBuzzShaper::shape_impl(std::string_view utf8, const TextStyle& style,
-                                     int direction) const {
+ShapedRun HarfBuzzShaper::shape_with_ranges(std::string_view utf8, const TextStyle& style,
+                                            std::span<const FontFeatureRange> ranges) const {
+    return shape_impl(utf8, style, -1, ranges);
+}
+
+ShapedRun HarfBuzzShaper::shape_impl(std::string_view utf8, const TextStyle& style, int direction,
+                                     std::span<const FontFeatureRange> ranges) const {
     ShapedRun run;
     if (impl_ == nullptr || impl_->font == nullptr || utf8.empty() || style.font_size <= 0.0f) {
         return run;
@@ -91,13 +97,23 @@ ShapedRun HarfBuzzShaper::shape_impl(std::string_view utf8, const TextStyle& sty
     }
     // Later entries of the same tag win in HarfBuzz, and FontFeatures::set already collapsed
     // duplicates, so the list maps one to one.
-    std::array<hb_feature_t, FontFeatures::kMax> features{};
+    std::array<hb_feature_t, FontFeatures::kMax + kMaxFontFeatureRanges> features{};
     const FontFeatures requested = resolve_font_features(style.features);
     for (std::size_t i = 0; i < requested.count; ++i) {
         features[i] = hb_feature_t{requested.items[i].tag, requested.items[i].value,
                                    HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END};
     }
-    hb_shape(impl_->font, buffer, features.data(), requested.count);
+    std::size_t feature_count = requested.count;
+    for (const FontFeatureRange& range :
+         ranges.first(std::min(ranges.size(), kMaxFontFeatureRanges))) {
+        if (range.begin >= range.end || range.begin >= utf8.size()) {
+            continue;
+        }
+        features[feature_count++] = hb_feature_t{
+            range.feature.tag, range.feature.value, range.begin,
+            std::min<std::uint32_t>(range.end, static_cast<std::uint32_t>(utf8.size()))};
+    }
+    hb_shape(impl_->font, buffer, features.data(), static_cast<unsigned int>(feature_count));
 
     unsigned int count = 0;
     const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);

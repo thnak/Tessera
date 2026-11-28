@@ -155,6 +155,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `font-variant-caps` | applied | same path; keyword grammar and tags in `font_variant.cpp`, invalid or conflicting values rejected whole; the `font-variant` shorthand expands to the five longhands in `property_font_variant.cpp`; `font_features` |
 | `font-variant-east-asian` | applied | same path as `font-variant-caps`; `font_features` |
 | `font-variant-position` | applied | same path as `font-variant-caps`; `font_features` |
+| `font-variant-alternates` | applied | `font_variant_alternates.cpp` grammar (functions at most once, name arguments valid but unresolved); `font_features` |
 | `text-align` | applied | `paint_text.cpp` line start offset; `paint_text_decoration` |
 | `text-transform` | applied | `text_measure.cpp` `parse_text_transform`; `text_transform` |
 | `white-space` | applied | `text_measure.cpp` `parse_white_space`; `text_measure` |

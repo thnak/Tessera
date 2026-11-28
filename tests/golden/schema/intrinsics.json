@@ -2969,6 +2969,11 @@
     },
     {
       "kind": "keyword",
+      "name": "font-variant-alternates",
+      "note": "normal or stylistic()/swash()/styleset() and friends"
+    },
+    {
+      "kind": "keyword",
       "name": "text-align"
     },
     {

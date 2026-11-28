@@ -3,6 +3,7 @@
 #include "property_font_variant.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/font_variant.hpp"
+#include "tessera/ui/style/font_variant_alternates.hpp"
 
 #include <array>
 #include <string>
@@ -25,7 +26,8 @@ PropertyExpansionResult expand_font_variant_shorthand(const Declaration& declara
         return reject("font-variant needs normal, none or font-variant keywords");
     }
     constexpr std::size_t kGroups = 5;
-    std::array<std::string, kGroups> values{};
+    // Slot kGroups is font-variant-alternates, whose functional words keep their inner spaces.
+    std::array<std::string, kGroups + 1> values{};
     if (text == "none") {
         values[static_cast<std::size_t>(FontVariantGroup::Ligatures)] = "none";
     } else if (text != "normal") {
@@ -35,13 +37,21 @@ PropertyExpansionResult expand_font_variant_shorthand(const Declaration& declara
                 ++i;
             }
             const std::size_t begin = i;
-            while (i < text.size() && text[i] != ' ' && text[i] != '\t' && text[i] != '\n') {
+            int depth = 0;
+            while (i < text.size() &&
+                   (depth > 0 || (text[i] != ' ' && text[i] != '\t' && text[i] != '\n'))) {
+                depth += text[i] == '(' ? 1 : text[i] == ')' ? -1 : 0;
                 ++i;
             }
             if (i == begin) {
                 break;
             }
             const std::string word = text.substr(begin, i - begin);
+            if (is_font_variant_alternates_word(word)) {
+                std::string& slot = values[kGroups];
+                slot += slot.empty() ? word : " " + word;
+                continue;
+            }
             const FontVariantKeyword* keyword = find_font_variant_keyword(word);
             if (keyword == nullptr || word == "none") {
                 return reject("unsupported font-variant component `" + word + "`");
@@ -59,11 +69,19 @@ PropertyExpansionResult expand_font_variant_shorthand(const Declaration& declara
                           std::string(font_variant_property(group)));
         }
     }
+    if (values[kGroups].empty()) {
+        values[kGroups] = "normal";
+    } else if (!parse_font_variant_alternates(values[kGroups])) {
+        return reject("font-variant has conflicting or malformed alternates components");
+    }
     for (std::size_t g = 0; g < kGroups; ++g) {
         result.declarations.push_back(
             Declaration{std::string(font_variant_property(static_cast<FontVariantGroup>(g))),
                         std::move(values[g]), declaration.important, declaration.offset});
     }
+    result.declarations.push_back(Declaration{std::string(kFontVariantAlternatesProperty),
+                                              std::move(values[kGroups]), declaration.important,
+                                              declaration.offset});
     return result;
 }
 
