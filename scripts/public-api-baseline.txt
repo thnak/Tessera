@@ -4151,6 +4151,7 @@ prop packages/tessera-ui/primitives/Radio.tsx Radio.onSelect
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children
 prop packages/tessera-ui/primitives/Slider.tsx Slider.defaultValue
+prop packages/tessera-ui/primitives/Slider.tsx Slider.disabled
 prop packages/tessera-ui/primitives/Slider.tsx Slider.label
 prop packages/tessera-ui/primitives/Slider.tsx Slider.max
 prop packages/tessera-ui/primitives/Slider.tsx Slider.min

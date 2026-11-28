@@ -3,7 +3,9 @@
 // `Slider`, the slider-value behavior primitive (issue #236). It draws nothing: one focusable
 // `slider` View that owns an int value in `[min, max]` and exposes it as `aria-valuenow`,
 // `aria-valuemin` and `aria-valuemax`. Right/Up add `step`, Left/Down subtract it, PageUp/PageDown
-// move ten steps, Home and End jump to the bounds; the value is clamped.
+// move ten steps, Home and End jump to the bounds; the value is clamped. `disabled` is reported as
+// `aria-disabled` (#1051); the runtime then skips the node for focus and input, like the styled
+// controls, so the handlers carry no guard of their own.
 //
 // Pointer drag (issue #982, on #532): `onSizeChange` stores the track width, a press starts a drag
 // and every move while it lasts maps the node-local `e.x` to a fraction of that width, snapped to
@@ -18,6 +20,7 @@ export type SliderProps = {
   max?: int;
   step?: int;
   defaultValue?: int;
+  disabled?: boolean;
   children: Children;
 };
 
@@ -27,6 +30,7 @@ export function Slider({
   max = 100,
   step = 1,
   defaultValue = 0,
+  disabled = false,
   children,
 }: SliderProps) {
   const [value, setValue] = useState<int>(defaultValue);
@@ -37,6 +41,7 @@ export function Slider({
       role="slider"
       tabIndex={0}
       aria-label={label}
+      aria-disabled={disabled}
       aria-valuenow={value}
       aria-valuemin={min}
       aria-valuemax={max}

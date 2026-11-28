@@ -450,6 +450,32 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
     return fail("unsupported expression kind");
 }
 
+bool reads_prop(const ir::Expr& expr) {
+    if (expr.kind == ir::ExprKind::Ref && expr.id.starts_with("prop::")) {
+        return true;
+    }
+    for (const ir::ExprPtr& operand : expr.operands) {
+        if (operand && reads_prop(*operand)) {
+            return true;
+        }
+    }
+    for (const ir::TemplatePart& part : expr.parts) {
+        if (part.expr && reads_prop(*part.expr)) {
+            return true;
+        }
+    }
+    for (const ir::RecordField& field : expr.fields) {
+        if (field.value && reads_prop(*field.value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string state_seeded_name(std::string_view state_id) {
+    return member_name(state_id) + "seeded_";
+}
+
 ExprEmission emit_initializer_expr(const ir::Expr& expr, const ir::Component& component) {
     if (expr.kind != ir::ExprKind::Array) {
         // A record value is an initializer form too (`Size{.w = 1}`), never a bare expression.
