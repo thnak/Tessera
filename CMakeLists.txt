@@ -110,6 +110,8 @@ if (EMSCRIPTEN)
     add_link_options(-fwasm-exceptions)
 endif()
 
+# Opt-in SQLite adapter for the app framework (issue #837). OFF: nothing is fetched or linked.
+option(TESSERA_APPFW_SQLITE "Build the opt-in tessera_appfw_storage_sqlite module (SQLite)" OFF)
 option(TESSERA_BUILD_POC "Build Phase 0 proof-of-concept tools" ON)
 option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)

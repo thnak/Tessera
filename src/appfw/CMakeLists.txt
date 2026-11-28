@@ -504,3 +504,7 @@ if (TESSERA_BUILD_TESTS)
     # inline, so a failure in either half fails the one binary.
     add_test(NAME appfw_permission COMMAND appfw_permission_tests)
 endif()
+
+if (TESSERA_APPFW_SQLITE)
+    add_subdirectory(sqlite)
+endif()
