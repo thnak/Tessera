@@ -47,9 +47,15 @@ declare global {
     readonly lost: Promise<GPUDeviceLostInfo>;
     readonly label: string;
     destroy(): void;
+    addEventListener(type: "uncapturederror", listener: (event: GPUUncapturedErrorEvent) => void): void;
+  }
+
+  interface GPUUncapturedErrorEvent {
+    readonly error?: { readonly message: string };
   }
 
   interface GPUAdapter {
+    readonly limits: { readonly maxTextureDimension2D: number; readonly maxBufferSize: number };
     requestDevice(descriptor?: { label?: string }): Promise<GPUDevice>;
   }
 

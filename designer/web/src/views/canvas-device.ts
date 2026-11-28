@@ -45,14 +45,63 @@ export type DeviceResult = ({ device: GPUDevice; queue: GPUQueue; error?: undefi
  * A read-only counter of the devices this page took, for the browser gates ("close Canvas and see no GPU
  * device taken"): `acquired` is how many were requested, `live` how many have not been lost or destroyed.
  */
-function trackDevice(device: GPUDevice): void {
-  const holder = globalThis as { __tesseraGpu?: { acquired: number; live: number } };
-  const stats = (holder.__tesseraGpu ??= { acquired: 0, live: 0 });
+function trackDevice(device: GPUDevice, adapter: GPUAdapter): void {
+  const holder = globalThis as { __tesseraGpu?: GpuStats };
+  const stats = (holder.__tesseraGpu ??= { acquired: 0, live: 0, errors: [], lost: [] });
   stats.acquired += 1;
   stats.live += 1;
-  void device.lost.then(() => {
-    stats.live -= 1;
+  const acquiredAt = performance.now();
+  // What a loss on a runner needs to be diagnosable (issue #958): the browser's own reason and message,
+  // not only the spec's coarse "unknown", the validation errors that preceded it, and the adapter.
+  device.addEventListener("uncapturederror", (event) => {
+    if (stats.errors.length < 8) {
+      stats.errors.push(String(event.error?.message ?? "uncaptured error"));
+    }
   });
+  void device.lost.then((info) => {
+    stats.live -= 1;
+    stats.lost.push({
+      reason: String(info.reason),
+      message: info.message,
+      afterMs: Math.round(performance.now() - acquiredAt),
+      adapter: describeAdapter(adapter),
+      destroyedByUs: ownDestroys.has(device),
+    });
+  });
+}
+
+/** Devices this page destroyed itself, so a loss report can say "we did that" and not "the runner did". */
+const ownDestroys = new WeakSet<GPUDevice>();
+
+/** Destroys a device the page acquired, recording that the loss that follows is the page's own doing. */
+export function destroyDevice(device: GPUDevice): void {
+  ownDestroys.add(device);
+  device.destroy();
+}
+
+/** One line naming the adapter and the device limits that matter for texture and buffer size. */
+function describeAdapter(adapter: GPUAdapter): string {
+  const info = (adapter as { info?: { vendor?: string; architecture?: string; device?: string; description?: string } })
+    .info;
+  const limits = adapter.limits;
+  return (
+    `${info?.vendor ?? "?"}/${info?.architecture ?? "?"}/${info?.device ?? "?"} ${info?.description ?? ""} ` +
+    `maxTexture2D=${limits.maxTextureDimension2D} maxBuffer=${limits.maxBufferSize}`
+  ).trim();
+}
+
+/** What `window.__tesseraGpu` holds: counters for the gates plus the loss diagnostics. */
+interface GpuStats {
+  acquired: number;
+  live: number;
+  errors: string[];
+  lost: { reason: string; message: string; afterMs: number; adapter: string; destroyedByUs: boolean }[];
+}
+
+/** The reason and message of the page's last device loss, as one sentence fragment, or `null`. */
+export function describeLoss(info: { reason?: string; message: string }): string {
+  const message = info.message.trim().replace(/\.$/, "");
+  return message === "" ? info.reason || "unknown" : `${info.reason || "unknown"}: ${message}`;
 }
 
 /** Acquires an adapter and device, or returns `{ error }` with a sentence naming what failed. */
@@ -82,7 +131,7 @@ export async function acquireDevice(): Promise<DeviceResult> {
     if (!device) {
       return { error: "requestDevice() returned no device." };
     }
-    trackDevice(device);
+    trackDevice(device, adapter);
     return { device, queue: device.queue };
   } catch (error) {
     return { error: `requestDevice() failed: ${String(error)}` };

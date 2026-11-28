@@ -13,6 +13,13 @@
 // verdict when nothing failed but something was not exercised.
 
 import { chromium } from 'playwright';
+import { readFileSync, existsSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+/** Where this process's Chromium writes its log (browser and GPU process), or null when logging is off. */
+let chromiumLogPath = null;
 
 /**
  * The flags that give headless Chromium a WebGPU device on a host with no GPU.
@@ -36,6 +43,26 @@ export const GPU_ARGS = [
 ];
 
 /**
+ * The Vulkan ICD (driver manifest) that ships next to Chromium: SwiftShader's, or null when it is absent,
+ * off Linux, or the caller chose a driver with `VK_ICD_FILENAMES`.
+ *
+ * **This is the root cause of #958's lost device.** A hosted runner has no GPU and no `mesa-vulkan-drivers`,
+ * so the loader finds no ICD (`vkCreateInstance() failed: -9`, VK_ERROR_INCOMPATIBLE_DRIVER). Chromium
+ * still hands out a SwiftShader WebGPU adapter, but with no Vulkan there is no shared-image backing that
+ * can carry a WebGPU canvas swap chain texture (`Could not find SharedImageBackingFactory with params:
+ * ... WebgpuSwapChainTexture`), the first presented frame fails, and the GPU service tears the Dawn
+ * instance down: every device on it is lost with "A valid external Instance reference no longer exists."
+ * and the page's reason is the spec's coarse "unknown". Pointing the loader at the bundled ICD gives
+ * Chromium a real (software) Vulkan, and the device then lives. A dev box with lavapipe installed never
+ * saw it, which is why it only failed on the runner.
+ */
+function bundledVulkanIcd() {
+  if (process.platform !== 'linux' || process.env.VK_ICD_FILENAMES) return null;
+  const manifest = join(dirname(chromium.executablePath()), 'vk_swiftshader_icd.json');
+  return existsSync(manifest) ? manifest : null;
+}
+
+/**
  * Launches Chromium for a gate that needs the canvas.
  *
  * Playwright's default headless mode is the separate `chromium-headless-shell` binary, a reduced build
@@ -48,9 +75,25 @@ export const GPU_ARGS = [
  */
 export async function launchGpuBrowser() {
   const wanted = process.env.TESSERA_BROWSER_CHANNEL ?? 'chromium';
-  const options = { args: GPU_ARGS };
+  const args = [...GPU_ARGS];
+  // Issue #958: when a runner loses the device the only evidence is in the GPU process, so its log is
+  // captured to a file and dumped by `reportDeviceLoss`. `TESSERA_BROWSER_LOG=0` turns it off.
+  // `TESSERA_BROWSER_ARGS` appends flags (space separated) so a hypothesis -- another ANGLE backend, a
+  // disabled watchdog -- is tried without a code change.
+  if (process.env.TESSERA_BROWSER_LOG !== '0') {
+    chromiumLogPath = join(process.env.RUNNER_TEMP ?? tmpdir(), `tessera-chromium-${process.pid}.log`);
+    args.push('--enable-logging', `--log-file=${chromiumLogPath}`, '--v=1', '--enable-gpu-service-logging');
+  }
+  args.push(...(process.env.TESSERA_BROWSER_ARGS ?? '').split(/\s+/).filter((flag) => flag !== ''));
+  const options = { args };
+  const icd = bundledVulkanIcd();
+  if (icd !== null) {
+    options.env = { ...process.env, VK_ICD_FILENAMES: icd };
+    process.stdout.write(`     vulkan icd: ${icd}\n`);
+  }
   if (wanted !== 'shell') options.channel = wanted;
   const browser = await chromium.launch(options);
+  if (args.length > GPU_ARGS.length) process.stdout.write(`     browser flags: ${args.join(' ')}\n`);
   process.stdout.write(`     browser: Chromium ${browser.version()} (${wanted === 'shell' ? 'headless shell' : `channel ${wanted}`})\n`);
   return browser;
 }
@@ -59,7 +102,45 @@ export async function launchGpuBrowser() {
  * Whether the page's canvas pane reports a lost device: the unsupported pane is up and carries the
  * "device was lost" sentence (`views/canvas-session.ts`).
  */
-export function pageLostDevice(page) {
+export async function pageLostDevice(page) {
+  const lost = await pageLostDeviceQuiet(page);
+  if (lost) await reportDeviceLoss(page);
+  return lost;
+}
+
+/** The lines of the Chromium log that concern the GPU stack, most recent last, bounded. */
+export function gpuLogTail(maxLines = 60) {
+  if (chromiumLogPath === null || !existsSync(chromiumLogPath)) return [];
+  const interesting = /gpu|dawn|vulkan|swiftshader|angle|webgpu|lost|crash|oom|memory|watchdog|context/i;
+  const lines = readFileSync(chromiumLogPath, 'utf8').split('\n').filter((line) => interesting.test(line));
+  return lines.slice(-maxLines);
+}
+
+const reported = new WeakSet();
+
+/**
+ * Prints why a page has no device (issue #958): the page's own record (the `GPUDevice.lost` reason *and*
+ * message, the uncaptured validation errors before it, the adapter, whether the page destroyed the device
+ * itself) and the tail of the GPU process log. Once per page, so a polling gate does not repeat it.
+ */
+async function reportDeviceLoss(page) {
+  if (reported.has(page)) return;
+  reported.add(page);
+  const record = await page
+    .evaluate(() => ({
+      gpu: window.__tesseraGpu ?? null,
+      body: document.getElementById('unsupported-body')?.textContent ?? '',
+      status: document.getElementById('canvas-status')?.textContent ?? '',
+    }))
+    .catch((error) => ({ error: String(error) }));
+  const out = ['     device loss diagnostics:', `       page: ${JSON.stringify(record)}`];
+  const tail = gpuLogTail();
+  out.push(tail.length === 0 ? '       (no GPU process log lines)' : '       GPU process log (filtered tail):');
+  for (const line of tail) out.push(`         | ${line.slice(0, 400)}`);
+  process.stdout.write(`${out.join('\n')}\n`);
+}
+
+function pageLostDeviceQuiet(page) {
   return page.evaluate(() => {
     const pane = document.getElementById('unsupported');
     const body = document.getElementById('unsupported-body')?.textContent ?? '';
