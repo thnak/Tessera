@@ -14,6 +14,7 @@
 
 import { chromium } from 'playwright';
 import { readFileSync, existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,6 +43,26 @@ export const GPU_ARGS = [
 ];
 
 /**
+ * The Vulkan ICD (driver manifest) that ships next to Chromium: SwiftShader's, or null when it is absent,
+ * off Linux, or the caller chose a driver with `VK_ICD_FILENAMES`.
+ *
+ * **This is the root cause of #958's lost device.** A hosted runner has no GPU and no `mesa-vulkan-drivers`,
+ * so the loader finds no ICD (`vkCreateInstance() failed: -9`, VK_ERROR_INCOMPATIBLE_DRIVER). Chromium
+ * still hands out a SwiftShader WebGPU adapter, but with no Vulkan there is no shared-image backing that
+ * can carry a WebGPU canvas swap chain texture (`Could not find SharedImageBackingFactory with params:
+ * ... WebgpuSwapChainTexture`), the first presented frame fails, and the GPU service tears the Dawn
+ * instance down: every device on it is lost with "A valid external Instance reference no longer exists."
+ * and the page's reason is the spec's coarse "unknown". Pointing the loader at the bundled ICD gives
+ * Chromium a real (software) Vulkan, and the device then lives. A dev box with lavapipe installed never
+ * saw it, which is why it only failed on the runner.
+ */
+function bundledVulkanIcd() {
+  if (process.platform !== 'linux' || process.env.VK_ICD_FILENAMES) return null;
+  const manifest = join(dirname(chromium.executablePath()), 'vk_swiftshader_icd.json');
+  return existsSync(manifest) ? manifest : null;
+}
+
+/**
  * Launches Chromium for a gate that needs the canvas.
  *
  * Playwright's default headless mode is the separate `chromium-headless-shell` binary, a reduced build
@@ -65,6 +86,11 @@ export async function launchGpuBrowser() {
   }
   args.push(...(process.env.TESSERA_BROWSER_ARGS ?? '').split(/\s+/).filter((flag) => flag !== ''));
   const options = { args };
+  const icd = bundledVulkanIcd();
+  if (icd !== null) {
+    options.env = { ...process.env, VK_ICD_FILENAMES: icd };
+    process.stdout.write(`     vulkan icd: ${icd}\n`);
+  }
   if (wanted !== 'shell') options.channel = wanted;
   const browser = await chromium.launch(options);
   if (args.length > GPU_ARGS.length) process.stdout.write(`     browser flags: ${args.join(' ')}\n`);

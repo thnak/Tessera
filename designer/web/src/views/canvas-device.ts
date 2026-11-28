@@ -100,7 +100,7 @@ interface GpuStats {
 
 /** The reason and message of the page's last device loss, as one sentence fragment, or `null`. */
 export function describeLoss(info: { reason?: string; message: string }): string {
-  const message = info.message.trim();
+  const message = info.message.trim().replace(/\.$/, "");
   return message === "" ? info.reason || "unknown" : `${info.reason || "unknown"}: ${message}`;
 }
 
