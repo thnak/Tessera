@@ -16,9 +16,9 @@
 // sink.
 //
 // Emission is one fill_rect per retained box. That is deliberate for V1: a chart's repaint cost is
-// dominated by how many boxes survive the damage filter, not by the batching of the boxes that do,
-// and Batched2DRenderer has no polyline primitive to emit instead. When a stroked primitive lands
-// in the renderer, this is the one function that changes.
+// dominated by how many boxes survive the damage filter, not by the batching of the boxes that do.
+// Chart components draw polylines and arcs as PathShapes through the path seam, not through this
+// function (chart-node-v1.md section 11).
 
 #pragma once
 

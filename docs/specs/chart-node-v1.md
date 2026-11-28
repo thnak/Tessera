@@ -110,8 +110,9 @@ paint content. A full paint and a damaged paint therefore produce the same boxes
 and the sink decides which of them reach the target - that equality is what makes dirty-only and full
 output equivalent (section 9).
 
-One `fill_rect` per box is a V1 choice: a chart's cost is dominated by how many boxes survive the
-damage filter, not by batching the ones that do, and `Batched2DRenderer` has no polyline primitive.
+One `fill_rect` per box is the V1 *engine* choice: a chart's cost is dominated by how many boxes survive the
+damage filter, not by batching the ones that do. It is not the drawing model of the chart components:
+section 11 records that they draw polylines and arcs as `PathShape`s through the path seam.
 
 ## 7. The immediate-mode escape
 
@@ -181,7 +182,67 @@ The verdict is decided on the numbers, not the printed text, and the two summary
   one chart type: a polyline drawn as boxes, with optional markers.
 - Decimation and downsampling: [`chart-series-v1.md`](chart-series-v1.md) section 8 leaves the policy
   open; V1 maps every stored sample.
-- Antialiasing, joins, caps and curves: V1 boxes are axis-aligned and hard-edged. A stroked primitive
-  is a renderer feature, not a chart feature.
+- Antialiasing, joins, caps and curves: V1 boxes are axis-aligned and hard-edged. Strokes and arcs
+  come from the path seam (section 11), not from a new `PaintSink` primitive.
 - Interaction (hover, tooltip, zoom, selection): component library work after #183.
 - Screen-reader exposure of chart data: the owner node carries it; the chart paints.
+
+## 11. Drawing model (decided, issue #531)
+
+Decided by the owner on 2026-11-18 and recorded in
+[ADR-057](../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md); no new ADR is needed.
+
+- **Polyline (Sparkline, Line, Area).** A `PathShape` (`move_to` then `line_to`, round or miter join,
+  optional closed fill for Area) rasterized by `PathRasterizer`. No polyline method is added to
+  `PaintSink` or `Batched2DRenderer`, and no chart builds its own triangle strip.
+- **Arc (Pie, Donut, Gauge).** A closed `PathShape` of `cubic_to` quarter arcs. `PaintSink` has no arc
+  or ellipse primitive, deliberately: arcs go through the same seam. A pie is a donut with a zero
+  inner radius.
+- **Bar and markers** stay on `fill_rect` / `fill_rounded_rect` (axis-aligned, no path needed).
+- **Compositing.** ThorVG is CPU-only, so a path chart rasterizes to RGBA8 and uploads through the RHI
+  like `Icon`; the retained box set above remains the damage and equivalence model.
+- **Limitation, `filter` and `clip-path` are `Later`**
+  ([`stylesheet-v1.md`](stylesheet-v1.md) section 11). A chart cannot have a glow, a drop shadow on a
+  line, or a clipped plot area; clip the plot with the rectangular `overflow` clip, and draw nothing
+  outside the plot box. Component specs must not promise these.
+
+### Measurements
+
+Linux x86-64 (28 threads), GCC, Release, ThorVG via the seam, 220 runs (first 20 discarded), RGBA8
+white target, round cap, stroke width 2. Source: a throwaway harness over `make_path_rasterizer`
+(the numbers are machine-dependent; the shape of the curve is the finding).
+
+| Case | Target | Median | p95 |
+| --- | --- | --- | --- |
+| Polyline 100 points, round join | 800x300 | 0.69 ms | 0.94 ms |
+| Polyline 1,000 points, round / miter | 800x300 | 10.9 / 8.8 ms | 10.9 / 8.8 ms |
+| Polyline 10,000 points, round / miter | 800x300 | 285 / 231 ms | 287 / 260 ms |
+| Area (1,000 points, fill + stroke) | 800x300 | 14.5 ms | 15.5 ms |
+| Donut, 6 slices (cubic arcs) | 300x300 | 0.18 ms | 0.21 ms |
+| Pie, 6 slices | 300x300 | 0.19 ms | 0.20 ms |
+
+Every case was byte-identical across all 220 runs (the ADR-057 determinism trigger did not fire).
+The test signal is deliberately hostile (a fast ripple on a slow wave, so segments are long and
+overlap); a smooth series is cheaper, but the scaling is not: cost is about 16x for 10x points from
+100 to 1,000 and 26x again for 10x more.
+
+Consequences, binding on the chart components:
+
+1. **Arcs are cheap, polylines are not.** Pie, donut and gauge fit any frame budget.
+2. **Decimate before emission.** A polyline must be reduced to at most about two points per device
+   pixel of plot width (min/max per pixel column) before it becomes a `PathShape`. At 800 px that is
+   at most 1,600 points; raw 10,000-point series at 285 ms miss a 16.7 ms frame by 17x. The policy
+   itself is the open question of [`chart-series-v1.md`](chart-series-v1.md) section 8 and belongs to
+   the Line component work.
+3. **Raster once, not per frame.** The path result is cached as a texture
+   ([`06-texture-cache.md`](../design/thorvg-spike/06-texture-cache.md)) and re-rasterized only for the
+   damaged column band when a sample is appended, so streaming does not pay the full cost per frame.
+4. Under ADR-057 decision 3 this is **not** a cost trigger (the trigger is the spike's own
+   envelope for a static icon set). It is the input to the existing
+   [ADR-071](../../decisions/ADR-071-gpu-compute-tile-rasterizer.md) question for dense scenes.
+
+### Order and parity page
+
+The chart track is built in this order: **Sparkline, Line, Area, Bar, Pie/Donut**, with axis, grid,
+legend and crosshair written once as shared parts, not per chart. The streaming dashboard sample
+(#184, V1-M6) is the chart track's parity page.
