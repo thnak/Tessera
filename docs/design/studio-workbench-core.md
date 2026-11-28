@@ -143,7 +143,7 @@ VS Code chords, with the browser fallbacks of the spec (section 2.5). `Mod` is C
 | `Alt+F E V R D H` | open a menu | `Shift+F10`, Menu key | context menu |
 
 `Help > Keyboard Shortcuts` opens the palette in command mode, where every command shows its chord. The
-reserved commands (`go.*`, `edit.format`, `edit.renameSymbol`, `view.problems`, `view.search`, the dock's
+reserved commands (`go.*`, `edit.renameSymbol`, `view.problems`, `view.search`, the dock's
 `view.*`) bind nothing until their owning issue flips them live. In the editor, CodeMirror handles
 `Ctrl+Z`, `Ctrl+F`, `Ctrl+S` and the rest first and the workbench skips a key the editor already consumed; the
 two CodeMirror search bindings that collided with VS Code (`Ctrl+G` and `Shift+Ctrl+G`) are removed so Go to Line

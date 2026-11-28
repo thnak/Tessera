@@ -94,6 +94,9 @@ struct HookLoweringContext {
     // prop can be forwarded or called with its declared type (issue #286). Null when the props type
     // has no resolvable object type.
     const std::vector<ir::Prop>* declared_props = nullptr;
+    // The names of the string props among them that are declared as a literal union (an enum-like
+    // value): a prop's IR type is plain `string`, so `useDeferredValue` needs this (#960).
+    const std::vector<std::string>* enum_like_props = nullptr;
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).

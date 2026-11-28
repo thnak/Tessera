@@ -163,6 +163,17 @@ class ParityGateTests(unittest.TestCase):
         emitted = [call for call in tools.calls if "--emit-module-css" in call]
         self.assertEqual(emitted, [], "dash must not be asked for the form's module")
 
+    def test_the_engine_is_handed_the_font_pack_face(self) -> None:
+        # #970: the capture uses the bundled Plex Sans, the same file the browser half loads.
+        tools = FakeTools(structure=0.1)
+        code, _, _ = self.gate(tools, "--page", "form", "--repo", str(self.repo))
+        self.assertEqual(code, 0)
+        captures = [call for call in tools.calls if "--capture" in call]
+        self.assertEqual(len(captures), 1)
+        font = Path(captures[0][captures[0].index("--font") + 1])
+        self.assertEqual(font.name, "IBMPlexSans-Regular.ttf")
+        self.assertIn("tessera-fonts", font.parts)
+
     def test_a_module_page_emits_first(self) -> None:
         tools = FakeTools(structure=0.1)
         code, _, _ = self.gate(tools, "--page", "form", "--repo", str(self.repo))

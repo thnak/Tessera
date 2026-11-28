@@ -418,8 +418,10 @@ namespace pending {
     inline void FeedBase<Self>::handler_search(const tessera::ui::ClickEvent& event) {
       using namespace Feed_detail;
       (void)event;
+      if (!(state_query_ == "next")) {
       pending_transition_.begin(pending_resource_.epoch());
       dirty_.set(kBit_pending_sync_);
+      }
       state_query_ = "next";
       dirty_.set(kBit_state_query_);
       apply_state();

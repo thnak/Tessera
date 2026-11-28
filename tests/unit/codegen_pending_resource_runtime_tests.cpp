@@ -179,6 +179,11 @@ void test_fake_resources() {
     feed.pending_sync();
     check(!feed.pending_is_pending(), "isPending clears when the read settles");
 
+    // #960: the cell already holds "next", so the same marked setter starts no fetch and must not
+    // leave isPending waiting for one.
+    feed.run_marked_set();
+    check(!feed.pending_is_pending(), "a no-op marked setter leaves isPending false");
+
     // A failed refresh keeps the data.
     const std::uint64_t failing = data.begin_fetch();
     check(data.fail(failing), "the failure lands");

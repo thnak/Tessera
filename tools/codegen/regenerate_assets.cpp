@@ -13,6 +13,7 @@
 #include "tessera/compiler/ir/node.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
 #include "tessera/ui/style/component_parts.hpp"
+#include "tessera/ui/style/font_pack.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/stylesheet_blob.hpp"
 #include "tessera/ui/style/theme_asset.hpp"
@@ -113,6 +114,44 @@ style::ComponentPartRegistry library_part_registry() {
     return registry;
 }
 
+// `assets.fontPack` (ADR-047 item 4, theme-versions-v1.md section 5): the manifest is parsed and
+// every `fontPacks` pin of the theme asset must name exactly its id and version. Without
+// `assets.fontPack` the app has not opted in, so the pins are not checked. Returns false after
+// reporting.
+bool check_font_pack(const ProjectIdentity& identity, const style::ThemeAsset& asset,
+                     std::string_view theme_text, Outcome& outcome) {
+    if (identity.font_pack.empty()) {
+        return true;
+    }
+    const auto fail = [&](std::string_view path, const style::FontPackError& error) {
+        report(outcome, true,
+               std::string(path) + ": " + style::font_pack_error_code_name(error.code) + ": " +
+                   error.message);
+        outcome.exit_code = 1;
+        return false;
+    };
+    const std::optional<std::string> manifest =
+        read_file(identity.root / fs::path(identity.font_pack));
+    if (!manifest) {
+        report(outcome, true,
+               identity.font_pack + ": TESSERA_FONT_PACK_MANIFEST: cannot read the font pack");
+        outcome.exit_code = 1;
+        return false;
+    }
+    const auto pack = style::parse_font_pack(*manifest);
+    if (!pack) {
+        return fail(identity.font_pack, pack.error());
+    }
+    const auto pins = style::read_theme_font_pins(theme_text);
+    if (!pins) {
+        return fail(identity.theme, pins.error());
+    }
+    if (const auto violation = style::check_theme_font_pins(asset, *pins, *pack)) {
+        return fail(identity.theme, *violation);
+    }
+    return true;
+}
+
 } // namespace
 
 // Compiled stylesheet blobs of the module (issue #81, ADR-048): the CLI compiles the CSS it read,
@@ -183,6 +222,9 @@ bool build_theme_embed(const ProjectIdentity& identity, Outcome& outcome,
                identity.theme + ": " + style::theme_error_code_name(pin_error->code) + ": " +
                    pin_error->message);
         outcome.exit_code = 1;
+        return false;
+    }
+    if (!check_font_pack(identity, *parsed, *text, outcome)) {
         return false;
     }
     for (const std::string& warning : parsed->warnings) {

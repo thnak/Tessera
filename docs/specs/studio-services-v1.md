@@ -62,7 +62,9 @@ A worker holds only a cache keyed by that version.
 
 - `snapshot`: `{ files: [{ file, bytes }] }` where `bytes` is a UTF-8 `ArrayBuffer` in the transfer
   list. It replaces the whole cache and sets the cached version to the request's `version`.
-- `delta`: `{ baseVersion, edits: [TextEdit] }`. It is applied only when `baseVersion` equals the
+- `delta`: `{ baseVersion, edits: [TextEdit] }`. The edits apply one after another, each against the text
+  the previous one produced (an edit list in the coordinates of one text goes through
+  `toSequentialEdits` first). It is applied only when `baseVersion` equals the
   cached version, and sets the cached version to the request's `version`. Otherwise the worker
   answers `TESSERA_STUDIO_VERSION` and the page sends a snapshot.
 - Any other request before the first snapshot is answered `TESSERA_STUDIO_NO_SNAPSHOT`. A request
@@ -100,8 +102,8 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 | Service | Features at this version |
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
-| `analysis` | Defined by the analysis issues (#568 and following) |
-| `format` | Defined with ADR-061 |
+| `analysis` | `symbols` (section 10, #570); the rest is defined by the analysis issues (#568 and following) |
+| `format` | Feature `format`: request `{ file, printWidth?, indentWidth? }`, result `{ file, changed, edits: [TextEdit], diagnostics }`. The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
 Error codes: `TESSERA_STUDIO_MALFORMED`, `_VERSION`, `_NO_SNAPSHOT`, `_UNKNOWN_TYPE`, `_CANCELLED`,
@@ -116,4 +118,58 @@ checks the handshake, versioned answers, cancellation, the stale drop, restart f
 the refusal of a function or DOM-like value. The worker handle is the one of
 [studio-mock-services-v1.md](studio-mock-services-v1.md) (`post`, `onMessage`, `onError`,
 `terminate`), so the same client drives a blob `Worker` in a browser. Real services reuse the gate by
-swapping the stub's source.
+swapping the stub's source: `scripts/ci/preview_format_service.mjs` does it for the `format` worker
+(`designer/web/services/format-service.js`, built around an engine; the page's engine is
+`tessera_format.wasm`). With `TESSERA_FMT_BIN` set to a built `tessera_fmt` the gate also runs every case
+against the real printer.
+
+
+## 10. Symbol and span index (`symbols`)
+
+The index of declarations and references that definition, references, hover, completions and rename
+(#571 to #574) answer from. The library is `src/compiler/analysis` (`tessera_analysis`), portable C++
+over the front end of [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md), so the Wasm worker, the
+CLI and the MCP server share it. Feature name: `symbols`, listed by the worker's `capabilities`
+(`analysis_capabilities_json()`). The worker host that carries it (#568) is not part of the library.
+
+**Request** `symbols`: payload `{ file? }`, one file id or every file. **Result**
+`{ files: [{ file, indexed, symbols, references }] }`, in file id order. `indexed` is false for a file
+that is not `.ts`/`.tsx` or that the parser could not read.
+
+| Record | Fields |
+|---|---|
+| symbol | `id`, `kind`, `name`, `from`, `to` (the declared name), `parent` (enclosing component or hook id, empty at module scope), `exported`, and for `import`/`cssModule` a `target` |
+| reference | `kind`, `name`, `from`, `to`, and either `symbol` (the declaration id) or `unresolved` (the reason) |
+
+- **Spans** are the `Span` of section 2: UTF-16 code units of the file text with the file id, `to`
+  exclusive. The text is the decoded text without a leading byte order mark (what a `TextDecoder`
+  and CodeMirror hold); the library converts from the parser's UTF-8 byte offsets and counts an
+  astral code point as two units and an invalid byte as one.
+- **Symbol kinds**: `component`, `hook`, `helper`, `type`, `const`, `import`, `cssModule`, `prop`,
+  `propsParam`, `state`, `setter`, `handler`, `local`, `param`.
+- **Stable ids**: `f<file>:` plus the scope path (`Counter/count`; `Counter/~1/e` is the parameter of the
+  first anonymous function of `Counter`), with `#n` for the n-th duplicate in a scope. An id holds no
+  offset, so an edit elsewhere in the file leaves it unchanged; renaming or moving the declaration
+  changes it.
+- **Reference kinds**: `value`, `type`, `tag` (opening and closing name), `attribute`, `cssClass`,
+  `member`, `export`.
+- **No silent drops.** A reference resolves to a declaration or carries one reason: `unbound` (nothing in
+  scope: a library component, a typo), `builtin` (a builtin type, hook or global), `intrinsic` (a
+  lowercase tag and its attributes), `external` (a CSS class, declared in the `.css` file the index
+  does not read), `needsType` (a member access or an attribute the component does not destructure),
+  `importUnresolved` (the file or exported name is not in the snapshot).
+- **Cross-file resolution.** A relative import specifier resolves against the file paths of the
+  snapshot (`.tsx`, `.ts`, `/index.*`); the import symbol's `target` is the exported declaration,
+  following `export type { A } from` chains. An attribute on a component tag resolves to that
+  component's destructured `prop`, through imports. Package specifiers are `external`.
+- **Not indexed**: the body of a `helper` (the parser skips it), CSS class declarations, object
+  literal keys, and the property of a member access (it needs the receiver's type, `needsType`).
+- **Determinism and incremental update.** Each file's index is a pure function of its text, and
+  resolution of the paths and those indexes, so `delta` edits (applied in order, each against the text the
+  previous one produced) reindex only the edited files and re-resolve imports, and the result equals a
+  fresh build of the same files; the tests compare the two byte for byte. Output order does not depend
+  on the order the files were given.
+
+Tests: `tests/unit/analysis_index_tests.cpp` (declarations, cross-file, UTF-16 and BOM offsets,
+incremental equals fresh, and span/resolution invariants over `samples/` and
+`tests/fixtures/corpus/`). The Wasm build and the preview size budget belong to #568's module.

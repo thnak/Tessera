@@ -172,11 +172,11 @@ bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& i
     return true;
 }
 
-// Reads the optional `assets.theme` path: a non-empty project-relative file name (no absolute path,
-// drive letter or `..` escape). Returns false and sets `why` on a malformed entry; an absent
-// `assets`/`assets.theme` is valid and means the project has no theme asset.
-bool read_theme(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
-                std::string& why) {
+// Reads the optional `assets.<key>` path (`theme`, `fontPack`): a non-empty project-relative file
+// name (no absolute path, drive letter or `..` escape). Returns false and sets `why` on a malformed
+// entry; an absent `assets`/`assets.<key>` is valid and leaves `out` empty.
+bool read_asset_path(const tessera::harness::JsonValue& config, std::string_view key,
+                     std::string& out, std::string& why) {
     const tessera::harness::JsonValue* assets = config.find("assets");
     if (assets == nullptr || assets->is_null()) {
         return true;
@@ -185,13 +185,13 @@ bool read_theme(const tessera::harness::JsonValue& config, ProjectIdentity& iden
         why = "`assets` must be an object";
         return false;
     }
-    const tessera::harness::JsonValue* theme = assets->find("theme");
-    if (theme == nullptr || theme->is_null()) {
+    const tessera::harness::JsonValue* entry = assets->find(key);
+    if (entry == nullptr || entry->is_null()) {
         return true;
     }
-    const std::optional<std::string_view> value = theme->as_string();
+    const std::optional<std::string_view> value = entry->as_string();
     if (!value || value->empty()) {
-        why = "`assets.theme` must be a non-empty project-relative path";
+        why = "`assets." + std::string(key) + "` must be a non-empty project-relative path";
         return false;
     }
     std::string path(*value);
@@ -200,10 +200,10 @@ bool read_theme(const tessera::harness::JsonValue& config, ProjectIdentity& iden
     const bool escapes = path == ".." || path == "." || path.starts_with("../") ||
                          path.find("/../") != std::string::npos || path.ends_with("/..");
     if (absolute || escapes) {
-        why = "theme asset `" + path + "` must be a project-relative file";
+        why = "`assets." + std::string(key) + "` `" + path + "` must be a project-relative file";
         return false;
     }
-    identity.theme = std::move(path);
+    out = std::move(path);
     return true;
 }
 
@@ -324,7 +324,10 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
         return fail(limits_error);
     }
     std::string theme_error;
-    if (!read_theme(*parsed, identity, theme_error)) {
+    if (!read_asset_path(*parsed, "theme", identity.theme, theme_error)) {
+        return fail(theme_error);
+    }
+    if (!read_asset_path(*parsed, "fontPack", identity.font_pack, theme_error)) {
         return fail(theme_error);
     }
     if (!read_theme_pins(*parsed, identity, theme_error)) {

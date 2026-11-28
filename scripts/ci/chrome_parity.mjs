@@ -6,7 +6,7 @@
  * `tools/parity/form.html` is the same structure as HTML. Both read the same stylesheets
  * (`packages/tessera-ui/button.css`, `samples/gallery/form.module.css`), the same theme tokens
  * (`instrument.theme.json`, injected here as `:root` variables) and the same font
- * (`tests/fixtures/fonts/NotoSans-Regular.ttf`). This script is the browser half: it writes
+ * (Plex Sans Regular from the font pack, `packages/tessera-fonts/ibm-plex`, #970). This script is the browser half: it writes
  * `chrome.png` and `chrome-boxes.json` (the border box of every classed element, in CSS pixels).
  * `scripts/ci/chrome_parity_compare.py` is the other half: it diffs `chrome.png` against the
  * engine's capture and reports the result.
@@ -62,12 +62,14 @@ if (!tokens) {
   console.error(`unknown theme ${themeName}`);
   process.exit(2);
 }
-const fontUrl = pathToFileURL(join(root, 'tests/fixtures/fonts/NotoSans-Regular.ttf')).href;
-// The theme names IBM Plex; the engine is handed Noto Sans, so the browser is too.
+const fontUrl = pathToFileURL(join(root, 'packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf')).href;
+// The theme names IBM Plex and the engine is handed the pack's Plex Sans Regular (parity_gate.py), so
+// the browser is too. Only the regular weight is declared: the engine loads one face, so a bold run
+// would be synthesized by Chrome and not by the engine.
 const tokenCss =
-  `@font-face { font-family: "ParityNoto"; src: url("${fontUrl}"); }\n` +
-  `:root {\n${Object.entries(tokens).map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n  --font-sans: "ParityNoto", sans-serif;\n}\n` +
-  `html, body { background: ${tokens['--window-background']}; color: ${tokens['--window-foreground']}; font-family: "ParityNoto", sans-serif; }\n`;
+  `@font-face { font-family: "ParityPlex"; src: url("${fontUrl}"); }\n` +
+  `:root {\n${Object.entries(tokens).map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n  --font-sans: "ParityPlex", sans-serif;\n}\n` +
+  `html, body { background: ${tokens['--window-background']}; color: ${tokens['--window-foreground']}; font-family: "ParityPlex", sans-serif; }\n`;
 
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch(chromePath ? { executablePath: chromePath } : {});

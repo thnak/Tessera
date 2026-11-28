@@ -60,6 +60,16 @@ export function plainDataProblem(value, at = '$', seen = new WeakSet(), depth = 
   return null;
 }
 
+/**
+ * Reorders an edit list written in the coordinates of one text (what a formatter returns and what a
+ * CodeMirror change set holds) so that applying it one edit after another, as `delta` does, gives the
+ * same text: last offset first. The edits must not overlap.
+ * @param {{ offset: number }[]} edits
+ */
+export function toSequentialEdits(edits) {
+  return [...edits].sort((a, b) => b.offset - a.offset);
+}
+
 const isUint = (n) => Number.isInteger(n) && n >= 0;
 
 /**

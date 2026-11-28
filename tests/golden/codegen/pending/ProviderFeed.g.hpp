@@ -551,9 +551,11 @@ namespace pending {
     inline void ProviderFeedBase<Self>::handler_next(const tessera::ui::ClickEvent& event) {
       using namespace ProviderFeed_detail;
       (void)event;
+      if (!(state_id_ == 2)) {
       (void)beh_level_value();
       pending_transition_.begin(res_row_view_.read().epoch + 1);
       dirty_.set(kBit_pending_sync_);
+      }
       state_id_ = 2;
       dirty_.set(kBit_state_id_);
       if (sync_resource_keys()) {

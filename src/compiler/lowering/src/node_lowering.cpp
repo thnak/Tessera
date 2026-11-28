@@ -213,16 +213,18 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     // The declared props come first (issue #286): forwarding or calling a callback prop needs its
     // type, in the handlers of the hooks as well as in the nodes.
     std::vector<ir::Prop> declared_props;
+    std::vector<std::string> enum_like_props;
     LoweredHooks props_hooks;
     internal::NodeState props_state{base_context, props_hooks};
     const internal::DeclaredPropsKind declared =
-        internal::lower_declared_props(props_state, declared_props);
+        internal::lower_declared_props(props_state, declared_props, &enum_like_props);
     if (declared == internal::DeclaredPropsKind::Error) {
         return std::unexpected(single_error(*props_state.error));
     }
     HookLoweringContext context = base_context;
     if (declared == internal::DeclaredPropsKind::Lowered) {
         context.declared_props = &declared_props;
+        context.enum_like_props = &enum_like_props;
     }
     HookLoweringResult hooks = lower_hooks(context);
     if (!hooks) {

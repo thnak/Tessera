@@ -41,6 +41,11 @@ DEFAULT_THRESHOLD = 0.5
 DEFAULT_WIDTH = 640
 DEFAULT_HEIGHT = 720
 
+# The font both halves are handed: Plex Sans Regular from the bundled pack (#970), the family the
+# Instrument theme names, so the gate no longer measures a stand-in. The engine's text stack loads
+# one face, so only the regular weight is shared: bold is still not compared.
+PARITY_FONT = "packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
+
 # Exit codes, named so the messages and the returns cannot drift.
 EXIT_PASS = 0
 EXIT_OVER_THRESHOLD = 1
@@ -155,6 +160,8 @@ def main() -> int:
             args.page,
             "--capture",
             str(out / "engine.png"),
+            "--font",
+            str(repo / PARITY_FONT),
             "--width",
             str(args.width),
             "--height",

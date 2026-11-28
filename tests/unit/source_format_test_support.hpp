@@ -33,6 +33,8 @@ std::string check_properties(std::string_view text, const std::string& what);
 
 // Defined in source_format_corpus_tests.cpp.
 void run_corpus_tests();
+// Defined in source_format_edits_tests.cpp.
+void run_edits_tests();
 // Defined in source_format_cli_tests.cpp.
 void run_cli_tests();
 

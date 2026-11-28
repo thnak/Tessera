@@ -61,11 +61,11 @@ Four items, all of which otherwise collide across every later phase:
    fit the tool, and the gate script (#529) handles both shapes.
 3. **A parity gate script.** One command that builds the engine capture, runs Chrome, compares, and
    exits non-zero above the structure threshold, so the farm can run it without reading a guide.
-4. **The bundled font pack (#280).** The fixtures hold one weight (`NotoSans-Regular.ttf`), so
-   `font-weight` is parsed and carried but **bold is not compared** (the parity guide says so
-   outright). The pack (Plex Sans 400/600/700, Mono 400/700) now exists in
-   `packages/tessera-fonts/ibm-plex/`; switching the parity fixtures and the chrome-parity harness to it
-   is the remaining step before bold labels are verifiable.
+4. **The bundled font pack (#280).** `font-weight` is parsed and carried but **bold is not compared**
+   (the parity guide says so outright). The pack (Plex Sans 400/600/700, Mono 400/700) exists in
+   `packages/tessera-fonts/ibm-plex/`, and the parity gate and the chrome-parity harness now use its
+   Plex Sans Regular instead of Noto (#970). Bold stays unverifiable until the text stack loads more than
+   one face per window (`--font` takes a single file).
 
 ### Phase 1 — text and layout (14)
 

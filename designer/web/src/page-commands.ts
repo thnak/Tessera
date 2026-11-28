@@ -36,7 +36,7 @@ import {
 } from "./workbench/index.js";
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
-import { EDITOR_COMMANDS, editorFacts } from "./editor/editor-target";
+import { EDITOR_COMMANDS, editorFacts, formatBeforeSave } from "./editor/editor-target";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
@@ -245,7 +245,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.newFile": () => a().io.newFile(),
       "file.renameFile": () => a().io.renameFile(),
       "file.deleteFile": () => a().io.deleteFile(),
-      "file.save": () => a().io.save(),
+      "file.save": async () => {
+        await formatBeforeSave();
+        a().io.save();
+      },
       "file.download": () => a().io.download(),
       "view.palette": () => paletteRef.current?.open(">"),
       "view.quickOpen": () => paletteRef.current?.open("", "files"),
