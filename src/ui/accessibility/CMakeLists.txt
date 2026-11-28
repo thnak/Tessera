@@ -16,6 +16,7 @@ set(TESSERA_A11Y_SOURCES
     a11y_roles.cpp
     a11y_tree.cpp
     announcement_queue.cpp
+    live_regions.cpp
     atspi_mapping.cpp
     atspi_events.cpp
     atspi_bridge.cpp

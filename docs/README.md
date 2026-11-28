@@ -335,7 +335,7 @@ This page is the map and reading order for the framework.
   semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); TSX render read: [`observable-render-read.md`](design/observable-render-read.md); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
 - [`design/background-work.md`](design/background-work.md) — `TaskScope`'s structured cancellation
   (bounded children, deadline-bounded `close()`, cancellation while a child is suspended) and the
-  layer-0 timer wake source (`TimerQueue` ordering, coalescing, and the pacer/timer park join)
+  layer-0 timer wake source (`TimerQueue` ordering, coalescing, and the pacer/timer park join), plus the OS job contract and headless host
   (ADR-050 section 5, AF2)
 - [`design/app-framework-open-questions.md`](design/app-framework-open-questions.md) — proposed
   answers to ADR-050's open questions (background work, scopes, multi-window, SQLite, HTTP, state,

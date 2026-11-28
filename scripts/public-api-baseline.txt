@@ -92,6 +92,24 @@ struct include/tessera/appfw/background.hpp tessera::appfw::BackgroundRegistrati
 enum include/tessera/appfw/background.hpp tessera::appfw::BackgroundPolicy
 function include/tessera/appfw/background.hpp tessera::appfw::to_string
 
+header include/tessera/appfw/background_job.hpp
+class include/tessera/appfw/background_job.hpp tessera::appfw::BackgroundJob
+class include/tessera/appfw/background_job.hpp tessera::appfw::JobContext
+class include/tessera/appfw/background_job.hpp tessera::appfw::JobScheduler
+struct include/tessera/appfw/background_job.hpp tessera::appfw::JobConstraints
+enum include/tessera/appfw/background_job.hpp tessera::appfw::JobOutcome
+enum include/tessera/appfw/background_job.hpp tessera::appfw::JobResult
+function include/tessera/appfw/background_job.hpp tessera::appfw::to_string
+
+header include/tessera/appfw/background_job_fake.hpp
+class include/tessera/appfw/background_job_fake.hpp tessera::appfw::FakeJobScheduler
+
+header include/tessera/appfw/background_job_host.hpp
+class include/tessera/appfw/background_job_host.hpp tessera::appfw::HeadlessJobHost
+struct include/tessera/appfw/background_job_host.hpp tessera::appfw::HeadlessJobConfig
+enum include/tessera/appfw/background_job_host.hpp tessera::appfw::JobHostPhase
+function include/tessera/appfw/background_job_host.hpp tessera::appfw::to_string
+
 header include/tessera/appfw/filesystem_fake.hpp
 class include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileSystem
 struct include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileCall
@@ -2014,6 +2032,7 @@ struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildOp
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildStats
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::CollectionPosition
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Action
+enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Live
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Role
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::State
 alias include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::A11yIndex
@@ -2151,6 +2170,9 @@ constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::k
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusMember
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusName
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusPath
+
+header include/tessera/ui/accessibility/live_regions.hpp
+function include/tessera/ui/accessibility/live_regions.hpp tessera::ui::a11y::collect_live_announcements
 
 header include/tessera/ui/accessibility/snapshot_provider.hpp
 class include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::SnapshotProvider

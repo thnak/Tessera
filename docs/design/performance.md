@@ -579,9 +579,9 @@ intrinsics are not written (not testable on the Windows lane); aarch64 runs the 
 - ~~Should `SceneStyleTree::compute` memoize per style generation?~~ Decided and implemented (#711,
   `SceneStyleTree::begin_memo`/`end_memo`): one cascade per node per generation.
 - ~~Should a full paint cull against the viewport by default (#257)?~~ Decided: yes, on by default
-  (`cull_paint`), full paint 89.6 -> 5.7 ms on the reference scene. Open remainder: a screen where all
-  12 000 nodes are visible still paints the whole tree, which is where ADR-021's worker recording
-  would have to be re-opened.
+  (`cull_paint`), full paint 89.6 -> 5.7 ms on the reference scene. A screen with all
+  12 000 nodes visible paints the whole tree (128 ms, `cold_unculled` in `--stage-profile`); judged a
+  stress bound, so worker recording stays closed until a real scene exceeds the trigger (#257 closed).
 - Which of the open V1 performance items are release blockers: #842 (a worker completion wakes the parked UI thread on Linux and Windows; the Android advisory
   lane still waits out the clamp), #697, #476 (retained draw
   list and layer cache; `layerCacheBudgetMb` now sizes the #617 retained layers; generic promotion waits for a measurement) and #683 (GPU vector rasterizer, a

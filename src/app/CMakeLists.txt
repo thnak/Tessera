@@ -116,6 +116,9 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         window_backdrop_request.hpp
         window_cursor.cpp
         window_cursor.hpp
+        window_ime.cpp
+        window_text_input_rect.cpp
+        window_text_input_rect.hpp
         # The shared device, per-device caches and runtime loop one app's windows present through
         # (issue #228, docs/design/multi-window.md).
         window_device.cpp

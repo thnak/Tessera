@@ -274,7 +274,8 @@ Tests: ctest `overlay_host` (`tests/unit/overlay_host_tests.cpp`).
   installs: an Escape press the overlays take is consumed together with its release; a press outside
   and a window blur never are, so the press still reaches the scene.
 - **Live regions**: toast content carries `aria-live="polite"` next to role `alert`. The semantics
-  tree builder does not interpret `aria-live` yet, so announcements wait on that work.
+  tree builder resolves it onto `A11yNode::live`, and the AT-SPI bridge announces a toast that appears
+  (accessibility-v1 section 8).
 
 Tests: ctest `overlay_placement`, `overlay_dismiss`.
 

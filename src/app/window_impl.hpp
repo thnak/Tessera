@@ -33,6 +33,7 @@
 #include "window_config.hpp"
 #include "window_internal.hpp"
 #include "window_overlay.hpp"
+#include "window_text_input_rect.hpp"
 
 #include <array>
 #include <cstddef>
@@ -326,6 +327,14 @@ struct WindowHost::Impl {
     // Reports the unsupported platform once, on the first request whose shape actually changed, the
     // same one-shot policy as `fullscreen_unsupported_reported`.
     bool cursor_unsupported_reported = false;
+
+    // --- IME anchor (issue #1053, follow-up of #55) --------------------------------------------
+    // Publishes the focused text field's caret rect through `hal::Window::set_text_input_rect`,
+    // only when the caret, text or field bounds changed (window_text_input_rect.hpp). Runs after
+    // input is pumped, like sync_cursor, so a typed character or click moves the candidate window
+    // this tick.
+    void sync_text_input_rect();
+    detail::TextInputRectState text_input_rect_state;
 
     // --- accessibility host wiring (issue #185/#186, accessibility-v1.md section 12.3) -------
     // Owns the one accessibility controller: the UIA root provider on Windows, the AT-SPI
