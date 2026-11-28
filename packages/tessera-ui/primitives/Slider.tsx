@@ -45,16 +45,23 @@ export function Slider({
         setDragging(true);
         width > 0 &&
           setValue(
-            clamp(min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step, min, max),
+            clamp(
+              min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step,
+              min,
+              max
+            )
           );
       }}
       onPointerMove={(e: PointerEvent) =>
         dragging &&
-        width > 0 &&
-        setValue(
-          clamp(min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step, min, max),
-        )
-      }
+          width > 0 &&
+          setValue(
+            clamp(
+              min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step,
+              min,
+              max
+            )
+          )}
       onPointerUp={() => setDragging(false)}
       onKeyDown={(e: KeyEvent) => {
         (e.key === "ArrowRight" || e.key === "ArrowUp") && setValue(clamp(value + step, min, max));
