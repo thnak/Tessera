@@ -2138,6 +2138,30 @@
           "value": "literal"
         },
         {
+          "default": "butt",
+          "lowersTo": "props.strokeLinecap",
+          "name": "strokeLinecap",
+          "note": "stroke end caps; ignored when stroke is none",
+          "type": "\"butt\" | \"round\" | \"square\"",
+          "value": "literal"
+        },
+        {
+          "default": "miter",
+          "lowersTo": "props.strokeLinejoin",
+          "name": "strokeLinejoin",
+          "note": "stroke corner joins; ignored when stroke is none",
+          "type": "\"miter\" | \"round\" | \"bevel\"",
+          "value": "literal"
+        },
+        {
+          "default": "nonzero",
+          "lowersTo": "props.fillRule",
+          "name": "fillRule",
+          "note": "which regions a self-overlapping path fills",
+          "type": "\"nonzero\" | \"evenodd\"",
+          "value": "literal"
+        },
+        {
           "lowersTo": "props.label",
           "name": "label",
           "note": "accessible name; without it the path is decorative",

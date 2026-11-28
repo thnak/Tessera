@@ -4,10 +4,6 @@
 //
 // The imported icons as `Path` nodes, selected by `<set>:<name>`. The `Icon` component
 // wraps this; see docs/specs/components/Icon.md.
-//
-// Not representable as `Path` nodes (shapes, groups or unknown attributes), so absent
-// here; their embedded SVG assets are still emitted:
-//   tabler:search
 
 export type IconGlyphProps = {
   name: string;
@@ -74,6 +70,8 @@ export function IconGlyph({ name }: IconGlyphProps) {
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       )}
       {name === "tabler:home" && (
@@ -84,6 +82,8 @@ export function IconGlyph({ name }: IconGlyphProps) {
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       )}
       {name === "tabler:house" && (
@@ -94,6 +94,8 @@ export function IconGlyph({ name }: IconGlyphProps) {
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       )}
       {name === "tabler:house" && (
@@ -104,6 +106,29 @@ export function IconGlyph({ name }: IconGlyphProps) {
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {name === "tabler:search" && (
+        <Path
+          className="ticon-path"
+          d="M3 10 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0 z"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        />
+      )}
+      {name === "tabler:search" && (
+        <Path
+          className="ticon-path"
+          d="M21 21l-6 -6"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
         />
       )}
     </View>

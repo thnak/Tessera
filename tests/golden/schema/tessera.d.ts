@@ -299,6 +299,9 @@ export interface PathProps extends CommonProps {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
+  strokeLinecap?: "butt" | "round" | "square";
+  strokeLinejoin?: "miter" | "round" | "bevel";
+  fillRule?: "nonzero" | "evenodd";
   label?: string;
   onSizeChange?: (e: SizeChangeEvent) => void;
 }
