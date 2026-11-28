@@ -235,6 +235,10 @@ void test_vertex_layout_validation() {
     expect(wg::validate_vertex_layout(layout) == Error::None, "simple layout is valid");
 
     expect(wg::validate_vertex_layout({8, nullptr, 0}) == Error::MissingAttributes, "no attrs");
+    expect(wg::validate_vertex_layout({0, nullptr, 0}) == Error::None,
+           "the empty layout is a vertex-less pipeline (the glass fullscreen triangle)");
+    expect(wg::validate_vertex_layout({0, ok, 1}) == Error::AttributeOutOfStride,
+           "a stride of 0 with attributes is still invalid");
     expect(wg::validate_vertex_layout({6, ok, 1}) == Error::StrideUnaligned, "stride % 4");
     expect(wg::validate_vertex_layout({4096, ok, 1}) == Error::StrideTooLarge, "stride limit");
     expect(wg::validate_vertex_layout({4, ok, 1}) == Error::AttributeOutOfStride,
@@ -301,6 +305,12 @@ void test_builtin_registry() {
     expect(program != nullptr && program->source == wg::batched2d_wgsl_program().source,
            "built-in batched2d is the embedded WGSL");
     expect(registry.find("") == nullptr, "SPIR-V-only descriptors never resolve to WGSL");
+    const wg::WgslProgram* glass = registry.find(tessera::rendering::gpu::kGlassBlurShaderId);
+    expect(glass != nullptr && glass->source == wg::glass_blur_wgsl_program().source,
+           "built-in registry resolves glass_blur to its embedded WGSL");
+    expect(glass != nullptr && glass->source.find("fn vs_main") != std::string_view::npos &&
+               glass->source.find("fn fs_main") != std::string_view::npos,
+           "glass_blur WGSL declares both entry points");
 }
 void test_builtin_wgsl() {
     const wg::WgslProgram program = wg::batched2d_wgsl_program();

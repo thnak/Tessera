@@ -5,6 +5,7 @@
 // same line boxes the layout produced; it never shapes or lays out text itself.
 
 #include "lcd_text_sink.hpp"
+#include "paint_list_marker.hpp"
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
 #include "paint_text_flex.hpp"
@@ -28,6 +29,11 @@
 
 namespace tessera::ui::paint::detail {
 namespace {
+
+// The advance seam the inside marker measures its counter with: paint's own metrics source.
+float marker_advance(std::string_view text, const text::TextStyle& style, const void* user) {
+    return static_cast<const PaintTextMetricsSource*>(user)->advance(text, style);
+}
 
 // Paints an optional PaintData text run (D9) after the node's background/borders and inside the
 // active clip. Precedence: PaintData override > computed style > backend default; node opacity
@@ -292,6 +298,15 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
+    // `list-style-position: inside`: the first Text of the item reserves the marker's box at the
+    // start of its first line (docs/design/list-style-inside.md) before anything is measured.
+    std::optional<InsideMarker> inside_marker_box;
+    if (context.styles != nullptr && !data->decoration) {
+        inside_marker_box = inside_marker(node, *context.styles, &marker_advance, metrics_source);
+        if (inside_marker_box) {
+            text_style.first_line_indent = inside_marker_box->width;
+        }
+    }
     // A Text wraps, as in a browser, unless `white-space` forbids it or layout gave it one line.
     const bool wrap = text_wraps(node.element_kind(), *data, text_style.white_space,
                                  *metrics_source, text_style, content_height);
@@ -323,12 +338,19 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     // box, the node's size and every layout cache stay as `baseline` produces them, and the text
     // and its rules move together.
     content_y -= text_style.baseline_shift;
+    if (inside_marker_box) {
+        paint_inside_marker(*inside_marker_box, data->text, text_style, *metrics_source, wrap,
+                            {content_x, content_y, content_width, content_height}, text_align,
+                            opacity, sink, stats);
+    }
     const TextRuleStyle rules = resolve_text_rules(style, text_style, color, opacity);
     const auto paint_rules = [&](const text::TextLine& line, float left, float available,
                                  float line_top) {
         if (rules.lines != 0) {
-            emit_text_rules(rules, metrics_source->metrics(text_style), text_style.font_size, left,
-                            left + std::min(line.width, available), line_top + line.baseline, sink);
+            // The first-line box is not text: no underline runs through a list marker's room.
+            emit_text_rules(rules, metrics_source->metrics(text_style), text_style.font_size,
+                            left + line.indent, left + std::min(line.width, available),
+                            line_top + line.baseline, sink);
         }
     };
     if (!data->spans.empty() && !data->decoration) {
@@ -393,7 +415,8 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         // `rect.x` as the pen start, so `content_x` here would discard the alignment computed above
         // for every single-line run (issue #313). The width narrows to what is left from there,
         // matching `available_width` of the run-sequence path.
-        run.rect = {line_x, content_y, available_width, content_height};
+        run.rect = {line_x + line.indent, content_y, std::max(0.0f, available_width - line.indent),
+                    content_height};
         // The sink puts the baseline at `rect.y + ascent` unless told otherwise; an explicit
         // `line-height` moves it by the half-leading, so say where the line layout put it.
         const float half_leading = line.baseline - metrics_source->metrics(text_style).ascent;

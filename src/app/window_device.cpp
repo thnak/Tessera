@@ -7,6 +7,7 @@
 #include "tessera/app/window.hpp"
 #include "tessera/app/window_device.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/rendering/vulkan/path_raster_pipeline.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
 #include "window_vector.hpp"
@@ -295,8 +296,9 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
         std::make_unique<detail::TextStack>(*device_, options.font_path, options.extra_font_paths);
     // The vector stack is built against this device and format, so it lives and dies with them: a
     // device generation change rebuilds it (and its GPU pipelines) with the rest.
-    vector_ = std::make_unique<detail::VectorStack>(*device_, format, options.vector_assets,
-                                                    options.vector_bundles);
+    vector_ = std::make_unique<detail::VectorStack>(
+        *device_, format, options.vector_assets, options.vector_bundles,
+        rendering::vulkan::path_raster_pipeline_descs());
     sink_ = std::make_unique<ui::paint::Batched2DSink>(
         *renderer_, text_->renderer.get(), text_->shaper.get(),
         vector_->available() ? vector_->config(1.0f) : ui::paint::VectorPaintConfig{});

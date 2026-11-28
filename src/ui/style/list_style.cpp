@@ -71,7 +71,8 @@ std::optional<ListStyleType> parse_list_style_type(std::string_view value) {
 }
 
 bool is_supported_list_style_position(std::string_view value) {
-    return lower(trim(value)) == "outside";
+    const std::string word = lower(trim(value));
+    return word == "outside" || word == "inside";
 }
 
 bool is_bullet_marker(ListStyleType type) {

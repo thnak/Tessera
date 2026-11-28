@@ -25,6 +25,7 @@ struct Key {
                style.letter_spacing == other.style.letter_spacing &&
                style.word_spacing == other.style.word_spacing &&
                style.features == other.style.features && style.size_runs == other.style.size_runs &&
+               style.first_line_indent == other.style.first_line_indent &&
                style.font_weight == other.style.font_weight && style.italic == other.style.italic &&
                style.white_space == other.style.white_space &&
                style.text_transform == other.style.text_transform &&
@@ -50,6 +51,7 @@ struct KeyHash {
         mix(seed, float_bits(key.style.word_spacing));
         mix(seed, key.style.features.value);
         mix(seed, key.style.size_runs.value);
+        mix(seed, float_bits(key.style.first_line_indent));
         mix(seed, static_cast<std::size_t>(key.style.font_weight));
         mix(seed, static_cast<std::size_t>(key.style.italic));
         mix(seed, static_cast<std::size_t>(key.style.white_space));

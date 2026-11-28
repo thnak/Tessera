@@ -1,5 +1,12 @@
 {
-  "_comment": "Web app download budgets in bytes (issue #969, ADR-046 item 9). Gzip level 9 of the files a first visit fetches. first_frame_ms is the Node instantiate-to-first-frame bound, a generous regression tripwire not a performance claim. The gallery gets an entry when it has a web build.",
+  "_comment": "Web app download budgets in bytes (issue #969, ADR-046 item 9). Gzip level 9 of the files a first visit fetches. first_frame_ms is the Node instantiate-to-first-frame bound, a generous regression tripwire not a performance claim. gallery_web (issue #1023) also budgets data_gzip, the preloaded CSS, theme and font a first visit fetches as app.data; its wasm carries the text (FreeType, HarfBuzz), vector (ThorVG) and layout stacks, so the bound is about 15 percent over the measured 1.52 MB.",
+  "gallery_web": {
+    "wasm_gzip": 1750000,
+    "js_gzip": 36000,
+    "host_gzip": 4096,
+    "data_gzip": 112000,
+    "first_frame_ms": 3000
+  },
   "web_render": {
     "wasm_gzip": 65536,
     "js_gzip": 16384,

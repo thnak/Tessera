@@ -1,7 +1,8 @@
 # Web target: running an app in the browser
 
-Status: first slice (issue [#290](https://github.com/thnak/Tessera/issues/290)) plus the web app driver
-(issue [#1013](https://github.com/thnak/Tessera/issues/1013)); the Wasm app build of the gallery and the CI
+Status: first slice (issue [#290](https://github.com/thnak/Tessera/issues/290)), the web app driver
+(issue [#1013](https://github.com/thnak/Tessera/issues/1013)) and the gallery on it (issue
+[#1023](https://github.com/thnak/Tessera/issues/1023)); GPU-browser pixels, device recovery and the CI
 publish job are not done. Normative decisions are in
 [ADR-046](../../decisions/ADR-046-web-target-for-demos.md); this note records how the code is cut.
 
@@ -25,6 +26,7 @@ Only `web_exports.cpp` (the `extern "C"` surface and two JS imports) needs the E
 | `web_exports.*` | `tessera_web_pointer/wheel/key/focus/resize/visibility/wake/frame`; Emscripten only |
 | `web_surface_extent.*` | The canvas backing-store size rule (css size times device pixel ratio, clamped) |
 | `web_canvas_surface.*` | The web app driver's GPU half: the page's device as an `rhi::Device`, the canvas surface, one render target per frame; Emscripten only |
+| `src/app/web_driver.*`, `web_gpu_stack.*` | The web app driver proper (`tessera_app_web`): `AppHost` frame, input pump and canvas frame over the two rows above; text, vector and glass stacks on the WebGPU device |
 | `host/tessera_web_host.js` | WebGPU check, device request, DOM listeners, frame bridge; ES module, no build step |
 | `host/index.html` | Canvas plus the "unsupported browser" page (item 4) |
 | `host/library_tessera_web.js` | The two imports C++ calls, forwarded to the frame bridge |
@@ -78,6 +80,28 @@ due timer asks for the next callback.
 painted only when the pointer changes it. Without a device (Node) it runs the host contract and draws
 nothing.
 
+### The gallery on the web (issue #1023)
+
+`samples/gallery` builds a second target, `gallery_web`, from the same generated pages, stylesheets and
+theme as the native gallery. `web_main.cpp` is the whole difference: it reads the page from the URL query
+(`?page=form&theme=instrument-dark&density=compact&text-scale=125&rtl=1`), builds a heap scene
+(`gallery::make_scene`, one page table with `run_page`) and hands it to `app::WebAppDriver`
+(`src/app/web_driver.*`, library `tessera_app_web`). The driver runs the same `AppHost` frame as
+`WindowHost`: DOM events from `WebHost` go through the `InputPump` into the scene, the loop ticks, and a
+changed scene is one canvas frame through the batched 2D renderer. The pieces it shares with the Vulkan
+window driver are the `TextStack` (now `text_stack.hpp`; the web build skips its worker thread and runs the
+glyph scale step synchronously), the `VectorStack` (the backend's compute descriptors are a constructor
+argument, so the WGSL set plugs in) and `window_aa_policy`. The glass pipelines are the same two shader ids
+(`batched2d`, `glass_blur`) resolved to their WGSL twins. Shared gallery code moved to `resources.*`
+(the CSS, theme and stylesheet loading) so the two builds read their inputs one way.
+
+The CSS, theme asset and Plex Sans Regular are `--preload-file`d into the module file system at `/gallery`
+and shipped as `app.data`, so the budget has a `data_gzip` entry. The page generation runs the codegen CLI;
+in the Emscripten build that is the Node build of the CLI (`NODERAWFS`), run through
+`CMAKE_CROSSCOMPILING_EMULATOR`, so one `cmake --build --preset wasm-webgpu` produces the app with no native
+tool. Without a WebGPU device (Node) the driver runs headless: fonts are measured, the stylesheet resolves,
+layout runs and input is dispatched; only the canvas is missing (`tessera_render_gpu()` is 0).
+
 ## 5. Tests
 
 ctest `web_input_translation`, `web_frame_scheduler`, `web_host` (C++, no browser) and
@@ -101,13 +125,25 @@ at the backing-store size, a hover, press, release and leave are one canvas fram
 are none, no page error, and an idle page requests no `requestAnimationFrame`. Headless software
 WebGPU screenshots show a blank canvas, so the pixel check (`--pixels`) is for a machine with a GPU.
 
-## 6. Not done (tracked in #969's follow-ups)
+`gallery_web` goes through both (`--app gallery_web` for each). Under Node the smoke asserts the
+headless contract above and the budgets, including `data_gzip`. In Chromium with software WebGPU
+(thnak-server) `run_web_app.mjs --app gallery_web [--query page=form]` checks the first canvas frame at the
+backing-store size, that Tab (the canvas is focusable, `tabindex="0"`) repaints the focus ring, that a
+pointer sweep repaints hovers and a settled page repaints nothing, no page error, and zero
+`requestAnimationFrame` while idle; the icons page (the vector stack) draws its first frame without
+error. Two defects only this run could find are fixed with it: the WebGPU backend rejected a pipeline
+with no vertex buffer and did not register `glass_blur` (so no glass pipeline could be built), and a DOM
+mouse carried Chrome's pointer id 1, which the router does not treat as primary, so nothing hovered
+before the first click (a mouse is now pointer 0, like the native one).
 
-- The gallery does not build for the web: it links the Vulkan window driver (`tessera_app_window`) and
-  its text, vector and glass stacks. The driver pieces now exist (device, surface, frame step); wiring
-  `gallery` to them and giving it a budget entry is the remaining slice.
-- Pixels on a real GPU (`run_web_app.mjs --pixels`) and keyboard input in a tab have not been run; the
-  software-WebGPU run covers frame accounting and the idle rule. Device loss and surface re-creation are
-  not recovered: a lost device leaves the app idle.
-- CI: building the gallery on every PR and publishing from `main`; the hidden-textarea IME bridge, ARIA
-  mirror, clipboard, files and persistence.
+## 6. Not done
+
+- Pixels on a real GPU: `run_web_app.mjs --pixels` (for the gallery it checks the canvas is not one
+  flat colour; for `web_render` three exact pixels) has not run, because headless software WebGPU
+  screenshots are blank. The golden for a web frame is lavapipe only, so a web pixel comparison is a
+  GPU-machine check, never a CI gate.
+- Device loss and surface re-creation are not recovered: a lost device leaves the app idle.
+- CI: `gallery_web` is built and smoke-tested on every PR in the `wasm-build` job; publishing it from
+  `main` is not done.
+- The hidden-textarea IME bridge, ARIA mirror, clipboard, files and persistence. Text fields in the gallery
+  take the DOM key and text events the page already forwards, but not composition.

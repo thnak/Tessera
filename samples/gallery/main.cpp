@@ -17,7 +17,7 @@
 //                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
 //                      swatch (every colour token of the theme, issue #280) icons (#530) lists
-//                      (#1006) or tables (#543)
+//                      (#1006), controls (Switch, Checkbox, Radio; #240) or tables (#543)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -38,6 +38,7 @@
 #include "gallery_vector_assets.hpp"
 #include "golden.hpp"
 #include "page_table.hpp"
+#include "resources.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/cutout.hpp"
@@ -45,16 +46,12 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
-#include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
-#include "tessera/ui/style/theme_asset.hpp"
 
 #include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
-#include <iterator>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -72,98 +69,10 @@ using gallery::Args;
 // `kRootId` and `Scene` live in page_table.hpp now (issue #528): the table builds every page, so
 // the root id and the page-in-a-root shape have to be visible to it.
 
-std::optional<std::string> read_file(const char* path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        return std::nullopt;
-    }
-    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-}
-
-// Everything the page needs besides the generated component: the library Button sheet (layered in
-// `tessera-ui`), the gallery sheet, and the theme asset blob. Built once from the repository files.
-struct Resources {
-    style::PreparedStyleSheet library_sheet;
-    style::PreparedStyleSheet safe_area_sheet;
-    style::PreparedStyleSheet gallery_sheet;
-    style::PreparedStyleSheet form_sheet;
-    gallery::FormModule form_module;
-    style::PreparedStyleSheet dash_sheet;
-    style::PreparedStyleSheet swatch_sheet;
-    style::PreparedStyleSheet lists_sheet;
-    style::PreparedStyleSheet tables_sheet;
-    std::vector<std::uint8_t> theme_blob;
-};
-
-std::optional<Resources> load_resources() {
-    const auto button_css = read_file(TESSERA_GALLERY_BUTTON_CSS);
-    const auto icon_css = read_file(TESSERA_GALLERY_ICON_CSS);
-    const auto safe_area_css = read_file(TESSERA_GALLERY_SAFE_AREA_CSS);
-    const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
-    const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
-    const auto dash_css = read_file(TESSERA_GALLERY_DASH_CSS);
-    const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
-    const auto lists_css = read_file(TESSERA_GALLERY_LISTS_CSS);
-    const auto tables_css = read_file(TESSERA_GALLERY_TABLES_CSS);
-    const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !icon_css || !safe_area_css || !gallery_css || !form_css || !dash_css ||
-        !swatch_css || !lists_css || !tables_css || !theme_json) {
-        std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
-        return std::nullopt;
-    }
-    const auto theme = style::parse_theme_asset(*theme_json);
-    if (!theme) {
-        std::cerr << "gallery: theme asset: " << theme.error().message << "\n";
-        return std::nullopt;
-    }
-    Resources resources;
-    // The library sheet is the Button and the Icon look (one `tessera-ui` layer).
-    resources.library_sheet = style::prepare_stylesheet(*button_css + "\n" + *icon_css);
-    resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
-    resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
-    auto form_module = gallery::load_form_module(*form_css);
-    if (!form_module) {
-        return std::nullopt;
-    }
-    resources.form_module = *form_module; // the scan's scoped text, as FormPage's `styles.x`
-    resources.form_sheet = style::prepare_stylesheet(resources.form_module.css);
-    resources.dash_sheet = style::prepare_stylesheet(*dash_css);
-    resources.swatch_sheet = style::prepare_stylesheet(*swatch_css);
-    resources.lists_sheet = style::prepare_stylesheet(*lists_css);
-    resources.tables_sheet = style::prepare_stylesheet(*tables_css);
-    resources.theme_blob = style::serialize_theme_asset(*theme);
-    return resources;
-}
-
-style::CompiledStyleSheet make_sheet(const Resources& resources) {
-    const std::vector<style::StylesheetSource> sources{
-        {"button.css", &resources.library_sheet, style::Origin::Author, true},
-        {"safe-area.css", &resources.safe_area_sheet, style::Origin::Author, true},
-        {"gallery.css", &resources.gallery_sheet, style::Origin::Author, false},
-        {"form.module.css", &resources.form_sheet, style::Origin::Author, false},
-        {"dash.css", &resources.dash_sheet, style::Origin::Author, false},
-        {"swatch.css", &resources.swatch_sheet, style::Origin::Author, false},
-        {"lists.css", &resources.lists_sheet, style::Origin::Author, false},
-        {"tables.css", &resources.tables_sheet, style::Origin::Author, false},
-    };
-    return style::CompiledStyleSheet(sources);
-}
-
-std::string root_classes(const Args& args) {
-    std::string classes = "g-root";
-    if (args.density == "compact") {
-        classes += " g-compact";
-    }
-    if (args.rtl) {
-        classes += " g-rtl";
-    }
-    if (args.text_scale == 125) {
-        classes += " g-scale-125";
-    } else if (args.text_scale == 150) {
-        classes += " g-scale-150";
-    }
-    return classes;
-}
+using gallery::load_resources;
+using gallery::make_sheet;
+using gallery::Resources;
+using gallery::root_classes;
 
 void collect_buttons(Node& node, std::vector<Node*>& out) {
     if (node.role() == "button" && node.focusable() &&
@@ -372,7 +281,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
     std::cout
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
-           "               [--page buttons|safe-area|form|dash|swatch|icons|lists|tables] "
+           "               [--page buttons|safe-area|form|dash|swatch|icons|lists|controls|tables] "
            "[--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"

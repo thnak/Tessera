@@ -22,6 +22,7 @@
 #include "host_impl.hpp"
 #include "tessera/ui/layout/layout_signature.hpp"
 #include "tessera/ui/layout/table_span.hpp"
+#include "tessera/ui/paint/list_marker_inside.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/scene/text_wrap.hpp"
@@ -47,6 +48,13 @@ bool keep_input(const ui::Node& node, const ui::layout::LayoutInput& input,
     return !on_path || (!reuse.roots.contains(&node) && !reuse.path.contains(&node));
 }
 
+// The layout measurer as the advance seam of a list marker's counter text (the wrap's own seam).
+float marker_advance(std::string_view text, const ui::text::TextStyle& style, const void* user) {
+    ui::text::TextConstraints one_line;
+    one_line.wrap = false;
+    return static_cast<const ui::text::TextMeasurer*>(user)->measure(text, style, one_line).width;
+}
+
 // One layout tree of computed styles (the paint pass resolves the same provider, so both agree),
 // written into `input` in place. The tree is retained between passes (issue #701): clearing a
 // `std::vector<LayoutInput>` would free every nested children vector, so a pass reuses the elements
@@ -60,7 +68,7 @@ bool keep_input(const ui::Node& node, const ui::layout::LayoutInput& input,
 void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
                        const SafeAreaState& safe_area, ui::layout::LayoutInput& input,
                        ui::layout::LayoutSignatureBuilder& signature, const LayoutInputReuse& reuse,
-                       bool on_path, bool rebuild) {
+                       bool on_path, bool rebuild, const ui::text::TextMeasurer& measurer) {
     input.id = node.id();
     input.text.clear();
     input.text_wrap = false;
@@ -79,6 +87,14 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
         input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
     }
     input.text_runs = {};
+    input.text_indent_q = 0;
+    if (text_payload) {
+        // The first Text of a `list-style-position: inside` item reserves the marker's box.
+        if (const auto marker =
+                ui::paint::inside_marker(node, styles, &marker_advance, &measurer)) {
+            input.text_indent_q = static_cast<std::uint16_t>(std::lround(marker->width * 16.0f));
+        }
+    }
     if (text_payload && !paint->spans.empty()) {
         // A span may shrink inside its paragraph (`sub`, `sup`, `small`): the measure must see
         // the runs paint will draw (docs/design/inline-size-runs.md).
@@ -127,7 +143,7 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
                 on_path && !below_rebuild &&
                 (reuse.roots.contains(child.get()) || reuse.path.contains(child.get()));
             fill_layout_input(*child, styles, safe_area, slot, signature, reuse, child_on_path,
-                              below_rebuild);
+                              below_rebuild, measurer);
         }
         ++used;
     }
@@ -206,8 +222,11 @@ void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles, bool incre
     if (keep_input(root, layout_input, reuse, !reuse.roots.empty())) {
         signature.reuse(layout_input.subtree_signature);
     } else {
+        static const ui::text::StubTextMeasurer stub_measurer;
+        const ui::text::TextMeasurer& measurer =
+            config.text_measurer != nullptr ? *config.text_measurer : stub_measurer;
         fill_layout_input(root, styles, safe_area, layout_input, signature, reuse, root_on_path,
-                          false);
+                          false, measurer);
     }
     reuse.stale = false;
     reuse.built_this_frame = true;

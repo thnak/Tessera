@@ -53,12 +53,18 @@ private:
 // The built-in batched 2D program (shaders/batched2d.wgsl embedded at configure time).
 [[nodiscard]] WgslProgram batched2d_wgsl_program();
 
+// The glass backdrop blur program (shaders/glass_blur.wgsl, issue #244), registered under
+// `gpu::kGlassBlurShaderId`. Its pipelines have no vertex buffer (a fullscreen triangle from the
+// vertex index).
+[[nodiscard]] WgslProgram glass_blur_wgsl_program();
+
 // The mip chain downsample program (shaders/mip_downsample.wgsl, issue #510). It is not a pipeline
 // the RHI can name by shader id: the backend builds it internally to generate texture mip chains.
 [[nodiscard]] WgslProgram mip_downsample_wgsl_program();
 
-// A registry holding every built-in program under its manifest id (`gpu::kBatched2dShaderId`).
-// Each WebGPU device starts from this table; hosts add custom programs with `register_shader`.
+// A registry holding every built-in program under its manifest id (`gpu::kBatched2dShaderId`,
+// `gpu::kGlassBlurShaderId`). Each WebGPU device starts from this table; hosts add custom programs
+// with `register_shader`.
 [[nodiscard]] ShaderRegistry builtin_shader_registry();
 
 } // namespace tessera::rendering::webgpu

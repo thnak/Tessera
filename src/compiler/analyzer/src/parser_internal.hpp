@@ -152,6 +152,7 @@ private:
     TypePtr parse_type_expr();
     TypePtr parse_type_intersection();
     TypePtr parse_type_primary();
+    TypePtr parse_typeof_values(std::uint32_t begin);
     TypePtr parse_type_object(std::uint32_t begin);
     TypePtr parse_type_function(std::uint32_t begin);
     bool expect_type_close();

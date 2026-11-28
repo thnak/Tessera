@@ -181,7 +181,7 @@ consumers:
 | id / `name` | Stages | GLSL sources (`src/rendering/backend/vulkan/shaders/`) | WGSL source (`src/rendering/backend/webgpu/shaders/`) | C++ constant (`shader_ids.hpp`) | Backend table / pipeline desc | Consumer |
 |---|---|---|---|---|---|---|
 | `batched2d` | vertex, fragment | `batched2d.vert`, `batched2d.frag` | `batched2d.wgsl` | `gpu::kBatched2dShaderId` | `vulkan::batched2d_pipeline_desc()`; `webgpu::builtin_shader_registry()` | `Batched2DRenderer` (`src/app/window_internal.hpp`) |
-| `glass_blur` | vertex, fragment | `fullscreen.vert`, `glass_blur.frag` | `glass_blur.wgsl` | `gpu::kGlassBlurShaderId` | `vulkan::glass_blur_pipeline_desc()` | `Batched2DRenderer::draw_backdrop` (glass, `docs/specs/glass-v1.md` section 5) |
+| `glass_blur` | vertex, fragment | `fullscreen.vert`, `glass_blur.frag` | `glass_blur.wgsl` | `gpu::kGlassBlurShaderId` | `vulkan::glass_blur_pipeline_desc()`; `webgpu::builtin_shader_registry()` | `Batched2DRenderer::draw_backdrop` (glass, `docs/specs/glass-v1.md` section 5) |
 | `batched2d_lcd` | vertex, fragment | `batched2d.vert`, `batched2d_lcd.frag` | *(none: `element` with Vulkan sources only, section 3)* | `gpu::kBatched2dLcdShaderId` | `vulkan::batched2d_lcd_pipeline_desc()` (`BlendMode::DualSource`) | none yet: no frame path creates it (issue #471 slice 1, `docs/design/display-aware-rendering.md` section 3.4) |
 | `batched2d_array` | vertex, fragment | `batched2d.vert`, `batched2d.frag` (`-DTESSERA_TEXTURE_ARRAY=1`) | *(none: `element` with Vulkan sources only, section 3)* | `gpu::kBatched2dArrayShaderId` | `vulkan::batched2d_array_pipeline_desc()` (`PipelineDesc::texture_array`) | `Batched2DRenderer` when `Device::texture_array_capacity()` is non-zero (RHI 1.7, issue #480 part 2) |
 
@@ -204,10 +204,10 @@ per-vertex `texture_index`, with `GL_EXT_nonuniform_qualifier` because the index
 WebGPU has no descriptor indexing, so the entry is Vulkan-only for the same reason `batched2d_lcd` is,
 and its WGSL twin declares the `texture_index` attribute but ignores it.
 
-`glass_blur.wgsl` is authored and validated (`scripts/ci/validate_wgsl.py`, the `webgpu.yml` lane)
-but is **not yet registered** in `builtin_shader_registry()`: no WebGPU path draws glass, so adding
-it there would publish an untested program. Registering it is part of the WebGPU glass work, not a
-change to this table.
+`glass_blur.wgsl` is authored and validated (`scripts/ci/validate_wgsl.py`, the `webgpu.yml` lane) and
+is registered in `builtin_shader_registry()` since the web app driver (issue #1023) builds the glass
+pipelines from it. Its pipelines declare the empty vertex layout (a fullscreen triangle from the
+vertex index), which the WebGPU backend accepts as a vertex-less pipeline.
 
 ## 4. Compatibility rules
 

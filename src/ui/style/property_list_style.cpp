@@ -52,6 +52,7 @@ PropertyExpansionResult expand_list_style_shorthand(const Declaration& declarati
         return reject("list-style needs a marker type or none");
     }
     std::string type = "disc";
+    std::string position = "outside";
     bool have_type = false;
     bool have_position = false;
     for (const std::string_view part : parts) {
@@ -59,13 +60,11 @@ PropertyExpansionResult expand_list_style_shorthand(const Declaration& declarati
         if (word.starts_with("url(")) {
             return reject("list-style-image is not supported; draw the marker with a type");
         }
-        if (word == "inside") {
-            return reject("list-style-position: inside is not supported; the marker is outside");
-        }
-        if (word == "outside") {
+        if (word == "outside" || word == "inside") {
             if (have_position) {
                 return reject("list-style has more than one position");
             }
+            position = word;
             have_position = true;
         } else if (parse_list_style_type(word).has_value()) {
             if (have_type) {
@@ -82,7 +81,7 @@ PropertyExpansionResult expand_list_style_shorthand(const Declaration& declarati
             Declaration{property, std::move(value), declaration.important, declaration.offset});
     };
     emit("list-style-type", std::move(type));
-    emit("list-style-position", "outside");
+    emit("list-style-position", std::move(position));
     return result;
 }
 

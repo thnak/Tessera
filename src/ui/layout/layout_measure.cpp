@@ -167,6 +167,7 @@ TextFit measure_text_fit(const LayoutInput& input, const rhi::Rect& bounds,
     }
     text::TextStyle style = text::text_style_from(input.style);
     style.size_runs = input.text_runs;
+    style.first_line_indent = input.text_indent_px();
     return measure_text_fit(text_fit_inputs(input, style), bounds, cache);
 }
 

@@ -89,6 +89,7 @@ constexpr PropertyDef kProperties[] = {
     {"font-variant-caps", "normal", true},
     {"font-variant-east-asian", "normal", true},
     {"font-variant-position", "normal", true},
+    {"font-variant-alternates", "normal", true},
     {"text-align", "start", true},
     {"text-transform", "none", true},
     // Not inherited (CSS): the box that paints the line owns truncation (docs/design/text.md 6.3).

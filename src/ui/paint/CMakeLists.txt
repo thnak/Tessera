@@ -20,6 +20,7 @@ add_library(tessera_paint STATIC
     paint_sink_gradient.cpp
     paint_text.cpp
     paint_list_marker.cpp
+    list_marker_inside.cpp
     paint_text_flex.cpp
     paint_text_metrics.cpp
     paint_text_rules.cpp

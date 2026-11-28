@@ -60,7 +60,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | Difference | Reason |
 |---|---|
 | Adjacent block margins do not collapse | Layout is a flex column per container; margin collapsing is a block-formatting-context rule with no equivalent. Two stacked headings sit further apart than in a browser. |
-| `ol` ignores `start`/`reversed`; markers are always outside and on the left | `list-style-position: inside`, `::marker` and counters are not modelled ([`list-style.md`](../design/list-style.md)). |
+| Markers are on the left; `list-style-image`, `::marker` and `counter()` are not modelled | `inside` flows the marker into the first line of the item's first Text ([`list-style-inside.md`](../design/list-style-inside.md)); the rest is in [`list-style.md`](../design/list-style.md). |
 | No inline boxes: `span`, `a`, `strong`, `em`, `code` are blocks | Text flows as one block per element, so two adjacent inline elements stack. Inline formatting is a separate feature. |
 | `code`, `kbd` and `pre` are not monospace | The V1 font stack has one face; a monospace face is a font-bundling decision. |
 | Two inline-block controls side by side stack | Same inline-flow limit: a column cannot place them on one line. |

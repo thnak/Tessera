@@ -32,6 +32,7 @@ add_library(tessera_style STATIC
     property_list_style.cpp
     property_text_decoration.cpp
     font_variant.cpp
+    font_variant_alternates.cpp
     property_font_variant.cpp
     text_decoration.cpp
     color_names.cpp

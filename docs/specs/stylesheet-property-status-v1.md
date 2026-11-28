@@ -159,6 +159,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `font-variant-caps` | applied | same path; keyword grammar and tags in `font_variant.cpp`, invalid or conflicting values rejected whole; the `font-variant` shorthand expands to the five longhands in `property_font_variant.cpp`; `font_features` |
 | `font-variant-east-asian` | applied | same path as `font-variant-caps`; `font_features` |
 | `font-variant-position` | applied | same path as `font-variant-caps`; `font_features` |
+| `font-variant-alternates` | applied | `font_variant_alternates.cpp` grammar (functions at most once, name arguments valid but unresolved); `font_features` |
 | `text-align` | applied | `paint_text.cpp` line start offset; `paint_text_decoration` |
 | `text-transform` | applied | `text_measure.cpp` `parse_text_transform`; `text_transform` |
 | `white-space` | applied | `text_measure.cpp` `parse_white_space`; `text_measure` |
@@ -169,7 +170,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `text-decoration-thickness` | applied | `text_measure.cpp` -> `paint_text_rules.cpp` (`auto`/`from-font` derive 1/16 em, min 1 px); `text_decoration` |
 | `vertical-align` | applied | `text_measure.cpp` `baseline_shift` (`baseline`, `sub`, `super`, length) -> paint-time baseline shift of the run and its rules in `paint_text.cpp` / `paint_text_spans.cpp`; on a `display: table-cell` box `middle`/`bottom` place the cell's content in the row height (`layout_style.cpp`); `text_decoration`, `table_layout` |
 | `list-style-type` | applied | `none`, `disc`, `circle`, `square`, `decimal`, `lower-alpha`/`lower-latin`, `upper-alpha`/`upper-latin`, `lower-roman`, `upper-roman`; other counter styles are rejected with a diagnostic. Inherited, initial `none` (no `display: list-item`; the user-agent sheet gives `ul`/`ol` their type). Paint only: `paint_list_marker.cpp` draws the shape or counter text outside the item's border box. The `list-style` shorthand (`<type> || <position>`, `none`; `url()` is rejected) expands in `property_list_style.cpp`; `list_style` |
-| `list-style-position` | applied | `outside` only; `inside` is rejected with a diagnostic, never approximated (the layout cannot flow a marker into the first line). `list_style` |
+| `list-style-position` | applied | `outside` (paint only) and `inside`: the item's first descendant Text reserves the marker's box at the start of its first line (`TextStyle::first_line_indent`, `list_marker_inside.cpp`) and draws the marker into it, so a change dirties layout ([`list-style-inside.md`](../design/list-style-inside.md)). `list_style` |
 | `font-family` | parsed only | The measure seam takes a `text::TextStyle`, which has no family field: V1 ships one deterministic stub/FreeType face, so a family list has nothing to select. `layout_signature.cpp` classifies it paint-only for the same reason. Becomes **applied** when the text seam grows a family field and a font stack. |
 
 ## 5. Interaction and visibility
