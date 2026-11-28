@@ -53,6 +53,7 @@ on:
       - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
+      - 'scripts/ci/preview_resource_controls.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -102,6 +103,7 @@ on:
       - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
+      - 'scripts/ci/preview_resource_controls.mjs'
       - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
@@ -426,6 +428,15 @@ jobs:
           python3 -B scripts/ci/scene_frame_parity.py --mode canvas-font
           --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
           --node "$EMSDK_NODE"
+
+      # The Resources controls (issue #657): the page's request/report vocabulary, the stand-in ABI check,
+      # and the scene module driven through a resource's whole cycle (Node has no WebGPU device, so the
+      # canvas session itself is browser-only; the canvas export is checked for its no-session answer).
+      - name: Resource controls (vocabulary, ABI order, scene module cycle, canvas export)
+        run: >-
+          node scripts/ci/preview_resource_controls.mjs
+          --scene-module build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
+          --canvas-module build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
 
       # Assemble the site from the **built** page plus the three Wasm artifacts.
       #

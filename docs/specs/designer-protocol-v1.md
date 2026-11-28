@@ -189,6 +189,7 @@ host                                   viewer
 | `source.patch.result` | event | `patchId`, `status` (`"applied"` or `"rejected"`), optional `reason` | Host's answer to a `source.patch` (section 10.3) |
 | `edit.undo` / `edit.redo` | event | none | Undo or redo the last override operation (section 9.4) |
 | `platform.event` | request | `event` (a type of section 5.1), optional `args` (`{value}`), optional `timestampNs` | One normalized hardware button or environment event of a device profile; answered by `platform.event.result` (section 5.1) |
+| `resource.control` | request | `action` (`fetch`, `resolve`, `fail` or `status`), `resource` (`res::<name>` or `<name>`; empty for `status`), optional `text` (the value of a string-typed resource, and the `fail` message), `number` (the value of a number-typed one), `epoch` (0 or absent: the current one) | Issue #657. Drives one **fake resource** of the open component ([`pending-ui-v1.md`](pending-ui-v1.md) section 10.4): `fetch` starts the next fetch (data is kept), `resolve` lands a completion, `fail` lands a failure that keeps the previous data, and a completion whose `epoch` is not the current one is dropped (`accepted:false`, no frame). `status` applies nothing and reports; the studio sends it after every apply, because an apply opens every resource on a fetch in flight (the Suspense fallback). Answered by `resource.control.result`; the studio's Resources panel is the sender (the mock worker of ADR-055 reaches the same export) |
 
 ### 5.1 `platform.event`
 
@@ -246,6 +247,7 @@ ends the session ([section 12](#12-errors)).
 | `style.commit.result` | response | `ok`, optional `reason`, optional `patchId` | Section 10 |
 | `source.patch` | event | `patchId`, `baseVersions` (object path → file version), `edits` (array of TextEdit) | Section 10.2 |
 | `platform.event.result` | response | `ok`, optional `error`, `handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, `savedState`, `relaunch`, `restore` | Answer to `platform.event` (section 5.1) |
+| `resource.control.result` | response | `ok`, `accepted`, `changed` (a frame is owed), `isPending`, `resources` (array of `{id, status, epoch, error}`; `status` is `loading`, `refreshing`, `success` or `error`), `boundaries` (array of `{id, fallback, held}`), optional `error` | Answer to `resource.control`; `ok:false` with an `error` for an unknown resource or action, or before the first apply. Nothing in it ends the session ([section 12](#12-errors)) |
 
 ## 7. Source synchronization
 
@@ -548,53 +550,51 @@ An error never ends the session and never leaves the viewer without a frame.
 
 ## 14. Open questions (no decision yet)
 
-None. Decided and recorded: transports and limits (2.1), front end in a Web Worker (11), pick modifiers
-(8.1), no CSS file creation (10.1), and the two decisions below. These were chosen by the assistant as
-defaults and may be revised by the project owner.
+None. Decided and recorded: transports and limits (2.1), front end in a Web Worker (11), pick modifiers (8.1), no CSS
+file creation (10.1), and the two decisions below. These were chosen by the assistant as defaults and may be revised
+by the project owner.
 
-**State.** V1 has no state snapshot or restore. After a reload the viewer keeps only the selection
-(section 8.2); component state starts from its initial values. A `state.patch` message is not defined;
-adding one is a minor protocol change.
+**State.** V1 has no state snapshot or restore. After a reload the viewer keeps only the selection (section 8.2);
+component state starts from its initial values. A `state.patch` message is not defined; adding one is a minor protocol
+change.
 
-**Host.** The viewer always works with a host. With no host connection it shows a "no host" status and
-loads no project; a mode that reads project files in the browser itself is not part of V1. The studio
-page is a host: it owns files in the browser (File System Access API, OPFS or an imported zip) and
-speaks `postMessage`, while the viewer still never reads project files
-([`designer-studio-v1.md`](designer-studio-v1.md) section 4).
+**Host.** The viewer always works with a host. With no host connection it shows a "no host" status and loads no
+project; a mode that reads project files in the browser itself is not part of V1. The studio page is a host: it owns
+files in the browser (File System Access API, OPFS or an imported zip) and speaks `postMessage`, while the viewer
+still never reads project files ([`designer-studio-v1.md`](designer-studio-v1.md) section 4).
 
 ## 15. Tests
 
 - Handshake: version match and mismatch, messages before `ready`, repeated `hello`.
 - Envelope: malformed JSON, unknown `type`, unknown fields ignored, wrong `v`.
-- Source sync: stale versions ignored, batch merging, `Invalid` and `never_valid` components,
-  diagnostics replaced per file, CSS partial application.
-- Picker: hover coalescing, click consumed, selection by source offset, restore after reload with
-  match, with ancestor fallback, and with none.
-- Style: override validation errors, precedence over inline and author, clear/revert/undo/redo, merge
-  of queued sets.
+- Source sync: stale versions ignored, batch merging, `Invalid` and `never_valid` components, diagnostics replaced per
+  file, CSS partial application.
+- Picker: hover coalescing, click consumed, selection by source offset, restore after reload with match, with ancestor
+  fallback, and with none. Modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
+- Style: override validation errors, precedence over inline and author, clear/revert/undo/redo, merge of queued sets.
 - Commit: each destination, atomic multi-file patch, edit ordering, comment and `bind::` preservation,
-  `version_mismatch`, `PATCH_MISMATCH` detection, patch round trip gives the same IR and clears the
-  override ([`designer.md`](../design/designer.md) section 9).
+  `version_mismatch`, `PATCH_MISMATCH` detection, patch round trip gives the same IR and clears the override
+  ([`designer.md`](../design/designer.md) section 9).
 - Security: path rejection, edit to a non-UI file rejected, oversized input.
 - Transport limits: message over 8 MiB, file over 1 MiB, 65th open request, wrong `Origin`.
-- Worker: a result superseded by a newer queued `source.update` is never applied; `source.applied` follows application.
-- Picker modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
-- Studio host: `postMessage` session from the page, `asset.update` with `url`, `theme.applied` after
-  load and after a theme change, and a project imported from a zip.
-- `platform.event`: every type of section 5.1 delivered through the injector, the replies compared with the
-  native scripted run (input parity), an unknown type and a bad value refused with their codes, Back on a
-  one-route app closing it and `relaunch` starting cold, `home` then `resume` keeping state, and process
-  death after `home` relaunching with the saved cells.
-- `viewport.set` locale/direction/text scale: applied to text measurement and layout, omitted fields
-  keep their previous value, and an invalid tag or a non-positive `textScale` is rejected with
-  `TESSERA_DESIGNER_MALFORMED`.
+- Worker: a result superseded by a newer queued `source.update` is never applied; `source.applied` follows
+  application.
+- Studio host: `postMessage` session from the page, `asset.update` with `url`, `theme.applied` after load and after a
+  theme change, and a project imported from a zip.
+- `platform.event`: every type of section 5.1 delivered through the injector, the replies compared with the native
+  scripted run (input parity), an unknown type and a bad value refused with their codes, Back on a one-route app
+  closing it and `relaunch` starting cold, `home` then `resume` keeping state, and process death after `home`
+  relaunching with the saved cells.
+- `resource.control`: fallback on open, resolve restores the content, a stale epoch dropped with no frame, a refresh holding the content with `isPending`, a failure keeping the data (`scene_pending`, `preview_resource_controls.mjs`).
+- `viewport.set` locale/direction/text scale: applied to text measurement and layout, omitted fields keep their
+  previous value, and an invalid tag or a non-positive `textScale` is rejected with `TESSERA_DESIGNER_MALFORMED`.
 
 ### 15.3 Canvas viewport limits (issue #690)
 
-The canvas is sized from a typed size, a device profile's DPR or a raw `viewport.set`, so every path
-is held to one rule (`tools/codegen/canvas_viewport_request.cpp`, and `canvas-viewport.ts` on the
-page): extent 1..8192 logical px, DPR 0.01..4, and a 256 MiB ceiling on extent x DPR x 4 bytes. A
-value over a limit is **clamped and reported** (`clamped: true`, and the pane names the device it
-got); a zero, negative or non-finite value is **refused** with `TESSERA_DESIGNER_LIMIT` and leaves the
-running picture alone. The byte cap reduces the DPR, never the logical extent, so a clamp cannot move
-an `@media` breakpoint. Tests: `canvas_viewport_limit`, `preview_viewport_limits.mjs` (the same table).
+The canvas is sized from a typed size, a device profile's DPR or a raw `viewport.set`, so every path is held to one
+rule (`tools/codegen/canvas_viewport_request.cpp`, and `canvas-viewport.ts` on the page): extent 1..8192 logical px,
+DPR 0.01..4, and a 256 MiB ceiling on extent x DPR x 4 bytes. A value over a limit is **clamped and reported**
+(`clamped: true`, and the pane names the device it got); a zero, negative or non-finite value is **refused** with
+`TESSERA_DESIGNER_LIMIT` and leaves the running picture alone. The byte cap reduces the DPR, never the logical extent,
+so a clamp cannot move an `@media` breakpoint. Tests: `canvas_viewport_limit`, `preview_viewport_limits.mjs` (the same
+table).

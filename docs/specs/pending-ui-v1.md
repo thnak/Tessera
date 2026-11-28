@@ -426,6 +426,16 @@ fetch the host would start for the new key (the `epoch + 1` rule of section 10.2
 only on a control or a click. `useTransition` and `useDeferredValue` are read from the session and attach
 no engine instance.
 
+The Studio side (`resource.control`, [designer-protocol-v1](designer-protocol-v1.md) section 5): the **Resources**
+section of the Platform events tab lists each resource of the open component with its status and epoch (from the
+engine's report, never a copy), a value field, an epoch field and Fetch, Resolve and Fail, plus one sentence
+for the fallback, the held content and `isPending`; an empty epoch is the current one and a stale one shows the
+drop. `status` is a read the page sends after every apply, since an apply opens every resource on a fetch in
+flight. Node has no GPU device, so `tessera_input_json` takes the same controls as
+`resource <action> [name [value] [@epoch]]` script steps and `preview_resource_controls.mjs` drives the whole
+cycle through the Wasm scene module. Not included: a mock-worker script hook (ADR-055 defines responses for
+service calls, not resource completions, so it needs an owner decision).
+
 ## 11. Verification layers
 
 Every normative rule has a test at one of three layers, plus the usual front-end and IR layers.
