@@ -290,6 +290,8 @@ struct WindowHost::Impl {
     // so a metrics change that would move it takes effect at the next presentation generation
     // (create_presentation) instead of silently mismatching the renderer.
     void apply_aa_policy(const hal::WindowMetrics& metrics);
+    // Lands a finished off-thread glyph scale step (issue #993); see window_aa.cpp.
+    void tick_text_scale();
     // Composes the frame's CSS -> target transform (device scale x adaptive factor) and applies it
     // to the batched renderer, right after begin() reset it to 1:1. A no-op when both factors are
     // 1.0, so the 1.0 path records exactly the commands it did before the transform existed.

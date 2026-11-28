@@ -93,6 +93,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         // caret (pause wins over the blink), and a flip requests exactly one frame for this
         // iteration.
         tick_caret();
+        tick_text_scale();
 
         const runtime::RuntimeTick tick = loop->tick();
         if (tick.device_blocked || tick.device_failed) {

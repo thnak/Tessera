@@ -433,9 +433,9 @@ bool WindowHost::Impl::pump_once(const runtime::RuntimeTick& tick, bool advance_
     }
 
     // Caret tick, between the pause guard and the frame decision: an inactive blink is skipped
-    // entirely and a flip marks the frame dirty for this iteration (single-iteration twin of the
-    // call in run()).
+    // entirely and a flip marks the frame dirty (single-iteration twin of the call in run()).
     tick_caret();
+    tick_text_scale();
 
     if (stats.frames == 0 || subtree_dirty(root)) {
         // Startup is a frame cause, exactly like run(): the scene has no dirty flags until the

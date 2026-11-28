@@ -14,6 +14,8 @@
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#include "tessera/runtime/async.hpp"
+#include "tessera/runtime/worker_io_executor.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/text/font_face.hpp"
@@ -81,11 +83,40 @@ public:
         // deterministic stub advance is a fixed 0.5 em per code point and does not track the font,
         // so a content-sized box would be narrower or wider than its painted ink by a
         // string-dependent amount. These two seams and the glyph renderer now share one face.
+        // One in-flight step and one worker: a newer step abandons the older one, so a second slot
+        // would only hold a job nobody installs.
+        scale_executor = std::make_unique<runtime::WorkerIoExecutor>(
+            scale_completions, runtime::WorkerIoExecutor::Config{1, 1, 4});
         measurer = std::make_shared<ui::text::FontTextMeasurer>(faces);
         paint_metrics = std::make_unique<ui::paint::FontPaintTextMetrics>(faces, kPaintMetricsId);
     }
 
-    ~TextStack() = default;
+    // Abandons a pending step first so the join in the executor's destructor ends at the worker's
+    // next glyph instead of after the full rasterization.
+    // Applies `policy` without rasterizing on the calling thread; falls back to the synchronous
+    // path only when the worker refuses the step.
+    void apply_policy(const ui::scale::AaPolicy& policy) {
+        if (!renderer->begin_aa_policy_step(policy, *scale_executor)) {
+            renderer->set_aa_policy(policy);
+        }
+    }
+
+    // Between frames: runs the worker's completion (bounded, never waits) and lands a finished
+    // step. True when the active policy changed, which stales every quad batched at the old scale.
+    // `pending` reports a step still in flight so the loop keeps ticking until it lands.
+    bool poll_scale_step(bool& pending) {
+        static_cast<void>(scale_completions.run(4));
+        const bool landed = renderer->poll_render_scale_step();
+        pending = renderer->render_scale_step_pending();
+        return landed;
+    }
+
+    ~TextStack() {
+        if (renderer != nullptr) {
+            renderer->cancel_render_scale_step();
+        }
+        scale_executor.reset();
+    }
     TextStack(const TextStack&) = delete;
     TextStack& operator=(const TextStack&) = delete;
 
@@ -95,6 +126,12 @@ public:
     ui::text::GlyphRasterizer* rasterizer = nullptr; // the primary face's
     std::unique_ptr<ui::text::WeightedShaper> shaper;
     std::unique_ptr<ui::text::TextRenderer> renderer;
+    // The off-thread glyph scale step (issue #993). The queue and executor are declared after the
+    // renderer so they die first: the executor joins its worker (no detached tasks) while the faces
+    // and the renderer it prepares glyphs for are still alive, and the queue outlives the executor
+    // that posts to it.
+    runtime::CompletionQueue scale_completions{16};
+    std::unique_ptr<runtime::WorkerIoExecutor> scale_executor;
     // The same face as a layout measurer and as paint's wrapping metrics source (issue #314): the
     // stub advance is a fixed 0.5 em per code point and does not track the font, so a content-sized
     // box disagrees with its painted ink by a string-dependent amount. A caller installs both
