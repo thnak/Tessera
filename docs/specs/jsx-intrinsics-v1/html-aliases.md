@@ -67,7 +67,7 @@ against it.
 | `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
 | `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |
 | `blockquote` | `View` | - | mapped | The user-agent sheet gives it `margin: 1em 40px` |
-| `progress`, `meter`, `details`, `summary` | `View` (carrier for the typings) | - | mapped | Lower onto the library `Progress`, `Meter` and `Disclosure` (section 3.8); `summary` only as a child of `details` |
+| `progress`, `meter`, `details`, `summary` | `View` (carrier for the typings) | - | mapped | Lower onto the library `ProgressBar`, `Meter` and `Details` (section 3.8); `summary` only as a child of `details` |
 
 The emphasis rows inject a **default run style**, not a wrapper element style: a user `className` or
 `style` of the same property wins, and only the properties of [`elements-basic.md`](elements-basic.md)
@@ -103,7 +103,7 @@ to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 | `"password"` | `secure` | |
 | `"email"`, `"tel"`, `"url"`, `"search"` | `inputMode` of the same name | No validation |
 | `"number"` | `inputMode="numeric"` | The value stays a `string`; no number parsing, no min/max/step ([Q26]) |
-| `"checkbox"`, `"radio"`, `"range"` | the library `Checkbox`, `Radio`, `Slider`, not a `TextInput` | Section 3.8 |
+| `"checkbox"`, `"radio"`, `"range"` | the library `Checkbox`, `Radio`, `Range`, not a `TextInput` | Section 3.8 |
 | anything else (`file`, `date`, `time`, `color`, `hidden`, `submit`, `button`, `reset`, ...) | none: `TESSERA_JSX_SUBSET_HTML_INPUT_TYPE` | `submit`/`button`: `<Button>` |
 
 | Attribute | Result |
@@ -166,10 +166,10 @@ counting rules are in [`list-style.md`](../../design/list-style.md) section 2.
 |---|---|---|---|
 | `input type="checkbox"` | `Checkbox` | `checked`, `disabled`; `onChange` to `onToggle`; `aria-label` to `label` | `defaultChecked` (the control is controlled), `name`, `required`, `form`, `value`, `autoFocus` |
 | `input type="radio"` | `Radio` | `checked` to `selected`, `disabled`; `onChange` to `onSelect`; `aria-label` to `label` | as `checkbox` |
-| `input type="range"` | `Slider` | `defaultValue`, `min`, `max`, `step`; `aria-label` to `label` | `value` and `onChange` (a controlled range, #1051), `disabled`, the form attributes |
-| `progress` | `Progress` | `value`, `max`; `aria-label` to `label` | anything else |
+| `input type="range"` | `Range` | `defaultValue`, `min`, `max`, `step`; `aria-label` to `label` | `value` and `onChange` (a controlled range, #1051), `disabled`, the form attributes |
+| `progress` | `ProgressBar` | `value`, `max`; `aria-label` to `label` | anything else |
 | `meter` | `Meter` | `value`, `min`, `max`, `low`, `high`, `optimum`; `aria-label` to `label` | anything else |
-| `details` | `Disclosure` | `open` to `defaultOpen`; the first `<summary>` child is the `summary` prop | `name`, `onToggle` |
+| `details` | `Details` | `open` to `defaultOpen`; the first `<summary>` child is the `summary` prop | `name`, `onToggle` |
 
 Values are integers (the primitives are `int`): `progress` and `meter` have no fractional value, and a `progress` without `max` has `max=100`, not 1 as in a browser. A callback attribute takes no parameter (`onChange={() => setOn(!on)}`), as every component callback does. The `<summary>` of a `details` holds static text; a `summary` anywhere else, a `details` without one, or a summary with elements is `TESSERA_IR_UNSUPPORTED`. The styled components are in [`component-library.md`](../../design/component-library.md); the typings carry the attributes of every row (`checked?`, `min?`, `open?`, ...).
 

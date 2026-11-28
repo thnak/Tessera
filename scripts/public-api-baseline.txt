@@ -3977,6 +3977,11 @@ prop packages/tessera-ui/Checkbox.tsx Checkbox.indeterminate
 prop packages/tessera-ui/Checkbox.tsx Checkbox.label
 prop packages/tessera-ui/Checkbox.tsx Checkbox.onToggle
 
+component packages/tessera-ui/Details.tsx Details
+prop packages/tessera-ui/Details.tsx Details.children
+prop packages/tessera-ui/Details.tsx Details.defaultOpen
+prop packages/tessera-ui/Details.tsx Details.summary
+
 component packages/tessera-ui/Field.tsx Field
 prop packages/tessera-ui/Field.tsx Field.children
 prop packages/tessera-ui/Field.tsx Field.defaultValue
@@ -4001,6 +4006,20 @@ prop packages/tessera-ui/Icon.tsx Icon.mirror
 prop packages/tessera-ui/Icon.tsx Icon.name
 prop packages/tessera-ui/Icon.tsx Icon.size
 
+component packages/tessera-ui/Meter.tsx Meter
+prop packages/tessera-ui/Meter.tsx Meter.high
+prop packages/tessera-ui/Meter.tsx Meter.label
+prop packages/tessera-ui/Meter.tsx Meter.low
+prop packages/tessera-ui/Meter.tsx Meter.max
+prop packages/tessera-ui/Meter.tsx Meter.min
+prop packages/tessera-ui/Meter.tsx Meter.optimum
+prop packages/tessera-ui/Meter.tsx Meter.value
+
+component packages/tessera-ui/ProgressBar.tsx ProgressBar
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.label
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.max
+prop packages/tessera-ui/ProgressBar.tsx ProgressBar.value
+
 component packages/tessera-ui/Radio.tsx Radio
 prop packages/tessera-ui/Radio.tsx Radio.children
 prop packages/tessera-ui/Radio.tsx Radio.disabled
@@ -4011,6 +4030,13 @@ prop packages/tessera-ui/Radio.tsx Radio.selected
 component packages/tessera-ui/RadioGroup.tsx RadioGroup
 prop packages/tessera-ui/RadioGroup.tsx RadioGroup.children
 prop packages/tessera-ui/RadioGroup.tsx RadioGroup.label
+
+component packages/tessera-ui/Range.tsx Range
+prop packages/tessera-ui/Range.tsx Range.defaultValue
+prop packages/tessera-ui/Range.tsx Range.label
+prop packages/tessera-ui/Range.tsx Range.max
+prop packages/tessera-ui/Range.tsx Range.min
+prop packages/tessera-ui/Range.tsx Range.step
 
 component packages/tessera-ui/SafeArea.tsx SafeArea
 prop packages/tessera-ui/SafeArea.tsx SafeArea.children
@@ -4029,6 +4055,17 @@ prop packages/tessera-ui/Switch.tsx Switch.onToggle
 component packages/tessera-ui/icons/IconGlyph.tsx IconGlyph
 prop packages/tessera-ui/icons/IconGlyph.tsx IconGlyph.name
 
+component packages/tessera-ui/primitives/Checkbox.tsx Checkbox
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.children
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.defaultChecked
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.label
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.onToggle
+
+component packages/tessera-ui/primitives/Disclosure.tsx Disclosure
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.children
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.defaultOpen
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.summary
+
 component packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.children
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.defaultOpen
@@ -4038,6 +4075,19 @@ component packages/tessera-ui/primitives/Press.tsx Press
 prop packages/tessera-ui/primitives/Press.tsx Press.children
 prop packages/tessera-ui/primitives/Press.tsx Press.label
 prop packages/tessera-ui/primitives/Press.tsx Press.onPress
+
+component packages/tessera-ui/primitives/Progress.tsx Progress
+prop packages/tessera-ui/primitives/Progress.tsx Progress.children
+prop packages/tessera-ui/primitives/Progress.tsx Progress.label
+prop packages/tessera-ui/primitives/Progress.tsx Progress.max
+prop packages/tessera-ui/primitives/Progress.tsx Progress.min
+prop packages/tessera-ui/primitives/Progress.tsx Progress.value
+
+component packages/tessera-ui/primitives/Radio.tsx Radio
+prop packages/tessera-ui/primitives/Radio.tsx Radio.checked
+prop packages/tessera-ui/primitives/Radio.tsx Radio.children
+prop packages/tessera-ui/primitives/Radio.tsx Radio.label
+prop packages/tessera-ui/primitives/Radio.tsx Radio.onSelect
 
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children

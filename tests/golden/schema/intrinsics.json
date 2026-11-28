@@ -559,15 +559,15 @@
             },
             {
               "name": "onChange",
-              "suggestion": "the library `Slider` keeps its value; a controlled range is tracked in #1051"
+              "suggestion": "the library `Range` keeps its value; a controlled range is tracked in #1051"
             },
             {
               "name": "disabled",
-              "suggestion": "the library `Slider` has no disabled state yet (#1051)"
+              "suggestion": "the library `Range` has no disabled state yet (#1051)"
             }
           ],
-          "component": "Slider",
-          "import": "tessera-ui/Slider",
+          "component": "Range",
+          "import": "tessera-ui/Range",
           "type": "range"
         }
       ],
@@ -787,11 +787,11 @@
               "rename": "label"
             }
           ],
-          "component": "Progress",
-          "import": "tessera-ui/Progress"
+          "component": "ProgressBar",
+          "import": "tessera-ui/ProgressBar"
         }
       ],
-      "note": "lowers onto the library `Progress` (`value`, `max` are integers; `max` defaults to 100)",
+      "note": "lowers onto the library `ProgressBar` (`value`, `max` are integers; `max` defaults to 100)",
       "status": "mapped",
       "tag": "progress",
       "target": "View"
@@ -852,14 +852,14 @@
             },
             {
               "name": "onToggle",
-              "suggestion": "the open state is internal to the library `Disclosure`"
+              "suggestion": "the open state is internal to the library `Details`"
             }
           ],
-          "component": "Disclosure",
-          "import": "tessera-ui/Disclosure"
+          "component": "Details",
+          "import": "tessera-ui/Details"
         }
       ],
-      "note": "lowers onto the library `Disclosure`; the first `summary` child with static text is its summary",
+      "note": "lowers onto the library `Details`; the first `summary` child with static text is its summary",
       "status": "mapped",
       "tag": "details",
       "target": "View"

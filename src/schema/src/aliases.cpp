@@ -365,14 +365,14 @@ constexpr AliasRow kAliases[] = {
 
     // Group E (issue #1041): the carrier is a `View`; lowering resolves each tag to the imported
     // library component of library_lowering.cpp.
-    plain(
-        "progress", "View", AliasStatus::Mapped,
-        "lowers onto the library `Progress` (`value`, `max` are integers; `max` defaults to 100)"),
+    plain("progress", "View", AliasStatus::Mapped,
+          "lowers onto the library `ProgressBar` (`value`, `max` are integers; `max` defaults to "
+          "100)"),
     plain("meter", "View", AliasStatus::Mapped,
           "lowers onto the library `Meter` (integer `value`, `min`, `max`, `low`, `high`, "
           "`optimum`)"),
     plain("details", "View", AliasStatus::Mapped,
-          "lowers onto the library `Disclosure`; the first `summary` child with static text is its "
+          "lowers onto the library `Details`; the first `summary` child with static text is its "
           "summary"),
     plain("summary", "View", AliasStatus::Mapped,
           "only as a child of `details`; a `summary` anywhere else is TESSERA_IR_UNSUPPORTED"),

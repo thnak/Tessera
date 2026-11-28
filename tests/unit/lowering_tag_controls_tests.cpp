@@ -26,13 +26,14 @@ constexpr std::string_view kLibrary =
     "export function Radio({ label, selected = false, onSelect, disabled = false, children }:\n"
     "  RadioProps) { return <View role=\"radio\" tabIndex={0} "
     "aria-label={label}>{children}</View>; }\n"
-    "export type SliderProps = { label: string; min?: int; max?: int; step?: int;\n"
+    "export type RangeProps = { label: string; min?: int; max?: int; step?: int;\n"
     "  defaultValue?: int; children: Children };\n"
-    "export function Slider({ label, min = 0, max = 100, step = 1, defaultValue = 0,\n"
-    "  children }: SliderProps) { return <View role=\"slider\" tabIndex={0} aria-label={label}>"
+    "export function Range({ label, min = 0, max = 100, step = 1, defaultValue = 0,\n"
+    "  children }: RangeProps) { return <View role=\"slider\" tabIndex={0} aria-label={label}>"
     "{children}</View>; }\n"
-    "export type ProgressProps = { label: string; value?: int; max?: int; children: Children };\n"
-    "export function Progress({ label, value = 0, max = 100, children }: ProgressProps) {\n"
+    "export type ProgressBarProps = { label: string; value?: int; max?: int; children: Children "
+    "};\n"
+    "export function ProgressBar({ label, value = 0, max = 100, children }: ProgressBarProps) {\n"
     "  return <View role=\"progressbar\" aria-label={label}>{children}</View>; }\n"
     "export type MeterProps = { label: string; value?: int; min?: int; max?: int; low?: int;\n"
     "  high?: int; optimum?: int; children: Children };\n"
@@ -40,9 +41,9 @@ constexpr std::string_view kLibrary =
     "50,\n"
     "  children }: MeterProps) { return <View role=\"meter\" aria-label={label}>{children}</View>; "
     "}\n"
-    "export type DisclosureProps = { summary: string; defaultOpen?: boolean; children: Children "
+    "export type DetailsProps = { summary: string; defaultOpen?: boolean; children: Children "
     "};\n"
-    "export function Disclosure({ summary, defaultOpen = false, children }: DisclosureProps) {\n"
+    "export function Details({ summary, defaultOpen = false, children }: DetailsProps) {\n"
     "  return <View aria-label={summary}>{children}</View>; }\n";
 
 struct Lowered {
@@ -77,7 +78,7 @@ std::string prop(const ir::Node& node, const char* name) {
 }
 
 constexpr const char* kAllImports =
-    "import { Checkbox, Radio, Slider, Progress, Meter, Disclosure } from \"./lib\";";
+    "import { Checkbox, Radio, Range, ProgressBar, Meter, Details } from \"./lib\";";
 
 void test_checkbox() {
     const auto page =
@@ -122,7 +123,7 @@ void test_range() {
         return;
     }
     const ir::Node& node = page->root->children[0];
-    check_eq(node.component, "comp::Slider", "the input is the imported Slider");
+    check_eq(node.component, "comp::Range", "the input is the imported Range");
     check_eq(prop(node, "max"), "{\"kind\":\"literal\",\"value\":10}", "max");
     check_eq(prop(node, "defaultValue"), "{\"kind\":\"literal\",\"value\":4}", "defaultValue");
     check_eq(prop(node, "label"), "{\"kind\":\"literal\",\"value\":\"Volume\"}", "label");
@@ -137,7 +138,7 @@ void test_progress_and_meter() {
     if (page->root == nullptr || page->root->children.size() != 2) {
         return;
     }
-    check_eq(page->root->children[0].component, "comp::Progress", "progress is Progress");
+    check_eq(page->root->children[0].component, "comp::ProgressBar", "progress is ProgressBar");
     check_eq(prop(page->root->children[0], "value"), "{\"kind\":\"literal\",\"value\":30}",
              "value");
     check_eq(page->root->children[1].component, "comp::Meter", "meter is Meter");
@@ -153,7 +154,7 @@ void test_details() {
         return;
     }
     const ir::Node& node = page->root->children[0];
-    check_eq(node.component, "comp::Disclosure", "details is Disclosure");
+    check_eq(node.component, "comp::Details", "details is Details");
     check_eq(prop(node, "summary"), "{\"kind\":\"literal\",\"value\":\"More\"}", "summary text");
     check_eq(prop(node, "defaultOpen"), "{\"kind\":\"literal\",\"value\":true}",
              "open is defaultOpen");

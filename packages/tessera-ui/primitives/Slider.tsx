@@ -46,7 +46,7 @@ export function Slider({
         width > 0 &&
           setValue(
             clamp(
-              min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step,
+              min + toInt(round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)) * step,
               min,
               max
             )
@@ -57,7 +57,7 @@ export function Slider({
           width > 0 &&
           setValue(
             clamp(
-              min + toInt(round((clamp(e.x / width, 0, 1) * (max - min)) / step)) * step,
+              min + toInt(round((clamp(e.x / width, toFloat(0), toFloat(1)) * (max - min)) / step)) * step,
               min,
               max
             )

@@ -29,6 +29,9 @@ std::optional<Resources> load_resources() {
     const auto switch_css = read_file(TESSERA_GALLERY_SWITCH_CSS);
     const auto checkbox_css = read_file(TESSERA_GALLERY_CHECKBOX_CSS);
     const auto radio_css = read_file(TESSERA_GALLERY_RADIO_CSS);
+    const auto range_css = read_file(TESSERA_GALLERY_RANGE_CSS);
+    const auto progress_css = read_file(TESSERA_GALLERY_PROGRESS_CSS);
+    const auto disclosure_css = read_file(TESSERA_GALLERY_DISCLOSURE_CSS);
     const auto safe_area_css = read_file(TESSERA_GALLERY_SAFE_AREA_CSS);
     const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
     const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
@@ -36,8 +39,9 @@ std::optional<Resources> load_resources() {
     const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
     const auto lists_css = read_file(TESSERA_GALLERY_LISTS_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !icon_css || !switch_css || !checkbox_css || !radio_css || !safe_area_css ||
-        !gallery_css || !form_css || !dash_css || !swatch_css || !lists_css || !theme_json) {
+    if (!button_css || !icon_css || !switch_css || !checkbox_css || !radio_css || !range_css ||
+        !progress_css || !disclosure_css || !safe_area_css || !gallery_css || !form_css ||
+        !dash_css || !swatch_css || !lists_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -47,11 +51,11 @@ std::optional<Resources> load_resources() {
         return std::nullopt;
     }
     Resources resources;
-    // The library sheet is the Button, Icon, Switch, Checkbox and Radio looks (one `tessera-ui`
-    // layer).
-    resources.library_sheet =
-        style::prepare_stylesheet(*button_css + "\n" + *icon_css + "\n" + *switch_css + "\n" +
-                                  *checkbox_css + "\n" + *radio_css);
+    // The library sheet is the Button, Icon, Switch, Checkbox, Radio, Range, ProgressBar/Meter and
+    // Details looks (one `tessera-ui` layer).
+    resources.library_sheet = style::prepare_stylesheet(
+        *button_css + "\n" + *icon_css + "\n" + *switch_css + "\n" + *checkbox_css + "\n" +
+        *radio_css + "\n" + *range_css + "\n" + *progress_css + "\n" + *disclosure_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
     auto form_module = gallery::load_form_module(*form_css);

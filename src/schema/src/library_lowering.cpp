@@ -52,8 +52,8 @@ constexpr LibraryAttr kRangeAttrs[] = {
     {"aria-label", "label", "string", ""},
     TESSERA_INPUT_COMMON_REJECTS,
     {"onChange", "", "",
-     "the library `Slider` keeps its value; a controlled range is tracked in #1051"},
-    {"disabled", "", "", "the library `Slider` has no disabled state yet (#1051)"},
+     "the library `Range` keeps its value; a controlled range is tracked in #1051"},
+    {"disabled", "", "", "the library `Range` has no disabled state yet (#1051)"},
 };
 
 constexpr LibraryAttr kProgressAttrs[] = {
@@ -72,7 +72,7 @@ constexpr LibraryAttr kMeterAttrs[] = {
 constexpr LibraryAttr kDetailsAttrs[] = {
     {"open", "defaultOpen", "boolean", ""},
     {"name", "", "", "an exclusive group of disclosures is not in V1"},
-    {"onToggle", "", "", "the open state is internal to the library `Disclosure`"},
+    {"onToggle", "", "", "the open state is internal to the library `Details`"},
 };
 
 #undef TESSERA_INPUT_COMMON_REJECTS
@@ -80,10 +80,10 @@ constexpr LibraryAttr kDetailsAttrs[] = {
 constexpr LibraryLowering kLowerings[] = {
     {"input", "checkbox", "Checkbox", "tessera-ui/Checkbox", rows(kCheckboxAttrs)},
     {"input", "radio", "Radio", "tessera-ui/Radio", rows(kRadioAttrs)},
-    {"input", "range", "Slider", "tessera-ui/Slider", rows(kRangeAttrs)},
-    {"progress", "", "Progress", "tessera-ui/Progress", rows(kProgressAttrs)},
+    {"input", "range", "Range", "tessera-ui/Range", rows(kRangeAttrs)},
+    {"progress", "", "ProgressBar", "tessera-ui/ProgressBar", rows(kProgressAttrs)},
     {"meter", "", "Meter", "tessera-ui/Meter", rows(kMeterAttrs)},
-    {"details", "", "Disclosure", "tessera-ui/Disclosure", rows(kDetailsAttrs)},
+    {"details", "", "Details", "tessera-ui/Details", rows(kDetailsAttrs)},
 };
 
 } // namespace
