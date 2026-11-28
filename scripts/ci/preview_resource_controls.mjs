@@ -309,6 +309,23 @@ if (sceneModule !== null) {
   });
 }
 
+// The page hands the project's `ui/services.json` to the engine (#976): without it a `useResource` component
+// has no service to bind and the Resources panel never appears. Needs Node with type stripping (v22.18+).
+await check("the project snapshot carries ui/services.json as its buffer holds it", async () => {
+  const { projectSnapshot } = await import(
+    pathToFileURL(resolve(HERE, "..", "..", "designer", "web", "src", "lib", "project-snapshot.ts")).href
+  );
+  const file = (path, kind) => ({ path, name: path, kind, text: "", editable: true });
+  const files = [file("tessera.json", "config"), file("ui/App.tsx", "source"), file("ui/services.json", "services")];
+  const texts = { "tessera.json": '{"app":{"entry":"ui/App.tsx"}}', "ui/App.tsx": "x", "ui/services.json": MANIFEST };
+  const snapshot = projectSnapshot(files, (path) => texts[path] ?? "", "ui/App.tsx");
+  assert.equal(snapshot.servicesManifest, MANIFEST);
+  const without = projectSnapshot(files.slice(0, 2), (path) => texts[path] ?? "", "ui/App.tsx");
+  assert.equal("servicesManifest" in without, false);
+  const blank = projectSnapshot(files, (path) => (path === "ui/services.json" ? "  \n" : (texts[path] ?? "")), "ui/App.tsx");
+  assert.equal("servicesManifest" in blank, false);
+});
+
 const canvasModule = option("--canvas-module");
 if (canvasModule !== null) {
   const module = await (await import(pathToFileURL(resolve(canvasModule)).href)).default();

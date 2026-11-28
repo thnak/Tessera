@@ -3521,6 +3521,16 @@ target_compile_definitions(library_button_lowering_tests PRIVATE
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)
 
+# Issue #997: the library CapsuleStatus slot content lowers, validates and generates C++.
+add_executable(library_capsule_status_tests
+    library_capsule_status_tests.cpp)
+target_link_libraries(library_capsule_status_tests PRIVATE
+    tessera_lowering tessera_codegen tessera_ir_ids)
+target_compile_definitions(library_capsule_status_tests PRIVATE
+    TESSERA_CAPSULE_STATUS_TSX="${PROJECT_SOURCE_DIR}/packages/tessera-ui/CapsuleStatus.tsx"
+    TESSERA_CAPSULE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/live-capsule.css")
+add_test(NAME library_capsule_status COMMAND library_capsule_status_tests)
+
 # Issue #530: the Icon stylesheet compiles, names no color, and flips only a directional icon.
 add_executable(library_icon_style_tests
     library_icon_style_tests.cpp)

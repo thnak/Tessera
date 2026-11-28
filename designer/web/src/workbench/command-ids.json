@@ -72,5 +72,9 @@
   "notify.show",
   "notify.toggleCenter",
   "notify.clearAll",
-  "notify.toggleDoNotDisturb"
+  "notify.toggleDoNotDisturb",
+  "edit.undoRename",
+  "edit.toggleFormatOnSave",
+  "view.history",
+  "history.restorePrevious"
 ]

@@ -40,6 +40,8 @@ function kindLetter(kind: string): string {
       return "theme";
     case "mock":
       return "mock";
+    case "services":
+      return "svc";
     default:
       return "file";
   }

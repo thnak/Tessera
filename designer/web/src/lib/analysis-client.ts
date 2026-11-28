@@ -8,7 +8,7 @@
 import { ServiceClient } from "../../services/client.js";
 import { analysisServiceSource, wasmEngineSource } from "../../services/analysis-service.js";
 import type { Problem } from "./problems";
-import { analysisEntries, problemsFromAnalysis, type AnalysisDiagnostics } from "./project-problems";
+import { analysisEntries, problemsFromAnalysis, type AnalysisDiagnostics, type AnalysisEntry } from "./project-problems";
 import { wasmModuleUrl } from "./module-url";
 import { browserWorker, type BrowserWorkerHandle } from "./service-worker";
 
@@ -18,8 +18,22 @@ export interface AnalysisClient {
     files: readonly { path: string; kind: string }[],
     textOf: (path: string) => string,
   ): Promise<Problem[] | null>;
+  /**
+   * One position request (`definition`, `references`, `hover`, `completion`, `prepareRename`, `rename`) against `entries`.
+   * `null` when a newer request of the type superseded it; the sentence in `message` when the worker is unavailable.
+   * An unchanged project is not sent again, so a hover or a completion costs one request, not a snapshot.
+   */
+  query(entries: readonly AnalysisEntry[], type: string, payload: Record<string, unknown>): Promise<Outcome<unknown> | null>;
+  /** False once the worker proved unavailable (no module on this site): the editor features stay quiet. */
+  available(): boolean;
   dispose(): void;
 }
+
+/** An answer, or the sentence that says why there is none. */
+export type Outcome<T> = { ok: true; value: T } | { ok: false; message: string };
+
+const sameEntries = (a: readonly AnalysisEntry[] | null, b: readonly AnalysisEntry[]): boolean =>
+  a !== null && a.length === b.length && a.every((entry, index) => entry[0] === b[index][0] && entry[2] === b[index][2] && entry[1] === b[index][1]);
 
 export function createAnalysisClient(
   createWorker: () => BrowserWorkerHandle = () =>
@@ -28,6 +42,7 @@ export function createAnalysisClient(
   const service = new ServiceClient({ name: "analysis", createWorker });
   let starting: Promise<unknown> | null = null;
   let unavailable = false;
+  let sent: readonly AnalysisEntry[] | null = null;
 
   return {
     async problems(files, textOf) {
@@ -40,6 +55,7 @@ export function createAnalysisClient(
         await starting;
         const answer = await service.withRecovery(async () => {
           await service.setSnapshot(entries);
+          sent = entries;
           return service.request("diagnostics");
         });
         return problemsFromAnalysis(answer as AnalysisDiagnostics, entries);
@@ -52,6 +68,35 @@ export function createAnalysisClient(
         return null;
       }
     },
+    async query(entries, type, payload) {
+      if (unavailable) {
+        return { ok: false, message: "Code intelligence is not available on this site." };
+      }
+      try {
+        starting ??= service.start();
+        await starting;
+        const value = await service.withRecovery(async () => {
+          if (!sameEntries(sent, entries)) {
+            await service.setSnapshot(entries);
+            sent = entries;
+          }
+          return service.request(type, payload);
+        });
+        return { ok: true, value };
+      } catch (error) {
+        const code = (error as { code?: string }).code ?? "";
+        if (code === "TESSERA_STUDIO_CANCELLED" || code === "TESSERA_STUDIO_STALE") {
+          sent = null;
+          return null;
+        }
+        if (code !== "" && code !== "TESSERA_ANALYSIS_ENGINE") {
+          return { ok: false, message: String((error as Error).message ?? error) };
+        }
+        unavailable = true;
+        return { ok: false, message: "Code intelligence is not available on this site." };
+      }
+    },
+    available: () => !unavailable,
     dispose: () => service.dispose(),
   };
 }

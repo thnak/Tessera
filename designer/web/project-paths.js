@@ -210,6 +210,9 @@ export const FILE_KIND = Object.freeze({
   // A design-time mock service (`*.mock.ts`, ADR-055). Text and editable, but host-only: the viewer is
   // only ever given `source` and `stylesheet` files, so a mock never reaches the engine.
   mock: 'mock',
+  // The services manifest (`ui/services.json`, services-manifest-v1): text and editable, and the page hands
+  // its buffer to the engine so a `useResource` component has a service to bind (#976).
+  services: 'services',
   other: 'other',
 });
 
@@ -222,6 +225,7 @@ const TEXT_KINDS = new Set([
   FILE_KIND.config,
   FILE_KIND.theme,
   FILE_KIND.mock,
+  FILE_KIND.services,
 ]);
 
 /** `true` when a file of this kind is read as text, sent to the viewer and editable. */
@@ -269,6 +273,9 @@ export function classifyPath(path, context = {}) {
   // other `.ts` file is accepted, so a plain `util.ts` stays `other` (locked).
   if (/\.mock\.ts$/i.test(path)) {
     return FILE_KIND.mock;
+  }
+  if (path === 'ui/services.json') {
+    return FILE_KIND.services;
   }
   if (context.themePath && path === context.themePath) {
     return FILE_KIND.theme;

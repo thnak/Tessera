@@ -139,9 +139,10 @@ spelling works on either.
   satisfy section 3; a file that does not parse must be refused as `TESSERA_FMT_SYNTAX`; a floor on
   the number formatted keeps the corpus from silently shrinking. A grammar form the printer cannot
   print therefore fails the build (the refusal is `TESSERA_FMT_UNSUPPORTED` or `..._VERIFY`).
-- Not yet: `tessera_fmt --check` over the shipped samples and generated templates as its own CI step
-  (the samples are not canonical yet; reformatting them moves line numbers that several goldens
-  read) and the `format-on-save` studio setting.
+- `ctest -R fmt_check_samples` (`scripts/check_fmt_canonical.py`) runs `tessera_fmt --check` over
+  `samples/` and `packages/tessera-ui/` as a ratchet: the files in `tools/fmt/fmt-baseline.txt` predate the
+  formatter (reformatting them moves line numbers that several goldens read) and must stay listed
+  until formatted; every other file must be canonical. Generated templates are not covered yet.
 - A port (ADR-058) runs `tessera fmt` once after translation so the project starts canonical.
 
 ## 10. Known limits of slice 1
@@ -235,8 +236,8 @@ output is parsed again and must have the same structure and text (`TESSERA_FMT_V
 The two options come from the same file: `{"format": {"printWidth": 100, "indentWidth": 2}}`.
 `printWidth` is 40..400 and `indentWidth` 1..8; a missing, mistyped or out-of-range value, or a file that
 does not parse, leaves the default. Options never make a format fail. Existing files in the repository
-keep compact objects (`"app": { "name": ... }`) until they are formatted; `fmt --check` over them is not
-a CI step yet, for the same reason as the samples in section 9.
+keep compact objects (`"app": { "name": ... }`) until they are formatted; they are in the `fmt --check`
+baseline of section 9.
 
 `ctest -R source_format` formats every `.css` file under `samples/`, `packages/`, `tests/`,
 `tools/reference/`, `tools/wiki/src/` and `designer/web/src/` and every `tessera.json` there: each must

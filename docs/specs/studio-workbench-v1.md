@@ -234,8 +234,9 @@ Edit
   Find Next / Previous          *edit.findNext/Previous F3 / Shift+F3
   Replace...                    *edit.replace           Ctrl+H
   ------
-  Format Document               *edit.format           Shift+Alt+F      (ADR-061; .tsx; one undo step; format on save is on by default)
-  Rename Symbol...              R:edit.renameSymbol     F2 (editor focus) (analysis service)
+  Format Document               *edit.format           Shift+Alt+F      (ADR-061; .tsx/.css/tessera.json; one undo step)
+  Format on Save                *edit.toggleFormatOnSave check mark (`editor.formatOnSave`); on by default
+  Rename Symbol...              *edit.renameSymbol       F2 (editor focus) (analysis service)
   Toggle Line Comment           *edit.toggleComment     Ctrl+/   (editor keymap)
 View
   Command Palette...            *view.palette           Ctrl+Shift+P, F1
@@ -243,7 +244,7 @@ View
   Go to Line...                 *view.gotoLine          Ctrl+G  (also ':' in quick open)
   ------
   Explorer / Search / Source Control   *view.explorer Ctrl+Shift+E, *view.search Ctrl+Shift+F,
-                                R:view.sourceControl Ctrl+Shift+G   (side bar views; Search is the side bar group's second tab)
+                                R:view.sourceControl Ctrl+Shift+G   (side bar views; Search and History (*view.history, #583) are the group's second and third tabs)
   Problems                      *view.problems          Ctrl+Shift+M (shows and focuses the panel; again from inside it, hides it)
   Toggle Side Bar               *view.toggleSideBar     Ctrl+B
   Toggle Panel                  *view.togglePanelArea   Ctrl+J
@@ -265,7 +266,7 @@ View
 Go
   Go to Definition              R:go.definition         F12
   Go to Symbol...               R:go.symbol             Ctrl+Shift+O
-  Find All References           R:go.references         Shift+F12
+  Find All References           *go.references           Shift+F12
 Run
   Restart App                   *run.restart            Ctrl+Shift+F5 (VS Code: Restart; F5 is Run)
   Apply Now                     *run.applyNow           Ctrl+Enter (editor focus)

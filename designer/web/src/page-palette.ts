@@ -16,7 +16,7 @@ const RECENT_FILES_KEY = "tessera.studio.recentFiles";
 /** One request to show the overlay; `nonce` remounts it so a second request starts from a clean input. */
 export interface PaletteRequest {
   initial: string;
-  intent: "commands" | "files" | "line" | "shortcuts" | "samples";
+  intent: "commands" | "files" | "line" | "shortcuts" | "samples" | "references";
   nonce: number;
 }
 

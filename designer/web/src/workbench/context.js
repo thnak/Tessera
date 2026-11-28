@@ -58,6 +58,8 @@ export const CONTEXT_KEYS = Object.freeze([
   "notify.dnd",
   "notify.unread",
   "notify.any",
+  // Format-on-save (#577): the studio setting the Edit menu toggle reads its check mark from.
+  "editor.formatOnSave",
 ]);
 
 const PATTERNS = [/^panel\.[A-Za-z0-9_-]+\.(open|visible)$/, /^service\.[A-Za-z0-9_-]+\.ready$/, /^arg\.[A-Za-z0-9_]+$/];

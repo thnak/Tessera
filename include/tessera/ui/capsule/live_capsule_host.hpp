@@ -42,8 +42,9 @@ struct Slots {
     std::string title;
     // At most two are kept; the rest are dropped.
     std::vector<ActionSlot> actions;
-    // Natural sizes in logical pixels (the component does not measure builder content): the leading
-    // and trailing slot widths of the compact state and the card of the expanded one.
+    // Fallback sizes in logical pixels, used only when the capsule has no slot measurer
+    // (`LiveCapsule::set_slot_measurer`): the leading and trailing slot widths of the compact
+    // state and the card of the expanded one.
     float leading_width = 0.0f;
     float trailing_width = 0.0f;
     float card_width = 280.0f;

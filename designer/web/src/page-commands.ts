@@ -36,6 +36,7 @@ import {
 } from "./workbench/index.js";
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
+import { formatOnSave, setFormatOnSave } from "./lib/format-prefs";
 import { EDITOR_COMMANDS, editorFacts, formatBeforeSave } from "./editor/editor-target";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
@@ -73,6 +74,8 @@ export interface WorkbenchApi {
   /** A sample entry of the picked folder, chosen from the welcome view or the quick pick, becomes the project. */
   pickSample: (entry: string) => void;
   restart: () => void;
+  /** Restore Previous Version (#583): the active file's newest version that differs from the current text. */
+  restoreVersion: () => void;
   applyNow: () => void;
   setControl: (name: keyof ControlValues, value: string) => void;
   setCustomSize: (width: number, height: number) => void;
@@ -235,6 +238,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     };
     publishNotify();
     notifications.subscribe(publishNotify);
+    context.set({ "editor.formatOnSave": formatOnSave() });
     const a = () => apiRef.current;
     const handlers: Record<string, (args: CommandArgs) => unknown> = {
       "file.openFolder": () => a().io.openFolder(),
@@ -260,6 +264,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
         const order = [...THEMES];
         a().setControl("theme", order[(order.indexOf(a().controls.theme) + 1) % order.length]);
       },
+      "history.restorePrevious": () => a().restoreVersion(),
       "run.restart": () => a().restart(),
       "run.applyNow": () => a().applyNow(),
       "run.inputScript": () => a().refs.runInput.current?.click(),
@@ -286,6 +291,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       },
       "notify.clearAll": () => notifications.clearHistory(),
       "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
+      "edit.toggleFormatOnSave": () => {
+        setFormatOnSave(!formatOnSave());
+        context.set({ "editor.formatOnSave": formatOnSave() });
+      },
       ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef, zenHinted: zenHintedRef }),
       ...EDITOR_COMMANDS,
       // Undo and Redo go to the history the focus targets (override stack or text history), not always the editor.

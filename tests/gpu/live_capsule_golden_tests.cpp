@@ -16,6 +16,8 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/theme_asset.hpp"
+#include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/font_text_measurer.hpp"
 
 #include <deque>
 #include <filesystem>
@@ -153,8 +155,6 @@ Activity timer(Form form) {
     a.id = "timer";
     a.label = "Timer running";
     a.form = form == Form::Minimal ? ActivityForm::Minimal : ActivityForm::Compact;
-    a.slots.leading_width = 28.0F;
-    a.slots.trailing_width = 44.0F;
     a.slots.title = "Timer";
     a.slots.leading = [](Node& slot) { dot(slot, "14px", "7px"); };
     a.slots.trailing = [](Node& slot) { text_node(slot, 7002, "0:42"); };
@@ -192,6 +192,13 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
     owned.push_back(std::to_string(static_cast<int>(cutout.rect.width)) + "px");
     owned.push_back(std::to_string(static_cast<int>(cutout.rect.height)) + "px");
 
+    // The slots are measured with the very font the frame paints with.
+    auto face = tessera::ui::text::FontFace::load_from_file(TESSERA_TEST_FONT);
+    if (!expect(face.has_value(), "the test font loads")) {
+        return;
+    }
+    const auto measurer = std::make_shared<tessera::ui::text::FontTextMeasurer>(*face);
+
     LiveCapsuleHost host;
     host.start(timer(form));
     LiveCapsuleEnv env;
@@ -212,6 +219,7 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
         app.register_embedded_theme(blob);
         (void)app.set_theme(theme.id);
         capsule = std::make_unique<LiveCapsule>(host, app.overlays());
+        capsule->set_slot_measurer(tessera::ui::capsule::make_intrinsic_slot_measurer(measurer));
         // Opens the overlay; it mounts at the first frame boundary.
         capsule->sync(env, 0.0F);
         if (cutout.rect.width > 0.0F) {

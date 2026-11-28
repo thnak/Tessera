@@ -123,9 +123,12 @@ export async function hasProject(page) {
  *
  * Returns `true` when a project is open afterwards. A page that shipped without the file input cannot
  * be helped from here, so the caller sees `false` and can report it rather than hang on a click.
+ *
+ * `extraFiles` (`[path, text]` pairs) go into the seed zip, and `force` opens the seed even when a project is
+ * already open: a gate that needs a file the plain seed lacks (`ui/services.json`) asks for both.
  */
-export async function ensureProject(page) {
-  if (await hasProject(page)) {
+export async function ensureProject(page, { extraFiles = [], force = false } = {}) {
+  if (!force && (await hasProject(page))) {
     return true;
   }
   const input = page.locator('input[type="file"][accept*="zip"]');
@@ -135,7 +138,7 @@ export async function ensureProject(page) {
   // The zip is built in the page's own writer so the bytes match what Save produces (issue #849's
   // "open a project through the page's Open Zip route"): a hand-rolled archive would test a different
   // reader path than the studio's own.
-  const buffer = await buildSeedZip();
+  const buffer = await buildSeedZip(extraFiles);
   // Opening a zip over an open project asks "replace?"; accepting is what the probes want either way.
   page.on('dialog', (dialog) => void dialog.accept());
   await input.setInputFiles({ name: 'probe-project.zip', mimeType: 'application/zip', buffer });
@@ -147,13 +150,14 @@ export async function ensureProject(page) {
 }
 
 /** Builds the seed project's zip with the studio's own writer, so the format cannot drift here. */
-async function buildSeedZip() {
+async function buildSeedZip(extraFiles = []) {
   const { writeZip } = await import('../../designer/web/studio-zip.js');
   const encoder = new TextEncoder();
   const files = [
     ['tessera.json', SEED_MANIFEST],
     [ENTRY, SEED_ENTRY],
     [SHEET, SEED_SHEET],
+    ...extraFiles,
   ];
   // `writeZip` takes bytes and sorts by path itself, so the archive is deterministic.
   return Buffer.from(writeZip(files.map(([path, text]) => ({ path, bytes: encoder.encode(text) }))));

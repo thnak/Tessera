@@ -149,7 +149,7 @@ await test("the menu bar replaced the toolbar's selects and carries the document
   // the menu bar, the toolbar and the device chip are in their place.
   assert.equal((MARKUP.match(/<select\b/g) || []).length, 0, "no <select> is left in the chrome");
   assert.match(MARKUP, /role="menubar"[^>]*aria-label="Application menu"/, "the menu bar is rendered");
-  assert.equal((MARKUP.match(/class="menubar-item/g) || []).length, 6, "File, Edit, View, Run, Device, Help");
+  assert.equal((MARKUP.match(/class="menubar-item/g) || []).length, 7, "File, Edit, View, Go, Run, Device, Help");
   assert.match(MARKUP, /role="toolbar"[^>]*aria-label="Studio actions"/, "the toolbar is rendered");
   assert.match(MARKUP, /id="device-chip"[^>]*aria-haspopup="menu"/, "the device chip opens the Device menu");
   // The option sets the menus draw from are the same vocabularies the selects used. The skin set is the
