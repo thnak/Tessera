@@ -6,6 +6,7 @@
 #include "task_test_support.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -66,6 +67,11 @@ Task<void> wait_for(TaskContext outer_ctx, TaskContext inner_ctx, std::vector<in
     (void)outer_ctx;
     hits.push_back(1);
     hits.push_back(co_await doubled(inner_ctx, 5));
+}
+
+Task<void> holding(TaskContext, std::shared_ptr<int> payload) {
+    *payload += 1;
+    co_return;
 }
 
 Task<void> cancelling_child(TaskContext, CancellationSource& source) {
@@ -320,6 +326,25 @@ int main() {
             !expect(pump(queue) == 3, "double-await resumes") ||
             !expect(threw, "second await rejected")) {
             return 14;
+        }
+    }
+
+    // A queue that dies with a task resume still pending must release it (the nightly ASan lane
+    // reported this as a leak): the queued keep-alive is a self-reference that nothing else drops.
+    {
+        auto queue = std::make_unique<CompletionQueue>(8);
+        auto payload = std::make_shared<int>(7);
+        const std::weak_ptr<int> watch = payload;
+        {
+            auto task = holding(context(*queue), std::move(payload));
+            if (!expect(task.start(), "pending start") ||
+                !expect(queue->size() == 1, "the first resume is queued")) {
+                return 15;
+            }
+            queue.reset();
+        }
+        if (!expect(watch.expired(), "a task queued on a destroyed queue frees its frame")) {
+            return 15;
         }
     }
 
