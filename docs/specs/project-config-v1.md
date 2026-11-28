@@ -424,7 +424,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `includeDirs` | string[] | `[]` | Added to the generated CMake target |
-| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable ([ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md)) |
+| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable ([ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md)). The opt-in SQLite module is switched by CMake `TESSERA_APPFW_SQLITE`; no manifest key yet ([storage-sqlite](../design/storage-sqlite.md)) |
 | `licenseReview` | boolean | `true` | Must be `true`; `tessera doctor` checks notices |
 
 ## Validation rules

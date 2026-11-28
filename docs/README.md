@@ -322,7 +322,7 @@ This page is the map and reading order for the framework.
   sections 9 and 10: implementation order and what is still open
 - [`design/storage-module.md`](design/storage-module.md) — the `storage` module: the atomic-replace
   sequence, `Durability` and the per-platform fsync policy, the corruption fallback, cancellation and
-  temp-file cleanup, and the `IoTaskExecutor` seam it runs on (ADR-050 AF7)
+  temp-file cleanup, and the `IoTaskExecutor` seam it runs on (ADR-050 AF7); the opt-in SQLite adapter is in [`design/storage-sqlite.md`](design/storage-sqlite.md) (#837)
 - [`design/networking-module.md`](design/networking-module.md) — the `net` module: the
   fetch-shaped interface, named outcomes, redirects, the transport seam and `FakeNet`
   (issue #197)
