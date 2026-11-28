@@ -74,6 +74,15 @@ public:
     // refusal (`set_cursor_supported(false)`) models a platform with no pointer-shape source, which
     // is what the app's one-shot diagnostic decides from.
     void set_cursor(hal::CursorShape shape) override;
+    // Records the IME anchor requests (issue #1053) so a test can prove the app publishes the caret
+    // rect and only on a change.
+    void set_text_input_rect(const hal::TextInputRect& rect) override;
+    [[nodiscard]] std::size_t text_input_rect_requests() const noexcept {
+        return text_input_rect_requests_;
+    }
+    [[nodiscard]] const hal::TextInputRect& last_text_input_rect() const noexcept {
+        return last_text_input_rect_;
+    }
     [[nodiscard]] bool supports_cursor() const noexcept override {
         return cursor_supported_;
     }
@@ -185,6 +194,8 @@ private:
     bool fullscreen_supported_ = true;
     bool cursor_supported_ = true;
     std::size_t cursor_requests_ = 0;
+    std::size_t text_input_rect_requests_ = 0;
+    hal::TextInputRect last_text_input_rect_{};
     // Defaults to a non-null opaque token, like the Win32 window's HWND; a test that models a
     // backend without a native host element clears it.
     hal::AccessibilityHostHandle accessibility_handle_{reinterpret_cast<void*>(1)};

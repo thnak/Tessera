@@ -527,7 +527,7 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   `LC_CTYPE` only. `MappingNotify` refreshes Xlib's keymap, so a layout switch applies to a
   running app. XInput2 (smooth scroll, touch, pen) and client-side pre-edit
   (`XIMPreeditCallbacks`) are translated in `x11_xi2*.cpp`; `Window::set_text_input_rect` anchors the
-  candidate window via `XNSpotLocation` (`x11_ime_spot.*`, the app does not call it yet). Only the built-in
+  candidate window via `XNSpotLocation` (`x11_ime_spot.*`; the window driver publishes the focused field's caret rect after every input pump, `src/app/window_text_input_rect.*`). Only the built-in
   method is tested, not a real ibus or fcitx server. Tests: `window_x11_input` sends
   synthetic events with `XSendEvent`; `window_x11_real_input` drives the window through the XTEST
   extension (what `xdotool` uses) so the X server itself generates the pointer, wheel, key and

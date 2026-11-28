@@ -270,9 +270,9 @@ void WindowHost::Impl::pump_input() {
         }
     }
     // Pointer shape right after dispatch (issue #191): hover was just updated, so the cursor
-    // request and the `:hover` style can never disagree. A static hover makes no platform call
-    // (apply_cursor compares against `last_cursor`), so this costs a pointer compare per iteration.
+    // request and the `:hover` style can never disagree; a static hover makes no platform call.
     sync_cursor();
+    sync_text_input_rect();
 }
 
 // The app half of the CSS cursor seam (docs/specs/window-chrome-v1.md section 8.5, issue #191): the

@@ -337,6 +337,22 @@ target_link_libraries(window_cursor_fake_tests PRIVATE
 
 add_test(NAME window_cursor_fake COMMAND window_cursor_fake_tests)
 
+# The IME anchor (issue #1053): the focused text field's caret rect reaches Window::set_text_input_rect
+# on a change only. The app's helper is one small TU over the paint geometry, compiled in here.
+add_executable(text_input_rect_tests
+    text_input_rect_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/window_text_input_rect.cpp)
+
+target_include_directories(text_input_rect_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(text_input_rect_tests PRIVATE
+    tessera_harness_testing
+    tessera_paint
+    tessera_scene)
+
+add_test(NAME text_input_rect COMMAND text_input_rect_tests)
+
 # The Linux appearance source's fallback paths (issue #187): the absent-bus answer (the documented
 # fallback, no measurement, no event), the GTK settings.ini location under XDG_CONFIG_HOME, and a
 # real settings file being the no-portal answer. Linux-only because the platform half lives in
