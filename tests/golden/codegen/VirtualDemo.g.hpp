@@ -971,6 +971,7 @@ namespace vlist {
     template <class Self>
     inline void VirtualDemoBase<Self>::set_items(std::vector<std::string> value) {
       using namespace VirtualDemo_detail;
+      state_items_seeded_ = true;
       if (state_items_ == value) {
         return;
       }

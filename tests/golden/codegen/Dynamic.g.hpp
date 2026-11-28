@@ -611,6 +611,7 @@ namespace dynamic {
     template <class Self>
     inline void DynamicBase<Self>::set_items(std::vector<std::string> value) {
       using namespace Dynamic_detail;
+      state_items_seeded_ = true;
       if (state_items_ == value) {
         return;
       }

@@ -448,6 +448,7 @@ namespace demo {
     template <class Self>
     inline void FormPageBase<Self>::set_rows(std::vector<Entry> value) {
       using namespace FormPage_detail;
+      state_rows_seeded_ = true;
       if (state_rows_ == value) {
         return;
       }
