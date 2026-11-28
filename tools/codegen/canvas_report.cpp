@@ -128,25 +128,22 @@ void append_state(std::string& out, const ui::StateSnapshot& state) {
 
 } // namespace
 
-std::string
-canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
-                   bool has_device, std::uint32_t frames,
-                   const std::vector<PreviewCssDiagnostic>&
-                       css_diagnostics, // The field names mirror the native CLI's printed
-                                        // counters, so a parity script can compare a
-                   std::uint64_t cascade_generation) { // browser report with a native dump
-                                                       // without a second vocabulary.
+// The field names mirror the native CLI's printed counters, so a parity script can compare a
+// browser report with a native dump without a second vocabulary.
+std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
+                               std::uint32_t height, bool has_device, std::uint32_t frames,
+                               const std::vector<PreviewCssDiagnostic>& css_diagnostics,
+                               std::uint64_t cascade_generation, bool animating) {
     std::string out = "{\"canvasVersion\":1";
     append_bool(out, "hasDevice", has_device);
     append_number(out, "width", width);
     append_number(out, "height", height);
-    // The session's lifetime frame count, which the live edit's contract is written in (#444): the
-    // page surfaces it so a browser probe can check "one frame per burst, zero when static" against
-    // the engine's own number rather than inferring it from a repaint. `cascade` is the same idea
-    // for the viewport rule (#436): a resize re-resolves the cascade only when a breakpoint is
-    // crossed.
+    // The session's lifetime frame count (#444) and cascade generation (#436), so a browser probe
+    // checks "one frame per burst, zero when static" against the engine's own numbers. `animating`
+    // (#603) is the page's keep-alive: another frame is owed while an animation runs.
     append_number(out, "frames", frames);
     append_number(out, "cascade", cascade_generation);
+    append_bool(out, "animating", animating);
     append_number(out, "nodes", result.nodes);
     append_number(out, "drawCalls", result.draw_calls);
     append_number(out, "vertices", result.vertex_count);

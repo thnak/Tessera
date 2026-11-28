@@ -192,13 +192,10 @@ public:
     bool set_posture(tessera::hal::FoldPosture posture);
 
     // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs
-    // like the posture, so a device or orientation change re-lays the tree out and re-resolves
-    // `@media`
-    // - it never evaluates the source again; hover, focus, state and capture survive.
-    // `@media` is re-resolved only when the move can change an answer
-    // (`PreparedStyleSheet::media_answer_can_change`): then the SAME prepared data is resolved
-    // against the new context (ADR-048), counted by `cascade_generation()`. False when nothing
-    // moved (no layout pass ran) or the session built no tree.
+    // like the posture, so a resize re-lays the tree out and re-resolves `@media` (only when the
+    // move can change an answer, ADR-048; counted by `cascade_generation()`) without evaluating the
+    // source again: hover, focus, state and capture survive. False when nothing moved or there is
+    // no tree.
     bool set_viewport(float width, float height, float dpi_scale);
 
     // One pass for both layout inputs; the two setters above are its narrow spellings.
@@ -256,6 +253,10 @@ public:
         return scope_;
     }
     [[nodiscard]] const ui::Node& root() const noexcept {
+        return *root_;
+    }
+    // The live tree, for the animation driver (issue #603), which writes scene style onto it.
+    [[nodiscard]] ui::Node& mutable_root() noexcept {
         return *root_;
     }
     [[nodiscard]] const ui::InputRouter& router() const noexcept {

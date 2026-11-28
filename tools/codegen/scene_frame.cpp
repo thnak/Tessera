@@ -143,7 +143,7 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
                                         rhi::Device& device, rhi::RenderTarget& target,
                                         const rhi::RenderTargetDesc& desc,
                                         const rhi::PipelineDesc& pipeline, PreviewTextStack* text,
-                                        float device_scale) {
+                                        float device_scale, const paint::PaintView* view) {
     SceneFrameResult result;
     // The device scale is the frame's, not the layout's (issue #599): the tree is laid out in CSS
     // px and the target is the device-pixel grid, so a DPR-2 canvas needs every position doubled or
@@ -222,6 +222,7 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
         // The app's page colour fills the whole frame, as a browser's root background fills the
         // canvas.
         context.canvas = paint::canvas_background(root, styles);
+        context.view = view;
         const paint::PaintStats painted = paint::paint_scene(root, styles, sink, context);
         renderer.end();
         // `submit()` blocks, which is correct natively and forbidden in a browser; the WebGPU

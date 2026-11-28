@@ -70,8 +70,10 @@ char* duplicate_out(std::string_view text) {
 // its cascade generation (#436: the counter that says whether a resize re-resolved `@media`).
 std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D extent,
                             const std::vector<cli::PreviewCssDiagnostic>& css,
-                            std::uint32_t frames = 0, std::uint64_t cascade = 0) {
-    return cli::canvas_report_json(result, extent.width, extent.height, true, frames, css, cascade);
+                            std::uint32_t frames = 0, std::uint64_t cascade = 0,
+                            bool animating = false) {
+    return cli::canvas_report_json(result, extent.width, extent.height, true, frames, css, cascade,
+                                   animating);
 }
 
 // The persistent session (#388): one evaluation the pointer events feed and every later frame
@@ -376,7 +378,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
         cli::paint_session(*g_session, extent, canvas_view, *g_device);
     return duplicate_out(report_with_css(painted, extent, g_session->css_diagnostics(),
                                          g_session->frames_painted(),
-                                         g_session->cascade_generation()));
+                                         g_session->cascade_generation(), g_session->animating()));
 }
 
 // Drives one resource double of the running session (issue #657, pending-ui-v1.md sections 10 and

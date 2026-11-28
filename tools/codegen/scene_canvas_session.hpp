@@ -42,6 +42,9 @@
 // (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's dirty domains.
 namespace tessera::compiler::codegen::cli {
 
+class CanvasMotion;
+struct CanvasMotionTick;
+
 // The text module this session's font parameter names lives one namespace up.
 namespace text = tessera::ui::text;
 
@@ -198,33 +201,16 @@ public:
                                 std::uint32_t button = 0);
 
     // What is under `(x, y)` in logical viewport pixels, for the picker overlay (issue #171).
-    //
-    // **It reuses the router's hit test rather than writing a second one.** `Node::hit_test_deep`
-    // is the function `ui::InputRouter` calls to decide a pointer target, so the node this reports
-    // is exactly the node a press at the same point would reach - including `pointer-events: none`,
-    // scrollport clipping, z-order and `visibility: hidden`.
-    //
-    // **It is a query, not an event.** Nothing is dispatched, no pseudo-class moves, no dirty
-    // domain is set and no frame is owed: arming the picker and moving over the canvas must not
-    // change the picture. That is why this is not a `pointer()` kind.
-    //
-    // Returns `found:false` for a point outside every node (and for a session with no tree), which
-    // is the page's signal to hide the overlay rather than draw a stale outline.
+    // It reuses the router's hit test (`Node::hit_test_deep`), so it names the node a press at the
+    // same point would reach. It is a query, not an event: nothing is dispatched, no pseudo-class
+    // moves and no frame is owed. `found:false` (outside every node, or no tree) hides the overlay.
     [[nodiscard]] CanvasPickResult pick(float x, float y);
 
     // The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed
     // style, the matched rules with their provenance, and the box of the node with this automation
-    // id.
-    //
-    // **It is a query, like `pick()`.** Nothing is dispatched, no pseudo-class moves and no frame
-    // is owed: opening the inspector on a node must not change the picture. It is a user action
-    // rather than a frame path, so the bounded allocations it makes are acceptable - the frame
-    // path's zero-allocation rule is about `paint()`, not about a click.
-    //
-    // **Why the engine answers it.** `computed`, `matched` and `overridden` are the cascade's own
-    // answers; a page that recomputed them would be a second cascade that could disagree with the
-    // canvas. `automation_id` 0 and an id no node carries both answer `found:false`, which the
-    // report spells `no_such_node` (designer-protocol-v1 section 9.1).
+    // id. A query, like `pick()`: nothing is dispatched and no frame is owed. The cascade answers
+    // it (a page that recomputed would be a second cascade); id 0 or an unknown id is
+    // `no_such_node`.
     [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
 
     // The designer's override layer (issue #536, designer-protocol-v1 sections 9.2-9.4): values a
@@ -346,9 +332,21 @@ public:
         return metrics_;
     }
 
-    // True when the scene owes a frame: a fresh evaluation, or a dispatch that moved a style/paint
-    // dirty domain since the last `paint()`. False for a static scene (render on demand).
+    // True when the scene owes a frame: a fresh evaluation, a dispatch that moved a style/paint
+    // dirty domain since the last `paint()`, or a running animation. False for a static scene.
     [[nodiscard]] bool needs_frame() const;
+
+    // The page's frame clock (issue #603, `scene_canvas_motion.hpp`): advances the animation
+    // runtime to `now_seconds` and syncs style, so a transition or `@keyframes` moves between
+    // frames. `running` in the answer asks the page for another frame; false means idle, zero
+    // frames.
+    CanvasMotionTick animate(double now_seconds);
+    // `prefers-reduced-motion`: animations settle at once. Survives a re-evaluation.
+    void set_reduced_motion(bool enabled);
+    [[nodiscard]] bool animating() const noexcept;
+    [[nodiscard]] const CanvasMotion* motion() const noexcept {
+        return motion_.get();
+    }
     [[nodiscard]] PreviewSession* preview() noexcept;
     // Paints the current tree into `target` and consumes the dirty domains, so a second `paint()`
     // with no intervening event paints the same pixels and `needs_frame()` stays false. The caller
@@ -461,6 +459,8 @@ private:
     tessera::ui::responsive::EnvironmentSet environment_;
     // Reused across frames so consuming the dirty domains allocates nothing on the frame path.
     ui::DirtyPass dirty_;
+    std::unique_ptr<CanvasMotion> motion_; // the animation driver of the running evaluation (#603)
+    bool reduced_motion_ = false;
     // What the running evaluation was started from; a later `start()` with the same tuple reuses
     // it. Owned strings, because `CanvasSessionSource`'s views belong to the caller.
     OwnedProject project_;

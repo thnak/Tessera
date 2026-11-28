@@ -51,6 +51,9 @@ namespace tessera::compiler::codegen::cli {
 // serializer rather than making a page pick a shape, which is what lets a session paint report its
 // frame count and its stylesheet diagnostics together.
 //
+// `animating` is `CanvasSceneSession::animating()` (issue #603): an animation is running, so the
+// page requests the next frame and stops when it is false (a static scene presents nothing).
+//
 // `cascade_generation` is `CanvasSceneSession::cascade_generation()` (issue #436): how many times
 // the running evaluation's cascade has been resolved. It is in the frame report because "a resize
 // that crosses no `@media` breakpoint does not rebuild the cascade" is otherwise invisible from the
@@ -60,7 +63,7 @@ namespace tessera::compiler::codegen::cli {
 canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
                    bool has_device, std::uint32_t frames = 0,
                    const std::vector<PreviewCssDiagnostic>& css_diagnostics = {},
-                   std::uint64_t cascade_generation = 0);
+                   std::uint64_t cascade_generation = 0, bool animating = false);
 
 // What one pointer event did, as one JSON object on one line:
 //
