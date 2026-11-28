@@ -73,6 +73,7 @@ on:
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
       - 'scripts/ci/preview_format_service.mjs'
+      - 'scripts/ci/preview_search_service.mjs'
       - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
@@ -130,6 +131,7 @@ on:
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
       - 'scripts/ci/preview_format_service.mjs'
+      - 'scripts/ci/preview_search_service.mjs'
       - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
@@ -354,6 +356,10 @@ jobs:
 
       - name: Format service (edit list over the worker protocol, ADR-061)
         run: node scripts/ci/preview_format_service.mjs
+
+      # Project search (#580): globs, plain and bounded-regex matching, caps, the replace plan, the worker protocol.
+      - name: Search service (matcher, bounded regex engine, replace plan, ADR-060)
+        run: node scripts/ci/preview_search_service.mjs
 
       # With the Wasm module the gate also checks the C++ library end to end (UTF-16 spans, findings).
       # The compile worker is the diagnostics view's engine (#569); with the Wasm module the gate also runs the
