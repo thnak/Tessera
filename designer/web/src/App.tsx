@@ -52,6 +52,7 @@ import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
 import { useProfiles } from "./page-profiles";
+import { liveEditKindOf } from "../live-edit-kind.js";
 import { AppStateOverlay, HardwareStrip } from "./regions/DeviceControls";
 
 export function App() {
@@ -212,10 +213,9 @@ export function App() {
       editedFile: () => activeRef.current,
       // A stylesheet is part of the previewed project, so an edit to one is a live apply like a source
       // edit; the config (it names the entry) and the other kinds restart instead.
-      kindOf: (path: string) => {
-        const file = workspace.state.files.find((candidate) => candidate.path === path);
-        return file?.kind === "stylesheet" ? "source" : (file?.kind ?? "other");
-      },
+      // Read through `filesRef`, never `workspace.state.files`: this runs once, so a captured list is the
+      // empty one the page booted with and every keystroke would restart the app (#865, live-edit-kind.js).
+      kindOf: liveEditKindOf(() => filesRef.current),
       onStateChange: (next) => state_.setApplying(next.applying),
     });
   }
