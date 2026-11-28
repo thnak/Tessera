@@ -413,6 +413,9 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     }
     // Placed overlays need the content size and the anchor bounds, so they position after layout;
     // only a content box that actually moved costs a second pass.
+    if (state.overlay_host && state.overlay_host->apply_focus()) {
+        state.loop.mark_render_dirty(); // the focus ring repaints
+    }
     if (state.overlay_host && state.overlay_host->has_placed()) {
         const auto placed =
             state.overlay_host->place(state.overlay_viewport(), state.root_is_rtl());
@@ -507,8 +510,16 @@ void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
 ui::OverlayHost& AppHost::overlays() {
     if (!impl_->overlay_host) {
         impl_->overlay_host = std::make_unique<ui::OverlayHost>(impl_->root);
+        impl_->overlay_host->set_focus_manager(impl_->focus_manager);
     }
     return *impl_->overlay_host;
+}
+
+void AppHost::attach_focus_manager(ui::FocusManager& focus) {
+    impl_->focus_manager = &focus;
+    if (impl_->overlay_host) {
+        impl_->overlay_host->set_focus_manager(&focus);
+    }
 }
 
 ui::OverlayHandle AppHost::open_overlay(ui::OverlaySpec spec) {

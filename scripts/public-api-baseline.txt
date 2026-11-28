@@ -2810,11 +2810,13 @@ function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_rect
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::snap_scalar
 
 header include/tessera/ui/overlay/overlay.hpp
+class include/tessera/ui/overlay/overlay.hpp tessera::ui::FocusManager
 class include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHost
 struct include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayHandle
 struct include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayInfo
 struct include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlaySpec
 enum include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayDismissReason
+enum include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayFocus
 enum include/tessera/ui/overlay/overlay.hpp tessera::ui::OverlayLayer
 constant include/tessera/ui/overlay/overlay.hpp tessera::ui::kOverlayLayerCount
 

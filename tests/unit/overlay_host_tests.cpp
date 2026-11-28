@@ -153,6 +153,87 @@ void test_reentrant_open_and_failure() {
     expect(f.host->overlays().size() == 2, "the failed entry is dropped");
 }
 
+// Section 10.3: a non-modal overlay takes focus after layout and gives it back on close.
+void test_non_modal_focus_and_restore() {
+    Fixture f;
+    FocusManager focus;
+    focus.set_root(f.root);
+    f.host->attach_focus_manager(focus);
+    Node* base_button = f.root.children().front()->children().front().get();
+    focus.request_focus(base_button);
+
+    OverlaySpec popover = spec("pop", OverlayLayer::Overlay, 120, 0, true);
+    popover.focus = tessera::ui::OverlayFocus::Content;
+    const OverlayHandle handle = f.host->open_overlay(std::move(popover));
+    OverlaySpec quiet = spec("quiet", OverlayLayer::Overlay, 121, 0, true);
+    f.host->open_overlay(std::move(quiet));
+    f.frame();
+    expect(focus.focused() != nullptr && focus.focused()->id() == 120,
+           "focus moves to the first focusable node of the content");
+
+    f.host->close_overlay(handle);
+    f.frame();
+    expect(focus.focused() == base_button, "closing restores the previous focus target");
+
+    // A user who moved focus elsewhere is not pulled back.
+    OverlaySpec again = spec("again", OverlayLayer::Overlay, 122, 0, true);
+    again.focus = tessera::ui::OverlayFocus::Content;
+    const OverlayHandle second = f.host->open_overlay(std::move(again));
+    f.frame();
+    focus.request_focus(base_button);
+    f.host->close_overlay(second);
+    f.frame();
+    expect(focus.focused() == base_button, "focus that left the overlay stays put");
+
+    // Tooltips and toasts never take focus, whatever they ask for.
+    OverlaySpec tip = spec("tip", OverlayLayer::Tooltip, 123, 0, true);
+    tip.focus = tessera::ui::OverlayFocus::Content;
+    f.host->open_overlay(std::move(tip));
+    f.frame();
+    expect(focus.focused() == base_button, "a tooltip never takes focus");
+}
+
+// Section 10.3: a failed mount is reported and can fall back to deterministic content.
+void test_failed_mount_fallback_and_report() {
+    Fixture f;
+    std::string reported;
+    OverlayHandle reported_handle;
+    OverlaySpec bad = spec("bad", OverlayLayer::Overlay, 130);
+    bad.mount = [](Node& content) {
+        box(content, 130);
+        throw std::runtime_error("boom");
+    };
+    bad.on_failure = [&](OverlayHandle handle, std::string_view message) {
+        reported_handle = handle;
+        reported = std::string(message);
+    };
+    bad.fallback = [](Node& content) { box(content, 131); };
+    const OverlayHandle handle = f.host->open_overlay(std::move(bad));
+    f.frame();
+    expect(reported == "mount threw: boom" && reported_handle == handle,
+           "the failure is reported with a deterministic message");
+    expect(f.host->overlays().last_failure() == "mount threw: boom", "last_failure keeps it");
+    expect(f.host->overlays().failed_count() == 1, "the failure is counted");
+    expect(f.host->overlays().is_open(handle), "the entry stays open with the fallback");
+    Node* content = f.host->overlays().content(handle);
+    expect(content != nullptr && content->children().size() == 1 &&
+               content->children().front()->id() == 131,
+           "the partial content is replaced by the fallback");
+
+    OverlaySpec worse = spec("worse", OverlayLayer::Overlay, 132);
+    worse.mount = [](Node&) { throw 7; };
+    worse.fallback = [](Node&) { throw std::runtime_error("fallback failed"); };
+    int reports = 0;
+    worse.on_failure = [&](OverlayHandle, std::string_view message) {
+        ++reports;
+        expect(message == "mount threw a non-standard exception", "non-standard throws report");
+    };
+    const OverlayHandle dropped = f.host->open_overlay(std::move(worse));
+    f.frame();
+    expect(reports == 1 && !f.host->overlays().is_open(dropped),
+           "a fallback that throws too drops the entry, reported once");
+}
+
 void test_modal_blocks_pointer_and_traps_focus() {
     Fixture f;
     InputRouter router;
@@ -276,6 +357,8 @@ int main() {
     test_priority_inside_a_layer();
     test_handle_lifetime_and_close_if();
     test_reentrant_open_and_failure();
+    test_non_modal_focus_and_restore();
+    test_failed_mount_fallback_and_report();
     test_modal_blocks_pointer_and_traps_focus();
     test_modal_semantics();
     test_top_modal_and_idle();

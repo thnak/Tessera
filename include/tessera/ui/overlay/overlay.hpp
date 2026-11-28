@@ -21,6 +21,8 @@
 
 namespace tessera::ui {
 
+class FocusManager;
+
 // Paint order, lowest first. The base layer is the app content itself and has no entry here.
 enum class OverlayLayer : std::uint8_t {
     Overlay, // non-modal panels and popovers
@@ -50,6 +52,15 @@ enum class OverlayDismissReason : std::uint8_t {
     Blur,    // the window lost focus (transient layers only)
 };
 
+// Initial focus and restore for an overlay (docs/specs/overlays-and-layers-v1.md section 10.3). A
+// modal always traps focus and restores it through the focus scope; this governs the rest.
+enum class OverlayFocus : std::uint8_t {
+    Default, // modal: trapped by the scope; every other layer: focus is left alone
+    Content, // overlay layer only: focus moves to the first focusable node in the content
+             // after layout, and returns to the previous target when the overlay closes
+    None,    // never touch focus
+};
+
 struct OverlaySpec {
     // Becomes the content root's element id and its `aria-label`; may be empty.
     std::string id;
@@ -68,6 +79,15 @@ struct OverlaySpec {
     // explicit choice), tooltip or toast.
     std::optional<bool> dismiss_on_escape;
     std::optional<bool> dismiss_on_outside;
+    // Honoured on the overlay layer; tooltips and toasts never take focus, a modal uses its trap.
+    OverlayFocus focus = OverlayFocus::Default;
+    // Failed mount (section 10.3): when set, runs on a content root emptied of whatever the failed
+    // mount built, and the entry stays open with that content. When unset, or when it throws too,
+    // the entry is dropped.
+    std::function<void(Node& content)> fallback;
+    // The error-boundary report: called once per failed mount with a deterministic message
+    // ("mount threw: <what>" or "mount threw a non-standard exception"), before the fallback runs.
+    std::function<void(OverlayHandle, std::string_view message)> on_failure;
     // Overlay and tooltip entries close when the window loses focus unless this is set.
     bool persistent = false;
     // Called when the host dismisses the entry, just before it closes, so app state can follow.
@@ -105,6 +125,15 @@ public:
     std::size_t close_if(const std::function<bool(const OverlayInfo&)>& predicate);
     std::size_t close_all();
 
+    // The window's focus manager (borrowed, null to detach), which the host needs for
+    // OverlayFocus::Content. AppHost wires it when a window supplies one.
+    void set_focus_manager(FocusManager* focus) noexcept {
+        focus_ = focus;
+    }
+    // Moves focus into entries that asked for it. Runs after layout, once per frame; free when no
+    // entry is waiting. True when focus moved.
+    bool apply_focus();
+
     // Applies pending opens and closes. True when the tree changed.
     bool flush();
 
@@ -141,6 +170,11 @@ public:
         return failed_;
     }
 
+    // The message of the most recent failed mount, empty until one failed.
+    [[nodiscard]] std::string_view last_failure() const noexcept {
+        return last_failure_;
+    }
+
     // The content root of a mounted entry, or nullptr.
     [[nodiscard]] Node* content(OverlayHandle handle) const;
     // The layer node under the root, or nullptr until the first entry opened.
@@ -161,6 +195,8 @@ private:
     void dismiss(Entry& entry, OverlayDismissReason reason);
     Node& ensure_layer(OverlayLayer layer);
     void mount_entry(Entry& entry);
+    // Runs the mount callback; on a throw reports it and tries the fallback. False: drop the entry.
+    bool run_mount(Entry& entry, Node& content);
     void unmount_entry(Entry& entry);
     NodeId next_node_id() noexcept {
         return next_node_id_++;
@@ -172,6 +208,8 @@ private:
     std::uint64_t next_sequence_ = 1;
     NodeId next_node_id_ = kFirstNodeId;
     std::size_t failed_ = 0;
+    std::string last_failure_;
+    FocusManager* focus_ = nullptr;
 };
 
 } // namespace tessera::ui
