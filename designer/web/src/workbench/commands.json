@@ -292,8 +292,7 @@
       "services": [
         "analysis"
       ],
-      "note": "reserved: analysis service",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "edit.toggleComment",
@@ -648,7 +647,7 @@
       "services": [
         "analysis"
       ],
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "go.symbol",
@@ -672,7 +671,7 @@
       "services": [
         "analysis"
       ],
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "run.restart",
@@ -1037,6 +1036,14 @@
       "category": "Notifications",
       "description": "Keep notifications in the history without showing toasts",
       "checked": "notify.dnd",
+      "status": "live"
+    },
+    {
+      "id": "edit.undoRename",
+      "title": "Undo Rename Symbol",
+      "category": "Edit",
+      "enabled": "project.open",
+      "note": "undoes the last multi-file rename as one step; offered by the rename notification",
       "status": "live"
     }
   ]

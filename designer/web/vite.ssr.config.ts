@@ -45,6 +45,10 @@ export default defineConfig({
         // page ships (restart after a killed worker, unavailable engine) with an injected worker handle.
         "compile-client": "src/lib/compile-client.ts",
         "analysis-client": "src/lib/analysis-client.ts",
+        // The editor's code intelligence (#984, #988): the answers as page data, and the hub the commands and the
+        // CodeMirror extensions share, so `scripts/ci/preview_analysis_wiring.mjs` drives what the page ships.
+        "analysis-nav": "src/lib/analysis-nav.ts",
+        "analysis-hub": "src/editor/analysis-hub.ts",
         // The project search client and the replace history (#580), so `scripts/ci/preview_search_client.mjs` drives what ships.
         "search-client": "src/lib/search-client.ts",
         "search-replace": "src/lib/search-replace.ts",

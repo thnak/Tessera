@@ -125,10 +125,10 @@ await test('integrity: live without handler, handler without record, reserved wi
   assert.deepEqual(checkIntegrity(COMMANDS, live), []);
   assert.match(checkIntegrity(COMMANDS, live.slice(1))[0], /live command .* has no handler/);
   assert.match(checkIntegrity(COMMANDS, [...live, 'nope.missing'])[0], /has no command record/);
-  assert.match(checkIntegrity(COMMANDS, [...live, 'go.definition'])[0], /reserved command 'go.definition' has a handler/);
+  assert.match(checkIntegrity(COMMANDS, [...live, 'go.symbol'])[0], /reserved command 'go.symbol' has a handler/);
   const registry = createRegistry(COMMANDS, { context: createContext() });
   assert.throws(() => registry.register('nope.missing', () => {}), /no command record/);
-  assert.throws(() => registry.register('go.definition', () => {}), /reserved/);
+  assert.throws(() => registry.register('go.symbol', () => {}), /reserved/);
   assert.throws(() => registry.register('file.share', () => {}), /removed/, 'a retired id cannot get a handler back');
   registry.register('file.save', () => {});
   assert.throws(() => registry.register('file.save', () => {}), /already/);
@@ -153,7 +153,7 @@ await test('run: result codes, disabled with a reason, argument checks, throwing
     calls.push(args.value);
   });
   assert.deepEqual(await registry.run('no.such'), { ok: false, code: 'unknown', message: "no command 'no.such'" });
-  assert.equal((await registry.run('go.definition')).code, 'reserved');
+  assert.equal((await registry.run('go.symbol')).code, 'reserved');
   assert.equal((await registry.run('file.newFile')).code, 'no-handler');
   const disabled = await registry.run('file.save');
   assert.equal(disabled.code, 'disabled', 'a sample project cannot Save');
@@ -172,7 +172,7 @@ await test('run: result codes, disabled with a reason, argument checks, throwing
   context.set({ 'project.busy': true });
   assert.equal(registry.describe('file.save').runnable, false);
   assert.match(registry.describe('file.save').reason, /unavailable/);
-  assert.equal(registry.describe('go.definition').visible, false);
+  assert.equal(registry.describe('go.symbol').visible, false);
 });
 
 await test('run: a worker service that reports not ready disables its commands with a reason', async () => {

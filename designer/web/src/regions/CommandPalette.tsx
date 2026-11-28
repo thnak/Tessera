@@ -22,6 +22,7 @@ import {
   type RankItem,
   type Ranked,
 } from "../workbench/index.js";
+import { referencePick } from "../lib/reference-pick";
 import type { Workbench } from "../page-commands";
 import type { PaletteRequest } from "../page-palette";
 
@@ -63,6 +64,7 @@ const PLACEHOLDERS: Record<PaletteRequest["intent"], string> = {
   line: "Type a line number",
   shortcuts: "Keyboard shortcuts: type to filter every command and its chord",
   samples: "Choose a sample of the opened folder (type to filter, > for commands)",
+  references: "References of the name at the caret (type to filter)",
 };
 
 export function CommandPalette({ workbench, request }: { workbench: Workbench; request: PaletteRequest }) {
@@ -157,6 +159,19 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
         chord: item.chord,
         positions,
         commit: () => chooseCommand(item.id),
+      }));
+    }
+    if (parsed.mode === "files" && request.intent === "references") {
+      const items = referencePick.rows().map((row, index) => ({ id: String(index), label: `${row.path}:${row.line}:${row.column}`, detail: row.preview }));
+      return rankItems(parsed.text, items).map(({ item, positions }: Ranked<RankItem>): Row => ({
+        id: `reference-${item.id}`,
+        label: item.label,
+        detail: item.detail,
+        positions,
+        commit: () => {
+          close(false);
+          referencePick.choose(Number(item.id));
+        },
       }));
     }
     if (parsed.mode === "files" && request.intent === "samples") {

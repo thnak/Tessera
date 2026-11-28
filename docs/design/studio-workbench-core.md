@@ -67,7 +67,7 @@ listed in `keymap.rejected`.
 `menus.json` is the menu tree of spec section 3.2 as data: items name a command and literal arguments, a
 `submenu` nests, a `dynamic` entry names a provider the page registers (`recent`, `components`, `profiles`,
 `skins`, `viewports`, `dprs`) and the command each entry runs. `menus.js` builds the visible tree from the
-registry: a reserved command hides its item (so `Go` is absent until its first command is live), separators
+registry: a reserved command hides its item (so a menu is absent until its first command is live), separators
 fall between groups only, and an item with a `checked` clause is a `check` (no arguments) or a `radio` (with
 arguments). A disabled item keeps its reason for the tooltip. A submenu with no entries is hidden unless it
 sets `showEmpty` (Open Recent stays visible and disabled).
@@ -143,7 +143,7 @@ VS Code chords, with the browser fallbacks of the spec (section 2.5). `Mod` is C
 | `Alt+F E V R D H` | open a menu | `Shift+F10`, Menu key | context menu |
 
 `Help > Keyboard Shortcuts` opens the palette in command mode, where every command shows its chord. The
-reserved commands (`go.*`, `edit.renameSymbol`, `view.problems`, `view.search`, the dock's
+reserved commands (`go.symbol`, `view.problems`, `view.search`, the dock's
 `view.*`) bind nothing until their owning issue flips them live. In the editor, CodeMirror handles
 `Ctrl+Z`, `Ctrl+F`, `Ctrl+S` and the rest first and the workbench skips a key the editor already consumed; the
 two CodeMirror search bindings that collided with VS Code (`Ctrl+G` and `Shift+Ctrl+G`) are removed so Go to Line

@@ -12,6 +12,7 @@ import { selectAll, toggleComment } from "@codemirror/commands";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { formatOnSave } from "../lib/format-prefs";
+import { analysisHub, type Position } from "./analysis-hub";
 import { formatView, isFormattable } from "./format-document";
 
 function viewOf(): EditorView | null {
@@ -37,6 +38,16 @@ function withView(action: (view: EditorView) => void): void {
   action(view);
 }
 
+/** The caret of the open editor as an analysis request position. */
+function caretPosition(): Position {
+  const view = viewOf();
+  if (view === null) {
+    throw new Error("no editor is open");
+  }
+  view.focus();
+  return { path: view.contentDOM.dataset.path ?? "", text: view.state.doc.toString(), offset: view.state.selection.main.head };
+}
+
 /** The commands, keyed by workbench command id. Each focuses the editor first: a menu click took focus. */
 export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
   // `edit.undo` / `edit.redo` are routed by focus (`page-edit-routing.ts`), so they are not editor-only.
@@ -60,6 +71,10 @@ export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
       throw new Error("Format Document formats .tsx, .css and tessera.json files");
     }
   },
+  "go.definition": () => analysisHub.definition(caretPosition()),
+  "go.references": () => analysisHub.references(caretPosition()),
+  "edit.renameSymbol": () => analysisHub.rename(caretPosition()),
+  "edit.undoRename": () => analysisHub.undoRename(),
   "edit.toggleComment": () => withView((view) => void toggleComment(view)),
   "edit.cut": () => withView(() => void document.execCommand("cut")),
   "edit.copy": () => withView(() => void document.execCommand("copy")),

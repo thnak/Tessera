@@ -46,6 +46,8 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { studioHighlight, studioTheme } from "./editor-theme";
+import { analysisHub } from "./analysis-hub";
+import { analysisExtensions } from "./analysis-extensions";
 import { quietCommit } from "./editor-commit";
 
 /** The part of an editor the diagnostics list needs: read the text, select a span. */
@@ -159,6 +161,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     marksField,
     studioTheme,
+    analysisExtensions(analysisHub, () => current),
     EditorView.contentAttributes.of({
       id: "source",
       "aria-label": options.label,
