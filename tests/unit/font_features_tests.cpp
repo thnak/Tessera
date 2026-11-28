@@ -7,6 +7,7 @@
 #include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/font_features.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
@@ -105,11 +106,12 @@ void test_parsers() {
     check(!parse_font_feature_settings("'tnum' -1", none), "negative value is invalid");
     check(parse_font_feature_settings("normal", none) && none.empty(), "settings normal");
 
-    const FontFeatures merged = parse_font_features("none", "tabular-nums", "'liga' 1, 'tnum' 0");
+    const FontFeatures merged = parse_font_features(FontVariantValues{
+        .ligatures = "none", .numeric = "tabular-nums", .settings = "'liga' 1, 'tnum' 0"});
     check(value_of(merged, "liga") == 1, "a raw setting overrides the ligature keyword");
     check(value_of(merged, "tnum") == 0, "a raw setting overrides the numeric keyword");
     check(merged.count == 6, "overrides replace in place, one entry per tag");
-    check(parse_font_features("", "", "") == FontFeatures{}, "no property, no features");
+    check(parse_font_features(FontVariantValues{}) == FontFeatures{}, "no property, no features");
 }
 
 void test_computed_style() {
@@ -121,6 +123,112 @@ void test_computed_style() {
     const FontFeatures resolved = resolve_font_features(style.features);
     check(value_of(resolved, "tnum") == 1 && value_of(resolved, "ss02") == 1,
           "text_style_from carries numeric variants and feature settings");
+}
+
+std::string joined(const tessera::ui::style::PropertyExpansionResult& r) {
+    std::string out;
+    for (const auto& d : r.declarations) {
+        out += d.property + "=" + d.value + ";";
+    }
+    return out;
+}
+
+void test_variant_longhands() {
+    FontFeatures f;
+    check(parse_font_variant_caps("small-caps", f) && value_of(f, "smcp") == 1, "small-caps");
+    FontFeatures all;
+    check(parse_font_variant_caps("ALL-small-caps", all) && value_of(all, "smcp") == 1 &&
+              value_of(all, "c2sc") == 1,
+          "all-small-caps selects smcp and c2sc");
+    FontFeatures petite;
+    check(parse_font_variant_caps("all-petite-caps", petite) && value_of(petite, "pcap") == 1 &&
+              value_of(petite, "c2pc") == 1,
+          "all-petite-caps");
+    FontFeatures bad;
+    check(!parse_font_variant_caps("small-caps petite-caps", bad) && bad.empty(),
+          "two caps keywords conflict");
+    check(!parse_font_variant_caps("bogus", bad), "unknown caps keyword");
+    check(!parse_font_variant_caps("tabular-nums", bad), "a keyword of another group is invalid");
+
+    FontFeatures ea;
+    check(parse_font_variant_east_asian("jis90 full-width ruby", ea) && value_of(ea, "jp90") == 1 &&
+              value_of(ea, "fwid") == 1 && value_of(ea, "ruby") == 1,
+          "east-asian variant, width and ruby combine");
+    check(!parse_font_variant_east_asian("jis78 jis83", bad), "two east-asian variants conflict");
+    check(!parse_font_variant_east_asian("full-width proportional-width", bad),
+          "two east-asian widths conflict");
+    FontFeatures pos;
+    check(parse_font_variant_position("super", pos) && value_of(pos, "sups") == 1, "super");
+    check(parse_font_variant_position("sub", pos) && value_of(pos, "subs") == 1, "sub");
+    check(!parse_font_variant_position("sub super", bad), "sub and super conflict");
+    FontFeatures lig;
+    check(!parse_font_variant_ligatures("none common-ligatures", lig), "none stands alone");
+    check(!parse_font_variant_ligatures("common-ligatures no-common-ligatures", lig),
+          "a repeated ligature class conflicts");
+}
+
+void test_variant_shorthand() {
+    const tessera::ui::style::PropertyRegistry registry;
+    const auto expand = [&](const char* value) {
+        return registry.expand(tessera::ui::style::Declaration{"font-variant", value, false, 0});
+    };
+    const auto small = expand("small-caps tabular-nums");
+    check(small.diagnostics.empty() && small.declarations.size() == 5,
+          "shorthand yields five longhands");
+    check(joined(small) == "font-variant-ligatures=normal;font-variant-numeric=tabular-nums;"
+                           "font-variant-caps=small-caps;font-variant-east-asian=normal;"
+                           "font-variant-position=normal;",
+          "omitted groups reset to normal: " + joined(small));
+    check(joined(expand("none")).find("font-variant-ligatures=none;") == 0,
+          "none is ligatures none");
+    check(joined(expand("normal")).find("none") == std::string::npos, "normal resets everything");
+    check(expand("small-caps petite-caps").declarations.empty() &&
+              !expand("small-caps petite-caps").diagnostics.empty(),
+          "a conflict drops the whole shorthand with a diagnostic");
+    check(expand("bogus").declarations.empty(), "an unknown component drops the shorthand");
+    check(expand("normal small-caps").declarations.empty(), "normal cannot combine");
+
+    const auto longhand = registry.expand(
+        tessera::ui::style::Declaration{"font-variant-caps", "small-caps petite-caps", false, 0});
+    check(longhand.declarations.empty() && !longhand.diagnostics.empty(),
+          "an invalid longhand is reported and dropped");
+    check(
+        registry.expand(tessera::ui::style::Declaration{"font-variant-position", "super", false, 0})
+                .declarations.size() == 1,
+        "a valid longhand is kept");
+}
+
+void test_variants_computed() {
+    ComputedStyle computed;
+    computed.set("font-variant-caps", "all-small-caps");
+    computed.set("font-variant-east-asian", "jis04");
+    computed.set("font-variant-position", "sub");
+    const FontFeatures f = resolve_font_features(text_style_from(computed).features);
+    check(value_of(f, "smcp") == 1 && value_of(f, "c2sc") == 1 && value_of(f, "jp04") == 1 &&
+              value_of(f, "subs") == 1,
+          "text_style_from carries caps, east-asian and position");
+
+    // Ligatures stay off while letter-spacing is non-zero, unless the author turns them on.
+    ComputedStyle spaced;
+    spaced.set("letter-spacing", "2px");
+    FontFeatures s = resolve_font_features(text_style_from(spaced).features);
+    check(value_of(s, "liga") == 0 && value_of(s, "clig") == 0,
+          "letter-spacing disables liga/clig");
+    check(value_of(s, "calt") == 0xFFFFFFFFU, "contextual alternates are left alone");
+    spaced.set("font-feature-settings", "'liga' 1");
+    s = resolve_font_features(text_style_from(spaced).features);
+    check(value_of(s, "liga") == 1 && value_of(s, "clig") == 0, "an explicit setting wins");
+    ComputedStyle normal_spacing;
+    normal_spacing.set("letter-spacing", "normal");
+    check(text_style_from(normal_spacing).features.value == 0, "zero spacing keeps defaults");
+}
+
+void test_intern_overflow_counter() {
+    const std::uint64_t before = font_features_intern_dropped();
+    FontFeatures unique;
+    unique.set(font_feature_tag('s', 's', '1', '9'), 123456U);
+    check(intern_font_features(unique).value == 0 && font_features_intern_dropped() == before + 1,
+          "a dropped intern is counted");
 }
 
 class CountingMeasurer final : public TextMeasurer {
@@ -201,6 +309,9 @@ void test_shaper(const char* path) {
 int main(int argc, char** argv) {
     test_parsers();
     test_computed_style();
+    test_variant_longhands();
+    test_variant_shorthand();
+    test_variants_computed();
     test_cache_keys();
     if (argc > 1) {
         test_shaper(argv[1]);
@@ -209,6 +320,7 @@ int main(int argc, char** argv) {
     }
     // Last: it fills the interning table on purpose.
     test_interning();
+    test_intern_overflow_counter();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

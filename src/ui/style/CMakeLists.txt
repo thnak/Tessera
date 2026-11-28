@@ -31,6 +31,8 @@ add_library(tessera_style STATIC
     list_style.cpp
     property_list_style.cpp
     property_text_decoration.cpp
+    font_variant.cpp
+    property_font_variant.cpp
     text_decoration.cpp
     color_names.cpp
     color_oklch.cpp

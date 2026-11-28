@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "property_font_variant.hpp"
 #include "property_list_style.hpp"
 #include "property_text_decoration.hpp"
 #include "substitution.hpp"
@@ -109,6 +110,10 @@ bool value_supported(std::string_view property, std::string_view value) {
     if (property == "text-decoration") {
         return !expand_text_decoration_shorthand(
                     Declaration{"text-decoration", normalized, false, 0})
+                    .declarations.empty();
+    }
+    if (property == "font-variant") {
+        return !expand_font_variant_shorthand(Declaration{"font-variant", normalized, false, 0})
                     .declarations.empty();
     }
     if (property == "list-style") {

@@ -2933,6 +2933,18 @@
     },
     {
       "kind": "keyword",
+      "name": "font-variant-caps"
+    },
+    {
+      "kind": "keyword",
+      "name": "font-variant-east-asian"
+    },
+    {
+      "kind": "keyword",
+      "name": "font-variant-position"
+    },
+    {
+      "kind": "keyword",
       "name": "text-align"
     },
     {
