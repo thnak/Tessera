@@ -348,9 +348,9 @@ public:
     }
 
     // True when the scene owes a frame: a fresh evaluation, or a dispatch that moved a style/paint
-    // dirty domain since the last `paint()`. False for a static scene, which is the
-    // render-on-demand contract the page's single-frame rule rests on.
+    // dirty domain since the last `paint()`. False for a static scene (render on demand).
     [[nodiscard]] bool needs_frame() const;
+    [[nodiscard]] PreviewSession* preview() noexcept;
     // Paints the current tree into `target` and consumes the dirty domains, so a second `paint()`
     // with no intervening event paints the same pixels and `needs_frame()` stays false. The caller
     // owns `device` and `target`.

@@ -5,6 +5,7 @@
 #include "scene_build.hpp"
 #include "scene_layout.hpp"
 #include "scene_override.hpp"
+#include "scene_pending.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
@@ -330,6 +331,12 @@ public:
     // about the node (its class name, for a `class` commit) without a mutable handle into the tree.
     [[nodiscard]] const ui::Node* find_by_automation_id(std::uint64_t automation_id) const;
 
+    // The pending UI of the preview (issue #657, pending-ui-v1.md section 10): drives one resource
+    // double and rebuilds the tree, so the page shows the fallback, the content or the pending
+    // state the boundary rule gives. `ok` is false for a component with no `useResource`.
+    [[nodiscard]] PendingControlResult control_resource(const PendingControl& control);
+    [[nodiscard]] PendingReport pending_report() const;
+
 private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
     // `unique_ptr` so the `void*` context handed to `Node::bind_event` keeps a stable address.
@@ -407,6 +414,8 @@ private:
     ui::style::StyleEnvironment style_environment_;
     std::uint64_t cascade_generation_ = 1;
     eval::Scope scope_;
+    // Null unless the component declares a `useResource`; owns the resource doubles.
+    std::unique_ptr<PendingPreview> pending_;
     // Component instances (issue #594): their state cells persist here across rebuilds, and
     // `frames_` is the last build's frame table, which handlers index by frame number. Frame 0 is
     // the root component and points at `scope_`.

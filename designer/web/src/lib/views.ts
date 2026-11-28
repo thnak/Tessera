@@ -16,6 +16,7 @@
 // is HTML/CSS, the preview is the engine's.
 
 import type { PlatformEventRequest, PlatformReply } from "./platform-events";
+import type { ResourceReport, ResourceRequest } from "./resource-controls";
 import type { ThemeHandover } from "./wasm-call";
 
 /** The pane's own status line, which React renders and a session updates. */
@@ -84,6 +85,11 @@ export interface ViewSession {
    * Canvas view has a running app to deliver it to; the others leave it undefined.
    */
   platformEvent?(request: PlatformEventRequest): PlatformReply;
+  /**
+   * Drives one fake resource of the running app (issue #657, `designer-protocol-v1.md` section 5.2).
+   * Only the Canvas view has a running app.
+   */
+  resourceControl?(request: ResourceRequest): ResourceReport;
 }
 
 /**

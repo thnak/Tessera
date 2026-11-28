@@ -51,6 +51,8 @@ import { useCommitBridge } from "./page-override-commit";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
+import { useResources } from "./page-resources";
+import { unavailableReport, type ResourceReport, type ResourceRequest } from "./lib/resource-controls";
 import { useProfiles } from "./page-profiles";
 import { liveEditKindOf } from "../live-edit-kind.js";
 import { AppStateOverlay, HardwareStrip } from "./regions/DeviceControls";
@@ -121,7 +123,11 @@ export function App() {
   const previewComponentRef = useRef(previewComponent);
   previewComponentRef.current = previewComponent;
   const currentComponent = useCallback(() => previewComponentRef.current, []);
+  // An apply starts a fresh evaluation whose fake resources open on a fetch in flight (issue #657), so the
+  // Resources section re-reads the engine after every apply. The hook is created further down.
+  const resourceRefresh = useRef<() => void>(() => undefined);
   const onComponents = useCallback((names: string[], chosen: string) => {
+    resourceRefresh.current();
     setComponentList((previous) =>
       previous.chosen === chosen &&
       previous.names.length === names.length &&
@@ -257,6 +263,12 @@ export function App() {
       }
     },
   });
+  const resources = useResources({
+    deliver: (request: ResourceRequest): ResourceReport =>
+      sessions.canvas?.resourceControl?.(request) ??
+      unavailableReport("the canvas preview is not available"),
+  });
+  resourceRefresh.current = resources.refresh;
   const platformReset = platform.reset;
   const deviceProfile =
     profiles.selected ??
@@ -479,6 +491,7 @@ export function App() {
             />
           }
           platform={platform}
+          resources={resources}
           profile={deviceProfile}
           mocks={mocks}
           files={workspace.state.files}

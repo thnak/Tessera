@@ -133,6 +133,16 @@
 
 .log-notice { margin: 4px 0; color: var(--ok); }
 
+/* The Resources section (issue #657): one row per fake resource of the open component. */
+.resource-panel { padding: 10px 12px; font-size: 12.5px; border-top: 1px solid var(--border, currentColor); }
+.resource-rows { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.resource-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.resource-id { font-family: var(--mono, monospace); font-weight: 600; }
+.resource-status { min-width: 12ch; }
+.resource-value { min-width: 12ch; flex: 1 1 12ch; }
+.resource-epoch { width: 9ch; }
+.resource-summary { margin: 4px 0; }
+
 .log {
   margin: 0;
   padding: 0;
