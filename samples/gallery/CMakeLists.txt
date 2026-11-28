@@ -24,7 +24,8 @@ set(_gallery_outputs
     ${_gallery_gen}/SwatchPage.g.hpp ${_gallery_gen}/SwatchPage.hpp ${_gallery_gen}/SwatchPage.cpp
     ${_gallery_gen}/Icon.g.hpp ${_gallery_gen}/Icon.hpp ${_gallery_gen}/Icon.cpp
     ${_gallery_gen}/IconGlyph.g.hpp ${_gallery_gen}/IconGlyph.hpp ${_gallery_gen}/IconGlyph.cpp
-    ${_gallery_gen}/IconsPage.g.hpp ${_gallery_gen}/IconsPage.hpp ${_gallery_gen}/IconsPage.cpp)
+    ${_gallery_gen}/IconsPage.g.hpp ${_gallery_gen}/IconsPage.hpp ${_gallery_gen}/IconsPage.cpp
+    ${_gallery_gen}/ListsPage.g.hpp ${_gallery_gen}/ListsPage.hpp ${_gallery_gen}/ListsPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -40,6 +41,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon} ${_gallery_gen}/src/Icon.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon_glyph} ${_gallery_gen}/src/icons/IconGlyph.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx ${_gallery_gen}/src/IconsPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ListsPage.tsx ${_gallery_gen}/src/ListsPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
@@ -47,11 +49,12 @@ add_custom_command(
             ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
             ${_gallery_gen}/src/SwatchPage.tsx ${_gallery_gen}/src/Icon.tsx
             ${_gallery_gen}/src/icons/IconGlyph.tsx ${_gallery_gen}/src/IconsPage.tsx
+            ${_gallery_gen}/src/ListsPage.tsx
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_icon} ${_gallery_icon_glyph}
-            ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx
+            ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/ListsPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
     COMMENT "Generating the gallery page"
     VERBATIM)
@@ -76,7 +79,9 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
     TESSERA_GALLERY_DASH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/dash.css"
-    TESSERA_GALLERY_SWATCH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/swatch.css"    TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+    TESSERA_GALLERY_SWATCH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/swatch.css"
+    TESSERA_GALLERY_LISTS_CSS="${CMAKE_CURRENT_SOURCE_DIR}/lists.css"
+    TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
 
 if (TESSERA_BUILD_TESTS)
@@ -144,6 +149,12 @@ if (TESSERA_BUILD_TESTS)
             "icons_${_theme}|--page icons --theme instrument-${_theme_id} --width 480 --height 280")
     endforeach ()
     list(APPEND _gallery_cases "icons_rtl|--page icons --rtl --width 480 --height 280")
+    # The list look page (issue #1006): the UA markers, nesting, start/reversed/value and the
+    # alphabetic and roman types, per theme.
+    foreach (_theme light dark)
+        list(APPEND _gallery_cases
+            "lists_${_theme}|--page lists --theme instrument-${_theme} --width 760 --height 540")
+    endforeach ()
     foreach (_device notch gesture keyboard fold)
         foreach (_theme light dark)
             list(APPEND _gallery_cases

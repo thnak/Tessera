@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The list look page (issue #1006). The bullets and the decimal numbers come from the user-agent
+   sheet; only the layout of the columns and the alphabetic and roman types are authored here. */
+.l-columns {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+}
+
+.l-list {
+  width: 200px;
+  font-size: 14px;
+}
+
+.l-sizes {
+  font-size: 16px;
+}
+
+.l-roman {
+  list-style-type: upper-roman;
+}
+
+.l-alpha {
+  list-style-type: lower-alpha;
+}

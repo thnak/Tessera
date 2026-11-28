@@ -57,10 +57,12 @@ bool is_literal_string(const Expr& expr, std::string_view& out) {
     return true;
 }
 
-// A span may not change glyph advances or line boxes (elements-basic.md section 2.1). `font-family`
-// is inert in V1 (one app face), so it is not a metric override.
+// A span may not change line boxes or advances beyond a smaller font size (elements-basic.md
+// section 2.1). `font-size` is allowed: a span below the paragraph's size is a size run
+// (docs/design/inline-size-runs.md), which is what `sub`, `sup` and `small` inject. `font-family`
+// is inert in V1 (one app face), so it is not a metric override either.
 bool is_metric_style(std::string_view name) {
-    return name == "font-size" || name == "letter-spacing" || name == "white-space";
+    return name == "letter-spacing" || name == "white-space";
 }
 
 bool is_span_prop(std::string_view name) {

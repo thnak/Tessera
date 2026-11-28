@@ -133,6 +133,15 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         if (!emit_node(writer, child, state, child_variable, error)) {
             return false;
         }
+        // The child's id is read before `add_child` moves the pointer away (reading it after is a
+        // null dereference).
+        if (!context.span_paint.empty() && child.kind == ir::NodeKind::Text &&
+            child_index < context.span_ranges.size()) {
+            const auto& [begin, end] = context.span_ranges[child_index];
+            writer.line(context.span_paint + ".spans.push_back(tessera::ui::PaintSpan{" +
+                        "static_cast<std::uint64_t>(" + child_variable + "->id()), " +
+                        std::to_string(begin) + "u, " + std::to_string(end) + "u});");
+        }
         if (kind == DynamicChildKind::Conditional) {
             if (state.item_out.empty()) {
                 writer.line("this->" + branch_member(child_ordinal, "owned_") + " = std::move(" +
@@ -147,13 +156,6 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
             writer.line("// " + child.id + " (a Suspense boundary attaches its live subtree)");
         } else {
             writer.line(variable + "->add_child(std::move(" + child_variable + "));");
-        }
-        if (!context.span_paint.empty() && child.kind == ir::NodeKind::Text &&
-            child_index < context.span_ranges.size()) {
-            const auto& [begin, end] = context.span_ranges[child_index];
-            writer.line(context.span_paint + ".spans.push_back(tessera::ui::PaintSpan{" +
-                        "static_cast<std::uint64_t>(" + child_variable + "->id()), " +
-                        std::to_string(begin) + "u, " + std::to_string(end) + "u});");
         }
     }
     emit_span_paint_data(context);

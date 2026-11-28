@@ -101,8 +101,12 @@ void test_span_text_rules() {
 
 void test_span_attributes() {
     ir::IrModule metric = make_module();
-    metric.components[0].root.children[0].style.emplace("font-size", ir::make_literal("12px"));
+    metric.components[0].root.children[0].style.emplace("letter-spacing", ir::make_literal("2px"));
     check(has_code(metric, "TESSERA_IR_SPAN"), "a span may not override a metric property");
+
+    ir::IrModule sized = make_module();
+    sized.components[0].root.children[0].style.emplace("font-size", ir::make_literal("0.83em"));
+    check(!has_code(sized, "TESSERA_IR_SPAN"), "a span may carry a font-size (size run)");
 
     ir::IrModule tab = make_module();
     tab.components[0].root.children[0].props.emplace("tabIndex", ir::make_literal(std::int64_t{0}));

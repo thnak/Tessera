@@ -98,6 +98,15 @@ void test_spanned_text_codegen() {
     check(first_span != std::string::npos && text.find(".spans.push_back(tessera::ui::PaintSpan{",
                                                        first_span + 1) != std::string::npos,
           "one entry per span");
+    // The id is read before add_child moves the child pointer away: a read after it dereferenced a
+    // null unique_ptr and crashed the first native build that used a span (issue #1006).
+    const std::size_t line_end =
+        first_span == std::string::npos ? first_span : text.find('\n', first_span);
+    const std::size_t next_line =
+        line_end == std::string::npos ? line_end : text.find_first_not_of(" \n", line_end);
+    check(next_line != std::string::npos &&
+              text.find("->add_child(std::move(", next_line) < text.find('\n', next_line),
+          "a span id is read before its node is moved into the parent");
     check(text.find("->set_role(\"link\");") != std::string::npos,
           "the span role is emitted on its own child node");
     check(text.find("->set_inline_style(\"font-weight\", \"700\");") != std::string::npos,

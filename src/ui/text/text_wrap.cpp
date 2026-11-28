@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -213,13 +214,43 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     // bytes, which is what makes a painted segment's advance equal what the wrap measured for it.
     // The separator count runs on the transformed run for the same reason (the mapping never
     // touches a space, but counting the measured bytes keeps the rule single-sourced).
-    const auto measure_run = [&](std::string_view run) {
+    const auto measure_piece = [&](std::string_view run, float scale) {
         if (style.text_transform == TextTransform::None) {
-            return measure(run) + word_spacing * static_cast<float>(word_separator_count(run));
+            return measure(run, scale) +
+                   word_spacing * static_cast<float>(word_separator_count(run));
         }
         const std::string transformed = apply_text_transform(run, style.text_transform);
-        return measure(transformed) +
+        return measure(transformed, scale) +
                word_spacing * static_cast<float>(word_separator_count(transformed));
+    };
+    // Inline-span size runs (docs/design/inline-size-runs.md): a run that lies inside `text` is
+    // measured piecewise at each span's scale, so the wrap sees the same advances paint draws. A
+    // run outside the buffer (the literal " " gap) has no position and takes the paragraph size.
+    const std::span<const TextSizeRun> size_runs = resolve_text_size_runs(style.size_runs);
+    const auto measure_run = [&](std::string_view run) {
+        const char* base = text.data();
+        const bool inside = !size_runs.empty() && run.data() >= base &&
+                            run.data() + run.size() <= base + text.size();
+        if (!inside) {
+            return measure_piece(run, 1.0f);
+        }
+        std::size_t position = static_cast<std::size_t>(run.data() - base);
+        const std::size_t stop = position + run.size();
+        float total = 0.0f;
+        while (position < stop) {
+            std::size_t piece_end = stop;
+            const float scale = text_size_run_scale(size_runs, position);
+            for (const TextSizeRun& size_run : size_runs) {
+                if (scale != 1.0f && position >= size_run.begin && position < size_run.end) {
+                    piece_end = std::min<std::size_t>(piece_end, size_run.end);
+                } else if (size_run.begin > position) {
+                    piece_end = std::min<std::size_t>(piece_end, size_run.begin);
+                }
+            }
+            total += measure_piece(text.substr(position, piece_end - position), scale);
+            position = piece_end;
+        }
+        return total;
     };
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
@@ -347,14 +378,25 @@ TextLayout layout_text_with_breaks(std::string_view text, const TextStyle& style
         return {};
     }
     if (measure != nullptr) {
-        return wrap_with(text, style, metrics, constraints, backend, [&](std::string_view run) {
-            return std::max(0.0f, measure(run, style, user));
-        });
+        return wrap_with(text, style, metrics, constraints, backend,
+                         [&](std::string_view run, float scale) {
+                             if (scale == 1.0f) {
+                                 return std::max(0.0f, measure(run, style, user));
+                             }
+                             TextStyle scaled = style;
+                             scaled.font_size *= scale;
+                             scaled.size_runs = {};
+                             return std::max(0.0f, measure(run, scaled, user));
+                         });
     }
-    const float advance = std::max(0.1f, style.font_size * 0.5f + style.letter_spacing);
-    return wrap_with(text, style, metrics, constraints, backend, [advance](std::string_view run) {
-        return static_cast<float>(codepoint_count(run)) * advance;
-    });
+    const float letter_spacing = style.letter_spacing;
+    const float font_size = style.font_size;
+    return wrap_with(text, style, metrics, constraints, backend,
+                     [font_size, letter_spacing](std::string_view run, float scale) {
+                         const float advance =
+                             std::max(0.1f, font_size * scale * 0.5f + letter_spacing);
+                         return static_cast<float>(codepoint_count(run)) * advance;
+                     });
 }
 
 } // namespace tessera::ui::text
