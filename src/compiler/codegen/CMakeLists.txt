@@ -223,6 +223,8 @@ set(_tessera_scene_preview_sources
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The state cells as values (`state()`, `capture()`), split out of `scene_session.cpp` for size.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_state.cpp
     # The scene-event bindings (issue #168, P4): which IR handler a node's event runs. Split out of
     # `scene_session.cpp`, which is at its size budget.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_events.cpp
@@ -505,6 +507,8 @@ else ()
     add_executable(tessera_canvas_wasm
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
+        # The keyboard and text exports (issues #388, #601), split out of the entry for the size limit.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_text_entry.cpp
         # The override layer's exports (issue #536): they change the running tree's style, so they
         # are not queries, but they never own the session either.
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
@@ -1150,7 +1154,8 @@ if (TESSERA_BUILD_TESTS)
         tessera_react_rules
         tessera_scene
         tessera_services_types
-        tessera_style)
+        tessera_style
+        tessera_text_edit)
     add_test(NAME scene_pending COMMAND scene_pending_tests)
 
     # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and

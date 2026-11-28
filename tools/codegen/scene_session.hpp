@@ -201,28 +201,22 @@ public:
     // moved (no layout pass ran) or the session built no tree.
     bool set_viewport(float width, float height, float dpi_scale);
 
-    // One pass for both layout inputs, so a call that changes the size AND the posture costs one
-    // layout pass, not two. The two setters above are the narrow spellings of this.
+    // One pass for both layout inputs; the two setters above are its narrow spellings.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture);
 
-    // The same pass with the skin's safe area (issue #171's skins slice): the size, the DPI scale,
-    // the posture, the insets and the cutout rectangles all move together, in ONE layout pass. A
-    // skin whose size matches the previous one but whose insets differ is still a different device,
-    // so the insets are part of the "did anything move?" test rather than a separate call.
+    // The same pass with the skin's safe area (issue #171): size, DPI, posture, insets and cutouts
+    // move together in ONE layout pass; insets are part of the "did anything move?" test.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture,
                      const tessera::hal::WindowInsets& insets,
                      const tessera::hal::CutoutInfo& cutouts);
 
-    // Brings the live tree in line with the override layer after the layer changed (designer-
-    // protocol-v1 sections 9.2-9.4): every override the tree carries is taken off, the layer's
-    // current entries are put on, and the tree is laid out again, in ONE call - a restyle, never a
-    // re-evaluation, so the state cells, hover and focus survive. A frame is owed afterwards.
-    // False when the session built no tree.
+    // Brings the live tree in line with the override layer (designer-protocol-v1 sections 9.2-9.4):
+    // overrides are taken off, the layer's entries put on, and the tree laid out again - a restyle,
+    // never a re-evaluation. A frame is owed afterwards. False when the session built no tree.
     bool resync_overrides();
 
-    // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
-    // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade
-    // was rebuilt" from "the boxes were laid out again" (issue #436).
+    // How many times the cascade has been resolved: 1 at construction, +1 per breakpoint crossing
+    // in `set_viewport` (issue #436).
     [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
         return cascade_generation_;
     }
@@ -233,16 +227,12 @@ public:
         return sheet_;
     }
 
-    // The ADR-041 settle loop of this session (issue #693): the same shared component `AppHost`
-    // runs, so the preview cannot drift from the runtime. It is driven from `rebuild()` and
-    // `relayout()`, which publish the layout and then run the loop, so a `@container` rule that
-    // crossed a condition has re-styled before the caller paints. The canvas has no
-    // `UpdateScheduler`, which the loop accepts as "no app callbacks to flush".
+    // The ADR-041 settle loop (issue #693), shared with `AppHost` and driven from `rebuild()` and
+    // `relayout()`, so a crossed `@container` condition has re-styled before the caller paints.
     [[nodiscard]] const ui::layout::LayoutSettle& settle() const noexcept {
         return settle_;
     }
-    // The settle counters, for a report or a test: rounds, engine rounds, deferred observations and
-    // round-limit hits.
+    // The settle counters (rounds, engine rounds, deferred observations, round-limit hits).
     [[nodiscard]] const ui::layout::SettleTotals& settle_totals() const noexcept {
         return settle_.totals();
     }
@@ -251,8 +241,7 @@ public:
     [[nodiscard]] ui::responsive::EnvironmentSet& environment_values() noexcept {
         return environment_;
     }
-    // The size class in force, computed from the same media context the `@media` rules resolve
-    // against.
+    // The size class in force, from the media context the `@media` rules resolve against.
     [[nodiscard]] ui::responsive::SizeClass size_class() const noexcept {
         return ui::responsive::size_class_for(media_);
     }
