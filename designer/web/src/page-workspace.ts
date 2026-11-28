@@ -26,6 +26,7 @@ import {
 } from "./lib/project";
 import { bootProject } from "./page-boot";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
+import { planFolderDelete, planFolderMove } from "../project-folder-ops.js";
 
 /** The shape of the left column and the middle column, as React state. */
 export interface WorkspaceState {
@@ -90,6 +91,10 @@ export interface Workspace {
   renameFile: (from: string, to: string) => string | null;
   /** Removes a file from the project; the copy on disk goes at the next Save. */
   deleteFile: (path: string) => void;
+  /** Moves every file under directory `from` to `to`; returns why it was refused, or `null`. */
+  renameDir: (from: string, to: string) => string | null;
+  /** Removes every file under a directory (the folder keeps them until Save); returns why not, or `null`. */
+  deleteDir: (path: string) => string | null;
   /** The project text of each file deleted since the last save, for a draft's "edited from" record. */
   removedTexts: () => ReadonlyMap<string, string>;
 }
@@ -377,6 +382,63 @@ export function useWorkspace(): Workspace {
     [deleteFile],
   );
 
+  const renameDir = useCallback((from: string, to: string): string | null => {
+    const current = stateRef.current;
+    const plan = planFolderMove(current.files, from, to);
+    if (!plan.ok) {
+      return plan.reason;
+    }
+    const byOld = new Map(plan.moves.map((move) => [move.from, move.to]));
+    const moved = plan.moves.map((move) => {
+      const source = fileAt(current.files, move.from) as ProjectFile;
+      const text = buffers.current.get(move.from) ?? source.text;
+      return { move, text, file: { ...projectFile(move.to, text), text } };
+    });
+    for (const { move, text } of moved) {
+      const original = fileAt(current.files, move.from) as ProjectFile;
+      if (!current.added.includes(move.from) && !removedTexts.current.has(move.from)) {
+        removedTexts.current.set(move.from, original.text);
+      }
+      buffers.current.delete(move.from);
+      buffers.current.set(move.to, text);
+    }
+    const renamed = (path: string): string => byOld.get(path) ?? path;
+    setState((previous) => {
+      const gone = (path: string): boolean => byOld.has(path);
+      const wasAdded = (path: string): boolean => previous.added.includes(path);
+      const open = previous.open.map(renamed);
+      return {
+        ...previous,
+        files: [...previous.files.filter((file) => !gone(file.path)), ...moved.map((entry) => entry.file)].sort(byPath),
+        open,
+        active: renamed(previous.active),
+        selected: byOld.has(previous.selected) ? renamed(previous.selected) : previous.selected === from ? to : previous.selected,
+        collapsed: previous.collapsed.map((dir) => (dir === from || dir.startsWith(`${from}/`) ? to + dir.slice(from.length) : dir)),
+        dirty: [...previous.dirty.filter((path) => !gone(path)), ...moved.map((entry) => entry.move.to)],
+        added: [...previous.added.filter((path) => !gone(path)), ...moved.map((entry) => entry.move.to)],
+        removed: [
+          ...previous.removed.filter((path) => !moved.some((entry) => entry.move.to === path)),
+          ...moved.map((entry) => entry.move.from).filter((path) => !wasAdded(path) && !previous.removed.includes(path)),
+        ],
+      };
+    });
+    return null;
+  }, []);
+
+  const deleteDir = useCallback(
+    (path: string): string | null => {
+      const plan = planFolderDelete(stateRef.current.files, path);
+      if (!plan.ok) {
+        return plan.reason;
+      }
+      for (const file of plan.paths) {
+        deleteFile(file);
+      }
+      return null;
+    },
+    [deleteFile],
+  );
+
   return {
     state,
     rows,
@@ -395,6 +457,8 @@ export function useWorkspace(): Workspace {
     createFile,
     renameFile,
     deleteFile,
+    renameDir,
+    deleteDir,
     removedTexts: () => removedTexts.current,
   };
 }

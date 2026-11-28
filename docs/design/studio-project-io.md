@@ -201,9 +201,12 @@ which needs a user gesture and is checked by hand.
 
 ## 6. Still not implemented
 
-Creating, renaming or deleting a **directory** as such (a directory appears with its first file and goes with
-its last in the page, and an emptied folder stays on disk), rewriting imports on rename, and the picker's OS
-dialog under automation. The probe's section 6 and 7 cover the file operations and the remembered folder.
+Creating an **empty** directory (a directory appears with its first file and goes with its last in the page,
+and an emptied folder stays on disk), rewriting imports on rename, and the picker's OS dialog under
+automation. Renaming/moving and deleting a directory are done as plans over the files under the prefix
+(`designer/web/project-folder-ops.js`, gate `preview_project_folder_ops.mjs`): Rename and Delete act on a
+selected folder row, every file moves or goes together (a new path plus a pending delete each, written at Save),
+a folder holding a locked file is refused naming it, and the target is confined like any path. The probe's section 6 and 7 cover the file operations and the remembered folder.
 
 ## 7. The project package (version 1)
 

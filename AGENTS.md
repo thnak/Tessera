@@ -1023,8 +1023,8 @@ command palette / quick open / context menus, notifications, and the flexlayout 
       handle per directory in IndexedDB), drafts in browser storage, and view-only locked text files
       with a "generated header may be out of date" advisory (PR #586); evidence
       `scripts/ci/preview_project_load.mjs`, `scripts/ci/preview_browser_project_io.mjs`. The issue
-      stays open for what is genuinely left: directory operations (create/rename/move) and one manual
-      OS-picker check in Chrome/Edge.
+      stays open for what is genuinely left: creating an empty directory and one manual OS-picker
+      check in Chrome/Edge (folder rename/move/delete landed: `scripts/ci/preview_project_folder_ops.mjs`).
 - [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
       scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
       Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so
