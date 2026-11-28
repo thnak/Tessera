@@ -271,6 +271,22 @@ void test_rotation_and_fold_placement() {
     settle(f, capsule, portrait);
     expect(std::abs(centre_x() - 200.0f) < 0.01f && capsule.rect().y < 1.0f,
            "rotating back lands on the notch again");
+
+    // The scene borrows inline-style text: after many rewrites the declarations must still read
+    // the values the capsule last wrote (not freed or half-written memory).
+    const Node* node = f.host->overlays().content(capsule.handle());
+    std::string left;
+    std::string width;
+    for (const auto& declaration : node->inline_style()) {
+        if (declaration.name == "left") {
+            left = std::string(declaration.value);
+        } else if (declaration.name == "width") {
+            width = std::string(declaration.value);
+        }
+    }
+    expect(left == std::to_string(std::lround(capsule.rect().x)) + "px" &&
+               width == std::to_string(std::lround(capsule.rect().width)) + "px",
+           "the box inline style owns its text");
 }
 
 void test_high_priority_preempts() {

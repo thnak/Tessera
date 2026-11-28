@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <string_view>
 
@@ -41,10 +42,6 @@ void add_text(Node& parent, std::string_view text) {
     node.set_paint_data(std::move(data));
 }
 
-void set_px(Node& node, std::string_view property, float value) {
-    node.set_inline_style(property, std::to_string(std::lround(value)) + "px");
-}
-
 bool same_rect(const hal::WindowRect& a, const hal::WindowRect& b) noexcept {
     return std::fabs(a.x - b.x) < 0.01f && std::fabs(a.y - b.y) < 0.01f &&
            std::fabs(a.width - b.width) < 0.01f && std::fabs(a.height - b.height) < 0.01f;
@@ -59,6 +56,14 @@ LiveCapsule::LiveCapsule(LiveCapsuleHost& host, OverlayHost& overlays)
 LiveCapsule::~LiveCapsule() {
     // `abandon` leaves no handle, so this closes nothing and never touches the host.
     close();
+}
+
+void LiveCapsule::set_px(Node& node, std::size_t slot, std::string_view property, float value) {
+    PxText& storage = px_[slot];
+    std::array<char, 24>& buffer = storage.text[storage.next];
+    storage.next ^= 1U;
+    std::snprintf(buffer.data(), buffer.size(), "%ldpx", std::lround(value));
+    node.set_inline_style(property, std::string_view(buffer.data()));
 }
 
 void LiveCapsule::close() {
@@ -226,11 +231,11 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
     const hal::WindowRect rect = place_capsule(place).rect;
     if (box_dirty_ || moving || !same_rect(rect, rect_)) {
         rect_ = rect;
-        set_px(*content, "left", rect.x);
-        set_px(*content, "top", rect.y);
-        set_px(*content, "width", rect.width);
-        set_px(*content, "height", rect.height);
-        set_px(*content, "border-radius", now.corner_radius);
+        set_px(*content, 0, "left", rect.x);
+        set_px(*content, 1, "top", rect.y);
+        set_px(*content, 2, "width", rect.width);
+        set_px(*content, 3, "height", rect.height);
+        set_px(*content, 4, "border-radius", now.corner_radius);
         box_dirty_ = false;
     }
     return moving || morph_.active();

@@ -17,6 +17,7 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/theme_asset.hpp"
 
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -182,6 +183,7 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
     }
     const std::vector<std::uint8_t> blob = tessera::ui::style::serialize_theme_asset(*asset);
 
+    std::deque<std::string> owned;
     Node root(1);
     root.set_element_kind("View");
     root.set_inline_style("background-color", "var(--window-background)");
@@ -189,12 +191,15 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
         // The hardware cutout itself, so the image shows the capsule hugging it.
         Node& hole = root.add_child(std::make_unique<Node>(tessera::ui::NodeId{2}));
         hole.set_element_kind("View");
+        // The scene borrows inline-style text, so the strings live as long as the scene does.
+        owned.push_back(std::to_string(static_cast<int>(cutout.rect.x)) + "px");
+        owned.push_back(std::to_string(static_cast<int>(cutout.rect.width)) + "px");
+        owned.push_back(std::to_string(static_cast<int>(cutout.rect.height)) + "px");
         hole.set_inline_style("position", "absolute");
-        hole.set_inline_style("left", std::to_string(static_cast<int>(cutout.rect.x)) + "px");
+        hole.set_inline_style("left", owned[0]);
         hole.set_inline_style("top", "0px");
-        hole.set_inline_style("width", std::to_string(static_cast<int>(cutout.rect.width)) + "px");
-        hole.set_inline_style("height",
-                              std::to_string(static_cast<int>(cutout.rect.height)) + "px");
+        hole.set_inline_style("width", owned[1]);
+        hole.set_inline_style("height", owned[2]);
         hole.set_inline_style("background-color", "#000000");
         hole.set_inline_style("border-radius", "0px 0px 12px 12px");
     }
