@@ -89,8 +89,15 @@ V1 text style properties:
 - `text-align`, `text-transform`, `white-space`, `text-overflow`
 - `color`, `opacity`
 - `direction`, `writing-mode` (parsed; vertical layout is not in V1, see section 12)
-- `font-feature-settings`, `font-variant-numeric`, `font-variant-ligatures` (#966): `font_features.cpp` interns
-  them into `TextStyle::features` (raw tags win; invalid is ignored whole); the shaper passes `hb_feature_t`
+- OpenType features (#966, #998): `font-feature-settings` and the `font-variant-ligatures/-numeric/-caps/
+  -east-asian/-position` longhands. One keyword table (`style/font_variant.cpp`) owns the grammar and the
+  tags (e.g. `all-small-caps` = `smcp` + `c2sc`); the registry rejects an invalid or conflicting value whole
+  (diagnostic), and the `font-variant` shorthand expands to the five longhands (omitted groups reset to
+  `normal`, `none` = ligatures none). `font_features.cpp` merges them in CSS order into an interned
+  `TextStyle::features` (raw `font-feature-settings` win) and the shaper passes `hb_feature_t`. A non-zero
+  `letter-spacing` starts `liga/clig/dlig/hlig` off (CSS Text 3 section 7.3); an explicit setting turns them
+  back on. Features apply to the whole run (no per-range); `font_features_intern_dropped()` counts lists
+  past the 256-entry intern table.
 
 Units resolve through the style engine: `em`/`rem`/`%`/viewport units become pixels before
 shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
@@ -445,13 +452,8 @@ summary.
 - Variable fonts and axis animation.
 - Justification/hyphenation.
 - Vertical writing modes.
-- Whether to subset ICU data for binary size ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking).
-  **Resolved (task-94): subset it, and ship per-locale packs.** Measured on the pinned ICU
-  76.1 package: 30.37 MiB full, 13.63 MiB with every non-locale item kept (the Unicode
-  floor), 8.59 MiB for 21 locales once converters/transliteration/spellout/collation are
-  dropped (6.54 MiB English-only, ~103 KiB per extra locale). The option stays opt-in
-  (`TESSERA_ICU_REDUCED_DATA=OFF`) because ICU has no call sites yet. Failure modes,
-  locale set, CI cost, and the GO conditions: section 13.
+- ICU data size ([ADR-012](../../decisions/ADR-012-static-linking.md)). **Resolved (task-94): subset it,
+  per-locale packs** (30.37 MiB full, 8.59 MiB for 21 locales); opt-in via `TESSERA_ICU_REDUCED_DATA`; section 13.
 - Atlas format: R8 vs RGBA8, SDF vs raster for scaling.
 
 Paint-time text runs (D9): `ui::PaintData` (`include/tessera/ui/scene/paint_data.hpp`) lets a scene
@@ -491,10 +493,7 @@ caching, shaping caches, incremental layout, and sharing the cache with the layo
 deferred. See `paint-pass.md` section 10.1.1.
 
 Paint metric sources (task-53): `PaintContext::text_metrics_source` selects how wrapped paint text
-is measured; `paint-pass.md` section 10.1.2 is the normative contract. The source id is part of
-`TextLayoutCache`, so stub and real entries never mix, and real-font lines no longer overflow the
-content box. Faster real measuring is deferred, as are bidi/ICU breaking, hyphenation, subpixel
-positioning, emoji/fallback and a shaping cache.
+is measured (`paint-pass.md` section 10.1.2); the source id is part of `TextLayoutCache`'s key.
 
 Bidi layout (task-71): SheenBidi v3.0.0 (Apache-2.0, pinned archive `86c560…`) resolves the
 paragraph direction (UBA P2/P3 first-strong) and per-line visual runs after the unchanged greedy

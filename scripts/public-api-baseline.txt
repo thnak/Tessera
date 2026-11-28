@@ -3330,6 +3330,16 @@ function include/tessera/ui/style/font_pack.hpp tessera::ui::style::font_pack_er
 function include/tessera/ui/style/font_pack.hpp tessera::ui::style::parse_font_pack
 function include/tessera/ui/style/font_pack.hpp tessera::ui::style::read_theme_font_pins
 
+header include/tessera/ui/style/font_variant.hpp
+struct include/tessera/ui/style/font_variant.hpp tessera::ui::style::FontVariantKeyword
+struct include/tessera/ui/style/font_variant.hpp tessera::ui::style::FontVariantParsed
+struct include/tessera/ui/style/font_variant.hpp tessera::ui::style::FontVariantSetting
+enum include/tessera/ui/style/font_variant.hpp tessera::ui::style::FontVariantGroup
+function include/tessera/ui/style/font_variant.hpp tessera::ui::style::find_font_variant_keyword
+function include/tessera/ui/style/font_variant.hpp tessera::ui::style::font_variant_property
+function include/tessera/ui/style/font_variant.hpp tessera::ui::style::parse_font_variant_value
+constant include/tessera/ui/style/font_variant.hpp tessera::ui::style::kMaxFontVariantWords
+
 header include/tessera/ui/style/gradient.hpp
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::ConicGradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientStopValue
@@ -3697,12 +3707,17 @@ header include/tessera/ui/text/font_features.hpp
 struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeature
 struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeatures
 struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontFeaturesId
+struct include/tessera/ui/text/font_features.hpp tessera::ui::text::FontVariantValues
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::font_feature_tag
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::font_features_intern_dropped
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::intern_font_features
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_feature_settings
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_features
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_caps
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_east_asian
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_ligatures
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_numeric
+function include/tessera/ui/text/font_features.hpp tessera::ui::text::parse_font_variant_position
 function include/tessera/ui/text/font_features.hpp tessera::ui::text::resolve_font_features
 constant include/tessera/ui/text/font_features.hpp tessera::ui::text::kMaxInternedFontFeatures
 

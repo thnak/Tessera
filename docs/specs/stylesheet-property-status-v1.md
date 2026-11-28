@@ -152,6 +152,9 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `font-feature-settings` | applied | `text_measure.cpp` `text_style_from` -> `font_features.cpp` -> `TextStyle::features` -> `harfbuzz_shaper.cpp` hb_feature_t; `font_features` |
 | `font-variant-ligatures` | applied | same path (`none`, `[no-]common-ligatures`, `[no-]discretionary-ligatures`, `[no-]historical-ligatures`, `[no-]contextual`); `font_features` |
 | `font-variant-numeric` | applied | same path (`lining-nums`, `oldstyle-nums`, `proportional-nums`, `tabular-nums`, fractions, `ordinal`, `slashed-zero`); `font_features` |
+| `font-variant-caps` | applied | same path; keyword grammar and tags in `font_variant.cpp`, invalid or conflicting values rejected whole; the `font-variant` shorthand expands to the five longhands in `property_font_variant.cpp`; `font_features` |
+| `font-variant-east-asian` | applied | same path as `font-variant-caps`; `font_features` |
+| `font-variant-position` | applied | same path as `font-variant-caps`; `font_features` |
 | `text-align` | applied | `paint_text.cpp` line start offset; `paint_text_decoration` |
 | `text-transform` | applied | `text_measure.cpp` `parse_text_transform`; `text_transform` |
 | `white-space` | applied | `text_measure.cpp` `parse_white_space`; `text_measure` |
