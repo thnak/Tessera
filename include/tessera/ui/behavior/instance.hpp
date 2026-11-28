@@ -58,6 +58,15 @@ public:
     bool attach(std::string_view behavior, const Targets& targets, const Services& services,
                 const ArgsView& args);
 
+    // The same for a behavior that takes no target (`useHotkeys`, whose scope is the window, and
+    // the registered `transition`/`deferred_value` engines a host drives by hand). `attach` refuses
+    // an empty target set on purpose: a behavior that declares targets and got none (a conditional
+    // ref that did not resolve) must stay detached. Only a behavior whose manifest entry has no
+    // targets calls this one, so the two cases cannot be confused. Returns false when the registry
+    // has no such behavior.
+    bool attach_untargeted(std::string_view behavior, const Services& services,
+                           const ArgsView& args);
+
     // Forwards to the engine behavior only when the hash of `args` differs from the last attach or
     // update. Allocates nothing. A no-op when not attached.
     void update(const ArgsView& args);
