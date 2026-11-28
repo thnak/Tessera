@@ -1246,6 +1246,7 @@ add_executable(data_store_tests
     data_store_tests.cpp)
 
 target_link_libraries(data_store_tests PRIVATE tessera_runtime)
+tessera_allow_allocator_override(data_store_tests)
 
 add_test(NAME data_store COMMAND data_store_tests)
 

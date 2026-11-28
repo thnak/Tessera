@@ -116,6 +116,7 @@ add_test(NAME layer_mask_null COMMAND layer_mask_null_tests)
 add_executable(offscreen_pool_tests
     batched2d/offscreen_pool_tests.cpp)
 target_link_libraries(offscreen_pool_tests PRIVATE tessera_gpu tessera_rhi_null)
+tessera_allow_allocator_override(offscreen_pool_tests)
 add_test(NAME offscreen_pool COMMAND offscreen_pool_tests)
 add_executable(layer_pool_null_tests
     batched2d/layer_pool_null_tests.cpp)
