@@ -89,6 +89,22 @@ export function themeOf(
   return { path, text, themeId: ids.includes(start) || ids.length === 0 ? start : ids[0] };
 }
 
+/**
+ * The text of `ui/services.json` as its buffer holds it, or `null` when the project has none or it is
+ * empty. Without it a component with `useResource` has no service to bind and the preview shows no
+ * resource (#976); a malformed one is the engine's diagnostic to give, so it is handed over as typed.
+ */
+export function servicesManifestOf(
+  files: readonly ProjectFile[],
+  textOf: (path: string) => string,
+): string | null {
+  if (files.find((file) => file.path === "ui/services.json") === undefined) {
+    return null;
+  }
+  const text = textOf("ui/services.json");
+  return text.trim() === "" ? null : text;
+}
+
 /** The snapshot of `files` as the buffers hold them, for the sessions to stage into a module. */
 export function projectSnapshot(
   files: readonly ProjectFile[],
@@ -97,8 +113,10 @@ export function projectSnapshot(
 ): ProjectSnapshot {
   const entry = entryOf(files, textOf);
   const theme = themeOf(files, textOf);
+  const servicesManifest = servicesManifestOf(files, textOf);
   return {
     ...(theme === null ? {} : { theme }),
+    ...(servicesManifest === null ? {} : { servicesManifest }),
     entry: entry.path,
     sources: files
       .filter((file) => file.kind === "source")

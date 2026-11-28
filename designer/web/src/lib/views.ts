@@ -110,6 +110,8 @@ export interface ProjectSnapshot {
   stylesheets: { path: string; text: string }[];
   /** The theme asset (`tessera.json` `assets.theme`) for `token` commits; absent when the project has none. */
   theme?: ThemeHandover;
+  /** The buffer text of `ui/services.json` (services-manifest-v1), absent when the project has none. */
+  servicesManifest?: string;
   /** The file the editor shows, so a diagnostic in another file does not select an offset here. */
   active: string;
 }

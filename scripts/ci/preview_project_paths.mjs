@@ -231,6 +231,8 @@ test('classifyPath accepts the spec’s set and locks everything else', () => {
   assert.equal(classifyPath('styles/theme.css', context), FILE_KIND.stylesheet);
   assert.equal(classifyPath('assets/theme.json', context), FILE_KIND.theme);
   assert.equal(classifyPath('ui/theme.json', context), FILE_KIND.theme);
+  assert.equal(classifyPath('ui/services.json', context), FILE_KIND.services);
+  assert.equal(isTextKind(FILE_KIND.services), true);
   assert.equal(classifyPath('assets/fonts/Inter.ttf', context), FILE_KIND.asset);
   assert.equal(classifyPath('assets/images/logo.png', context), FILE_KIND.asset);
   assert.equal(classifyPath('assets/images/nested/dot.webp', context), FILE_KIND.asset);

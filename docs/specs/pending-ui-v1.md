@@ -438,8 +438,11 @@ for the fallback, the held content and `isPending`; an empty epoch is the curren
 drop. `status` is a read the page sends after every apply, since an apply opens every resource on a fetch in
 flight. Node has no GPU device, so `tessera_input_json` takes the same controls as
 `resource <action> [name [value] [@epoch]]` script steps and `preview_resource_controls.mjs` drives the whole
-cycle through the Wasm scene module. Not included: a mock-worker script hook (ADR-055 defines responses for
-service calls, not resource completions, so it needs an owner decision).
+cycle through the Wasm scene module. The page hands the project's `ui/services.json`
+(a `services` file kind, text and editable) to the engine with the rest of the snapshot, which is what gives a
+`useResource` component a service to bind in the browser (#976); the browser half is
+`preview_browser_resources.mjs` (developer-run, Playwright). Not included: a mock-worker script hook (ADR-055
+defines responses for service calls, not resource completions, so it needs an owner decision, tracked in #976).
 
 ## 11. Verification layers
 
