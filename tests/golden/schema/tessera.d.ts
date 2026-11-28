@@ -151,6 +151,9 @@ export interface CommonProps {
   'aria-describedby'?: string;
   'aria-controls'?: string;
   'aria-level'?: string;
+  'aria-start'?: string;
+  'aria-reversed'?: boolean;
+  'aria-value'?: string;
   'aria-hidden'?: boolean;
   'aria-disabled'?: boolean;
   'aria-selected'?: boolean;
@@ -399,9 +402,12 @@ export interface ulProps extends ViewProps {
 }
 
 export interface olProps extends ViewProps {
+  start?: string;
+  reversed?: string;
 }
 
 export interface liProps extends ViewProps {
+  value?: string;
 }
 
 export interface spanProps extends TextProps {

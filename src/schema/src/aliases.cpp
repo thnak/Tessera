@@ -171,6 +171,17 @@ constexpr AliasAttr kImgAttrs[] = {
     {"onError", AliasAttrKind::Reject, "", "no V1 meaning; use ErrorBoundary", {}, ""},
 };
 
+// `ol start`/`reversed` and `li value` number the markers of the list (docs/design/list-style.md
+// section 2). They are carried as `aria-*` pairs on the node, which the marker painter reads.
+constexpr AliasAttr kOrderedListAttrs[] = {
+    {"start", AliasAttrKind::Rename, "aria-start", "", {}, "a static integer"},
+    {"reversed", AliasAttrKind::Rename, "aria-reversed", "", {}, "a bare flag or a static boolean"},
+};
+
+constexpr AliasAttr kListItemAttrs[] = {
+    {"value", AliasAttrKind::Rename, "aria-value", "", {}, "a static integer"},
+};
+
 constexpr AliasAttr kAnchorAttrs[] = {
     {"href", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
     {"target", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
@@ -246,17 +257,25 @@ constexpr AliasRow kAliases[] = {
      {},
      false,
      "",
-     "no list markers and no numbering"},
+     "the user-agent sheet gives the list its marker type"},
     {"ol",
      "View",
      AliasStatus::Mapped,
      rows(kInjectRoleList),
-     {},
+     rows(kOrderedListAttrs),
      {},
      false,
      "",
-     "no list markers and no numbering"},
-    {"li", "View", AliasStatus::Mapped, rows(kInjectRoleListItem), {}, {}, false, "", ""},
+     "`start` and `reversed` number the items; `::marker` and counters are not modelled"},
+    {"li",
+     "View",
+     AliasStatus::Mapped,
+     rows(kInjectRoleListItem),
+     rows(kListItemAttrs),
+     {},
+     false,
+     "",
+     "`value` resets the counter"},
     {"span", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     plain("b", "Text", AliasStatus::Mapped, "inline span; injects font-weight: 700"),
     plain("strong", "Text", AliasStatus::Mapped, "inline span; injects font-weight: 700"),

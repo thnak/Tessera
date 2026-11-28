@@ -73,7 +73,8 @@ std::uint64_t layer_retention_key(const PaintCacheSignature& s, float own_opacit
     h.add(s.in_layer);
     h.add(s.glass_max_blur_radius);
     h.add(s.glass_max_backdrop_area);
-    h.add(static_cast<std::uint64_t>(s.list_ordinal));
+    h.add(static_cast<std::uint64_t>(static_cast<std::uint32_t>(s.list_ordinal)));
+    h.add(s.list_item);
     h.add(own_opacity);
     h.add(masked);
     h.add(static_cast<std::uint64_t>(filter.count));

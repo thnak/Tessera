@@ -97,7 +97,9 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.in_layer = in_layer;
     signature.glass_max_blur_radius = pass.glass_max_blur_radius;
     signature.glass_max_backdrop_area = pass.glass_max_backdrop_area;
-    signature.list_ordinal = list_item_ordinal(node);
+    const ListNumber number = list_item_number(node);
+    signature.list_ordinal = number.value;
+    signature.list_item = number.item;
     return signature;
 }
 
