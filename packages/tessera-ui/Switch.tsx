@@ -6,11 +6,11 @@
 // a thumb, parts `tsw-track`, `tsw-thumb` and `tsw-label`, theme tokens only.
 //
 // Accessibility: a focusable `switch` named by `label` that reports `aria-checked` ("true" or
-// "false") and `aria-disabled`. A pointer click, Space and Enter toggle it; the runtime synthesizes
-// keyboard clicks only for `button`, so the key handler is explicit. A disabled Switch never calls
-// `onToggle`.
+// "false") and `aria-disabled`. A pointer click, Space and Enter toggle it: the runtime
+// synthesizes the keyboard click for a focusable `switch` (issue #1035). A disabled Switch never
+// calls `onToggle`.
 
-import { Children, KeyEvent } from "tessera";
+import { Children } from "tessera";
 
 export type SwitchProps = {
   label: string;
@@ -35,7 +35,6 @@ export function Switch({
       aria-checked={checked ? "true" : "false"}
       aria-disabled={disabled}
       className={`tsw ${checked ? "tsw-on" : "tsw-off"} ${disabled ? "tsw-disabled" : "tsw-enabled"}`}
-      onKeyDown={(e: KeyEvent) => (e.key === " " || e.key === "Enter") && !disabled && onToggle()}
       onClick={() => !disabled && onToggle()}
     >
       <View className="tsw-track"><View className="tsw-thumb"></View></View>

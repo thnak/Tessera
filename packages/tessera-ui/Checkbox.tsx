@@ -7,9 +7,10 @@
 // mark) and `tchk-label`, from `checkbox.css`.
 //
 // Accessibility: a focusable `checkbox` named by `label` with `aria-checked` "true", "false" or
-// "mixed", and `aria-disabled`. A pointer click and Space toggle it (Enter does not, as on the web).
+// "mixed", and `aria-disabled`. A pointer click and Space toggle it (Enter does not, as on the web); the keyboard click is
+// synthesized by the runtime for a focusable `checkbox` (issue #1035).
 
-import { Children, KeyEvent } from "tessera";
+import { Children } from "tessera";
 import { Icon } from "./Icon";
 
 export type CheckboxProps = {
@@ -37,7 +38,6 @@ export function Checkbox({
       aria-checked={indeterminate ? "mixed" : checked ? "true" : "false"}
       aria-disabled={disabled}
       className={`tchk ${indeterminate ? "tchk-mixed" : checked ? "tchk-on" : "tchk-off"} ${disabled ? "tchk-disabled" : "tchk-enabled"}`}
-      onKeyDown={(e: KeyEvent) => e.key === " " && !disabled && onToggle()}
       onClick={() => !disabled && onToggle()}
     >
       <View className="tchk-box">

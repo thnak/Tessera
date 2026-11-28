@@ -5,6 +5,7 @@
 #include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
+#include <string_view>
 
 namespace tessera::ui {
 namespace {
@@ -103,7 +104,15 @@ Node* ClickSynthesizer::common_ancestor(Node* a, Node* b) {
 }
 
 bool ClickSynthesizer::keyboard_activatable(const Node& node) {
-    return node.element_kind() == "Button" || node.role() == "button";
+    const std::string_view role = node.role();
+    return node.element_kind() == "Button" || role == "button" || role == "switch" ||
+           role == "checkbox" || role == "radio";
+}
+
+// A checkbox and a radio take Space only, as on the web; a button and a switch also take Enter.
+bool ClickSynthesizer::enter_activates(const Node& node) {
+    const std::string_view role = node.role();
+    return node.element_kind() == "Button" || role == "button" || role == "switch";
 }
 
 bool ClickSynthesizer::key(InputEventType type, KeyCode key_code, bool repeat, Modifier modifiers,
@@ -119,7 +128,7 @@ bool ClickSynthesizer::key(InputEventType type, KeyCode key_code, bool repeat, M
             return false;
         }
         if (key_code == key::kEnter) {
-            return !repeat;
+            return !repeat && enter_activates(*focused);
         }
         if (key_code == key::kSpace) {
             space_armed_id_ = focused->id();
