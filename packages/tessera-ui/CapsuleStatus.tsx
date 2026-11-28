@@ -12,7 +12,14 @@
 // accessible name of the activity. `tone` is `accent`, `success`, `warning` or `danger`; the colors
 // come from theme tokens in live-capsule.css, so a tone is never the only signal (the label says it).
 
-export type CapsuleStatusProps = { label?: string; tone?: string; dot?: boolean };
+export type CapsuleStatusProps = {
+  // Text next to the dot; empty draws the dot alone.
+  label?: string;
+  // accent, success, warning or danger.
+  tone?: string;
+  // false drops the dot and keeps the label.
+  dot?: boolean;
+};
 
 export function CapsuleStatus({ label = "", tone = "accent", dot = true }: CapsuleStatusProps) {
   return (
