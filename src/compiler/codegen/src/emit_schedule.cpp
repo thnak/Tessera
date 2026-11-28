@@ -221,7 +221,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
         }
         writer.open("void " + component.name + "::" + setter_name(state) + "(" + *type + " value)");
         if (state.initial && reads_prop(*state.initial)) {
-            // A value set before build() is the caller's choice and must not be re-seeded from props.
+            // A value set before build() is the caller's choice; build() must not re-seed it.
             writer.line(state_seeded_name(state.id) + " = true;");
         }
         // Equality-gated (ADR-041, decision 6): an unchanged value schedules nothing, so a repeated
