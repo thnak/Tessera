@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "fmt_run.hpp"
+#include "tessera/compiler/format/edits.hpp"
 #include "tessera/compiler/format/format.hpp"
 
 #include <algorithm>
@@ -24,6 +25,8 @@ constexpr std::string_view kUsage =
     "  the current directory is used.\n"
     "\n"
     "  --check   change nothing; list the files that would change and exit 1 if there are any\n"
+    "  --edits-json FILE   print the minimal edit list for one file as JSON (UTF-16 offsets,\n"
+    "            the form the studio format worker answers with); changes nothing\n"
     "\n"
     "  Exit status: 0 done or already canonical, 1 --check found differences, 2 a file was\n"
     "  refused (syntax error, unplaceable comment) or could not be read.\n";
@@ -72,7 +75,17 @@ int run_fmt(const std::vector<std::string>& args, std::ostream& out, std::ostrea
     namespace format = tessera::compiler::format;
     bool check = false;
     std::vector<std::string> paths;
-    for (const std::string& arg : args) {
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        const std::string& arg = args[i];
+        if (arg == "--edits-json") {
+            std::string text;
+            if (i + 1 >= args.size() || !read_file(fs::path(args[i + 1]), text)) {
+                err << "--edits-json needs a readable file\n";
+                return 2;
+            }
+            out << format::format_edits_json(format::FileKind::Tsx, text) << "\n";
+            return 0;
+        }
         if (arg == "--check") {
             check = true;
         } else if (arg == "--help" || arg == "-h") {

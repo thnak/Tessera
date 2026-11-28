@@ -71,6 +71,15 @@ void run_cli_tests() {
           "the refusal is reported with the file and the code");
     check(run({(dir / "missing.tsx").string()}, out, err) == 2, "a missing path exits 2");
     check(run({"--bogus"}, out, err) == 2, "an unknown option exits 2");
+
+    write_file(dir / "edit.tsx", "const a = 'x';\n");
+    check(run({"--edits-json", (dir / "edit.tsx").string()}, out, err) == 0,
+          "--edits-json succeeds");
+    check(out.find("\"edits\":[{\"offset\":10,\"length\":1,\"newText\":\"\\\"\"}") !=
+                  std::string::npos &&
+              out.find("\"diagnostics\":[]") != std::string::npos,
+          "--edits-json prints the edit list: " + out);
+    check(run({"--edits-json"}, out, err) == 2, "--edits-json without a file exits 2");
     fs::remove_all(dir, ec);
 }
 
