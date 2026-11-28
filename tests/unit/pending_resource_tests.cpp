@@ -9,6 +9,7 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/data_store.hpp"
 #include "tessera/ui/pending/fake_resource.hpp"
+#include "tessera/ui/pending/resource_provider.hpp"
 #include "tessera/ui/pending/resource_view.hpp"
 #include "tessera/ui/pending/store_resource.hpp"
 #include "tessera/ui/pending/suspense.hpp"
@@ -16,6 +17,7 @@
 
 #include <iostream>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -122,9 +124,90 @@ void test_store_resource_view() {
     check(!movable_view.read().has_data, "a new key has no data until it is written");
 }
 
+// Typed `.data` and `.error` through the store (pending-ui-v1.md sections 3.1 and 6.1).
+void test_typed_store_resource() {
+    runtime::ManualClock clock;
+    runtime::CompletionQueue queue(16);
+    runtime::DataStore store(queue, clock, 8);
+    const runtime::DataKey text_key{"row", "app", {}, {}, "id=i1;"};
+    const runtime::DataKey count_key{"count", "app", {}, {}, "=i1;"};
+    const pending::StoreResource text = pending::StoreResource::typed<std::string>(store, text_key);
+    const pending::StoreResource count = pending::StoreResource::typed<int>(store, count_key);
+    const pending::StoreResource flag = pending::StoreResource::typed<bool>(store, count_key);
+
+    check(text.state().text.empty() && count.state().number == 0.0,
+          "an unwritten typed resource reads as the zero value");
+    runtime::FetchHandle fetch = store.begin_fetch(text_key);
+    check(fetch.resolve(std::make_shared<const std::string>("hello")), "the string lands");
+    check(text.state().text == "hello" && text.state().has_data,
+          "a string value is published as text");
+    store.set(count_key, std::make_shared<const int>(42));
+    check(count.state().number == 42.0, "an int value is published as a number");
+    check(flag.state().number == 0.0 && flag.state().has_data,
+          "a value of another type reads as absent, never as a wrong scalar");
+
+    runtime::FetchHandle again = store.begin_fetch(text_key);
+    check(text.state().text == "hello" && text.state().refreshing(),
+          "a refresh keeps the published text");
+    check(again.fail(runtime::DataError{"E_NET", "offline"}), "the failure lands");
+    check(text.state().error == "offline" && text.state().failed && text.state().text == "hello",
+          ".error is the store's failure message and the data stays");
+    runtime::FetchHandle healed = store.begin_fetch(text_key);
+    check(healed.resolve(std::make_shared<const std::string>("again")), "the retry lands");
+    check(text.state().error.empty() && text.state().text == "again",
+          "a successful fetch clears the error");
+}
+
+void test_state_signature() {
+    pending::FakeResource resource;
+    const pending::ResourceView view = pending::ResourceView::of(resource);
+    const std::uint64_t idle = view.read().signature();
+    check(view.read().signature() == idle, "an unchanged state has a stable signature");
+    const std::uint64_t epoch = resource.begin_fetch();
+    const std::uint64_t loading = view.read().signature();
+    check(loading != idle, "a fetch changes the signature");
+    check(resource.resolve_number(epoch, 1.5), "the number lands");
+    const std::uint64_t done = view.read().signature();
+    check(done != loading, "a completion changes the signature");
+    const std::uint64_t next = resource.begin_fetch();
+    check(resource.fail(next, "boom"), "the failure lands");
+    check(view.read().error == "boom" && view.read().signature() != done,
+          "a failure with text changes the signature");
+}
+
+void test_resource_key() {
+    pending::ResourceKey record;
+    record.field("id", 1).field("name", "ab").field("on", true).field("w", 2.5);
+    check(record.view() == "id=i1;name=s2:ab;on=b1;w=d2.5;", "a record key is canonical");
+    pending::ResourceKey scalar;
+    scalar.value(std::string_view("x"));
+    check(scalar.view() == "=s1:x;", "a bare scalar is the empty-named field");
+
+    pending::ResourceKey same;
+    same.field("id", 1).field("name", "ab").field("on", true).field("w", 2.5);
+    check(record.same_as(same), "equal keys compare equal");
+    pending::ResourceKey other;
+    other.field("id", 2).field("name", "ab").field("on", true).field("w", 2.5);
+    check(!record.same_as(other), "a changed field compares unequal");
+    // A string cannot forge a field boundary: lengths are part of the encoding.
+    pending::ResourceKey forged_a;
+    forged_a.field("a", "x;b=i1");
+    pending::ResourceKey forged_b;
+    forged_b.field("a", "x").field("b", 1);
+    check(!forged_a.same_as(forged_b), "string content cannot masquerade as another field");
+
+    pending::ResourceKey long_key;
+    long_key.field("text", std::string(pending::ResourceKey::kCapacity, 'x'));
+    check(long_key.overflow() && !long_key.same_as(long_key),
+          "an oversized key overflows and never matches (the resource stays unbound)");
+}
+
 } // namespace
 
 int main() {
+    test_typed_store_resource();
+    test_state_signature();
+    test_resource_key();
     test_unbound_view_is_idle();
     test_fake_resource_view();
     test_store_resource_view();

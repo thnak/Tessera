@@ -30,6 +30,7 @@ public:
         ++epoch_;
         loading_ = true;
         failed_ = false;
+        error_ = {};
         return epoch_;
     }
 
@@ -46,6 +47,7 @@ public:
         has_data_ = true;
         loading_ = false;
         failed_ = false;
+        error_ = {};
         return true;
     }
 
@@ -67,13 +69,15 @@ public:
     }
 
     // A failed completion for `epoch`. The previous data is kept (async-data-v1 section 6), so a
-    // failed refresh does not blank the screen.
-    constexpr bool fail(std::uint64_t epoch) noexcept {
+    // failed refresh does not blank the screen. `message` is the `.error` text; like the scalar
+    // text it is a view the caller keeps alive until the next fetch.
+    constexpr bool fail(std::uint64_t epoch, std::string_view message = {}) noexcept {
         if (!loading_ || epoch != epoch_) {
             return false;
         }
         loading_ = false;
         failed_ = true;
+        error_ = message;
         return true;
     }
 
@@ -95,7 +99,7 @@ public:
 
     // The state a `ResourceView` reads.
     [[nodiscard]] constexpr ResourceState state() const noexcept {
-        return ResourceState{epoch_, loading_, has_data_, failed_, number_, text_};
+        return ResourceState{epoch_, loading_, has_data_, failed_, number_, text_, error_};
     }
 
     // A suspending read: a fetch is in flight and there is nothing to show yet.
@@ -112,6 +116,7 @@ private:
     int value_ = 0;
     double number_ = 0.0;
     std::string_view text_{};
+    std::string_view error_{};
     bool loading_ = false;
     bool has_data_ = false;
     bool failed_ = false;

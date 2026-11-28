@@ -1802,6 +1802,7 @@ struct include/tessera/runtime/data_store.hpp tessera::runtime::DataError
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKey
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataKeyHash
 struct include/tessera/runtime/data_store.hpp tessera::runtime::DataSnapshot
+struct include/tessera/runtime/data_store.hpp tessera::runtime::PublishedPayload
 struct include/tessera/runtime/data_store.hpp tessera::runtime::PublishedState
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::DataStoreCore
 struct include/tessera/runtime/data_store.hpp tessera::runtime::detail::FetchState
@@ -2827,9 +2828,15 @@ class include/tessera/ui/pending/deferred.hpp tessera::ui::pending::DeferredScal
 header include/tessera/ui/pending/fake_resource.hpp
 class include/tessera/ui/pending/fake_resource.hpp tessera::ui::pending::FakeResource
 
+header include/tessera/ui/pending/resource_provider.hpp
+class include/tessera/ui/pending/resource_provider.hpp tessera::ui::pending::ResourceKey
+concept include/tessera/ui/pending/resource_provider.hpp tessera::ui::pending::ResourceProvider
+function include/tessera/ui/pending/resource_provider.hpp tessera::ui::pending::provided_view
+
 header include/tessera/ui/pending/resource_view.hpp
 class include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceView
 struct include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::ResourceState
+function include/tessera/ui/pending/resource_view.hpp tessera::ui::pending::mix_signature
 
 header include/tessera/ui/pending/store_resource.hpp
 class include/tessera/ui/pending/store_resource.hpp tessera::ui::pending::StoreResource
