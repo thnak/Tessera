@@ -13,7 +13,7 @@
 // conflict (keep mine, take disk, cancel) and nothing is written until the person picks. There is no
 // autosave (the owner's decision of 2026-11-16, #391).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import {
   ProjectIoError,
   deleteFiles,
@@ -39,6 +39,7 @@ import { PackageError, writePackage } from "../project-package.js";
 import { ZipError } from "../studio-zip.js";
 import { projectFile, type ProjectFile } from "./lib/project";
 import { missingSentence, sampleEntries, sampleProject } from "./lib/sample-folder";
+import type { ProjectHistoryHooks } from "./page-history";
 import type { Workspace } from "./page-workspace";
 
 type Source = "sample" | "folder" | "zip";
@@ -131,7 +132,7 @@ export interface ProjectIo {
   deleteFile: () => void;
 }
 
-export function useProjectIo(workspace: Workspace): ProjectIo {
+export function useProjectIo(workspace: Workspace, history?: MutableRefObject<ProjectHistoryHooks | null>): ProjectIo {
   const [state, setState] = useState<ProjectIoState>({
     source: "sample",
     name: "",
@@ -393,6 +394,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         baseline.current.delete(path);
       }
       workspaceRef.current.markSaved(new Map(files.map((file) => [file.path, file.text])), deletes);
+      history?.current?.saved(files);
       const current = workspaceRef.current;
       const stale = staleGenerated(
         current.state.files.map((file) => ({
@@ -649,8 +651,19 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     if (answer === null || answer === undefined || answer.trim() === "" || answer.trim() === from) {
       return;
     }
+    const to = answer.trim();
+    // The texts are read before the move: the version history keeps what the file held under its old path.
+    const before = workspaceRef.current;
+    const texts = new Map(
+      before.state.files
+        .filter((candidate) => candidate.editable && (dir === null ? candidate.path === from : candidate.path.startsWith(`${dir}/`)))
+        .map((candidate) => [candidate.path, before.textOf(candidate.path)] as const),
+    );
     const refusal =
-      dir === null ? workspaceRef.current.renameFile(from, answer.trim()) : workspaceRef.current.renameDir(from, answer.trim());
+      dir === null ? workspaceRef.current.renameFile(from, to) : workspaceRef.current.renameDir(from, to);
+    if (refusal === null) {
+      history?.current?.renaming(from, to, dir !== null, texts);
+    }
     say({ note: refusal ?? `renamed to ${answer.trim()}; imports in other files were not rewritten` });
   }, [say, selectedFile, folderSelected]);
 

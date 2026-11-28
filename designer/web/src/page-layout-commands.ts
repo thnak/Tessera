@@ -160,6 +160,8 @@ export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandA
       reveal(dock(), "search");
       focusSearch();
     },
+    // Version History (#583): show the side bar group's History tab.
+    "view.history": () => reveal(dock(), "history"),
     "view.toggleStatusBar": () => {
       const d = dock();
       return d.commands.setStatusBar(!d.layout.shell.statusBar);

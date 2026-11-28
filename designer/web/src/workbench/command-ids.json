@@ -72,5 +72,7 @@
   "notify.show",
   "notify.toggleCenter",
   "notify.clearAll",
-  "notify.toggleDoNotDisturb"
+  "notify.toggleDoNotDisturb",
+  "view.history",
+  "history.restorePrevious"
 ]

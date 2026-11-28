@@ -243,7 +243,7 @@ View
   Go to Line...                 *view.gotoLine          Ctrl+G  (also ':' in quick open)
   ------
   Explorer / Search / Source Control   *view.explorer Ctrl+Shift+E, *view.search Ctrl+Shift+F,
-                                R:view.sourceControl Ctrl+Shift+G   (side bar views; Search is the side bar group's second tab)
+                                R:view.sourceControl Ctrl+Shift+G   (side bar views; Search and History (*view.history, #583) are the group's second and third tabs)
   Problems                      *view.problems          Ctrl+Shift+M (shows and focuses the panel; again from inside it, hides it)
   Toggle Side Bar               *view.toggleSideBar     Ctrl+B
   Toggle Panel                  *view.togglePanelArea   Ctrl+J

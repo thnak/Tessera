@@ -19,6 +19,7 @@ import type { PlatformControls } from "./page-platform";
 import type { ResourceControls } from "./page-resources";
 import type { ProblemsHandle } from "./page-problems";
 import type { SearchHandle } from "./page-search";
+import type { HistoryHandle } from "./page-history";
 import type { PageRefs } from "./page-state";
 import type { Workspace } from "./page-workspace";
 import type { Skin } from "./views/skins";
@@ -32,6 +33,7 @@ import { ProblemsPanel } from "./regions/ProblemsPanel";
 import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
 import { SearchPanel } from "./regions/SearchPanel";
+import { HistoryPanel } from "./regions/HistoryPanel";
 
 export interface WorkbenchSurfaceProps {
   workbench: Workbench;
@@ -42,6 +44,8 @@ export interface WorkbenchSurfaceProps {
   problems: ProblemsHandle;
   /** The project search and replace state (#580). */
   search: SearchHandle;
+  /** The version history of the active file (#583). */
+  history: HistoryHandle;
   activeText: string;
   revision: number;
   runEnabled: boolean;
@@ -87,6 +91,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
       />
     ),
     search: <SearchPanel search={props.search} visible={props.workbench.visible.has("search")} />,
+    history: <HistoryPanel history={props.history} visible={props.workbench.visible.has("history")} />,
     editor: (
       <CodeRegion
         open={workspace.state.open}
