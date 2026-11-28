@@ -79,7 +79,7 @@ bool is_bullet_marker(ListStyleType type) {
            type == ListStyleType::Square;
 }
 
-std::string list_marker_text(ListStyleType type, std::uint32_t ordinal) {
+std::string list_marker_text(ListStyleType type, std::int32_t ordinal) {
     std::string counter;
     switch (type) {
     case ListStyleType::None:
@@ -91,16 +91,20 @@ std::string list_marker_text(ListStyleType type, std::uint32_t ordinal) {
         counter = std::to_string(ordinal);
         break;
     case ListStyleType::LowerAlpha:
-        counter = ordinal == 0 ? std::to_string(ordinal) : alphabetic(ordinal, 'a');
+        counter = ordinal < 1 ? std::to_string(ordinal)
+                              : alphabetic(static_cast<std::uint32_t>(ordinal), 'a');
         break;
     case ListStyleType::UpperAlpha:
-        counter = ordinal == 0 ? std::to_string(ordinal) : alphabetic(ordinal, 'A');
+        counter = ordinal < 1 ? std::to_string(ordinal)
+                              : alphabetic(static_cast<std::uint32_t>(ordinal), 'A');
         break;
     case ListStyleType::LowerRoman:
-        counter = ordinal == 0 || ordinal > 3999 ? std::to_string(ordinal) : roman(ordinal, false);
+        counter = ordinal < 1 || ordinal > 3999 ? std::to_string(ordinal)
+                                                : roman(static_cast<std::uint32_t>(ordinal), false);
         break;
     case ListStyleType::UpperRoman:
-        counter = ordinal == 0 || ordinal > 3999 ? std::to_string(ordinal) : roman(ordinal, true);
+        counter = ordinal < 1 || ordinal > 3999 ? std::to_string(ordinal)
+                                                : roman(static_cast<std::uint32_t>(ordinal), true);
         break;
     }
     return counter + ". ";

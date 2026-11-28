@@ -6,6 +6,7 @@
 
 #include "node_lowering_internal.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -337,8 +338,79 @@ bool lower_spread(NodeState& state, const ElementInfo& element, const jsx::JsxAt
     return true;
 }
 
+// A static integer: `3` or `-3`.
+std::optional<std::int64_t> static_integer(const jsx::Expr& value) {
+    const jsx::Expr* number = &value;
+    bool negative = false;
+    if (value.kind == jsx::ExprKind::Unary && value.text == "-" && value.operands.size() == 1 &&
+        value.operands[0]) {
+        number = value.operands[0].get();
+        negative = true;
+    }
+    if (number->kind != jsx::ExprKind::Number || number->number != std::floor(number->number) ||
+        std::fabs(number->number) > 2147483647.0) {
+        return std::nullopt;
+    }
+    const auto integer = static_cast<std::int64_t>(number->number);
+    return negative ? -integer : integer;
+}
+
+// `ol start`, `ol reversed` and `li value` (html-aliases.md section 3.7): the alias row renames
+// them to `aria-*` pairs the marker painter reads. Only a rename to an `aria-*` name is applied
+// here (the other renames are still spec text); the value must be static, as the pair is emitted
+// once. Returns nullopt when the attribute is not such a rewrite, true or false when it was
+// handled.
+std::optional<bool> lower_alias_aria_rename(NodeState& state, const ElementInfo& element,
+                                            const jsx::JsxAttribute& attribute, ir::Node& node) {
+    if (element.alias_tag.empty()) {
+        return std::nullopt;
+    }
+    const schema::AliasRow* alias = schema::find_alias(element.alias_tag);
+    if (alias == nullptr) {
+        return std::nullopt;
+    }
+    for (const schema::AliasAttr& rewrite : alias->attrs) {
+        if (rewrite.name != attribute.name || rewrite.kind != schema::AliasAttrKind::Rename ||
+            rewrite.rename.rfind("aria-", 0) != 0) {
+            continue;
+        }
+        std::optional<std::string> text;
+        const bool boolean_target = rewrite.rename == "aria-reversed";
+        if (attribute.kind == jsx::JsxAttrKind::Flag) {
+            text = "true";
+        } else if (attribute.kind == jsx::JsxAttrKind::String) {
+            text = attribute.string_value;
+        } else if (attribute.kind == jsx::JsxAttrKind::Expression && attribute.expr) {
+            if (boolean_target && attribute.expr->kind == jsx::ExprKind::Boolean) {
+                text = attribute.expr->boolean ? "true" : "false";
+            } else if (const auto integer = static_integer(*attribute.expr); integer) {
+                text = std::to_string(*integer);
+            }
+        }
+        if (!text || (boolean_target && *text != "true" && *text != "false")) {
+            fail_node(
+                state, "TESSERA_IR_UNSUPPORTED",
+                "`" + std::string(attribute.name) + "` on `<" + std::string(element.alias_tag) +
+                    ">` takes " +
+                    (boolean_target ? "a bare flag or a literal boolean" : "a literal integer"),
+                attribute.span);
+            return false;
+        }
+        put_prop(node, rewrite.rename, ir::make_literal(std::move(*text)));
+        return true;
+    }
+    return std::nullopt;
+}
+
 bool lower_attribute(NodeState& state, const ElementInfo& element,
                      const jsx::JsxAttribute& attribute, ir::Node& node) {
+    if (attribute.kind != jsx::JsxAttrKind::Spread) {
+        if (const std::optional<bool> handled =
+                lower_alias_aria_rename(state, element, attribute, node);
+            handled) {
+            return *handled;
+        }
+    }
     switch (attribute.kind) {
     case jsx::JsxAttrKind::Spread:
         return lower_spread(state, element, attribute, node);

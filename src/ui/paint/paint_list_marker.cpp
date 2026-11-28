@@ -9,8 +9,14 @@
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
+#include <cstdint>
+#include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <system_error>
 
 namespace tessera::ui::paint::detail {
 namespace {
@@ -23,34 +29,76 @@ constexpr float kShapeEm = 0.3125f;
 constexpr float kShapeGapEm = 0.55f;
 constexpr float kShapeRiseEm = 0.35f;
 
+const std::string_view* aria_value(const Node& node, std::string_view name) {
+    for (const Node::AriaAttribute& aria : node.aria_attributes()) {
+        if (aria.name == name) {
+            return &aria.value;
+        }
+    }
+    return nullptr;
+}
+
+std::optional<std::int64_t> aria_integer(const Node& node, std::string_view name) {
+    const std::string_view* text = aria_value(node, name);
+    if (text == nullptr) {
+        return std::nullopt;
+    }
+    std::int32_t value = 0;
+    const char* end = text->data() + text->size();
+    const auto [stop, error] = std::from_chars(text->data(), end, value);
+    if (error != std::errc{} || stop != end) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+// HTML boolean attribute: present and not "false".
+bool aria_flag(const Node& node, std::string_view name) {
+    const std::string_view* text = aria_value(node, name);
+    return text != nullptr && *text != "false";
+}
+
 } // namespace
 
-std::uint32_t list_item_ordinal(const Node& node) {
+ListNumber list_item_number(const Node& node) {
+    ListNumber result;
     if (node.role() != kListItemRole) {
-        return 0;
+        return result;
     }
-    std::uint32_t ordinal = 1;
+    result.item = true;
     const Node* parent = node.parent();
     if (parent == nullptr) {
-        return ordinal;
+        result.value = 1;
+        return result;
     }
+    std::int64_t count = 0;
     for (const auto& sibling : parent->children()) {
+        count += sibling->role() == kListItemRole ? 1 : 0;
+    }
+    const bool reversed = aria_flag(*parent, "aria-reversed");
+    std::int64_t counter = aria_integer(*parent, "aria-start").value_or(reversed ? count : 1);
+    for (const auto& sibling : parent->children()) {
+        if (sibling->role() != kListItemRole) {
+            continue;
+        }
+        counter = aria_integer(*sibling, "aria-value").value_or(counter);
         if (sibling.get() == &node) {
             break;
         }
-        if (sibling->role() == kListItemRole) {
-            ++ordinal;
-        }
+        counter += reversed ? -1 : 1;
     }
-    return ordinal;
+    result.value = static_cast<std::int32_t>(
+        std::clamp<std::int64_t>(counter, std::numeric_limits<std::int32_t>::min(),
+                                 std::numeric_limits<std::int32_t>::max()));
+    return result;
 }
 
 void paint_list_marker(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
                        float opacity, const PaintContext& context, PaintSink& sink,
                        PaintStats& stats) {
-    const std::uint32_t ordinal = list_item_ordinal(node);
+    const ListNumber number = list_item_number(node);
     const std::string* type_value = style.find("list-style-type");
-    if (ordinal == 0 || type_value == nullptr || opacity <= 0.0f) {
+    if (!number.item || type_value == nullptr || opacity <= 0.0f) {
         return;
     }
     const std::optional<style::ListStyleType> type = style::parse_list_style_type(*type_value);
@@ -110,7 +158,7 @@ void paint_list_marker(const Node& node, const style::ComputedStyle& style, cons
         return;
     }
 
-    const std::string marker = style::list_marker_text(*type, ordinal);
+    const std::string marker = style::list_marker_text(*type, number.value);
     const float advance = metrics_source->advance(marker, text_style);
     TextDraw draw;
     draw.rect = {std::round(rect.x - advance), std::round(line_top), advance, line.height};

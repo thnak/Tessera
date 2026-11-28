@@ -71,6 +71,8 @@ void test_grammar() {
            "roman above 3999 falls back to decimal");
     expect(style::list_marker_text(ListStyleType::LowerAlpha, 0) == "0. ",
            "alpha zero falls back to decimal");
+    expect(style::list_marker_text(ListStyleType::Decimal, -3) == "-3. ", "negative decimal");
+    expect(style::list_marker_text(ListStyleType::LowerRoman, -1) == "-1. ", "negative roman");
     expect(style::list_marker_text(ListStyleType::Disc, 1).empty(), "a bullet has no text");
     expect(style::list_marker_text(ListStyleType::None, 1).empty(), "none has no text");
 }
@@ -364,6 +366,57 @@ void test_paint_markers() {
     }
 }
 
+// `ol start`, `reversed` and `li value` arrive as aria-start, aria-reversed and aria-value.
+std::vector<std::string>
+numbered(const char* type, std::initializer_list<std::pair<const char*, const char*>> list_attrs,
+         std::initializer_list<std::pair<int, const char*>> item_values = {}) {
+    List list = make_list(type);
+    for (const auto& [name, value] : list_attrs) {
+        list.root->set_aria(name, value);
+    }
+    for (const auto& [index, value] : item_values) {
+        list.root->children()[static_cast<std::size_t>(index)]->set_aria("aria-value", value);
+    }
+    Recorder sink;
+    tessera::ui::paint::paint_scene(*list.root, list.styles, sink, PaintContext{});
+    std::vector<std::string> out;
+    for (const auto& text : sink.texts) {
+        out.push_back(text.first);
+    }
+    return out;
+}
+
+void test_numbering_attributes() {
+    using V = std::vector<std::string>;
+    expect(numbered("decimal", {{"aria-start", "5"}}) == V{"5. ", "6. ", "7. "}, "start");
+    expect(numbered("decimal", {{"aria-reversed", "true"}}) == V{"3. ", "2. ", "1. "},
+           "reversed counts down from the item count");
+    expect(numbered("decimal", {{"aria-reversed", "true"}, {"aria-start", "10"}}) ==
+               V{"10. ", "9. ", "8. "},
+           "reversed with start");
+    expect(numbered("decimal", {{"aria-reversed", "false"}}) == V{"1. ", "2. ", "3. "},
+           "reversed=false is not reversed");
+    expect(numbered("decimal", {{"aria-start", "0"}}) == V{"0. ", "1. ", "2. "}, "start zero");
+    expect(numbered("decimal", {{"aria-start", "-1"}}) == V{"-1. ", "0. ", "1. "},
+           "negative start");
+    expect(numbered("lower-alpha", {{"aria-start", "0"}}) == V{"0. ", "a. ", "b. "},
+           "alphabetic below one is decimal");
+    expect(numbered("decimal", {{"aria-start", "x"}}) == V{"1. ", "2. ", "3. "},
+           "an invalid start is ignored");
+    expect(numbered("decimal", {}, {{1, "10"}}) == V{"1. ", "10. ", "11. "},
+           "an item value resets the counter for the rest");
+    expect(numbered("decimal", {{"aria-reversed", "true"}}, {{1, "7"}}) == V{"3. ", "7. ", "6. "},
+           "a value inside a reversed list counts down from it");
+    {
+        tessera::ui::paint::PaintCacheSignature first;
+        tessera::ui::paint::PaintCacheSignature second;
+        first.list_item = true;
+        second.list_item = false;
+        expect(!tessera::ui::paint::same_paint_signature(first, second),
+               "an item and a non-item differ even at number 0");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -373,6 +426,7 @@ int main() {
     test_invalidation_domain();
     test_user_agent_defaults();
     test_paint_markers();
+    test_numbering_attributes();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

@@ -39,8 +39,9 @@ enum class ListStyleType : std::uint8_t {
 [[nodiscard]] bool is_bullet_marker(ListStyleType type);
 
 // The counter text of an ordered marker including its suffix, for example `1. `, `b. ` or `iv. `.
-// `ordinal` is 1-based. A value the style cannot spell (alphabetic or roman 0, roman above 3999)
-// falls back to decimal, as CSS does. Empty for `none` and the bullet markers.
-[[nodiscard]] std::string list_marker_text(ListStyleType type, std::uint32_t ordinal);
+// `ordinal` is the counter value (1-based by default; `ol start` can make it zero or negative). A
+// value the style cannot spell (alphabetic or roman below 1, roman above 3999) falls back to
+// decimal, as CSS does. Empty for `none` and the bullet markers.
+[[nodiscard]] std::string list_marker_text(ListStyleType type, std::int32_t ordinal);
 
 } // namespace tessera::ui::style
