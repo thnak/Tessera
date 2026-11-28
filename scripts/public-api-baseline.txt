@@ -324,6 +324,25 @@ constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpSecur
 constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpTimeout
 constant include/tessera/appfw/net_winhttp_map.hpp tessera::appfw::kWinHttpUnrecognizedScheme
 
+header include/tessera/appfw/notification.hpp
+class include/tessera/appfw/notification.hpp tessera::appfw::NotificationBackend
+struct include/tessera/appfw/notification.hpp tessera::appfw::NotificationAction
+struct include/tessera/appfw/notification.hpp tessera::appfw::NotificationActivation
+struct include/tessera/appfw/notification.hpp tessera::appfw::NotificationBackendCapabilities
+struct include/tessera/appfw/notification.hpp tessera::appfw::NotificationChannel
+struct include/tessera/appfw/notification.hpp tessera::appfw::NotificationRequest
+enum include/tessera/appfw/notification.hpp tessera::appfw::NotificationStatus
+function include/tessera/appfw/notification.hpp tessera::appfw::notification_status_name
+
+header include/tessera/appfw/notification_fake.hpp
+class include/tessera/appfw/notification_fake.hpp tessera::appfw::FakeNotificationBackend
+
+header include/tessera/appfw/notification_service.hpp
+class include/tessera/appfw/notification_service.hpp tessera::appfw::NotificationService
+struct include/tessera/appfw/notification_service.hpp tessera::appfw::NotificationConfig
+struct include/tessera/appfw/notification_service.hpp tessera::appfw::NotificationScheduleResult
+function include/tessera/appfw/notification_service.hpp tessera::appfw::route_notification_activation
+
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
 
