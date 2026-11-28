@@ -26,6 +26,14 @@ std::string prefixed(std::string_view prefix, const std::string& name) {
 
 std::optional<std::string> dependency_id(const rules::ComponentAnalysis& analysis,
                                          const std::string& name) {
+    // `feed.status` of a `useResource` binding (pending-ui-v1.md section 3.1).
+    if (const std::size_t dot = name.find('.'); dot != std::string::npos) {
+        const rules::Symbol* base = analysis.find(name.substr(0, dot));
+        if (base != nullptr && base->kind == rules::SymbolKind::Resource) {
+            return prefixed("res::", name);
+        }
+        return std::nullopt;
+    }
     const rules::Symbol* symbol = analysis.find(name);
     if (symbol == nullptr) {
         return std::nullopt;

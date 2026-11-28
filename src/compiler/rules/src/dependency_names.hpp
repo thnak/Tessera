@@ -5,6 +5,7 @@
 #include "reporter.hpp"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace tessera::compiler::rules {
@@ -20,11 +21,17 @@ namespace tessera::compiler::rules {
 
 // Adds what a read of `name` requires to `required`, inlining locals. `visiting` stops a local that
 // mentions itself and must be empty at the top-level call.
+// With `resource_reads` a read of `feed.status`, `feed.data` or `feed.error` (a `useResource`
+// binding) requires that dotted name; only the effect rule asks for it.
 void add_required(const Context& ctx, const std::string& name, std::vector<std::string>& required,
-                  std::vector<std::string>& visiting);
+                  std::vector<std::string>& visiting, bool resource_reads = false);
+
+// True for `name.field` where `name` is a resource and `field` is status, data or error.
+[[nodiscard]] bool is_resource_read(const Context& ctx, std::string_view name);
 
 // The reactive names `body` reads, first read first, with locals inlined. This is the inferred set
 // both dependency rules compare a declared list against.
-[[nodiscard]] std::vector<std::string> required_names(const Context& ctx, const jsx::Expr& body);
+[[nodiscard]] std::vector<std::string> required_names(const Context& ctx, const jsx::Expr& body,
+                                                      bool resource_reads = false);
 
 } // namespace tessera::compiler::rules

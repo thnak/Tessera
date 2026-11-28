@@ -123,6 +123,10 @@ struct ReadOptions {
     bool include_callees = false;
     // When non-empty, `props.x` is one read named "props.x" instead of a read of `props`.
     std::string_view props_name;
+    // Also report `name.member` for a member read of a plain identifier (`feed.status`), in
+    // addition to the read of `name`. The effect rule needs it for resource reads
+    // (pending-ui-v1.md section 3.1); a name that is not a resource is ignored by its resolver.
+    bool member_reads = false;
 };
 
 // Identifier reads in source order, honouring arrow parameters that shadow outer names.

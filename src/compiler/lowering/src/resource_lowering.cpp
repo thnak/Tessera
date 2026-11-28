@@ -7,8 +7,10 @@
 #include "hook_lowering_internal.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
 
+#include <cstdint>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tessera::compiler::lowering::internal {
@@ -35,6 +37,74 @@ bool deferrable(const jsx::Statement& declaration, const std::string& ir_type) {
     for (const jsx::TypePtr& child : type.children) {
         if (!child || child->kind != jsx::TypeKind::StringLiteral) {
             return false;
+        }
+    }
+    return true;
+}
+
+// The IR type of a key part when it is a literal or a state or prop cell; empty when it is any
+// other expression (an arithmetic result, a derived value), which the check then lets through.
+std::string key_part_type(const HookState& state, const LoweredHooks& out, const ir::Expr& part) {
+    if (part.kind == ir::ExprKind::Literal) {
+        if (std::holds_alternative<bool>(part.literal)) {
+            return "bool";
+        }
+        if (std::holds_alternative<std::int64_t>(part.literal)) {
+            return "int";
+        }
+        if (std::holds_alternative<double>(part.literal)) {
+            return "float";
+        }
+        return std::holds_alternative<std::string>(part.literal) ? "string" : "";
+    }
+    if (part.kind != ir::ExprKind::Ref) {
+        return {};
+    }
+    for (const ir::State& cell : out.state) {
+        if (cell.id == part.id) {
+            return cell.type;
+        }
+    }
+    if (part.id.rfind("prop::", 0) == 0 && state.context.declared_props != nullptr) {
+        for (const ir::Prop& prop : *state.context.declared_props) {
+            if ("prop::" + prop.name == part.id) {
+                return prop.type;
+            }
+        }
+    }
+    return {};
+}
+
+// A key part supplies a parameter when the types are equal, or an int supplies a float.
+bool key_type_fits(const std::string& supplied, const std::string& declared) {
+    return supplied.empty() || supplied == declared || (supplied == "int" && declared == "float");
+}
+
+// pending-ui-v1.md section 3.1: the key parts must have the types of the method's parameters. The
+// shape (which fields, how many) was checked by the analyzer against the same parameter list.
+bool check_key_types(HookState& state, const LoweredHooks& out,
+                     const std::vector<std::pair<std::string, std::string>>& params,
+                     const ir::Expr& key, jsx::Span span) {
+    const auto check = [&](const std::string& name, const std::string& declared,
+                           const ir::Expr& part) {
+        const std::string supplied = key_part_type(state, out, part);
+        if (key_type_fits(supplied, declared)) {
+            return true;
+        }
+        fail_hook(state, "TESSERA_REACT_HOOK_ARG",
+                  "the key part for parameter `" + name + "` has type `" + supplied +
+                      "`, but the service method declares `" + declared + "`",
+                  span, "pass a value of type `" + declared + "`");
+        return false;
+    };
+    if (key.kind != ir::ExprKind::Record) {
+        return params.size() != 1 || check(params[0].first, params[0].second, key);
+    }
+    for (const ir::RecordField& field : key.fields) {
+        for (const auto& [name, declared] : params) {
+            if (name == field.name && field.value && !check(name, declared, *field.value)) {
+                return false;
+            }
         }
     }
     return true;
@@ -95,6 +165,9 @@ void lower_resource_hook(HookState& state, std::size_t index, LoweredHooks& out,
         }
         resource.key = std::move(*value);
     }
+    if (!check_key_types(state, out, info->params, resource.key, key.span)) {
+        return;
+    }
     out.resources.push_back(std::move(resource));
 }
 
@@ -114,24 +187,47 @@ void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks
                   "the analysis did not classify this `useDeferredValue` call", statement.span);
         return;
     }
-    const std::string source_id = "state::" + info->source_state;
-    const ir::State* source = nullptr;
-    for (const ir::State& candidate : out.state) {
-        if (candidate.id == source_id) {
-            source = &candidate;
-            break;
+    // The deferred source: a `useState` cell, or a destructured prop (pending-ui-v1.md section 6).
+    // A prop's IR type is `string` for a literal union, so only a bool or a number prop can be
+    // deferred; the union's closed set is not recorded for a prop.
+    std::string source_type;
+    if (info->source_is_prop) {
+        if (context.declared_props != nullptr) {
+            for (const ir::Prop& prop : *context.declared_props) {
+                if (prop.name == info->source_state) {
+                    source_type = prop.type;
+                }
+            }
         }
-    }
-    const rules::Symbol* symbol = context.analysis.find(info->source_state);
-    if (source == nullptr || symbol == nullptr ||
-        symbol->statement >= context.component.body.size() ||
-        !deferrable(context.component.body[symbol->statement], source->type)) {
-        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                  "`useDeferredValue` holds a bool, number or enum-like (string literal union) "
-                  "state value; `" +
-                      info->source_state + "` is none of those",
-                  statement.span, "defer a scalar and derive lists or records from it");
-        return;
+        if (source_type != "bool" && source_type != "int" && source_type != "float") {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                      "`useDeferredValue` holds a bool or number prop; `" + info->source_state +
+                          "` is none of those",
+                      statement.span,
+                      "defer a bool or number prop, or copy the prop into `useState`");
+            return;
+        }
+    } else {
+        const std::string source_id = "state::" + info->source_state;
+        const ir::State* source = nullptr;
+        for (const ir::State& candidate : out.state) {
+            if (candidate.id == source_id) {
+                source = &candidate;
+                break;
+            }
+        }
+        const rules::Symbol* symbol = context.analysis.find(info->source_state);
+        if (source == nullptr || symbol == nullptr ||
+            symbol->statement >= context.component.body.size() ||
+            !deferrable(context.component.body[symbol->statement], source->type)) {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                      "`useDeferredValue` holds a bool, number or enum-like (string literal union) "
+                      "state value; `" +
+                          info->source_state + "` is none of those",
+                      statement.span, "defer a scalar and derive lists or records from it");
+            return;
+        }
+        source_type = source->type;
     }
     ir::ExprPtr value =
         lower_component_expression(state, *context.component.body[index].init->operands[1], names);
@@ -143,7 +239,7 @@ void lower_deferred_value_hook(HookState& state, std::size_t index, LoweredHooks
     behavior.hook = info->hook;
     behavior.behavior = info->behavior;
     behavior.source = to_source_span(context.source_map, statement.span, context.file);
-    behavior.outputs.push_back(ir::BehaviorOutput{info->outputs.front(), source->type});
+    behavior.outputs.push_back(ir::BehaviorOutput{info->outputs.front(), source_type});
     ir::BehaviorArg arg;
     arg.name = "value";
     arg.expr = std::move(*value);

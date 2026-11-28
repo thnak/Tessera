@@ -40,16 +40,32 @@ std::string_view kind_text(SymbolKind kind) {
 void check_listed(Context& ctx, EffectInfo& effect, const Expr& array,
                   const std::vector<std::string>& required) {
     for (const auto& element : array.operands) {
-        if (element->kind != ExprKind::Identifier) {
+        // A resource field (`feed.status`, `feed.data`, `feed.error`) is the one dotted form.
+        const bool member = element->kind == ExprKind::Member && element->operands.size() == 1 &&
+                            element->operands[0] &&
+                            element->operands[0]->kind == ExprKind::Identifier;
+        if (element->kind != ExprKind::Identifier && !member) {
             ctx.error("TESSERA_REACT_EFFECT_DEPS",
                       "an effect dependency must be a plain name, not an expression", element->span,
                       "list the prop, state variable or animated value by name");
             continue;
         }
-        const std::string& name = element->text;
+        const std::string name =
+            member ? element->operands[0]->text + "." + element->text : element->text;
         effect.dependencies.push_back(name);
-        const Symbol* symbol = ctx.out.find(name);
-        if (symbol == nullptr || !is_dependency_kind(symbol->kind)) {
+        if (member) {
+            if (!is_resource_read(ctx, name)) {
+                ctx.error("TESSERA_REACT_EFFECT_DEPS",
+                          "`" + name +
+                              "` is not a dependency; only `status`, `data` and `error` of a "
+                              "`useResource` binding can be listed with a dot",
+                          element->span,
+                          "list props, state variables, animated values and resource fields only");
+                continue;
+            }
+        }
+        const Symbol* symbol = member ? nullptr : ctx.out.find(name);
+        if (!member && (symbol == nullptr || !is_dependency_kind(symbol->kind))) {
             const std::string what = symbol == nullptr
                                          ? "is not declared in this component"
                                          : "is " + std::string(kind_text(symbol->kind));
@@ -71,7 +87,7 @@ void check_listed(Context& ctx, EffectInfo& effect, const Expr& array,
 }
 
 void check_effect(Context& ctx, EffectInfo& effect) {
-    effect.reads = required_names(ctx, *effect.body);
+    effect.reads = required_names(ctx, *effect.body, true);
     if (effect.dependency_array == nullptr) {
         ctx.error("TESSERA_REACT_EFFECT_DEPS",
                   "`useEffect` needs a dependency array (V1 dependencies are exact)",
