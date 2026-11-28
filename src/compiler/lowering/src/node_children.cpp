@@ -60,7 +60,8 @@ std::size_t literal_size(const ir::Expr& expr) {
 // Rejects an attribute/style/event a span does not have. The parent post-check keeps the span node
 // a plain run: className/style/role/aria-*/id and onClick are the whole surface. A style default
 // the alias injects (`code` -> font-family: monospace) is not an author override, so it is exempt
-// from the metric rule; the runtime ignores it for measurement anyway.
+// from the metric rule. `font-size` (`sub`, `sup`, `small`) shrinks the run, see
+// inline-size-runs.md.
 bool check_span_node(NodeState& state, const ir::Node& span, std::string_view tag,
                      jsx::Span source) {
     if (span.key) {

@@ -59,4 +59,4 @@ and a change marks paint dirty only (`paint_list_marker.cpp`).
 - No `::marker` pseudo-element, no `counter()`, no `@counter-style`; `display: list-item` does not exist.
 - Right-to-left lists draw the marker on the left; the logical (start-side) placement is not modelled.
 
-Tests: `tests/unit/list_style_tests.cpp` (`list_style`).
+Tests: `tests/unit/list_style_tests.cpp` (`list_style`). Goldens: the gallery `lists` page (`samples/gallery/ListsPage.tsx`, `tests/golden/gallery/lists_light.png` and `lists_dark.png`) pins nested bullets, decimal, `start`/`reversed`/`value`, roman and alphabetic markers and a `sub`/`sup`/`small` line; lavapipe images only (`gallery_golden_lists_*`).

@@ -71,8 +71,8 @@ void test_width_follows_runs() {
 }
 
 void test_runs_change_the_break() {
-    // Two words of 5 code points: 40 px each at 16 px. A 90 px box holds "hello world" only when the
-    // second word is shrunk (40 + 8 gap + 20 = 68 px).
+    // Two words of 5 code points: 40 px each at 16 px. A 90 px box holds "hello world" only when
+    // the second word is shrunk (40 + 8 gap + 20 = 68 px).
     const std::string text = "hello world";
     const TextLayout plain = lay_out(text, {}, 60.0f);
     check(plain.lines.size() == 2, "the plain paragraph wraps");

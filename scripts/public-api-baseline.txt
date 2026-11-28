@@ -3755,6 +3755,17 @@ struct include/tessera/ui/text/selection_controller.hpp tessera::ui::text::Selec
 enum include/tessera/ui/text/selection_controller.hpp tessera::ui::text::SelectionGesture
 function include/tessera/ui/text/selection_controller.hpp tessera::ui::text::copy_text
 
+header include/tessera/ui/text/size_runs.hpp
+struct include/tessera/ui/text/size_runs.hpp tessera::ui::text::SpanFontSize
+struct include/tessera/ui/text/size_runs.hpp tessera::ui::text::TextSizeRun
+struct include/tessera/ui/text/size_runs.hpp tessera::ui::text::TextSizeRunsId
+function include/tessera/ui/text/size_runs.hpp tessera::ui::text::intern_text_size_runs
+function include/tessera/ui/text/size_runs.hpp tessera::ui::text::resolve_text_size_runs
+function include/tessera/ui/text/size_runs.hpp tessera::ui::text::size_runs_from_spans
+function include/tessera/ui/text/size_runs.hpp tessera::ui::text::text_size_run_scale
+constant include/tessera/ui/text/size_runs.hpp tessera::ui::text::kMaxInternedTextSizeRuns
+constant include/tessera/ui/text/size_runs.hpp tessera::ui::text::kMinTextSizeRunScale
+
 header include/tessera/ui/text/text_input_runtime.hpp
 class include/tessera/ui/text/text_input_runtime.hpp tessera::ui::text::TextInputRuntime
 function include/tessera/ui/text/text_input_runtime.hpp tessera::ui::text::bind_text_input_events

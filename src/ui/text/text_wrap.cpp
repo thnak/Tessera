@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <string>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -393,7 +393,8 @@ TextLayout layout_text_with_breaks(std::string_view text, const TextStyle& style
     const float font_size = style.font_size;
     return wrap_with(text, style, metrics, constraints, backend,
                      [font_size, letter_spacing](std::string_view run, float scale) {
-                         const float advance = std::max(0.1f, font_size * scale * 0.5f + letter_spacing);
+                         const float advance =
+                             std::max(0.1f, font_size * scale * 0.5f + letter_spacing);
                          return static_cast<float>(codepoint_count(run)) * advance;
                      });
 }

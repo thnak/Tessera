@@ -88,12 +88,13 @@ void fill_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
                     continue;
                 }
                 const ui::style::ComputedStyle& span_style = styles.resolve(*child);
-                sizes.push_back({span.begin, span.end, ui::text::text_style_from(span_style).font_size});
+                sizes.push_back(
+                    {span.begin, span.end, ui::text::text_style_from(span_style).font_size});
                 break;
             }
         }
-        input.text_runs = ui::text::size_runs_from_spans(
-            sizes, ui::text::text_style_from(input.style).font_size);
+        input.text_runs =
+            ui::text::size_runs_from_spans(sizes, ui::text::text_style_from(input.style).font_size);
     }
     // The layout signature is folded in here, while the node is hot, rather than by a second walk
     // over the finished tree: that walk was a cache miss per node.

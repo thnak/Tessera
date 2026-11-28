@@ -75,7 +75,8 @@ TextSizeRunsId size_runs_from_spans(std::span<const SpanFontSize> spans, float p
     for (const SpanFontSize& span : spans) {
         if (span.font_size > 0.0f) {
             runs.push_back({static_cast<std::uint32_t>(span.begin),
-                            static_cast<std::uint32_t>(span.end), span.font_size / parent_font_size});
+                            static_cast<std::uint32_t>(span.end),
+                            span.font_size / parent_font_size});
         }
     }
     return intern_text_size_runs(runs);

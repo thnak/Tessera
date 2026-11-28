@@ -24,8 +24,7 @@ struct Key {
                style.line_height == other.style.line_height &&
                style.letter_spacing == other.style.letter_spacing &&
                style.word_spacing == other.style.word_spacing &&
-               style.features == other.style.features &&
-               style.size_runs == other.style.size_runs &&
+               style.features == other.style.features && style.size_runs == other.style.size_runs &&
                style.font_weight == other.style.font_weight && style.italic == other.style.italic &&
                style.white_space == other.style.white_space &&
                style.text_transform == other.style.text_transform &&

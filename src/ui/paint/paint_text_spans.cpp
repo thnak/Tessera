@@ -143,7 +143,8 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         run.font_weight = run_text.font_weight;
         run.italic = run_text.italic;
         sizes.push_back({span.begin, span.end, run_text.font_size});
-        if (computed_size > 0.0f && run_text.font_size > 0.0f && run_text.font_size < computed_size) {
+        if (computed_size > 0.0f && run_text.font_size > 0.0f &&
+            run_text.font_size < computed_size) {
             run.scale = std::max(text::kMinTextSizeRunScale, run_text.font_size / computed_size);
             run.font_size = base_style.font_size * run.scale;
         }

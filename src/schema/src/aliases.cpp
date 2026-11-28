@@ -328,20 +328,19 @@ constexpr AliasRow kAliases[] = {
     plain("u", "Text", AliasStatus::Mapped, "inline span; injects text-decoration-line: underline"),
     plain("s", "Text", AliasStatus::Mapped,
           "inline span; injects text-decoration-line: line-through"),
-    plain("small", "Text", AliasStatus::Partial,
-          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
-          "metrics); injects font-size: 0.83em"),
+    plain("small", "Text", AliasStatus::Mapped,
+          "inline span; injects font-size: 0.83em, a size run inside a `Text`"),
     plain("mark", "Text", AliasStatus::Mapped,
           "inline span; injects a yellow background and black text"),
     plain(
         "kbd", "Text", AliasStatus::Mapped,
         "inline span; injects font-family: monospace (no font selection yet, so no metric change)"),
-    plain("sub", "Text", AliasStatus::Partial,
-          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
-          "metrics); injects vertical-align: sub and font-size: 0.83em"),
-    plain("sup", "Text", AliasStatus::Partial,
-          "inline span; the size change is dropped inside a `Text` (a span keeps the parent's "
-          "metrics); injects vertical-align: super and font-size: 0.83em"),
+    plain("sub", "Text", AliasStatus::Mapped,
+          "inline span; injects vertical-align: sub and font-size: 0.83em, a size run inside a "
+          "`Text`"),
+    plain("sup", "Text", AliasStatus::Mapped,
+          "inline span; injects vertical-align: super and font-size: 0.83em, a size run inside a "
+          "`Text`"),
     plain("abbr", "Text", AliasStatus::Mapped,
           "inline span; `title` is rejected, so no dotted underline"),
     plain("cite", "Text", AliasStatus::Mapped, "inline span; injects font-style: italic"),
