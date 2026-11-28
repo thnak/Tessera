@@ -340,6 +340,8 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             // ADR-050 section 3.1 (issue #177): one `services[]` entry; the analyzer resolved the
             // interface against the project manifest and recorded its C++ type and header.
             internal::lower_service_hook(state, index, out);
+        } else if (hook == "useObservable") {
+            internal::lower_observable_hook(state, index, out);
         } else if (hook == "useResource") {
             internal::lower_resource_hook(state, index, out, names);
         } else if (hook == "useDeferredValue") {

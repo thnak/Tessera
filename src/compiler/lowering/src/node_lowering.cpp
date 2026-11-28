@@ -305,6 +305,7 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     // once at mount, and a `callService` action names one by its `svc::` id.
     component.services = std::move(hooks->services);
     component.resources = std::move(hooks->resources);
+    component.observables = std::move(hooks->observables);
     component.root = std::move(*root);
     lowered.bindings = std::move(hooks->bindings);
     // Issue #463: the CSS module reads belong to the module pass, which compares them against every

@@ -143,9 +143,46 @@ void types_and_duplicates() {
           "the error carries the JSON pointer of the offending value");
 }
 
+// `observables` (services-manifest-v1.md section 2): a service-owned `Observable<T>` TSX may read.
+void observables() {
+    const std::string head =
+        R"({"id":"a.b","name":"A","cpp":{"type":"A","header":"a.hpp"},"methods":[)";
+    const auto with = [&](std::string_view methods, std::string_view observables) {
+        return with_service(head + std::string(methods) + R"(],"observables":[)" +
+                            std::string(observables) + "]}");
+    };
+    const auto parsed = svc::parse_services_manifest(
+        with("", R"({"name":"title","type":"string"},{"name":"route","type":"Route"})"));
+    check(parsed.has_value() && parsed->services[0].observables.size() == 2 &&
+              parsed->services[0].find_observable("route") != nullptr &&
+              parsed->services[0].find_observable("route")->type == "Route" &&
+              parsed->services[0].find_observable("nope") == nullptr,
+          "observables parse and are found by name");
+    check(code_of(with("", R"({"name":"t","type":"void"})")) == "TESSERA_SVC_MANIFEST_TYPE",
+          "an observable of void is a type error");
+    check(code_of(with("", R"({"name":"t","type":"a b"})")) == "TESSERA_SVC_MANIFEST_TYPE",
+          "an observable with a bad spelling is a type error");
+    check(code_of(with("", R"({"name":"1x","type":"int"})")) == "TESSERA_SVC_MANIFEST_SYNTAX",
+          "an observable name must be an identifier");
+    check(code_of(with("", R"({"name":"t"})")) == "TESSERA_SVC_MANIFEST_SYNTAX",
+          "an observable needs a type");
+    check(code_of(with("", R"({"name":"t","type":"int","extra":1})")) ==
+              "TESSERA_SVC_MANIFEST_UNKNOWN_KEY",
+          "an unknown key of an observable is rejected");
+    check(code_of(with("", R"({"name":"t","type":"int"},{"name":"t","type":"int"})")) ==
+              "TESSERA_SVC_MANIFEST_DUPLICATE",
+          "two observables with one name are a duplicate");
+    check(code_of(with(R"({"name":"t","params":[],"returns":"void"})",
+                       R"({"name":"t","type":"int"})")) == "TESSERA_SVC_MANIFEST_DUPLICATE",
+          "an observable and a method cannot share the C++ member name");
+    check(code_of(with_service(head + R"(],"observables":{})")) == "TESSERA_SVC_MANIFEST_SYNTAX",
+          "observables must be an array");
+}
+
 } // namespace
 
 int main() {
+    observables();
     a_valid_file_round_trips();
     each_diagnostic_has_its_code();
     types_and_duplicates();

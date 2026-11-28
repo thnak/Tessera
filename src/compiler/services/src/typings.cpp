@@ -52,7 +52,19 @@ std::string write_services_typings(const ServicesManifest& manifest) {
             }
             out += "): " + manifest_type_to_ts(method.returns) + ";\n";
         }
+        for (const ManifestObservable& observable : service.observables) {
+            out += "  readonly " + observable.name + ": " + manifest_type_to_ts(observable.type) +
+                   ";\n";
+        }
         out += "}\n";
+    }
+    bool any_observable = false;
+    for (const ManifestService& service : manifest.services) {
+        any_observable = any_observable || !service.observables.empty();
+    }
+    if (any_observable) {
+        out += "\n// Reads a service observable in render (docs/specs/services-manifest-v1.md).\n";
+        out += "export declare function useObservable<T>(source: T): T;\n";
     }
     if (!manifest.services.empty()) {
         out += "\n";

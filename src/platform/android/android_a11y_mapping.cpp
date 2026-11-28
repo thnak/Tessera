@@ -75,7 +75,13 @@ const char* class_name_for(Role role) noexcept {
         return "android.app.AlertDialog";
     case Role::Paragraph:
     case Role::Status:
+    case Role::Cell:
+    case Role::ColumnHeader:
         return "android.widget.TextView";
+    case Role::Table:
+        return "android.widget.TableLayout";
+    case Role::Row:
+        return "android.widget.TableRow";
     case Role::kCount:
         break;
     }

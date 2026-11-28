@@ -12,6 +12,7 @@
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
 #include "emit_layout_observe.hpp"
+#include "emit_observables.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
 #include "emit_services.hpp"
@@ -135,6 +136,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         for (const std::string& header : service_headers(component)) {
             writer.line("#include \"" + header + "\"");
         }
+    }
+    if (uses_observables(component)) {
+        writer.line(std::string("#include \"") + kObservableInclude + "\"");
     }
     emit_form_includes(writer, forms);
     // ADR-067 spike #661 (off by default): the pending-UI model, emitted only for a component that
@@ -330,7 +334,8 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (!emit_behavior_fields(writer, component, error)) {
         return false;
     }
-    if (!emit_service_fields(writer, component, error)) {
+    if (!emit_service_fields(writer, component, error) ||
+        !emit_observable_fields(writer, component, module, error)) {
         return false;
     }
     writer.line("");

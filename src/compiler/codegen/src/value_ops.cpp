@@ -210,6 +210,12 @@ std::string_view declared_ir_type(const ir::Component& component, std::string_vi
             return env.type;
         }
     }
+    // A `useObservable` read has the manifest's declared type (ADR-050 open question 6).
+    for (const ir::Observable& observable : component.observables) {
+        if (observable.id == id) {
+            return observable.type;
+        }
+    }
     // A resource's `.status` is the lower-case status word (pending-ui-v1.md section 3.4). Its
     // `.data` has the service method's result type, which the IR does not carry, so it has no
     // printable type here.

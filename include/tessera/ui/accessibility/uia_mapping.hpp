@@ -57,9 +57,12 @@ enum class UiaControlType : std::int32_t {
     Text = 50020,
     ToolTip = 50022,
     Group = 50026,
+    DataItem = 50029,
     Document = 50030,
     Window = 50032,
     Pane = 50033,
+    HeaderItem = 50035,
+    Table = 50036,
 };
 
 // Pattern bit set the provider surface reports for one semantics node. The bits are this layer's

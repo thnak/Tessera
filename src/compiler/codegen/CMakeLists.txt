@@ -33,6 +33,7 @@ add_library(tessera_codegen STATIC
     src/emit_environment.cpp
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
+    src/emit_observables.cpp
     src/emit_services.cpp
     src/emit_behaviors.cpp
     src/emit_snapshot.cpp
@@ -901,6 +902,33 @@ if (TESSERA_BUILD_TESTS)
                 target_compile_features(codegen_services_tsx_runtime_tests PRIVATE cxx_std_23)
                 add_test(NAME codegen_services_tsx_runtime
                     COMMAND codegen_services_tsx_runtime_tests)
+
+                # ADR-050 open question 6, `useObservable` from TSX: a component that reads two service
+                # observables in render is compiled through the real front end into `Header.g.hpp`,
+                # then driven against a hand-written `demo::Navigator` that owns the observables.
+                add_executable(codegen_observable_tsx_emit
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_observable_tsx_emit.cpp)
+                target_link_libraries(codegen_observable_tsx_emit PRIVATE
+                    tessera_codegen tessera_lowering tessera_jsx_frontend tessera_react_rules
+                    tessera_ir tessera_services_types)
+                set(_tessera_observable_tsx_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_observable_tsx)
+                add_custom_command(
+                    OUTPUT ${_tessera_observable_tsx_dir}/Header.g.hpp
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_observable_tsx_dir}
+                    COMMAND codegen_observable_tsx_emit ${_tessera_observable_tsx_dir}
+                    DEPENDS codegen_observable_tsx_emit
+                    VERBATIM)
+                add_executable(codegen_observable_tsx_runtime_tests
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_observable_tsx_runtime_tests.cpp
+                    ${_tessera_observable_tsx_dir}/Header.g.hpp)
+                target_include_directories(codegen_observable_tsx_runtime_tests PRIVATE
+                    ${_tessera_observable_tsx_dir}
+                    ${_tessera_codegen_base_dev_dir}/observable_tsx)
+                target_link_libraries(codegen_observable_tsx_runtime_tests PRIVATE
+                    tessera_scene tessera_appfw_core)
+                target_compile_features(codegen_observable_tsx_runtime_tests PRIVATE cxx_std_23)
+                add_test(NAME codegen_observable_tsx_runtime
+                    COMMAND codegen_observable_tsx_runtime_tests)
 
                 # #656, pending UI from TSX: `useResource`, `Suspense`, `useTransition` and
                 # `useDeferredValue` compiled through the real front end into `Feed.g.hpp`, then

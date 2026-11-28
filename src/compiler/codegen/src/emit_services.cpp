@@ -36,6 +36,7 @@
 // goldens byte-identical (AGENTS.md: a golden moves only for a real change).
 
 #include "emit_base_accessors.hpp"
+#include "emit_observables.hpp"
 #include "emit_resources.hpp"
 #include "emit_services.hpp"
 
@@ -201,6 +202,7 @@ bool emit_service_accessors(CppWriter& writer, const ir::Component& component,
         const char* const separator = i + 1 == component.services.size() ? "};" : ",";
         writer.line("        &context.get<" + component.services[i].type + ">()" + separator);
     }
+    emit_observable_attach(writer, component);
     if (uses_resources(component)) {
         // A resource whose service is a `ResourceProvider` binds its view as soon as the service is
         // known (pending-ui-v1.md section 10.2).

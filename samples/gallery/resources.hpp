@@ -29,6 +29,7 @@ struct Resources {
     tessera::ui::style::PreparedStyleSheet dash_sheet;
     tessera::ui::style::PreparedStyleSheet swatch_sheet;
     tessera::ui::style::PreparedStyleSheet lists_sheet;
+    tessera::ui::style::PreparedStyleSheet tables_sheet;
     std::vector<std::uint8_t> theme_blob;
 };
 

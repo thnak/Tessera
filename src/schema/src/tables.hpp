@@ -20,6 +20,7 @@ namespace tessera::schema::internal {
 [[nodiscard]] std::span<const AliasRow> alias_table();
 [[nodiscard]] std::span<const AliasStyle> alias_style_table();
 [[nodiscard]] std::span<const DomType> dom_type_table();
+[[nodiscard]] std::span<const LibraryLowering> library_lowering_table();
 [[nodiscard]] std::span<const StyleProperty> style_property_table();
 
 } // namespace tessera::schema::internal

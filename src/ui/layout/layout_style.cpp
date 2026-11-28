@@ -314,7 +314,9 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
         YGNodeStyleSetDisplay(node, YGDisplayContents);
     } else {
         YGNodeStyleSetDisplay(node, YGDisplayFlex);
-        if (display_value == "block") {
+        // A table cell or caption is a block box: its content stacks and stretches in the cell.
+        if (display_value == "block" || display_value == "table-cell" ||
+            display_value == "table-caption") {
             YGNodeStyleSetFlexDirection(node, YGFlexDirectionColumn);
             YGNodeStyleSetAlignItems(node, YGAlignStretch);
         } else {
@@ -331,6 +333,19 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
     }
 
     YGNodeStyleSetJustifyContent(node, justify_from(computed_property(style, "justify-content")));
+    if (display_value == "table-cell") {
+        // `vertical-align` on a cell places its content in the row's height; the cell is a column
+        // box, so that is the main axis (an authored `justify-content` still wins).
+        const std::string* aligned = computed_property(style, "vertical-align");
+        const std::string* justify = computed_property(style, "justify-content");
+        if (justify == nullptr || is_keyword(justify, "normal")) {
+            if (is_keyword(aligned, "middle")) {
+                YGNodeStyleSetJustifyContent(node, YGJustifyCenter);
+            } else if (is_keyword(aligned, "bottom")) {
+                YGNodeStyleSetJustifyContent(node, YGJustifyFlexEnd);
+            }
+        }
+    }
     YGNodeStyleSetAlignItems(node, align_from(computed_property(style, "align-items")));
     YGNodeStyleSetAlignContent(node, align_from(computed_property(style, "align-content")));
     YGNodeStyleSetAlignSelf(node, align_self_from(computed_property(style, "align-self")));

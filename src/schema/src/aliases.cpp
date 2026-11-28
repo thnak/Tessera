@@ -4,6 +4,7 @@
 // section 2, the attribute rewrites of section 3 and the unmapped tags of section 5. Section 5
 // groups are expanded here to one row per tag so consumers need no group lookup.
 
+#include "aliases_attrs.hpp"
 #include "tables.hpp"
 
 #include <array>
@@ -14,9 +15,7 @@
 namespace tessera::schema::internal {
 namespace {
 
-template<typename Row, std::size_t N> constexpr std::span<const Row> rows(const Row (&list)[N]) {
-    return std::span<const Row>(list, N);
-}
+using namespace alias_data;
 
 // --- injected props -------------------------------------------------------------------------
 
@@ -30,6 +29,10 @@ constexpr AliasInject kInjectHeading[6][2] = {
     {{"role", "heading"}, {"aria-level", "3"}}, {{"role", "heading"}, {"aria-level", "4"}},
     {{"role", "heading"}, {"aria-level", "5"}}, {{"role", "heading"}, {"aria-level", "6"}}};
 constexpr AliasInject kInjectRoleParagraph[] = {{"role", "paragraph"}};
+constexpr AliasInject kInjectRoleTable[] = {{"role", "table"}};
+constexpr AliasInject kInjectRoleRow[] = {{"role", "row"}};
+constexpr AliasInject kInjectRoleCell[] = {{"role", "cell"}};
+constexpr AliasInject kInjectRoleColumnHeader[] = {{"role", "columnheader"}};
 constexpr AliasInject kInjectRoleLink[] = {{"role", "link"}};
 
 // `input type="password"` injects secure; the text-ish types inject inputMode.
@@ -40,182 +43,18 @@ constexpr AliasInject kInjectModeUrl[] = {{"inputMode", "url"}};
 constexpr AliasInject kInjectModeSearch[] = {{"inputMode", "search"}};
 constexpr AliasInject kInjectModeNumeric[] = {{"inputMode", "numeric"}};
 
+// `checkbox`, `radio` and `range` inject nothing on TextInput: the element lowers onto a library
+// component instead (library_lowering.cpp), so the entries only make the types known.
 constexpr AliasTypeMap kInputTypeMap[] = {
-    {"password", rows(kInjectSecure)},   {"email", rows(kInjectModeEmail)},
-    {"tel", rows(kInjectModeTel)},       {"url", rows(kInjectModeUrl)},
-    {"search", rows(kInjectModeSearch)}, {"number", rows(kInjectModeNumeric)},
-};
-
-// --- attribute rewrites ---------------------------------------------------------------------
-
-constexpr AliasValue kButtonTypeValues[] = {
-    {"button", "", false, ""},
-    {"submit", "", true, "V1 has no form element; use `onClick`"},
-    {"reset", "", true, "V1 has no form element; use `onClick`"},
-};
-
-constexpr AliasAttr kButtonAttrs[] = {
-    {"type", AliasAttrKind::ValueMap, "", "V1 has no form element; use `onClick`",
-     rows(kButtonTypeValues), "must be a string literal"},
-};
-
-constexpr AliasValue kWrapValues[] = {
-    {"soft", "word", false, ""},
-    {"off", "none", false, ""},
-    {"hard", "", true, "HTML hard wrapping has no V1 equivalent"},
-};
-
-constexpr AliasAttr kTextAreaAttrs[] = {
-    {"wrap", AliasAttrKind::ValueMap, "", "HTML hard wrapping has no V1 equivalent",
-     rows(kWrapValues), ""},
-    {"cols", AliasAttrKind::Reject, "", "set a width in `style`", {}, ""},
-};
-
-constexpr AliasAttr kInputAttrs[] = {
-    {"autoComplete",
-     AliasAttrKind::Rename,
-     "autofill",
-     "",
-     {},
-     "tokens email/username/current-password/new-password/one-time-code/name/tel/"
-     "street-address/postal-code pass; `off` is dropped; any other token is HTML_ATTR [Q19]"},
-    {"checked",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"defaultChecked",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"name",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"required",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"pattern",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"min",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"max",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"step",
-     AliasAttrKind::Reject,
-     "",
-     "form and validation belong to library `Form`/`Field`",
-     {},
-     ""},
-    {"minLength",
-     AliasAttrKind::Reject,
-     "",
-     "use `maxLength`; minimum length is a form rule",
-     {},
-     ""},
-    {"multiple", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"accept", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"list", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"form", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"size", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"autoFocus",
-     AliasAttrKind::Reject,
-     "",
-     "not in V1 on inputs; use it on a focusable `View`",
-     {},
-     ""},
-    {"spellCheck", AliasAttrKind::Reject, "", "not in V1", {}, ""},
-    {"autoCapitalize", AliasAttrKind::Reject, "", "not in V1", {}, ""},
-    {"autoCorrect", AliasAttrKind::Reject, "", "not in V1", {}, ""},
-};
-
-constexpr AliasAttr kImgAttrs[] = {
-    {"width",
-     AliasAttrKind::ToStyle,
-     "width",
-     "",
-     {},
-     "a number or numeric string is dp; with `style.width` it is TESSERA_JSX_PROP_CONFLICT"},
-    {"height",
-     AliasAttrKind::ToStyle,
-     "height",
-     "",
-     {},
-     "a number or numeric string is dp; with `style.height` it is TESSERA_JSX_PROP_CONFLICT"},
-    {"srcSet", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"sizes", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"loading", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"decoding", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"crossOrigin", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"onLoad", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
-    {"onError", AliasAttrKind::Reject, "", "no V1 meaning; use ErrorBoundary", {}, ""},
-};
-
-// `ol start`/`reversed` and `li value` number the markers of the list (docs/design/list-style.md
-// section 2). They are carried as `aria-*` pairs on the node, which the marker painter reads.
-constexpr AliasAttr kOrderedListAttrs[] = {
-    {"start", AliasAttrKind::Rename, "aria-start", "", {}, "a static integer"},
-    {"reversed", AliasAttrKind::Rename, "aria-reversed", "", {}, "a bare flag or a static boolean"},
-};
-
-constexpr AliasAttr kListItemAttrs[] = {
-    {"value", AliasAttrKind::Rename, "aria-value", "", {}, "a static integer"},
-};
-
-// `href` is the only attribute with behavior (issue #542): an absolute route path goes through the
-// navigation service, a URL with an allowed scheme through the shell service. `target` and `rel`
-// describe browser window and privacy behavior the engine does not have, so the values a port
-// writes everywhere are accepted and dropped; any other value is rejected.
-constexpr AliasValue kAnchorTargetValues[] = {
-    {"_self", "", false, ""},
-    {"_blank", "", false, ""},
-};
-
-constexpr AliasValue kAnchorRelValues[] = {
-    {"noopener", "", false, ""},
-    {"noreferrer", "", false, ""},
-    {"noopener noreferrer", "", false, ""},
-    {"nofollow", "", false, ""},
-    {"external", "", false, ""},
-};
-
-constexpr AliasAttr kAnchorAttrs[] = {
-    {"href", AliasAttrKind::Rename, "aria-href", "", {}, "a static string of at most 128 bytes"},
-    {"target", AliasAttrKind::ValueMap, "",
-     "an external URL always opens through the shell service", rows(kAnchorTargetValues),
-     "must be a string literal"},
-    {"rel", AliasAttrKind::ValueMap, "", "an external URL always opens through the shell service",
-     rows(kAnchorRelValues), "must be a string literal"},
-    {"download",
-     AliasAttrKind::Reject,
-     "",
-     "no V1 meaning; use the shell service's save dialog",
-     {},
-     ""},
-};
-
-constexpr AliasAttr kLabelAttrs[] = {
-    {"htmlFor", AliasAttrKind::Rename, "aria-for", "", {}, "a static string naming a control's id"},
+    {"checkbox", {}},
+    {"radio", {}},
+    {"range", {}},
+    {"password", rows(kInjectSecure)},
+    {"email", rows(kInjectModeEmail)},
+    {"tel", rows(kInjectModeTel)},
+    {"url", rows(kInjectModeUrl)},
+    {"search", rows(kInjectModeSearch)},
+    {"number", rows(kInjectModeNumeric)},
 };
 
 // --- tag table ------------------------------------------------------------------------------
@@ -250,12 +89,9 @@ constexpr std::string_view kAltForm =
     "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` "
     "after V1";
 constexpr std::string_view kAltSelect = "Library `Select` (after V1)";
-constexpr std::string_view kAltTable =
-    "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data";
 constexpr std::string_view kAltSvg = "`Path` with `d` and `viewBox`";
 constexpr std::string_view kAltMedia = "`CustomElement`";
 constexpr std::string_view kAltOverlay = "Overlay service and library components";
-constexpr std::string_view kAltProgress = "Library `Progress` (after V1)";
 constexpr std::string_view kAltDocument =
     "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them";
 
@@ -263,6 +99,13 @@ constexpr std::string_view kAltDocument =
 constexpr AliasRow plain(std::string_view tag, std::string_view target, AliasStatus status,
                          std::string_view note) {
     return AliasRow{tag, target, status, {}, {}, {}, false, "", note};
+}
+
+// A `View` carrier of a table tag with its injected roles and attribute rewrites.
+constexpr AliasRow carrier(std::string_view tag, AliasStatus status,
+                           std::span<const AliasInject> inject, std::span<const AliasAttr> attrs,
+                           std::string_view note) {
+    return AliasRow{tag, "View", status, inject, attrs, {}, false, "", note};
 }
 
 constexpr AliasRow kAliases[] = {
@@ -392,6 +235,39 @@ constexpr AliasRow kAliases[] = {
           "block"),
     plain("blockquote", "View", AliasStatus::Mapped,
           "the user-agent sheet gives it the 1em 40px margin"),
+    // Tables (issue #543): `View` carriers; the user-agent sheet gives each its `display` value.
+    // clang-format off
+    carrier("table", AliasStatus::Partial, rows(kInjectRoleTable), {},
+            "the user-agent sheet makes it `display: table`; the layout engine lays out the tree below it"),
+    carrier("thead", AliasStatus::Mapped, {}, {}, "`display: table-header-group`; shown above the body"),
+    carrier("tbody", AliasStatus::Mapped, {}, {}, "`display: table-row-group`"),
+    carrier("tfoot", AliasStatus::Mapped, {}, {}, "`display: table-footer-group`; shown below the body"),
+    carrier("tr", AliasStatus::Mapped, rows(kInjectRoleRow), {}, "`display: table-row`"),
+    carrier("td", AliasStatus::Mapped, rows(kInjectRoleCell), rows(kCellAttrs),
+            "`display: table-cell`; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan`"),
+    carrier("th", AliasStatus::Mapped, rows(kInjectRoleColumnHeader), rows(kHeaderCellAttrs),
+            "as `td`, bold and centred by the user-agent sheet; `scope` is rejected"),
+    carrier("caption", AliasStatus::Mapped, {}, {},
+            "`display: table-caption`; `caption-side` puts it above or below the grid"),
+    carrier("colgroup", AliasStatus::Mapped, {}, rows(kColumnAttrs),
+            "`display: table-column-group`; takes no space of its own"),
+    carrier("col", AliasStatus::Mapped, {}, rows(kColumnAttrs),
+            "`display: table-column`; its `width` sizes the column"),
+    // clang-format on
+
+    // Group E (issue #1041): the carrier is a `View`; lowering resolves each tag to the imported
+    // library component of library_lowering.cpp.
+    plain("progress", "View", AliasStatus::Mapped,
+          "lowers onto the library `ProgressBar` (`value`, `max` are integers; `max` defaults to "
+          "100)"),
+    plain("meter", "View", AliasStatus::Mapped,
+          "lowers onto the library `Meter` (integer `value`, `min`, `max`, `low`, `high`, "
+          "`optimum`)"),
+    plain("details", "View", AliasStatus::Mapped,
+          "lowers onto the library `Details`; the first `summary` child with static text is its "
+          "summary"),
+    plain("summary", "View", AliasStatus::Mapped,
+          "only as a child of `details`; a `summary` anywhere else is TESSERA_IR_UNSUPPORTED"),
 
     // Section 5: no mapping.
     {"form", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltForm, ""},
@@ -399,16 +275,6 @@ constexpr AliasRow kAliases[] = {
     {"option", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
     {"optgroup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
     {"datalist", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSelect, ""},
-    {"table", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"thead", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tbody", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tfoot", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"tr", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"td", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"th", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"caption", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"colgroup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
-    {"col", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltTable, ""},
     {"svg", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
     {"g", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
     {"circle", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltSvg, ""},
@@ -431,12 +297,8 @@ constexpr AliasRow kAliases[] = {
     {"source", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltMedia, ""},
     {"track", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltMedia, ""},
     {"dialog", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"details", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"summary", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
     {"menu", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
     {"popover", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltOverlay, ""},
-    {"progress", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltProgress, ""},
-    {"meter", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltProgress, ""},
     {"html", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
     {"head", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
     {"body", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltDocument, ""},
@@ -473,8 +335,8 @@ constexpr bool alias_rows_are_valid(std::span<const AliasRow> list) {
 }
 
 static_assert(alias_rows_are_valid(kAliases), "alias rows are unique and well-formed");
-// html-aliases.md section 2 (46 mapped or partial tags) and section 5 (55 unmapped tags).
-static_assert(std::size(kAliases) == 101, "46 mapped or partial tags plus 55 unmapped tags");
+// html-aliases.md section 2 (60 mapped or partial tags) and section 5 (41 unmapped tags).
+static_assert(std::size(kAliases) == 101, "60 mapped or partial tags plus 41 unmapped tags");
 
 constexpr bool alias_styles_are_grouped(std::span<const AliasStyle> list) {
     for (std::size_t i = 1; i < list.size(); ++i) {

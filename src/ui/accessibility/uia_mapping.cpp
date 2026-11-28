@@ -41,12 +41,18 @@ std::string_view to_string(UiaControlType type) {
         return "tool tip";
     case UiaControlType::Group:
         return "group";
+    case UiaControlType::DataItem:
+        return "data item";
     case UiaControlType::Document:
         return "document";
     case UiaControlType::Window:
         return "window";
     case UiaControlType::Pane:
         return "pane";
+    case UiaControlType::HeaderItem:
+        return "header item";
+    case UiaControlType::Table:
+        return "table";
     }
     return "pane";
 }

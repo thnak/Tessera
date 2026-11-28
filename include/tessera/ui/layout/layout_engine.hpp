@@ -41,13 +41,23 @@ struct LayoutInput {
     // own boxes - Yoga's measure callback decides those - but the text-fit fact must use the very
     // wrap decision paint will, so the caller forwards it here. It is part of the layout-input
     // signature because it changes the fact, which is part of the layout result.
-    bool text_wrap = false;
+    //
+    // `text_wrap`, the inline-marker indent and the two table spans share one 32-bit word:
+    // `LayoutInput` is a per-node record held for every node of the scene and its size is budgeted
+    // (`sizeof_layout_input`).
+    std::uint32_t text_wrap : 1 = 0;
     // Width of the first-line box a `list-style-position: inside` marker takes at the start of this
     // Text (TextStyle::first_line_indent, docs/design/list-style-inside.md); zero for any other
     // text.
     // Stored in sixteenths of a px (`text_indent_px`) so the input stays inside its size budget;
     // `inside_marker` already rounds the box up to that grid, so layout and paint agree exactly.
-    std::uint16_t text_indent_q = 0;
+    std::uint32_t text_indent_q : 16 = 0;
+    // The `colspan`/`rowspan` of a table cell and the `span` of a `col`/`colgroup` (ARIA
+    // `aria-colspan`/`aria-rowspan`, docs/design/table-layout.md section 2). Columns: 1 is none,
+    // at most 255. Rows: 0 spans to the end of the row group, as `rowspan="0"`, at most 127.
+    // Larger authored values clamp. Part of the layout signature.
+    std::uint32_t col_span : 8 = 1;
+    std::uint32_t row_span : 7 = 1;
     [[nodiscard]] float text_indent_px() const {
         return static_cast<float>(text_indent_q) / 16.0f;
     }

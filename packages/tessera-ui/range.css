@@ -1,0 +1,57 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Range look (issue #1041, ADR-047 item 5): a 240 px wide, 4 px track whose fill and rest share
+   the width by flex-grow, with a 16 px thumb between them. Theme tokens only. */
+
+.trng {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 240px;
+  min-height: var(--control-height-compact);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+
+.trng-track {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-grow: 1;
+  height: 16px;
+}
+
+.trng-fill {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--accent);
+}
+
+.trng-rest {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--border-strong);
+}
+
+.trng-thumb {
+  width: 16px;
+  height: 16px;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--accent);
+  border-radius: 8px;
+  background-color: var(--surface-raised);
+}
+
+.trng:hover .trng-thumb {
+  opacity: 0.92;
+}
+
+.trng:active .trng-thumb {
+  opacity: 0.8;
+}
+
+.trng:focus-visible .trng-thumb {
+  border-color: var(--focus-ring);
+  box-shadow: 0px 0px 0px 2px var(--focus-ring);
+}

@@ -36,7 +36,7 @@ struct SemanticsNode {
 
 - Roles: generic, button, link, text, heading, image, text field, checkbox, radio, switch,
   slider, progress, list, list item, tab, tab panel, dialog, menu, menu item, scroll view,
-  tooltip, alert, status.
+  tooltip, alert, status, table, row, cell, column header (HTML tables, [table-layout.md](../design/table-layout.md) section 6).
 - States: focused, focusable, disabled, checked/mixed, selected, expanded/collapsed, busy,
   invalid, read-only, required.
 - Actions: activate/click, focus, set value, increment/decrement, scroll, dismiss, show menu,

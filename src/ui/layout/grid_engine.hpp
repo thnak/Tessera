@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 namespace tessera::ui::layout::detail {
@@ -48,18 +49,19 @@ struct GridItemLayout {
 // `available_width`/`available_height` means unconstrained. The callback must not apply the item's
 // own margins: the grid engine positions the border box and accounts for margins itself. When
 // `boxes` is non-null the item's boxes are appended to it.
+// `fill` (a table cell) makes the border box exactly the available size over the item's own size.
 using GridItemLayoutFn = GridItemLayout (*)(void* context, const LayoutInput& item,
                                             float available_width, float available_height,
-                                            std::vector<LayoutBox>* boxes);
+                                            bool fill, std::vector<LayoutBox>* boxes);
 
 struct GridItemLayouter {
     GridItemLayoutFn fn = nullptr;
     void* context = nullptr;
 
     [[nodiscard]] GridItemLayout layout(const LayoutInput& item, float available_width,
-                                        float available_height,
-                                        std::vector<LayoutBox>* boxes) const {
-        return fn(context, item, available_width, available_height, boxes);
+                                        float available_height, std::vector<LayoutBox>* boxes,
+                                        bool fill = false) const {
+        return fn(context, item, available_width, available_height, fill, boxes);
     }
 };
 
@@ -69,7 +71,17 @@ struct GridContentBox {
     float height = 0.0f;
     bool width_definite = true;
     bool height_definite = true;
+    // The fit-content probe's limit when the width is not definite (Yoga's `AtMost` mode). A grid
+    // ignores it; a table shrinks to fit within it. Infinite when there is no limit.
+    float max_width = std::numeric_limits<float>::infinity();
 };
+
+// The min-content width of one item given its max-content layout. Shared with the table engine,
+// which sizes a column from the same two contributions. `definite_width` is an authored fixed width
+// (the item then is its own min-content).
+[[nodiscard]] float item_min_content_width(const GridItemLayouter& layouter,
+                                           const LayoutInput& item, const GridItemLayout& maximum,
+                                           bool definite_width);
 
 class GridEngine {
 public:

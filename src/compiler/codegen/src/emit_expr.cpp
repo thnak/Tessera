@@ -87,6 +87,15 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
                         "` is not generated: `.data` needs the resource's `type` (the service "
                         "method's declared return type)");
         }
+        // A service observable (ADR-050 open question 6): `obs::<name>` reads the generated value
+        // accessor, which returns the observable's live value (the zero value before attach), and
+        // `obs::<name>.<field>` reads a field of a record-typed one.
+        if (expr.id.rfind("obs::", 0) == 0) {
+            const std::size_t dot = expr.id.find('.');
+            std::string stem = member_name(expr.id.substr(0, dot));
+            return ExprEmission{
+                stem + "value()" + (dot == std::string::npos ? "" : expr.id.substr(dot)), {}};
+        }
         // A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>`
         // reads the generated accessor `<member><field>()`, which returns the manifest default
         // before the first attach and after detach. The dotted form is the only valid shape, so a

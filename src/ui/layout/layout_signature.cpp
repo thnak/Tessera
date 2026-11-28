@@ -133,6 +133,9 @@ void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
     hasher.word(kTextWrap | (input.text_wrap ? 0x100U : 0U));
     hasher.word(0x5A000000U | input.text_runs.value);
     hasher.word(0x5B000000U | input.text_indent_q);
+    // A table cell's spans place it in the grid: a change reflows the table.
+    hasher.word((std::uint64_t{0x5C} << 32U) | (std::uint64_t{input.col_span} << 16U) |
+                input.row_span);
     // Open the node: its running state starts from its own fields and takes each child's signature
     // as the children finish.
     ++depth_;

@@ -62,6 +62,11 @@ bool roles() {
            expect(atspi_role(Role::Alert) == AtspiRole::Alert, "alert role") &&
            expect(atspi_role(Role::Status) == AtspiRole::StatusBar, "status is status bar") &&
            expect(role_from_string("status") == Role::Status, "status parses") &&
+           expect(atspi_role(Role::Table) == AtspiRole::Table, "table is table") &&
+           expect(atspi_role(Role::Cell) == AtspiRole::TableCell, "cell is table cell") &&
+           expect(atspi_role(Role::ColumnHeader) == AtspiRole::TableColumnHeader,
+                  "columnheader is table column header") &&
+           expect(role_from_string("columnheader") == Role::ColumnHeader, "columnheader parses") &&
            expect(static_cast<std::uint32_t>(AtspiRole::PushButton) == 42, "push button id") &&
            expect(static_cast<std::uint32_t>(AtspiRole::Entry) == 76, "entry id") &&
            expect_equal(atspi_role_name(Role::Button), "push button", "role name") &&

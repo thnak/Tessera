@@ -242,7 +242,7 @@ This page is the map and reading order for the framework.
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/click-synthesis.md`](design/click-synthesis.md) — `onClick` as a synthesized `Click` (pointer, keyboard, accessibility)
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
-- [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
+- [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding; [`design/table-layout.md`](design/table-layout.md) for HTML tables
 - [`design/layout-observation.md`](design/layout-observation.md) — size observation, read model, settle rounds, container queries (ADR-041)
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/inline-size-runs.md`](design/inline-size-runs.md) for `sub`/`sup`/`small` size runs; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`; [`design/list-style.md`](design/list-style.md) and [`design/list-style-inside.md`](design/list-style-inside.md) for `list-style` and the `ul`/`ol` markers
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
@@ -332,7 +332,7 @@ This page is the map and reading order for the framework.
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch)
 - [`design/observable.md`](design/observable.md) — `Observable<T>`: coalescing over
   `UpdateScheduler` (one notification per flush), the `const T&` delivery model, unsubscribe
-  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
+  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); TSX render read: [`observable-render-read.md`](design/observable-render-read.md); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
 - [`design/background-work.md`](design/background-work.md) — `TaskScope`'s structured cancellation
   (bounded children, deadline-bounded `close()`, cancellation while a child is suspended) and the
   layer-0 timer wake source (`TimerQueue` ordering, coalescing, and the pacer/timer park join)

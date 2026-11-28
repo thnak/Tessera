@@ -174,13 +174,42 @@ std::expected<ManifestMethod, ManifestError> read_method(const JsonValue& node,
     return method;
 }
 
+std::expected<ManifestObservable, ManifestError> read_observable(const JsonValue& node,
+                                                                 const std::string& base) {
+    if (!node.is_object()) {
+        return std::unexpected(
+            error("TESSERA_SVC_MANIFEST_SYNTAX", base, "an observable must be an object"));
+    }
+    if (auto keys = check_keys(node, base, {"name", "type"}); !keys) {
+        return std::unexpected(keys.error());
+    }
+    auto name = required_string(node, "name", base);
+    auto type = required_string(node, "type", base);
+    if (!name) {
+        return std::unexpected(name.error());
+    }
+    if (!type) {
+        return std::unexpected(type.error());
+    }
+    if (!is_identifier(*name)) {
+        return std::unexpected(error("TESSERA_SVC_MANIFEST_SYNTAX", at(base, "name"),
+                                     "an observable name must be an identifier"));
+    }
+    if (!is_manifest_type(*type, false)) {
+        return std::unexpected(error("TESSERA_SVC_MANIFEST_TYPE", at(base, "type"),
+                                     "`" + *type + "` is not an IR type"));
+    }
+    return ManifestObservable{*name, *type};
+}
+
 std::expected<ManifestService, ManifestError> read_service(const JsonValue& node,
                                                            const std::string& base) {
     if (!node.is_object()) {
         return std::unexpected(
             error("TESSERA_SVC_MANIFEST_SYNTAX", base, "a service must be an object"));
     }
-    if (auto keys = check_keys(node, base, {"id", "name", "cpp", "methods"}); !keys) {
+    if (auto keys = check_keys(node, base, {"id", "name", "cpp", "methods", "observables"});
+        !keys) {
         return std::unexpected(keys.error());
     }
     ManifestService service;
@@ -235,6 +264,28 @@ std::expected<ManifestService, ManifestError> read_service(const JsonValue& node
                       "service `" + service.name + "` lists method `" + method->name + "` twice"));
         }
         service.methods.push_back(std::move(*method));
+    }
+    if (const JsonValue* observables = node.find("observables"); observables != nullptr) {
+        if (!observables->is_array()) {
+            return std::unexpected(error("TESSERA_SVC_MANIFEST_SYNTAX", at(base, "observables"),
+                                         "`observables` must be an array"));
+        }
+        std::size_t position = 0;
+        for (const JsonValue& entry : *observables->as_array()) {
+            auto observable = read_observable(entry, at(at(base, "observables"), position++));
+            if (!observable) {
+                return std::unexpected(observable.error());
+            }
+            // One C++ member name per interface: an observable and a method cannot share it.
+            if (service.find_observable(observable->name) != nullptr ||
+                service.find_method(observable->name) != nullptr) {
+                return std::unexpected(error("TESSERA_SVC_MANIFEST_DUPLICATE",
+                                             at(at(base, "observables"), position - 1),
+                                             "service `" + service.name + "` lists member `" +
+                                                 observable->name + "` twice"));
+            }
+            service.observables.push_back(std::move(*observable));
+        }
     }
     return service;
 }

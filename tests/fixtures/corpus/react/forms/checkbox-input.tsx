@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-// Corpus fixture: `checked` and `type="checkbox"`. ADR-066 section 3 keeps these rejected as raw
-// intrinsics: the library components Checkbox and RadioList provide them (ADR-064 tiers 3 to 5).
+// Corpus fixture: `checked` and `type="checkbox"`. The tag lowers onto the library Checkbox (#1041,
+// html-aliases.md section 3.8), which the file must import; this fixture does not, so the pipeline
+// reports TESSERA_IR_UNRESOLVED with the import line.
 
 export function AcceptTerms({ accepted, onChange }: { accepted: boolean; onChange: () => void }) {
   return (

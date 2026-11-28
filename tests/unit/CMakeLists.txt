@@ -2711,6 +2711,13 @@ target_link_libraries(lowering_module_package_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_module_package COMMAND lowering_module_package_tests)
 
+add_executable(lowering_tag_controls_tests
+    lowering_tag_controls_tests.cpp)
+
+target_link_libraries(lowering_tag_controls_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_tag_controls COMMAND lowering_tag_controls_tests)
+
 add_executable(lowering_module_reject_tests
     lowering_module_reject_tests.cpp)
 
@@ -3509,6 +3516,11 @@ add_executable(a11y_span_tests
 target_link_libraries(a11y_span_tests PRIVATE tessera_accessibility)
 add_test(NAME a11y_span COMMAND a11y_span_tests)
 
+add_executable(a11y_table_tests
+    a11y_table_tests.cpp)
+target_link_libraries(a11y_table_tests PRIVATE tessera_accessibility)
+add_test(NAME a11y_table COMMAND a11y_table_tests)
+
 add_executable(codegen_span_tests
     codegen_span_tests.cpp)
 target_link_libraries(codegen_span_tests PRIVATE tessera_codegen)
@@ -3734,6 +3746,16 @@ add_executable(shim_router_tests
 target_link_libraries(shim_router_tests PRIVATE tessera_lowering tessera_ir_eval)
 
 add_test(NAME shim_router COMMAND shim_router_tests)
+
+# `useObservable(svc.member)` from TSX (ADR-050 open question 6, docs/design/observable-render-read.md):
+# the rules, the lowering, the IR validation, the evaluator and the shape of the generated base.
+add_executable(observable_frontend_tests
+    observable_frontend_tests.cpp)
+
+target_link_libraries(observable_frontend_tests PRIVATE
+    tessera_lowering tessera_ir_eval tessera_codegen tessera_ir_ids)
+
+add_test(NAME observable_frontend COMMAND observable_frontend_tests)
 
 # Generic layer promotion policy and its paint-pass path (issue #967).
 add_executable(paint_layer_promotion_tests

@@ -256,10 +256,92 @@ bool lower_spread(NodeState& state, const jsx::JsxAttribute& attribute, ir::Node
 
 } // namespace
 
+namespace {
+
+// Attributes every lowered tag keeps as written: they are not HTML attributes of the control but
+// the framework's own (key, ref, className, automationId).
+bool is_framework_attribute(std::string_view name) {
+    return name == "key" || name == "ref" || name == "className" || name == "automationId";
+}
+
+// Issue #1041: the component prop an HTML attribute of a library-lowered tag becomes. Empty when
+// the attribute is dropped (`type` of an `input`); nullopt after reporting a rejected one.
+std::optional<std::string_view> library_attribute_name(NodeState& state, const ElementInfo& info,
+                                                       const jsx::JsxAttribute& attribute) {
+    const schema::LibraryLowering& lowering = *info.library;
+    if (is_framework_attribute(attribute.name)) {
+        return std::string_view(attribute.name);
+    }
+    if (attribute.name == "type" && lowering.tag == "input") {
+        return std::string_view();
+    }
+    for (const schema::LibraryAttr& row : lowering.attrs) {
+        if (row.name != attribute.name) {
+            continue;
+        }
+        if (row.rename.empty()) {
+            fail_node(state, "TESSERA_JSX_SUBSET_HTML_ATTR",
+                      "`" + attribute.name + "` has no meaning on `<" + std::string(lowering.tag) +
+                          ">` in V1",
+                      attribute.span, std::string(row.suggestion));
+            return std::nullopt;
+        }
+        return row.rename;
+    }
+    fail_node(state, "TESSERA_JSX_SUBSET_HTML_ATTR",
+              "`" + attribute.name + "` is not an attribute of `<" + std::string(lowering.tag) +
+                  ">`, which lowers onto the library `" + std::string(lowering.component) + "`",
+              attribute.span, "use `className` and the attributes the typings list");
+    return std::nullopt;
+}
+
+// `<details>`: the first `<summary>` child (static text only) is the Disclosure's `summary` prop.
+bool lower_details_summary(NodeState& state, const jsx::JsxNode& element, ir::Node& node) {
+    for (const jsx::JsxPtr& child : element.children) {
+        if (!child || child->kind != jsx::JsxKind::Element || child->tag != "summary") {
+            continue;
+        }
+        std::string text;
+        for (const jsx::JsxPtr& part : child->children) {
+            if (!part || part->kind != jsx::JsxKind::Text) {
+                fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                          "the `<summary>` of a `<details>` holds static text only in V1",
+                          part ? part->span : child->span,
+                          "use the library `Disclosure` for a richer summary");
+                return false;
+            }
+            text += part->text;
+        }
+        if (!child->attributes.empty()) {
+            fail_node(state, "TESSERA_JSX_SUBSET_HTML_ATTR",
+                      "a `<summary>` takes no attributes in V1", child->attributes.front().span);
+            return false;
+        }
+        node.props["summary"] = ir::make_literal(std::move(text));
+        return true;
+    }
+    fail_node(state, "TESSERA_IR_UNSUPPORTED", "a `<details>` needs a `<summary>` child",
+              element.span, "add `<summary>Title</summary>` as the first child");
+    return false;
+}
+
+} // namespace
+
 bool lower_component_attributes(NodeState& state, const jsx::JsxNode& element,
                                 const ElementInfo& info, ir::Node& node) {
-    (void)info;
     for (const jsx::JsxAttribute& attribute : element.attributes) {
+        std::string_view name = attribute.name;
+        if (info.library != nullptr && attribute.kind != jsx::JsxAttrKind::Spread) {
+            const std::optional<std::string_view> renamed =
+                library_attribute_name(state, info, attribute);
+            if (!renamed) {
+                return false;
+            }
+            if (renamed->empty()) {
+                continue;
+            }
+            name = *renamed;
+        }
         switch (attribute.kind) {
         case jsx::JsxAttrKind::Spread:
             if (!lower_spread(state, attribute, node)) {
@@ -267,13 +349,12 @@ bool lower_component_attributes(NodeState& state, const jsx::JsxNode& element,
             }
             break;
         case jsx::JsxAttrKind::Flag:
-            if (!apply_literal(state, attribute.name, ir::make_literal(true), attribute.span,
-                               node)) {
+            if (!apply_literal(state, name, ir::make_literal(true), attribute.span, node)) {
                 return false;
             }
             break;
         case jsx::JsxAttrKind::String:
-            if (!apply_literal(state, attribute.name, ir::make_literal(attribute.string_value),
+            if (!apply_literal(state, name, ir::make_literal(attribute.string_value),
                                attribute.span, node)) {
                 return false;
             }
@@ -284,11 +365,14 @@ bool lower_component_attributes(NodeState& state, const jsx::JsxNode& element,
                           attribute.span);
                 return false;
             }
-            if (!apply_expression(state, attribute.name, *attribute.expr, attribute.span, node)) {
+            if (!apply_expression(state, name, *attribute.expr, attribute.span, node)) {
                 return false;
             }
             break;
         }
+    }
+    if (info.library != nullptr && info.library->tag == "details") {
+        return lower_details_summary(state, element, node);
     }
     return true;
 }

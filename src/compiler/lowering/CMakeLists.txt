@@ -31,6 +31,7 @@ set(_tessera_lowering_core_sources
     src/node_children.cpp
     src/node_children_items.cpp
     src/node_lowering.cpp
+    src/observable_lowering.cpp
     src/project_path.cpp
     src/prop_records.cpp
     src/record_lowering.cpp

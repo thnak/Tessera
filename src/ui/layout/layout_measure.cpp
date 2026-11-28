@@ -34,8 +34,9 @@ YGConfigRef unrounded_config() {
 }
 
 bool is_grid_container(const ComputedStyle& style) {
+    // A table is laid out the same way: a measured leaf over a subtree an engine positions.
     return is_keyword(style.find("display"), "grid") ||
-           is_keyword(style.find("display"), "inline-grid");
+           is_keyword(style.find("display"), "inline-grid") || is_table_container(style);
 }
 
 int order_value(const ComputedStyle& style) {
@@ -204,6 +205,9 @@ YGSize measure_grid_box(const LayoutInput& container, const LayoutViewport& view
     GridContentBox content;
     content.width_definite = width_mode == YGMeasureModeExactly;
     content.width = content.width_definite ? std::max(0.0f, width) : 0.0f;
+    if (width_mode == YGMeasureModeAtMost) {
+        content.max_width = std::max(0.0f, width);
+    }
     content.height_definite = height_mode == YGMeasureModeExactly;
     content.height = content.height_definite ? std::max(0.0f, height) : 0.0f;
     float out_width = 0.0f;
@@ -219,11 +223,11 @@ YGSize measure_grid_box(const LayoutInput& container, const LayoutViewport& view
 }
 
 GridItemLayout layout_grid_item(void* raw, const LayoutInput& item, float available_width,
-                                float available_height, std::vector<LayoutBox>* boxes) {
+                                float available_height, bool fill, std::vector<LayoutBox>* boxes) {
     auto* context = static_cast<GridItemContext*>(raw);
     const LayoutResult result =
         layout_cold(item, *context->viewport, available_width, available_height, *context->cache,
-                    /*as_grid_item=*/true);
+                    /*as_grid_item=*/true, fill);
     if (boxes != nullptr) {
         boxes->insert(boxes->end(), result.boxes.begin(), result.boxes.end());
     }
@@ -240,13 +244,21 @@ void run_grid(const LayoutInput& container, const LayoutViewport& viewport,
               float origin_y, std::vector<LayoutBox>* boxes, float& out_width, float& out_height) {
     GridItemContext item_context{&viewport, &cache};
     const GridItemLayouter layouter{&layout_grid_item, &item_context};
-    GridEngine engine(container, viewport, layouter);
-    engine.run(content);
-    out_width = engine.content_width();
-    out_height = engine.content_height();
-    if (boxes != nullptr) {
-        engine.emit_boxes(origin_x, origin_y, *boxes);
+    const auto run = [&](auto& engine) {
+        engine.run(content);
+        out_width = engine.content_width();
+        out_height = engine.content_height();
+        if (boxes != nullptr) {
+            engine.emit_boxes(origin_x, origin_y, *boxes);
+        }
+    };
+    if (is_table_container(container.style)) {
+        TableEngine table(container, viewport, layouter);
+        run(table);
+        return;
     }
+    GridEngine engine(container, viewport, layouter);
+    run(engine);
 }
 
 } // namespace tessera::ui::layout::detail

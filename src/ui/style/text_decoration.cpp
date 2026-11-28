@@ -128,8 +128,10 @@ float text_decoration_thickness(std::string_view value, float font_size) {
 
 bool is_supported_vertical_align(std::string_view value) {
     const std::string token = lower_trimmed(value);
-    return token == "baseline" || token == "sub" || token == "super" ||
-           parse_signed_length(token, 16.0f).has_value();
+    // `top`, `middle` and `bottom` place the content of a table cell in its row (layout_style.cpp,
+    // docs/design/table-layout.md section 3); on text they shift nothing.
+    return token == "baseline" || token == "sub" || token == "super" || token == "top" ||
+           token == "middle" || token == "bottom" || parse_signed_length(token, 16.0f).has_value();
 }
 
 float vertical_align_shift(std::string_view value, float font_size) {

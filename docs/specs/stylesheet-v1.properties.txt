@@ -171,6 +171,10 @@ longhand text-decoration-style typography
 longhand text-decoration-color typography
 longhand text-decoration-thickness typography
 longhand vertical-align typography
+longhand border-collapse box-model
+longhand border-spacing box-model
+longhand caption-side box-model
+longhand table-layout box-model
 longhand list-style-type typography
 longhand list-style-position typography
 shorthand font-variant typography

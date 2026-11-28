@@ -405,6 +405,8 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_transition(ctx, index, statement, call, *transition);
     } else if (name == "useResource") {
         check_resource(ctx, index, statement, call);
+    } else if (name == "useObservable") {
+        check_observable(ctx, index, statement, call);
     } else if (const jsx::HookEntry* deferred = ctx.manifest.find(name);
                name == "useDeferredValue" && deferred != nullptr) {
         check_deferred_value(ctx, index, statement, call, *deferred);
