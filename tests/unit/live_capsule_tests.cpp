@@ -115,6 +115,10 @@ void test_sizing_and_transitions() {
     expect(near(capsule_size(in).width, 220.0f), "compact: cutout plus slots");
     in.leading_width = 400.0f;
     expect(near(capsule_size(in).width, 240.0f), "compact is capped at 60% of the window");
+    in.leading_width = 20.0f;
+    in.trailing_width = 50.0f;
+    expect(near(capsule_size(in).width, 60.0f + 2.0f * 50.0f),
+           "compact: the wider slot sets both sides so neither runs under the cutout");
     in.state = CapsuleState::Expanded;
     const auto card = capsule_size(in);
     expect(near(card.width, 360.0f) && near(card.height, 320.0f),

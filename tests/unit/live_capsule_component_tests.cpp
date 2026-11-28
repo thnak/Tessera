@@ -242,10 +242,10 @@ void test_measured_slot_sizes() {
         settle(f, capsule, notch_env());
         return capsule.rect().width;
     };
-    // cutout 60 + leading (14 + 12) + trailing (22 + 12).
-    expect(std::abs(compact_width(true, "0:42") - 120.0f) < 0.5f,
+    // cutout 60 + twice the wider slot: trailing is 22 + 12, leading only 14 + 12.
+    expect(std::abs(compact_width(true, "0:42") - 128.0f) < 0.5f,
            "compact width is the measured slots plus the cutout");
-    expect(std::abs(compact_width(true, "0:42:17") - 136.5f) < 0.5f,
+    expect(std::abs(compact_width(true, "0:42:17") - 161.0f) < 0.5f,
            "a longer trailing text widens the capsule");
     expect(std::abs(compact_width(false, "0:42") - 240.0f) < 0.5f,
            "without a measurer the hints apply");

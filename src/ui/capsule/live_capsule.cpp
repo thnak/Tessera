@@ -128,8 +128,8 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
             const SlotExtent middle = measurer_(body, SlotTextRole::Body);
             float row_width = 0.0f;
             for (const Node* button : buttons) {
-                row_width += measurer_(*button, SlotTextRole::Label).width + 2.0f * kActionPaddingX +
-                             kActionGap;
+                row_width += measurer_(*button, SlotTextRole::Label).width +
+                             2.0f * kActionPaddingX + kActionGap;
             }
             measured_.card_width =
                 std::max({head.width, middle.width, row_width}) + 2.0f * kCardPadding;

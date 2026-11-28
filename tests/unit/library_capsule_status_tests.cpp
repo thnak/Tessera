@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 // `packages/tessera-ui/CapsuleStatus.tsx` (issue #997) lowers, gets identity, validates and
-// generates C++; its dot is hidden from the accessibility tree and every class it sets has a rule in
-// live-capsule.css.
+// generates C++; its dot is hidden from the accessibility tree and every class it sets has a rule
+// in live-capsule.css.
 
 #include "lowering_module_test_util.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"

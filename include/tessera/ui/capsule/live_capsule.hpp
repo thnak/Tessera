@@ -53,7 +53,8 @@ public:
     bool sync(const LiveCapsuleEnv& env, float dt);
 
     // Installs the measurer that sizes the compact slots and the expanded card from the built
-    // content (issue #997). Without one the `Slots` size hints apply. Takes effect at the next sync.
+    // content (issue #997). Without one the `Slots` size hints apply. Takes effect at the next
+    // sync.
     void set_slot_measurer(SlotMeasurer measurer);
 
     // Input. Each returns true when the state changed. `focused_node` is the node that held focus.

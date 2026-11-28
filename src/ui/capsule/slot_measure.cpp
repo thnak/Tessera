@@ -44,7 +44,8 @@ SlotExtent intrinsic_slot_extent(const Node& node, const text::TextMeasurer& mea
     if (paint && paint->kind == PaintKind::Text && !paint->text.empty()) {
         text::TextConstraints constraints;
         constraints.wrap = false;
-        const text::TextMetrics metrics = measurer.measure(paint->text, style_for(role), constraints);
+        const text::TextMetrics metrics =
+            measurer.measure(paint->text, style_for(role), constraints);
         extent = {metrics.width, metrics.height};
     } else {
         for (const auto& child : node.children()) {
