@@ -16,12 +16,30 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { App } from "./App";
+import { createContext, createRegistry } from "./workbench/index.js";
+import commandsDocument from "./workbench/commands.json";
+import type { CommandRecord } from "./workbench/index.js";
+import { KeybindingsPane } from "./regions/KeybindingsPane";
+import { createSettingsTools } from "./page-settings";
 import { seedBootProjectForRender } from "./page-boot";
 
 /** The studio chrome as static HTML, with every id, role and class the page's code resolves. */
 export function renderChrome(): string {
   seedBootProjectForRender();
   return renderToStaticMarkup(<App />);
+}
+
+/** The keyboard-shortcuts pane over the shipped command table, for the gate that proves its rows and roles (#565). */
+export function renderKeybindingsPane(): string {
+  const records = commandsDocument.commands as CommandRecord[];
+  const registry = createRegistry(records, { context: createContext({}) });
+  for (const record of records) {
+    if (record.status === "live") {
+      registry.register(record.id, () => undefined);
+    }
+  }
+  const settings = createSettingsTools({ registry, dock: () => { throw new Error("no dock in a static render"); }, notify: () => null, undo: { current: null } });
+  return renderToStaticMarkup(<KeybindingsPane tools={settings.keybindings} onChanged={() => undefined} />);
 }
 
 /** The chrome as a visitor first sees it: no project open, nothing seeded (the owner's 2026-11-17 direction). */

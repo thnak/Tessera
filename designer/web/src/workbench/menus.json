@@ -78,7 +78,9 @@
             { "command": "view.setTheme", "args": { "value": "system" }, "title": "Theme: System" },
             { "command": "view.setTheme", "args": { "value": "light" }, "title": "Theme: Light" },
             { "command": "view.setTheme", "args": { "value": "dark" }, "title": "Theme: Dark" }
-          ] }
+          ] },
+        { "command": "view.openSettings", "group": "settings@1" },
+        { "command": "view.openKeybindings", "group": "settings@2" }
       ]
     },
     {

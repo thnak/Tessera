@@ -144,6 +144,21 @@ await test("the built chrome renders the page's four regions", async () => {
   );
 });
 
+await test("the keyboard-shortcuts pane lists every live command with its chord and the import/export controls (#565)", async () => {
+  const pane = chrome.renderKeybindingsPane();
+  assert.match(pane, /<input[^>]*aria-label="Filter shortcuts"/, "the filter is labelled");
+  assert.match(pane, /<table[^>]*id="kb-table"/, "the shortcuts are a table");
+  assert.match(pane, /<th scope="col">Shortcut<\/th>/, "with column headers");
+  const settings = pane.match(/<tr data-command="view.openSettings"[^>]*>.*?<\/tr>/s)?.[0] ?? "";
+  assert.match(settings, /<kbd class="kb-chord">Ctrl\+,<\/kbd>/, "Settings shows Ctrl+,");
+  assert.match(settings, /aria-label="Change shortcut for Settings"/, "each row has a named edit button");
+  assert.match(pane, /data-command="view.openKeybindings"/, "the keyboard shortcuts command is listed");
+  assert.match(pane, /id="kb-summary"[^>]*role="status"[^>]*>No shortcut conflicts\./, "the shipped defaults have no conflicts");
+  assert.match(pane, /id="keybindings-export"/, "export is offered");
+  assert.match(pane, /id="keybindings-import-text"[^>]*disabled/, "import is disabled until there is text");
+  assert.match(pane, /id="keybindings-outcome"[^>]*role="status"/, "the outcome is a live region");
+});
+
 await test("the menu bar replaced the toolbar's selects and carries the documented option sets", async () => {
   // Issue #557: the five `<select>`s are Device and View menu items now; the rendered chrome has none, and
   // the menu bar, the toolbar and the device chip are in their place.

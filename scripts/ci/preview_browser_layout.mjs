@@ -1,321 +1,352 @@
 #!/usr/bin/env node
 /**
- * Verify the studio's **layout** in a real browser (issue #431's acceptance).
+ * Verify the studio's **dock layout** in a real browser (issue #563, slice W6 of #516;
+ * `docs/specs/studio-workbench-layout-v1.md` section 4.5).
  *
- * **Why this exists beside `preview_browser_verify.mjs`.** That script proves the page *works*: WebGPU
- * is available, the three views compile/evaluate/draw, a leftover `#p5=` link is ignored. None of that can see
- * the thing #431 is about -- that the page is one three-column workspace whose shape does not change
- * when the preview view does. A regression there (the view switch moving back above the workspace, the
- * tree collapsing to nothing, the phone layout gaining a horizontal scrollbar) leaves every one of those
- * ten checks green, so it needs its own measurements.
+ * The page is a dock workbench: Project, Editor and Canvas are panels the viewer arranges, not three fixed columns.
+ * Before this rewrite the script asserted three side-by-side columns and that a view switch moved nothing; those
+ * sentences are restated here per dock group. Boxes are read from `data-panel` attributes.
  *
- * **Status (W5 #560).** The page is now the dock workbench (`docs/specs/studio-workbench-layout-v1.md`):
- * the three fixed regions are `[data-panel]` hosts, the view switch is the preview group's tab strip, and the
- * phone layout is one visible group. This file was edited **minimally** so it keeps measuring the same
- * acceptance sentences against the new DOM; W6 (#563) owns the full rewrite for the dock (drag, collapse,
- * persistence), which `scripts/ci/workbench_dock.mjs` covers in the meantime.
- *
- * Developer-run and not a CI gate, for the same reason the other browser scripts are: it needs a browser
- * and a WebGPU-capable driver, which no lane has today.
+ * Developer-run and not a CI gate: it needs Chromium (and a WebGPU-capable one for the frame assertions, which
+ * print `skip` and never pass vacuously when the engine reports no GPU). The pure parts (model operations,
+ * migrations, reconciliation, when-clauses, keybinding resolution) are Node gates.
  *
  * Usage:
- *   node scripts/ci/preview_browser_layout.mjs --site build/pages [--shots build/]
+ *   node scripts/ci/preview_browser_layout.mjs [--site designer/web/dist] [--shots dir] [--only 1,4,7]
+ * Playwright: install it anywhere and set PLAYWRIGHT_DIR (see `studio_browser.mjs`).
  *
- * What it measures, at 1440x900 and at 390x844 (the issue's two acceptance sizes):
- *
- *   1. the workspace has three side-by-side columns, in the order tree | code | preview;
- *   2. the project tree lists the opened project's files, and a click and the arrow keys both change the
- *      selection (`role="tree"`, `aria-selected`, one tab stop);
- *   3. a file click opens a tab, `Run` compiles the *active source file*, and a second file gets a
- *      second tab with the unsaved marker;
- *   4. switching the preview view does not move the tree or the editor (their boxes are identical before
- *      and after), which is the issue's "no view switch changes the top-level layout";
- *   5. `?view=` still opens on the named view, and a `#p5=` link still restores its source;
- *   6. at 390 px the layout is one column, the preview is reachable, and
- *      `document.documentElement.scrollWidth <= clientWidth` (no horizontal scroll).
+ * The nine assertions, at 1440x900 unless said (each prints `[n]` in its name so a mutation run can target it):
+ *   1  default order Project | Editor | Canvas, panel area collapsed until Ctrl+J, status bar below with the
+ *      Diagnostics item;
+ *   2  a tab switch inside a group moves no other panel;
+ *   3  Canvas, Scene and Diagnostics open and close independently from View > Panels; closing Canvas takes no
+ *      GPU device;
+ *   4  Canvas to the bottom and Diagnostics to the right by keyboard commands and by drag: the Canvas element is
+ *      the same object, 0 removals, no re-init, frames keep increasing;
+ *   5  reload returns the same layout; a throwing localStorage renders the default with no console error;
+ *   6  a hidden Canvas produces zero frames over one second;
+ *   7  at 390x844: one visible group, a switcher, no horizontal scroll, every panel reachable, the desktop layout
+ *      in storage unchanged after a resize round trip;
+ *   8  ARIA: roles, one tab stop per roving set, separator values;
+ *   9  Reset Layout restores the default and does not change the open file or its dirty state.
  */
 
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
 import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.wasm': 'application/wasm',
-  '.ttf': 'font/ttf',
-  '.txt': 'text/plain; charset=utf-8',
-  '.tsx': 'text/plain; charset=utf-8',
-};
+import { argument, boxOf, loadChromium, openPage, openProject, reporter, serve } from './studio_browser.mjs';
 
-function argument(name, fallback) {
-  const index = process.argv.indexOf(name);
-  return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
-}
-
-const site = argument('--site', 'build/pages');
+const site = argument('--site', 'designer/web/dist');
 const shots = argument('--shots', null);
+const only = argument('--only', null)?.split(',').map(Number) ?? null;
+const wants = (n) => only === null || only.includes(n);
 
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  console.error(
-    'playwright is not installed. This script is developer-run on purpose (no repository dependency):\n' +
-      '  npm install playwright && npx playwright install chromium\n' +
-      'Run it from a directory whose node_modules has playwright.',
-  );
-  process.exit(2);
-}
-
-const server = createServer(async (request, response) => {
-  const url = new URL(request.url, 'http://127.0.0.1');
-  let path = normalize(decodeURIComponent(url.pathname));
-  if (path === '/' || path === '\\') path = '/index.html';
-  try {
-    const body = await readFile(join(site, path));
-    response.writeHead(200, {
-      'content-type': MIME[extname(path).toLowerCase()] ?? 'application/octet-stream',
-      'cache-control': 'no-store',
-    });
-    response.end(body);
-  } catch {
-    response.writeHead(404, { 'content-type': 'text/plain' });
-    response.end('not found');
-  }
-});
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const base = `http://127.0.0.1:${server.address().port}`;
-console.log(`serving ${site} at ${base}`);
-
+const chromium = await loadChromium();
+const { base, close } = await serve(site);
+console.log(`testing ${base}`);
 const browser = await chromium.launch({
-  args: [
-    '--enable-unsafe-webgpu',
-    '--enable-features=Vulkan',
-    '--use-angle=swiftshader',
-    '--disable-vulkan-surface',
-  ],
+  executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined,
+  args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--disable-vulkan-surface'],
 });
+const { state, check, skip } = reporter();
 
-let failures = 0;
-const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'ok   ' : 'FAIL '} ${name}${detail ? '  -- ' + detail : ''}`);
-  if (!ok) failures += 1;
-};
-
-/** The box of a selector, or null when it is not laid out. */
-const boxOf = (page, selector) =>
-  page.evaluate((selector_) => {
-    const node = document.querySelector(selector_);
-    if (!node) return null;
-    const rect = node.getBoundingClientRect();
-    return { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) };
-  }, selector);
-
-/** A page with a viewport, and the console errors it produced. */
-async function open(width, height, path = '/index.html') {
-  const context = await browser.newContext({ viewport: { width, height } });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text());
-  });
-  page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
-  await page.goto(`${base}${path}`, { waitUntil: 'load' });
-  await page.waitForTimeout(1400);
-  return { page, errors, context };
-}
-
-// --- 1440x900: three columns, a tree, tabs, and a switch that moves nothing else --------------------
-
-{
-  const { page, errors, context } = await open(1440, 900);
-
-  const tree = await boxOf(page, '[data-panel=project]');
-  const code = await boxOf(page, '[data-panel=editor]');
-  const preview = await boxOf(page, '[data-panel=canvas]');
-  check(
-    'the workspace is three columns at 1440x900',
-    Boolean(tree && code && preview) &&
-      tree.x < code.x &&
-      code.x < preview.x &&
-      Math.abs(tree.y - code.y) < 4 &&
-      Math.abs(code.y - preview.y) < 4,
-    `${tree ? `tree x=${tree.x} w=${tree.w}` : 'no tree'}, ` +
-      `${code ? `code x=${code.x} w=${code.w}` : 'no code'}, ` +
-      `${preview ? `preview x=${preview.x} w=${preview.w}` : 'no preview'}`,
-  );
-
-  // The tree lists the seeded project: the entry file and the stylesheet, with the directories derived.
-  const rows = await page.locator('#project-tree [role="treeitem"]').evaluateAll((nodes) =>
-    nodes.map((node) => ({ path: node.getAttribute('data-path'), dir: node.classList.contains('is-dir') })),
-  );
-  // The studio starts with an empty workspace since #391, so the project checks only run when a project
-  // is open (the old seeded-project assumption was already stale before the dock; W6 #563 reseeds it).
-  if (rows.length === 0) {
-    console.log('skip  project-tree and editor-tab checks: no project is open at boot (W6 #563 reseeds)');
-  } else {
-    const paths = rows.map((row) => row.path);
-    check(
-      'the tree lists the opened project, directories first',
-      ['ui', 'styles', 'tessera.json', 'styles/theme.css', 'ui/App.tsx'].every((path) =>
-        paths.includes(path),
-      ),
-      paths.join(' '),
-    );
-
-    // The seeded entry file is open and selected: one tab, one selection, and the editor holds its text.
-    const firstTab = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-    const firstText = await page.evaluate(() => window.__tesseraEditor.text());
-    check(
-      'the entry file is open in a tab and its text is in the editor',
-      firstTab === 1 && firstText.includes('Count: {count}'),
-      `${firstTab} tab(s)`,
-    );
-
-    // Keyboard: the tree is one tab stop, and ArrowDown moves the selection to the next row.
-    const before = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
-    await page.locator('#project-tree [role="treeitem"][tabindex="0"]').focus();
-    await page.keyboard.press('ArrowDown');
-    const after = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
-    const focused = await page.evaluate(() => document.activeElement?.getAttribute('data-path') ?? null);
-    check(
-      'the tree is keyboard navigable (ArrowDown moves selection and focus)',
-      before !== after && focused === after,
-      `${before} -> ${after}, focus ${focused}`,
-    );
-
-    // A file click opens a tab. `theme.css` is a stylesheet: it opens, but the previewed entry is the
-    // one `tessera.json` names, whatever the editor shows. Clicking the *tab* a row opened is the same action, so
-    // this also proves the two ways of selecting a file agree.
-    const tabsBefore = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-    await page.locator('[role="treeitem"][data-path="styles/theme.css"]').click();
-    await page.waitForTimeout(200);
-    const twoTabs = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-    const cssText = await page.evaluate(() => window.__tesseraEditor.text());
-    const compileTarget = ((await page.locator('#status-language').getAttribute('title')) ?? '').split('Run compiles ')[1] ?? '';
-    check(
-      'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
-      twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/App.tsx',
-      `${twoTabs} tab(s), target ${compileTarget.trim()}`,
-    );
-
-    // Typing marks the active file unsaved (the marker is in the tab strip and in the tree).
-    await page.evaluate(() => window.__tesseraEditor.edit('/* edited */\n'));
-    await page.waitForTimeout(200);
-    const dirtyMarks = await page.locator('.editor-tab-dirty').count();
-    const treeDirty = await page.locator('#project-tree [data-path="styles/theme.css"] .tree-dirty').count();
-    check(
-      'editing marks the file unsaved in the tab and in the tree',
-      dirtyMarks === 1 && treeDirty === 1,
-      `${dirtyMarks} tab marker(s), ${treeDirty} tree marker(s)`,
-    );
-
-  }
-
-  // The layout does not depend on the view: capture the tree and code boxes, switch all three views, and
-  // compare. This is the issue's acceptance sentence, measured.
-  const beforeSwitch = { tree: await boxOf(page, '[data-panel=project]'), code: await boxOf(page, '[data-panel=editor]') };
-  for (const view of ['scene', 'canvas']) {
-    await page.locator(`[id^=flexlayout-tabbutton-${view}]`).click();
-    await page.waitForTimeout(300);
-  }
-  const afterSwitch = { tree: await boxOf(page, '[data-panel=project]'), code: await boxOf(page, '[data-panel=editor]') };
-  check(
-    'no view switch moves the tree or the code column',
-    JSON.stringify(beforeSwitch) === JSON.stringify(afterSwitch),
-    `tree ${JSON.stringify(beforeSwitch.tree)} vs ${JSON.stringify(afterSwitch.tree)}`,
-  );
-
-  // The switch is inside the preview column: the preview's box contains the switch, and the switch is
-  // inside the column's own header rather than a page-level strip above the workspace.
-  const tabsBox = await boxOf(page, '[id^=flexlayout-tabbutton-canvas]');
-  check(
-    'the view switch lives inside the preview group',
-    Boolean(tabsBox && preview && tabsBox.x >= preview.x && tabsBox.y < preview.y && tabsBox.y < code.y + code.h),
-    tabsBox ? `switch at ${tabsBox.x},${tabsBox.y}` : 'no switch',
-  );
-
+const snap = async (page, name) => {
   if (shots) {
     await mkdir(shots, { recursive: true });
-    // Three pictures, because a layout is what a reviewer has to see: the diagnostics default (which
-    // compiles itself since #444), the scene snapshot (the device-frame column doing its job), and the
-    // tab/compile-target state the file clicks above produced. Nothing here clicks a button to make a
-    // preview appear: the first automatic apply is what a visitor sees.
-    await page.evaluate(() => window.__tesseraWorkbench.dispatch({ kind: 'collapse', groupId: 'g-bottom', collapsed: false }));
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(shots, '431-1440x900.png') });
-    await page.waitForTimeout(1200);
-    await page.locator('[id^=flexlayout-tabbutton-scene]').click();
-    await page.waitForTimeout(1200);
-    await page.screenshot({ path: join(shots, '431-1440x900-scene.png') });
-    console.log(`screenshots: ${join(shots, '431-1440x900.png')}, ${join(shots, '431-1440x900-scene.png')}`);
+    await page.screenshot({ path: join(shots, `${name}.png`) });
   }
+};
+const model = (page) => page.evaluate(() => window.__tesseraWorkbench.layout());
+const via = (page, source) => page.evaluate((s) => new Function('wb', `return (${s})`)(window.__tesseraWorkbench), source);
+const hidden = async (page, selector) => {
+  const box = await boxOf(page, selector);
+  return box === null || box.w === 0 || box.h === 0;
+};
+const groupOf = (layout, id) => {
+  const walk = (node) => (node.type === 'group' ? (node.panels.includes(id) ? node : null) : node.children.map(walk).find(Boolean) ?? null);
+  return walk(layout.root);
+};
+const centre = (box) => ({ x: box.x + box.w / 2, y: box.y + box.h / 2 });
+const gpu = (page) => page.evaluate(() => ({ acquired: window.__tesseraGpu?.acquired ?? 0, live: window.__tesseraGpu?.live ?? 0 }));
+const frames = (page) => page.evaluate(() => Number(document.getElementById('stat-frame')?.textContent?.replace(/[^0-9]/g, '') || 0));
 
+/** Records removals of the Canvas element and keeps a reference to it, so "the same object" is checkable. */
+const probe = (page) =>
+  page.evaluate(() => {
+    window.__probe = { removals: 0, canvas: document.getElementById('canvas') };
+    new MutationObserver((records) => {
+      for (const record of records) for (const node of record.removedNodes) {
+        if (window.__probe.canvas && (node === window.__probe.canvas || (node.contains && node.contains(window.__probe.canvas)))) window.__probe.removals += 1;
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  });
+const sameCanvas = (page) => page.evaluate(() => window.__probe.canvas !== null && document.getElementById('canvas') === window.__probe.canvas);
+const removals = (page) => page.evaluate(() => window.__probe.removals);
+
+async function drag(page, from, to) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let step = 1; step <= 30; step += 1) {
+    await page.mouse.move(from.x + ((to.x - from.x) * step) / 30, from.y + ((to.y - from.y) * step) / 30);
+  }
+  await page.waitForTimeout(450);
+  await page.mouse.up();
+  await page.waitForTimeout(450);
+}
+
+/** View > Panels > <title>, through the real menu (the keyboard and pointer path a person uses). */
+async function togglePanelFromMenu(page, title) {
+  await page.getByRole('menuitem', { name: 'View', exact: true }).first().click();
+  await page.locator('[role=menu] [role^=menuitem]', { hasText: /^Panels/ }).first().click();
+  await page.locator('[role=menu] [role^=menuitem]', { hasText: new RegExp(`^\u2713?${title}$`) }).first().click();
+  await page.waitForTimeout(400);
+}
+
+// ---- [1] default layout, [2] tab switch ------------------------------------------------------------------------
+
+if (wants(1) || wants(2)) {
+  const { page, errors, context } = await openPage(browser, base, 1440, 900);
+  await probe(page);
+  const project = await boxOf(page, '[data-panel=project]');
+  const editor = await boxOf(page, '[data-panel=editor]');
+  const canvas = await boxOf(page, '[data-panel=canvas]');
+  const footer = await boxOf(page, '.page-footer');
+  check('[1] default: Project | Editor | Canvas side by side, in that order',
+    Boolean(project && editor && canvas) && project.x < editor.x && editor.x < canvas.x && Math.abs(project.y - editor.y) < 4 && Math.abs(editor.y - canvas.y) < 4,
+    JSON.stringify({ project, editor, canvas }));
+  check('[1] default: the panel area is collapsed (no Diagnostics or Problems box)', (await hidden(page, '[data-panel=diagnostics]')) && (await hidden(page, '[data-panel=problems]')));
+  check('[1] default: the status bar is below the dock and carries the Diagnostics item',
+    Boolean(footer) && footer.y >= editor.y + editor.h - 2 && (await page.locator('#status-diagnostics-toggle').count()) === 1 &&
+      (await page.locator('#status-diagnostics-toggle').getAttribute('aria-pressed')) === 'false', JSON.stringify(footer));
+  await snap(page, 'layout-default-1440');
+  await page.keyboard.press('Control+j');
+  await page.waitForTimeout(400);
+  const bottom = await boxOf(page, '[data-panel=problems]');
+  check('[1] Ctrl+J opens the panel area: a bottom group under Editor and Canvas spanning their width, above the status bar',
+    Boolean(bottom) && bottom.y >= editor.y + 100 && Math.abs(bottom.x - editor.x) <= 4 && Math.abs(bottom.x + bottom.w - (canvas.x + canvas.w)) <= 4 && bottom.y + bottom.h <= footer.y + 2, JSON.stringify(bottom));
+  await page.keyboard.press('Control+j');
+  await page.waitForTimeout(300);
+
+  const before = { project: await boxOf(page, '[data-panel=project]'), editor: await boxOf(page, '[data-panel=editor]'), footer: await boxOf(page, '.page-footer') };
+  await page.click('#flexlayout-tabbutton-scene');
+  await page.waitForTimeout(300);
+  const during = { project: await boxOf(page, '[data-panel=project]'), editor: await boxOf(page, '[data-panel=editor]'), footer: await boxOf(page, '.page-footer') };
+  check('[2] Canvas to Scene (a tab switch inside the group) changes no other panel\'s box', JSON.stringify(before) === JSON.stringify(during));
+  check('[2] the hidden Canvas has no box while Scene is the active tab', await hidden(page, '[data-panel=canvas]'));
+  await page.click('#flexlayout-tabbutton-canvas');
+  await page.waitForTimeout(300);
+  check('[2] and back: every box is as it was, and the Canvas element was never removed',
+    JSON.stringify(before) === JSON.stringify({ project: await boxOf(page, '[data-panel=project]'), editor: await boxOf(page, '[data-panel=editor]'), footer: await boxOf(page, '.page-footer') }) &&
+      (await sameCanvas(page)) && (await removals(page)) === 0);
   check('no console errors at 1440x900', errors.length === 0, errors.slice(0, 3).join(' | ') || 'none');
   await context.close();
 }
 
-// --- ?view= and #p5= still resolve ----------------------------------------------------------------
+// ---- [3] open and close independently from View > Panels ---------------------------------------------------------
 
-{
-  const { page, context } = await open(1440, 900, '/index.html?view=canvas');
-  const selected = await page.locator('[id^=flexlayout-tabbutton-canvas]').getAttribute('aria-selected');
-  const canvasVisible = await page.locator('#view-canvas').isVisible();
-  check('?view=canvas opens on the canvas pane', selected === 'true' && canvasVisible, `aria-selected=${selected}`);
+if (wants(3)) {
+  const { page, context } = await openPage(browser, base, 1440, 900);
+  const closed = async () => (await model(page)).closed.sort().join();
+  const active = async (id) => groupOf(await model(page), id)?.active;
+  // A background tab's toggle reveals it (the menu shows it unchecked); a visible panel's toggle closes it.
+  await togglePanelFromMenu(page, 'Scene');
+  check('[3] View > Panels > Scene on a background tab reveals it and closes nothing', (await active('scene')) === 'scene' && (await closed()) === '' && (await page.locator('#canvas').count()) === 1);
+  await togglePanelFromMenu(page, 'Scene');
+  check('[3] and again closes Scene only: Canvas and the editor are untouched', (await closed()) === 'scene' && (await page.locator('#scene-status').count()) === 0 && (await page.locator('#canvas').count()) === 1);
+  await togglePanelFromMenu(page, 'Diagnostics');
+  await togglePanelFromMenu(page, 'Diagnostics');
+  check('[3] Diagnostics reveals then closes independently of Scene', (await closed()) === 'diagnostics,scene', await closed());
+  await togglePanelFromMenu(page, 'Canvas');
+  await page.waitForFunction(() => !window.__tesseraGpu || window.__tesseraGpu.live === 0, null, { timeout: 8000 }).catch(() => {});
+  const taken = await gpu(page);
+  check('[3] closing Canvas removes its element and leaves no GPU device taken', (await closed()) === 'canvas,diagnostics,scene' && (await page.locator('#canvas').count()) === 0 && taken.live === 0, JSON.stringify(taken));
+  check('[3] all three are closed and the editor is untouched', (await boxOf(page, '[data-panel=editor]')) !== null && (await page.locator('#editor-host').count()) === 1);
+  for (const title of ['Canvas', 'Scene', 'Diagnostics']) await togglePanelFromMenu(page, title);
+  check('[3] each reopens from the same menu', (await closed()) === '' && (await page.locator('#canvas').count()) === 1, await closed());
   await context.close();
 }
 
-{
-  // The Share feature is gone: no toolbar button, and a leftover fragment neither errors nor changes the source.
-  const { page, context } = await open(1440, 900);
-  check('no #share control in the chrome', (await page.locator('#share').count()) === 0);
-  await context.close();
-}
+// ---- [4] moves by keyboard and by drag, [6] hidden Canvas draws nothing -------------------------------------------
 
-// --- 390x844: one column, preview reachable, no horizontal scroll ---------------------------------
+if (wants(4) || wants(6)) {
+  const { page, errors, context } = await openPage(browser, base, 1440, 900);
+  await probe(page);
+  const startGpu = await gpu(page);
+  const hasGpu = startGpu.acquired > 0;
+  const frame0 = await frames(page);
+  await page.focus('#flexlayout-tabbutton-canvas');
+  await page.keyboard.press('Alt+Shift+ArrowDown');
+  await page.waitForTimeout(600);
+  const m1 = await model(page);
+  check('[4] keyboard: Alt+Shift+Down moves Canvas into the panel area (bottom) and opens it', groupOf(m1, 'canvas')?.id === 'g-bottom' && m1.collapsed.length === 0);
+  await page.focus('#flexlayout-tabbutton-diagnostics');
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await page.waitForTimeout(600);
+  const m2 = await model(page);
+  check('[4] keyboard: Alt+Shift+Right moves Diagnostics to a column at the right edge', m2.root.children?.at(-1)?.panels?.[0] === 'diagnostics', JSON.stringify(m2.root.children?.at(-1)));
+  check('[4] keyboard moves: the Canvas element is the same object, 0 removals', (await sameCanvas(page)) && (await removals(page)) === 0, `removals=${await removals(page)}`);
+  await snap(page, 'layout-moved-by-keyboard');
 
-{
-  const { page, errors, context } = await open(390, 844);
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-    bodyScroll: document.body.scrollWidth,
-  }));
-  check(
-    'no horizontal scroll at 390x844',
-    metrics.scrollWidth <= metrics.clientWidth && metrics.bodyScroll <= metrics.clientWidth,
-    `scrollWidth ${metrics.scrollWidth} vs clientWidth ${metrics.clientWidth}`,
-  );
-
-  const groups = await page.evaluate(
-    () => [...document.querySelectorAll('.flexlayout__tabset')].filter((n) => n.getBoundingClientRect().width > 0).length,
-  );
-  check('the phone layout shows one visible group at 390px', groups === 1, `${groups} group(s)`);
-
-  // The preview is reachable: its switch is on screen after scrolling to it, and switching views works.
-  const canvasTab = await boxOf(page, '[id^=flexlayout-tabbutton-canvas]');
-  const width = 390;
-  check(
-    'the preview is reachable at 390px',
-    Boolean(canvasTab) && canvasTab.x >= 0 && canvasTab.x + canvasTab.w <= width,
-    canvasTab ? `canvas tab at ${canvasTab.x}..${canvasTab.x + canvasTab.w}` : 'no canvas tab',
-  );
-
-  if (shots) {
-    await page.screenshot({ path: join(shots, '431-390x844.png'), fullPage: true });
-    console.log(`screenshot: ${join(shots, '431-390x844.png')}`);
+  await via(page, 'wb.commands.resetLayout()');
+  await page.waitForTimeout(500);
+  await via(page, "wb.dispatch({kind:'collapse', groupId:'g-bottom', collapsed:false})");
+  await page.waitForTimeout(400);
+  const tab = await boxOf(page, '#flexlayout-tabbutton-canvas');
+  const editor = await boxOf(page, '[data-panel=editor]');
+  await drag(page, centre(tab), { x: editor.x + editor.w / 2, y: editor.y + editor.h - 30 });
+  const d1 = await model(page);
+  const canvasAfter = await boxOf(page, '[data-panel=canvas]');
+  const editorAfter = await boxOf(page, '[data-panel=editor]');
+  check('[4] drag: Canvas dropped on the bottom of the editor is stacked under it',
+    groupOf(d1, 'canvas')?.id !== 'g-preview' && canvasAfter.y >= editorAfter.y + editorAfter.h - 4, JSON.stringify({ canvasAfter, editorAfter }));
+  const dtab = await boxOf(page, '#flexlayout-tabbutton-diagnostics');
+  const dock = await boxOf(page, '.dock-host');
+  await drag(page, centre(dtab), { x: dock.x + dock.w - 6, y: dock.y + dock.h / 2 });
+  const d2 = await model(page);
+  check('[4] drag: Diagnostics dropped on the right edge is a column there', d2.root.children?.at(-1)?.panels?.[0] === 'diagnostics', JSON.stringify(d2.root.children?.at(-1)));
+  check('[4] drags: the Canvas element is the same object, 0 removals', (await sameCanvas(page)) && (await removals(page)) === 0, `removals=${await removals(page)}`);
+  await snap(page, 'layout-moved-by-drag');
+  if (hasGpu) {
+    const reinit = (await gpu(page)).acquired;
+    const a = await frames(page);
+    await page.waitForTimeout(1000);
+    const b = await frames(page);
+    check('[4] frames keep increasing after the moves, with no GPU re-init', b > a && reinit === startGpu.acquired, `frames ${frame0} -> ${a} -> ${b}, acquired ${startGpu.acquired} -> ${reinit}`);
+  } else {
+    skip('[4] frames keep increasing and no re-init', 'no WebGPU adapter in this Chromium; the identity and removal counts above still ran');
   }
+  check('[4] no console errors across the moves', errors.length === 0, errors.slice(0, 3).join(' | ') || 'none');
 
+  if (wants(6)) {
+    await via(page, 'wb.commands.resetLayout()');
+    await page.waitForTimeout(500);
+    await page.click('#flexlayout-tabbutton-scene');
+    await page.waitForTimeout(500);
+    check('[6] the Canvas is hidden behind Scene', await hidden(page, '[data-panel=canvas]'));
+    if (hasGpu) {
+      const f0 = await frames(page);
+      await page.waitForTimeout(1000);
+      const f1 = await frames(page);
+      check('[6] a hidden Canvas produces zero frames over 1 s', f1 === f0, `frames ${f0} -> ${f1}`);
+      await page.click('#flexlayout-tabbutton-canvas');
+      await page.waitForTimeout(1000);
+      check('[6] and it draws again when shown', (await frames(page)) > f1);
+    } else {
+      skip('[6] a hidden Canvas produces zero frames over 1 s', 'no WebGPU adapter in this Chromium (the counter is flat even when visible, so the assertion would pass vacuously)');
+    }
+  }
+  await context.close();
+}
+
+// ---- [5] reload, throwing storage ---------------------------------------------------------------------------------
+
+if (wants(5)) {
+  const { page, context } = await openPage(browser, base, 1440, 900);
+  await via(page, "wb.dispatch({kind:'collapse', groupId:'g-bottom', collapsed:false})");
+  await via(page, "wb.commands.movePanelDirection('canvas', 'bottom')");
+  await page.waitForTimeout(600);
+  const kept = JSON.stringify(await model(page));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.flexlayout__layout');
+  await page.waitForTimeout(800);
+  check('[5] reload returns the same layout (serialized models are equal)', JSON.stringify(await model(page)) === kept && JSON.parse(kept).collapsed.length === 0 && groupOf(JSON.parse(kept), 'canvas')?.id === 'g-bottom');
+  await context.close();
+}
+if (wants(5)) {
+  const { page, errors, context } = await openPage(browser, base, 1440, 900, {
+    init: () => {
+      const refuse = () => { throw new Error('storage blocked'); };
+      Storage.prototype.getItem = refuse;
+      Storage.prototype.setItem = refuse;
+      Storage.prototype.removeItem = refuse;
+    },
+  });
+  const m = await model(page);
+  check('[5] a throwing localStorage renders the default layout with no console error',
+    errors.length === 0 && m.collapsed.join() === 'g-bottom' && (await boxOf(page, '[data-panel=editor]')) !== null, errors.join(' | '));
+  await context.close();
+}
+
+// ---- [7] phone, [8] ARIA, [9] Reset Layout --------------------------------------------------------------------------
+
+if (wants(7)) {
+  const { page, errors, context } = await openPage(browser, base, 390, 844);
+  await page.waitForTimeout(400);
+  const stored = await page.evaluate(() => localStorage.getItem('tessera.studio.layout'));
+  const metrics = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth, body: document.body.scrollWidth }));
+  const strips = await page.evaluate(() => [...document.querySelectorAll('[role=tablist]')].filter((l) => l.querySelector('[id^=flexlayout-tabbutton-]') && l.getBoundingClientRect().width > 0).length);
+  check('[7] 390 px: one visible group with a switcher (one tab strip)', strips === 1, `strips=${strips}`);
+  check('[7] 390 px: no horizontal scroll', metrics.scrollWidth <= metrics.clientWidth && metrics.body <= metrics.clientWidth, JSON.stringify(metrics));
+  const titles = await page.evaluate(() => [...document.querySelectorAll('[id^=flexlayout-tabbutton-]')].map((t) => t.id.replace('flexlayout-tabbutton-', '')));
+  const expected = ['editor', 'canvas', 'scene', 'diagnostics', 'project'];
+  check('[7] 390 px: every open panel is reachable from the switcher', expected.every((id) => titles.includes(id)), titles.join());
+  await page.click('#flexlayout-tabbutton-scene');
+  await page.waitForTimeout(300);
+  check('[7] 390 px: a tab shows its panel', !(await hidden(page, '[data-panel=scene]')) && (await hidden(page, '[data-panel=editor]')));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(600);
+  const project = await boxOf(page, '[data-panel=project]');
+  const editor = await boxOf(page, '[data-panel=editor]');
+  const canvas = await boxOf(page, '[data-panel=canvas]');
+  check('[7] back at 1440 px the desktop arrangement is restored', Boolean(project && editor && canvas) && project.x < editor.x && editor.x < canvas.x);
+  const after = await page.evaluate(() => localStorage.getItem('tessera.studio.layout'));
+  check('[7] the persisted desktop layout is unchanged by the resize round trip', stored === after || (stored === null && after === null) || JSON.stringify(JSON.parse(after ?? 'null')?.root) === JSON.stringify(JSON.parse(stored ?? 'null')?.root));
+  await snap(page, 'layout-phone-roundtrip');
   check('no console errors at 390x844', errors.length === 0, errors.slice(0, 3).join(' | ') || 'none');
   await context.close();
 }
 
-console.log(`\n${failures === 0 ? 'all layout checks passed' : `${failures} layout check(s) failed`}`);
+if (wants(8)) {
+  const { page, context } = await openPage(browser, base, 1440, 900);
+  const separators = await page.evaluate(() => [...document.querySelectorAll('.dock-host .flexlayout__splitter[role=separator]')].map((e) => ({
+    orientation: e.getAttribute('aria-orientation'), now: Number(e.getAttribute('aria-valuenow')), min: Number(e.getAttribute('aria-valuemin')), max: Number(e.getAttribute('aria-valuemax')), tab: e.tabIndex,
+  })));
+  check('[8] separators: orientation, tabindex 0 and real min < now < max (not the library 0..100)',
+    separators.length >= 2 && separators.every((s) => s.orientation && s.tab === 0 && s.min < s.now && s.now < s.max && !(s.min === 0 && s.max === 100)), JSON.stringify(separators));
+  const strips = await page.evaluate(() => [...document.querySelectorAll('[role=tablist]')].filter((l) => l.querySelector('[id^=flexlayout-tabbutton-]')).map((l) => ({
+    stops: [...l.querySelectorAll('[role=tab]')].filter((t) => t.tabIndex === 0).length, selected: [...l.querySelectorAll('[role=tab]')].filter((t) => t.getAttribute('aria-selected') === 'true').length,
+  })));
+  check('[8] every tab strip has one selected tab and one tab stop (roving tabindex)', strips.length >= 3 && strips.every((s) => s.selected === 1 && s.stops === 1), JSON.stringify(strips));
+  check('[8] tabs name their panel (aria-controls) and each panel is labelled by its tab',
+    await page.evaluate(() => [...document.querySelectorAll('[id^=flexlayout-tabbutton-]')].every((t) => t.getAttribute('aria-controls')) && [...document.querySelectorAll('[id^=flexlayout-tab-]')].every((p) => p.getAttribute('aria-labelledby'))));
+  const first = page.locator('.dock-host [role=separator]').first();
+  await first.focus();
+  const v0 = Number(await first.getAttribute('aria-valuenow'));
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(200);
+  const v1 = Number(await first.getAttribute('aria-valuenow'));
+  check('[8] a separator moves with ArrowRight and reports the new value', v1 > v0, `${v0} -> ${v1}`);
+  const live = await page.locator('#workbench-live').count();
+  check('[8] the dock has a polite live region for move announcements', live === 1 && (await page.locator('#workbench-live').getAttribute('aria-live')) === 'polite');
+  await context.close();
+}
+
+if (wants(9)) {
+  const { page, context } = await openPage(browser, base, 1440, 900);
+  await openProject(page);
+  await page.evaluate(() => window.__tesseraEditor.edit('/* edited */\n'));
+  await page.waitForTimeout(300);
+  const facts = () => page.evaluate(() => ({
+    active: document.querySelector('.editor-tab-select[aria-selected="true"]')?.title ?? '',
+    dirty: document.querySelectorAll('.editor-tab-dirty').length,
+    text: window.__tesseraEditor.text(),
+  }));
+  const before = await facts();
+  await via(page, "wb.commands.movePanelDirection('canvas', 'bottom')");
+  await via(page, "wb.dispatch({kind:'close', panelId:'scene'})");
+  await page.waitForTimeout(400);
+  const changed = JSON.stringify(await model(page));
+  await page.getByRole('menuitem', { name: 'View', exact: true }).first().click();
+  await page.locator('[role=menu] [role^=menuitem]', { hasText: /^Reset Layout/ }).first().click();
+  await page.waitForTimeout(600);
+  const reset = await model(page);
+  const after = await facts();
+  check('[9] Reset Layout restores the default arrangement', JSON.stringify(reset) !== changed && groupOf(reset, 'canvas')?.id === 'g-preview' && reset.closed.length === 0 && reset.collapsed.join() === 'g-bottom');
+  check('[9] and does not change the open file or its dirty state', before.dirty >= 1 && JSON.stringify(before) === JSON.stringify(after), JSON.stringify({ before: { ...before, text: before.text.length }, after: { ...after, text: after.text.length } }));
+  await context.close();
+}
+
+console.log(`\n${state.failures === 0 ? 'all layout checks passed' : `${state.failures} layout check(s) failed`}`);
 await browser.close();
-server.close();
-process.exit(failures === 0 ? 0 : 1);
+close();
+process.exit(state.failures === 0 ? 0 : 1);
