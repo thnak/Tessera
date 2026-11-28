@@ -360,7 +360,7 @@ specifier is the project import codes (`TESSERA_IR_UNRESOLVED`, `TESSERA_IR_UNSU
 - `tessera::ui::pending` is header-only so the evaluator (links only `tessera_ir`) and generated C++
   (links `tessera_scene`) run **one** state machine; the differential test therefore proves the wiring.
 - The preview MUST show the fallback and the pending state, with resources faked by test doubles or the
-  Studio mock worker (ADR-055). Not implemented in the spike.
+  Studio mock worker (ADR-055). It does (#657, section 10.4).
 - Generated code MUST NOT fetch in render, MUST NOT wait on the UI thread, and MUST NOT throw across
   threads or FFI (no promise is thrown; ADR-067 alternatives).
 
@@ -410,6 +410,22 @@ generated base (decision 11 stands): their state is driven by the marked setter 
 cannot express, so attaching them through an `Instance` would only copy the component's own state. A host
 that drives them by arguments (the preview) attaches them with `attach_untargeted`.
 
+### 10.4 The preview
+
+The preview session (`tools/codegen/scene_session.hpp`) gives a component with `useResource` one
+`FakeResource` double per resource (`scene_pending.hpp`), each opening with a fetch in flight (the state
+right after an app's first render), so the preview opens on the fallback. It runs the same
+`PendingSession` as the evaluator: the build walk asks it which subtree each boundary shows and splices
+that subtree into the boundary's parent (a boundary owns no scene node, as in generated code), and
+`res::<name>.*`, `isPending` and the deferred value read from it. `PreviewSession::control_resource`
+(`fetch`, `resolve`, `fail`, each with an optional epoch) is what the Studio mock worker drives through
+the `tessera_canvas_resource` export ([canvas-input-session](../design/canvas-input-session.md)); a
+completion for a stale epoch is dropped and reports `changed: false`. A transition-marked handler starts the
+fetch the host would start for the new key (the `epoch + 1` rule of section 10.2), so the page shows
+`isPending` with the content held until a control resolves it. No clock and no randomness: the preview moves
+only on a control or a click. `useTransition` and `useDeferredValue` are read from the session and attach
+no engine instance.
+
 ## 11. Verification layers
 
 Every normative rule has a test at one of three layers, plus the usual front-end and IR layers.
@@ -428,6 +444,7 @@ Every normative rule has a test at one of three layers, plus the usual front-end
 | Boundary hold and deferred rule | a held boundary keeps its content, releasing re-applies the rule; `DeferredScalar` | `pending_model`, `pending_behavior` |
 | TSX to generated C++ and the evaluator | one TSX component (resource, `Suspense`, `useTransition`, `useDeferredValue`) agrees with the evaluator after every step, including the held old subtree | `codegen_pending_tsx` |
 | Front end (#656 slice 1) | `<Suspense>`, `lazy` and `useTransition` lower to the IR above; the rejected forms are rejected; the module validates; a component without them is unchanged | `lowering_pending`, `tests/golden/ir/pending-ui.json`, `hook_manifest`, `schema` |
+| Preview (#657) | the fallback on open, the data restoring the content, a marked click showing `isPending` with the content held, a stale completion dropped, a failed refresh keeping data, and the page-facing report | `scene_pending` (`tests/unit/scene_pending_tests.cpp`) |
 | Determinism with a fake resource | the fake resource (`include/tessera/ui/pending/fake_resource.hpp`) has the store's status and epoch rules, no clock, no randomness | all of the above |
 
 The differential script is: idle, fetch with no data, restore, refresh, two fetches where the first is
@@ -453,7 +470,7 @@ An implementation conforms when all of these hold (new tests are named in the im
 - [ ] Updates allocate nothing after warm-up; the data-store read is allocation-free (section 3.3).
 - [ ] A component without `Suspense`, resources or transition marks is byte-identical in IR and in
       generated code to its pre-spec golden.
-- [ ] The preview shows the fallback and the pending state with a faked resource.
+- [x] The preview shows the fallback and the pending state with a faked resource.
 - [ ] The fallback announces loading at most once per 250 ms window (accessibility).
 
 ## 12. Decisions

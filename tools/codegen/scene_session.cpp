@@ -122,6 +122,10 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
             options_.live_component_ids != nullptr ? *options_.live_component_ids : only_this,
             scope_);
     }
+    if (!component_.resources.empty()) {
+        pending_ = std::make_unique<PendingPreview>(component_);
+        evaluator_.set_pending_session(&pending_->session());
+    }
     rebuild();
 }
 
@@ -158,7 +162,12 @@ void PreviewSession::rebuild() {
     applied_overrides_.clear();
     override_text_.clear();
 
-    SceneBuildResult built = build_scene(component_, *root_, scope_, &module_, &instance_scopes_);
+    // Like the generated `pending_sync()`: observe before the walk picks each boundary's subtree.
+    if (pending_) {
+        pending_->sync();
+    }
+    SceneBuildResult built = build_scene(component_, *root_, scope_, &module_, &instance_scopes_,
+                                         pending_ ? &pending_->session() : nullptr);
     // The new tree borrows the strings and scopes of this build; the old tree is already gone, so
     // the old strings can go with it.
     frames_ = built.frames;
@@ -351,6 +360,9 @@ void PreviewSession::run_handler(const std::string& handler_id,
     }
     ran_.push_back(handler_id);
     dirty_ = true;
+    if (pending_) {
+        pending_->after_handler();
+    }
 }
 
 bool PreviewSession::dispatch(const PreviewInput& input) {

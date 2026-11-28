@@ -414,6 +414,28 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
                                          g_session->cascade_generation()));
 }
 
+// Drives one resource double of the running session (issue #657, pending-ui-v1.md sections 10 and
+// 11) and rebuilds the tree, so the preview shows the fallback (`fetch` with no data), the content
+// (`resolve`) or the pending state (a transition-marked handler, then `fetch` and `resolve`). It is
+// what the Studio mock worker (ADR-055) calls for a fake resource: `action` is `fetch`, `resolve`
+// or `fail`; `resource` is `res::<name>` or `<name>`; `number` is the value of a number-typed
+// resource, `text` the value of a string-typed one and the message of a `fail`; `epoch` 0 means the
+// current one and any other value is a completion that is dropped when it is stale. Every resource
+// opens with a fetch in flight, like an app's first render. The report is `pending_report_json`'s
+// one line, with `changed` set when a frame is owed.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_resource(const char* action, const char* resource,
+                                                         double number, const char* text,
+                                                         int epoch) {
+    cli::PreviewSession* preview =
+        g_session != nullptr && g_session->started() ? g_session->preview() : nullptr;
+    const auto view = [](const char* s) {
+        return s != nullptr ? std::string_view(s) : std::string_view();
+    };
+    return duplicate_out(
+        cli::pending_control_json(preview, view(action), view(resource), number, view(text),
+                                  epoch > 0 ? static_cast<std::uint64_t>(epoch) : 0));
+}
+
 // Releases the session (and with it the tree, its handlers and its carried state). The page calls
 // it from **Restart app** and when it leaves the Canvas view; the next apply starts a fresh session
 // with nothing carried, which is the same thing a page reload does.
