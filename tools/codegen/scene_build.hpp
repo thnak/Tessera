@@ -90,6 +90,16 @@ struct SceneBuildResult {
         std::uint64_t node_id = 0;
     };
     std::vector<SceneRefTarget> ref_targets;
+    // One entry per built `TextInput`/`TextArea` that has an automation id (issue #601): the
+    // session attaches an edit controller to each, so typed text reaches it. `controlled` is a
+    // `value` prop (the scope owns the text and every rebuild re-syncs it); a `defaultValue` seeds
+    // the controller once.
+    struct SceneTextField {
+        std::uint64_t automation_id = 0;
+        bool multiline = false;
+        bool controlled = false;
+    };
+    std::vector<SceneTextField> text_fields;
     // The component frames of this build, root first. Pointers inside refer to the scopes the build
     // was given, so they are valid for as long as those scopes are.
     std::vector<SceneInstanceFrame> frames;

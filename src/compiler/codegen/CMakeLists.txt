@@ -223,9 +223,13 @@ set(_tessera_scene_preview_sources
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The state cells as values (`state()`, `capture()`), split out of `scene_session.cpp` for size.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_state.cpp
     # The scene-event bindings (issue #168, P4): which IR handler a node's event runs. Split out of
     # `scene_session.cpp`, which is at its size budget.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_events.cpp
+    # Typed text (issue #601): the edit controller and `TextInputRuntime` bound to each text field.
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_text.cpp
     # `onSizeChange` in the preview (ADR-041 item 3, issue #694): the observations, the
     # `SizeChangeEvent` record and the settle loop's relayout hook.
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_session_size_change.cpp
@@ -259,6 +263,7 @@ set(_tessera_scene_preview_sources
 # `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_text.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
     # The override operations the page calls (issue #536) and their reports.
@@ -294,6 +299,7 @@ if (NOT EMSCRIPTEN)
         tessera_behavior
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -326,6 +332,7 @@ if (NOT EMSCRIPTEN)
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -365,6 +372,7 @@ if (NOT EMSCRIPTEN)
         tessera_gpu
         tessera_ir
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -419,6 +427,7 @@ if (NOT EMSCRIPTEN)
         tessera_gpu
         tessera_harness_image
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -468,6 +477,7 @@ else ()
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -497,6 +507,8 @@ else ()
     add_executable(tessera_canvas_wasm
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
+        # The keyboard and text exports (issues #388, #601), split out of the entry for the size limit.
+        ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_text_entry.cpp
         # The override layer's exports (issue #536): they change the running tree's style, so they
         # are not queries, but they never own the session either.
         ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
@@ -541,6 +553,7 @@ else ()
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -568,7 +581,7 @@ else ()
         # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
         # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
         # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_resource","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_project_set_services","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_key","_tessera_canvas_text","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_overlay","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_resource","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -976,6 +989,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_golden
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1007,6 +1021,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1067,6 +1082,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1088,6 +1104,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1109,6 +1126,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_behavior
         tessera_css_module
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1136,7 +1154,8 @@ if (TESSERA_BUILD_TESTS)
         tessera_react_rules
         tessera_scene
         tessera_services_types
-        tessera_style)
+        tessera_style
+        tessera_text_edit)
     add_test(NAME scene_pending COMMAND scene_pending_tests)
 
     # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and
@@ -1155,6 +1174,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_css_module
         tessera_hal_metrics
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1187,12 +1207,15 @@ if (TESSERA_BUILD_TESTS)
     #   scene_canvas_platform `platform.event` (issue #446): Back, Home, Power, relaunch and the
     #                         environment events through the canvas session, and the same script
     #                         through the scripted run
+    #   scene_canvas_text     typed text into a `TextInput` (issue #601): commit, caret keys, IME
+    #                         composition, selection with copy and cut, the controlled-field rule
     #   scene_canvas_size_change  `onSizeChange` in the preview (issue #694): the callback fires on
     #                         the first layout and after a viewport change, with the real box in its
     #                         `SizeChangeEvent` payload
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
-            scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change)
+            scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change
+            scene_canvas_text)
         add_executable(${_canvas_test}_tests
             ${PROJECT_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${PROJECT_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -1201,7 +1224,7 @@ if (TESSERA_BUILD_TESTS)
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
-        if (_canvas_test STREQUAL "scene_canvas_pointer")
+        if (_canvas_test STREQUAL "scene_canvas_pointer" OR _canvas_test STREQUAL "scene_canvas_text")
             # The key vocabulary the page sends (issue #388, focus) is pure over its arguments.
             target_sources(${_canvas_test}_tests PRIVATE
                 ${PROJECT_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)
@@ -1214,6 +1237,7 @@ if (TESSERA_BUILD_TESTS)
             tessera_css_module
             tessera_gpu
             tessera_ir_eval
+            tessera_text_edit
             tessera_ir_ids
             tessera_layout
             tessera_lowering
@@ -1249,6 +1273,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1303,6 +1328,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1334,6 +1360,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -1371,6 +1398,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_gpu
         tessera_hal_metrics
         tessera_ir_eval
+        tessera_text_edit
         tessera_ir_ids
         tessera_layout
         tessera_lowering
@@ -2071,6 +2099,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_react_rules
         tessera_ir
         tessera_ir_eval
+        tessera_text_edit
         tessera_scene)
 
     add_test(NAME guarded_handler COMMAND guarded_handler_tests)

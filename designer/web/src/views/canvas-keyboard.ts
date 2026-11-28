@@ -29,6 +29,9 @@ export interface KeyReport extends PointerReport {
   handled?: boolean;
   /** Tab walked off the end of the tab order; focus was released and the browser should carry on. */
   left?: boolean;
+  /** An editable text field holds focus (issue #601): the page's hidden text element takes the keyboard. */
+  textFocus?: boolean;
+  fieldBox?: { x: number; y: number; width: number; height: number };
 }
 
 export type KeyKind = "down" | "up" | "blur";
@@ -39,6 +42,12 @@ export interface CanvasKeyboardOptions {
   send: (kind: KeyKind, key: string, modifiers: number, repeat: boolean) => KeyReport | null;
   /** The engine changed something that must be painted: request one frame. */
   onChanged: () => void;
+  /**
+   * The hidden text element of the canvas text input (issue #601), when there is one. The canvas hands the
+   * keyboard to it while a text field is focused, so losing focus to it is not losing the keyboard, and
+   * taking the focus back must not count as arriving by keyboard.
+   */
+  text?: { owns: (target: EventTarget | null) => boolean; returning: () => boolean };
 }
 
 /** The `ui::Modifier` mask the module takes: Shift 1, Control 2, Alt 4, Meta 8. */
@@ -70,6 +79,9 @@ export function attachCanvasKeyboard(options: CanvasKeyboardOptions): () => void
   const onDown = (event: KeyboardEvent): void => forward("down", event);
   const onUp = (event: KeyboardEvent): void => forward("up", event);
   const onFocus = (): void => {
+    if (options.text?.returning()) {
+      return; // the text element handed the keyboard back; this is not an arrival
+    }
     // Keyboard arrival only: a mouse click focuses the element too, and the router focuses the control
     // under the pointer itself. `:focus-visible` is the browser's own keyboard-modality test.
     let keyboard = false;
@@ -86,7 +98,10 @@ export function attachCanvasKeyboard(options: CanvasKeyboardOptions): () => void
       options.onChanged();
     }
   };
-  const onBlur = (): void => {
+  const onBlur = (event: FocusEvent): void => {
+    if (options.text?.owns(event.relatedTarget)) {
+      return; // the keyboard moved to the text element over the focused field
+    }
     const report = options.send("blur", "", 0, false);
     if (report?.changed) {
       options.onChanged();

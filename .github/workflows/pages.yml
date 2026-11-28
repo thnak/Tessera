@@ -51,6 +51,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_text.mjs'
       - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
@@ -105,6 +106,7 @@ on:
       - 'scripts/ci/preview_sample_projects.mjs'
       - 'scripts/ci/preview_canvas_pane_states.mjs'
       - 'scripts/ci/preview_canvas_zoom.mjs'
+      - 'scripts/ci/preview_canvas_text.mjs'
       - 'scripts/ci/preview_canvas_resize.mjs'
       - 'scripts/ci/preview_viewport_limits.mjs'
       - 'scripts/ci/preview_fold_overlay.mjs'
@@ -382,6 +384,9 @@ jobs:
 
       - name: Canvas zoom (fit, steps, anchored wheel zoom; never an input to the app)
         run: node scripts/ci/preview_canvas_zoom.mjs
+
+      - name: Canvas typed text (hidden textarea, IME, clipboard, Tab never traps; fake DOM)
+        run: node scripts/ci/preview_canvas_text.mjs
 
       - name: Canvas drag-resize arithmetic (handles, the zoom, the per-frame step rule)
         run: node scripts/ci/preview_canvas_resize.mjs

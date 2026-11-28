@@ -57,8 +57,7 @@ struct CanvasPointerResult {
     std::vector<std::string> ran;   // IR handler ids whose preview body executed
     std::vector<std::string> unrun; // handler ids the dispatch reached but could not run
 
-    // Keyboard focus (issue #388), meaningful for `key()` and `blur()`; a pointer press also moves
-    // focus, so `focused_id` is filled for every event.
+    // Keyboard focus (issue #388); a pointer press also moves focus, so `focused_id` is always set.
     std::uint64_t focused_id = 0; // the focused node after the event, 0 when none
     bool focus_visible = false;   // the ring is showing (keyboard modality)
     bool focus_moved = false;     // this event changed which node holds focus
@@ -67,6 +66,11 @@ struct CanvasPointerResult {
     // the scene lets go and the browser moves on, so the keyboard never gets trapped in the canvas.
     bool handled = false;
     bool left = false; // Tab walked off the end of the tab order and focus was released
+    // The focused text field after the event (issue #601), so the page can put its hidden editable
+    // element on it; `field.focused` false when focus is not on a text field.
+    PreviewTextField field;
+    bool has_text = false; // `text` is meaningful: the selection a copy or cut returns
+    std::string text;
 };
 
 // What the picker found under one point (issue #171's picker slice): the node the pointer is over,
@@ -265,10 +269,8 @@ public:
     // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the
     // source being evaluated again and without hover, focus or the state cells being lost.
     //
-    // **One layout pass, no stale frame.** The pass completes inside this call, before any paint
-    // can observe the tree, so a page that repaints only when `needs_frame()` says so draws the new
-    // posture on its first frame. Returns false when there is no running evaluation or the posture
-    // is already the current one.
+    // **One layout pass, no stale frame**: it completes inside this call, so the first frame draws
+    // the new posture. False when there is no evaluation or the posture is already current.
     bool set_posture(tessera::hal::FoldPosture posture);
 
     // Resizes the RUNNING evaluation in place (issue #436): the device preset or an orientation
@@ -276,38 +278,35 @@ public:
     // `start()` keeps its identity rule for SOURCE changes only (width/height left `reused_ok`), so
     // a viewport change keeps the state cells, the hover and the focus, like `set_posture()`.
     //
-    // **One layout pass inside the call, and the cascade only when a breakpoint is crossed.** The
-    // sheet is asked whether a `@media` answer can move
-    // (`PreparedStyleSheet::media_answer_can_change`); if none can, it and its paint cache are
-    // untouched and this is a layout pass. If one can, the SAME prepared data is resolved against
-    // the new context (ADR-048's resolve step) before the pass, and `cascade_generation()` counts
-    // it. False when nothing moved (no pass ran) or there is no running evaluation.
+    // **One layout pass inside the call, and the cascade only when a breakpoint is crossed**
+    // (`PreparedStyleSheet::media_answer_can_change`): then the SAME prepared data is resolved
+    // against the new context (ADR-048) and `cascade_generation()` counts it. False when nothing
+    // moved or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
 
     // The scale the tree was laid out at; `paint()` scales the frame by it (issue #599).
     [[nodiscard]] float dpi_scale() const noexcept;
 
-    // The same call for a skin (issue #171's skins slice): the size, the DPI scale, the safe-area
-    // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
-    // spelling rather than more arguments on `set_viewport` because the two callers are different
-    // controls - the toolbar's size/DPR selects and the skin picker - and a skin change that kept
-    // the previous insets would pad the content for a device that is no longer on screen.
-    //
-    // Returns false when nothing moved (no pass ran) or there is no running evaluation.
+    // The same call for a skin (issue #171): size, DPI scale, safe-area insets and cutouts move
+    // together in ONE layout pass. Separate from `set_viewport` because the callers are different
+    // controls (the toolbar's selects and the skin picker). False when nothing moved.
     bool set_safe_area(const tessera::hal::WindowInsets& insets,
                        const tessera::hal::CutoutInfo& cutouts);
 
-    // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a
-    // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
-    // order and **release it at either end** instead of wrapping, so a page can let the browser
-    // carry on to the next element; Enter and Space activate the focused button (the router's click
-    // synthesis); the `:focus-visible` ring shows after keyboard traversal.
+    // One keyboard event (issue #388, focus; `key` a `ui::KeyCode`, `modifiers` a `ui::Modifier`
+    // mask). Tab moves focus and **releases it at either end** instead of wrapping (no keyboard
+    // trap); Enter and Space activate the focused button. In a text field editing keys edit it and
+    // printable keys are left to `text()`, which is where typed characters arrive (issue #601).
     CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
                             bool repeat);
 
     // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
     // focused does not look as if it were. A frame is owed only when something was focused.
     CanvasPointerResult blur();
+    // Text for the focused text field (issue #601): committed bytes or an IME composition kind.
+    CanvasPointerResult text(PreviewInput::Kind kind, std::string_view text);
+    // Copy or cut of the focused field's selection (`has_text`/`text`); a cut deletes it.
+    CanvasPointerResult text_clipboard(bool cut);
     // `platform.event` (designer-protocol-v1 section 5.1, issue #446): one normalized hardware
     // button or environment event, through `PlatformEventDriver` (`scene_platform.hpp`). A relaunch
     // reply ends this evaluation so the page's next `start()` is a cold start, carrying the cells

@@ -8,6 +8,7 @@
 #include "scene_pending.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
+#include "scene_text_field.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
@@ -60,6 +61,11 @@ struct PreviewInput {
         PointerCancel,
         KeyDown,
         KeyUp,
+        // Text for the focused field (issue #601): a commit, and the IME preedit lifecycle.
+        Text,
+        CompositionStart,
+        CompositionUpdate,
+        CompositionEnd,
     };
     Kind kind = Kind::PointerDown;
     float x = 0.0f;
@@ -70,6 +76,7 @@ struct PreviewInput {
     std::uint32_t key = 0; // a `ui::KeyCode`; 0 when not a key event
     bool repeat = false;   // auto-repeat of a held key (Enter does not activate on a repeat)
     std::uint32_t pointer_id = 0;
+    std::string text; // UTF-8 payload of a Text/Composition kind, at most `ui::kMaxEditTextBytes`
 };
 
 // The engine's normalized event for `input`. `timestamp_s` comes from the session's fixed step
@@ -148,6 +155,22 @@ public:
     // `EngineAutomationHost::click` in the native harness.
     [[nodiscard]] PreviewClickResult click(std::uint64_t automation_id);
 
+    // The focused `TextInput`/`TextArea` (issue #601). Text and editing keys reach it through
+    // `dispatch()`: the router delivers them to the node, whose `TextInputRuntime` edits the buffer
+    // and emits `TextChange`, which runs the `onChange` body with a `TextChangeEvent`.
+    [[nodiscard]] PreviewTextField focused_text_field() const;
+    // The focused field's selected text (copy and cut read it), empty when nothing is selected.
+    [[nodiscard]] std::string focused_text_selection() const;
+    // True when the last `dispatch()` was consumed by a text field (the page may prevent the
+    // default).
+    [[nodiscard]] bool text_consumed() const noexcept {
+        return text_consumed_;
+    }
+    // Publishes every field's caret, selection and preedit into its paint data. Cheap and
+    // idempotent (an unchanged decoration marks nothing dirty); `dispatch()` and `rebuild()` call
+    // it.
+    void sync_text_fields();
+
     // Every state and animated cell in declaration order, in the existing `ui::StateCell`
     // representation: what generated `snapshot_state()` returns and the parity runner compares.
     [[nodiscard]] ui::StateSnapshot state() const;
@@ -168,77 +191,57 @@ public:
     // out again) or when this session built no tree; true when a layout pass ran.
     bool set_posture(tessera::hal::FoldPosture posture);
 
-    // Resizes the RUNNING tree in place (issue #436): the viewport and the DPI scale are layout
-    // inputs like the posture, so a device preset or an orientation swap re-lays the tree out and
-    // re-resolves `@media` - it never evaluates the source again. Hover, focus, the state cells and
-    // the router's capture all survive, which is what a breakpoint is supposed to feel like in a
-    // preview.
-    //
+    // Resizes the RUNNING tree in place (issue #436): the viewport and DPI scale are layout inputs
+    // like the posture, so a device or orientation change re-lays the tree out and re-resolves
+    // `@media`
+    // - it never evaluates the source again; hover, focus, state and capture survive.
     // `@media` is re-resolved only when the move can change an answer
-    // (`PreparedStyleSheet::media_answer_can_change`): a size that crosses no breakpoint is one
-    // layout pass and no cascade rebuild. When it does cross one, the SAME prepared data is
-    // resolved against the new context - the ADR-048 resolve step, never a re-parse - so the frame
-    // the caller paints next is already the responsive one. `cascade_generation()` counts those
-    // rebuilds.
-    //
-    // Returns false when nothing moved (no layout pass ran) or the session built no tree.
+    // (`PreparedStyleSheet::media_answer_can_change`): then the SAME prepared data is resolved
+    // against the new context (ADR-048), counted by `cascade_generation()`. False when nothing
+    // moved (no layout pass ran) or the session built no tree.
     bool set_viewport(float width, float height, float dpi_scale);
 
-    // One pass for both layout inputs, so a call that changes the size AND the posture costs one
-    // layout pass, not two. The two setters above are the narrow spellings of this.
+    // One pass for both layout inputs; the two setters above are its narrow spellings.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture);
 
-    // The same pass with the skin's safe area (issue #171's skins slice): the size, the DPI scale,
-    // the posture, the insets and the cutout rectangles all move together, in ONE layout pass. A
-    // skin whose size matches the previous one but whose insets differ is still a different device,
-    // so the insets are part of the "did anything move?" test rather than a separate call.
+    // The same pass with the skin's safe area (issue #171): size, DPI, posture, insets and cutouts
+    // move together in ONE layout pass; insets are part of the "did anything move?" test.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture,
                      const tessera::hal::WindowInsets& insets,
                      const tessera::hal::CutoutInfo& cutouts);
 
-    // Brings the live tree in line with the override layer after the layer changed (designer-
-    // protocol-v1 sections 9.2-9.4): every override the tree carries is taken off, the layer's
-    // current entries are put on, and the tree is laid out again, in ONE call - a restyle, never a
-    // re-evaluation, so the state cells, hover and focus survive. A frame is owed afterwards.
-    // False when the session built no tree.
+    // Brings the live tree in line with the override layer (designer-protocol-v1 sections 9.2-9.4):
+    // overrides are taken off, the layer's entries put on, and the tree laid out again - a restyle,
+    // never a re-evaluation. A frame is owed afterwards. False when the session built no tree.
     bool resync_overrides();
 
-    // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
-    // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade
-    // was rebuilt" from "the boxes were laid out again" (issue #436).
+    // How many times the cascade has been resolved: 1 at construction, +1 per breakpoint crossing
+    // in `set_viewport` (issue #436).
     [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
         return cascade_generation_;
     }
 
-    // The sheet the tree is CURRENTLY laid out with. After `set_viewport` crosses a breakpoint this
-    // is a different sheet from the one the session was constructed with, which is why a painter
-    // must read it here rather than keep its own copy.
+    // The sheet the tree is CURRENTLY laid out with; after `set_viewport` crosses a breakpoint it
+    // is a different sheet, so a painter reads it here rather than keeping a copy.
     [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
         return sheet_;
     }
 
-    // The ADR-041 settle loop of this session (issue #693): the same shared component `AppHost`
-    // runs, so the preview cannot drift from the runtime. It is driven from `rebuild()` and
-    // `relayout()`, which publish the layout and then run the loop, so a `@container` rule that
-    // crossed a condition has re-styled before the caller paints. The canvas has no
-    // `UpdateScheduler`, which the loop accepts as "no app callbacks to flush".
+    // The ADR-041 settle loop (issue #693), shared with `AppHost` and driven from `rebuild()` and
+    // `relayout()`, so a crossed `@container` condition has re-styled before the caller paints.
     [[nodiscard]] const ui::layout::LayoutSettle& settle() const noexcept {
         return settle_;
     }
-    // The settle counters, for a report or a test: rounds, engine rounds, deferred observations and
-    // round-limit hits.
+    // The settle counters (rounds, engine rounds, deferred observations, round-limit hits).
     [[nodiscard]] const ui::layout::SettleTotals& settle_totals() const noexcept {
         return settle_.totals();
     }
 
-    // The `useBreakpoint()` consumers of this session (issue #692). The canvas pushes the class
-    // from `set_viewport`, exactly as `AppHost` does from `apply_viewport`, so the preview and the
-    // runtime cannot disagree about which class a width is in.
+    // The `useBreakpoint()` consumers (issue #692), pushed from `set_viewport` as `AppHost` does.
     [[nodiscard]] ui::responsive::EnvironmentSet& environment_values() noexcept {
         return environment_;
     }
-    // The size class in force, computed from the same media context the `@media` rules resolve
-    // against.
+    // The size class in force, from the media context the `@media` rules resolve against.
     [[nodiscard]] ui::responsive::SizeClass size_class() const noexcept {
         return ui::responsive::size_class_for(media_);
     }
@@ -348,6 +351,13 @@ private:
     // kept in a `unique_ptr` for the same reason `HandlerSlot` is: `LayoutObservation` holds the
     // context pointer for its whole life.
     struct SizeSlot;
+    struct TextField;
+    void attach_text_fields(const SceneBuildResult& built);
+    void detach_text_fields();
+    // The bound scene events of a field: the six text/key events feed its runtime; `TextChange`
+    // runs the `onChange` body.
+    static void on_text_event(void* context, const ui::Event& event);
+    static void on_text_change(void* context, const ui::Event& event);
     // Attaches one observation per `onSizeChange` node of the tree just built, after layout, so the
     // first delivery carries the size the tree actually has. Replaced by every `rebuild()`.
     void attach_size_observations(const SceneBuildResult& built);
@@ -370,7 +380,9 @@ private:
                       const std::string& handler_id, std::size_t frame);
     // Runs `actions` against the scope of component frame `frame` (0 is the root component). A
     // `callProp` in them runs the caller's handler in the caller's frame (`on_prop_call`).
-    [[nodiscard]] bool run_actions(std::size_t frame, const std::vector<ir::Action>& actions);
+    // `scope` replaces the frame's scope for this run (a handler whose parameter is bound).
+    [[nodiscard]] bool run_actions(std::size_t frame, const std::vector<ir::Action>& actions,
+                                   eval::Scope* scope = nullptr);
     static void on_prop_call(void* context, const std::string& target, bool has_payload);
     // Attaches every IR behavior to the nodes its target refs resolved to, after the tree exists.
     // A behavior whose targets are not all present attaches nothing (the spec's rule), and a
@@ -437,6 +449,9 @@ private:
     // One entry per `onSizeChange` node of the live tree (issue #694), in build order. Replaced by
     // every `rebuild()`, and detached before the tree it observes dies.
     std::vector<std::unique_ptr<SizeSlot>> size_slots_;
+    // One per text field; survives `rebuild()` (matched by automation id).
+    std::vector<std::unique_ptr<TextField>> text_fields_;
+    bool text_consumed_ = false;
     // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
     // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
     // options on every recompute, and re-evaluating them per pointer move would be work for a value

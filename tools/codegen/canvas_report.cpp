@@ -21,11 +21,8 @@ void append_number(std::string& out, std::string_view name, std::uint64_t value)
     out += std::to_string(value);
 }
 
-// A string field, escaped for JSON. One implementation, shared with the stylesheet diagnostics
-// report (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need
-// exactly the quote/backslash/control-character rule and nothing more. #444's state cells use the
-// same encoder, so a quote in a cell value cannot break the document the page parses -- one rule,
-// one function, in the file that was already the owner of it.
+// A string field, escaped for JSON: one encoder shared with the stylesheet diagnostics report and
+// #444's state cells, so a quote in a value cannot break the document the page parses.
 void append_text(std::string& out, std::string_view name, std::string_view text) {
     out += ",";
     out.push_back('"');
@@ -57,10 +54,8 @@ void append_bool(std::string& out, std::string_view name, bool value) {
     out += value ? "true" : "false";
 }
 
-// One float as JSON, locale-independent. `std::to_chars` never consults the locale, so a box edge
-// prints `12.5` on a machine whose locale would spell it `12,5` - which `JSON.parse` would read as
-// two values and the page would render as a broken outline. The shortest round-trip form is also
-// what makes a whole-valued edge print `12` rather than `12.000000`.
+// One float as JSON, locale-independent (`std::to_chars` never prints `12,5`); the shortest
+// round-trip form prints a whole-valued edge as `12`.
 void append_float(std::string& out, float value) {
     char buffer[40];
     const std::to_chars_result result = std::to_chars(
@@ -217,6 +212,29 @@ std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
     append_bool(out, "focusMoved", result.focus_moved);
     append_bool(out, "handled", result.handled);
     append_bool(out, "left", result.left);
+    // The focused text field (issue #601), only while one holds focus: a missing `textFocus` is
+    // "not editing".
+    if (result.field.focused) {
+        append_bool(out, "textFocus", true);
+        append_bool(out, "composing", result.field.composing);
+        append_bool(out, "multiline", result.field.multiline);
+        out += ",\"caret\":" + std::to_string(result.field.caret) +
+               ",\"selectionStart\":" + std::to_string(result.field.selection_start) +
+               ",\"selectionEnd\":" + std::to_string(result.field.selection_end) +
+               ",\"fieldBox\":{\"x\":";
+        const ui::rhi::Rect& box = result.field.box;
+        for (const auto& [name, value] : {std::pair<const char*, float>{"", box.x},
+                                          {",\"y\":", box.y},
+                                          {",\"width\":", box.width},
+                                          {",\"height\":", box.height}}) {
+            out += name;
+            append_float(out, value);
+        }
+        out += "}";
+    }
+    if (result.has_text) {
+        append_text(out, "text", result.text);
+    }
     // Handler ids the dispatch ran and could not run, so "the button did nothing" is attributable:
     // an empty `ran` with a non-empty `unrun` is a payload-taking handler this evaluator cannot
     // execute, not a hit-testing bug.

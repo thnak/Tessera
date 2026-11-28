@@ -282,7 +282,7 @@ This page is the map and reading order for the framework.
 - [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
-  one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)
+  one frame per change, the CSS-to-logical coordinate rule; [`design/canvas-text-input.md`](design/canvas-text-input.md) — typed text and IME (#601)
 - [`design/studio-project-io.md`](design/studio-project-io.md) — the studio's zip container, project load/save and its shell wiring
   (`studio-zip.js`, STORE-only writer, DEFLATE reader, no dependency) and the path-confinement rule
   (`project-paths.js`): the two framework-independent pieces of #391, their named refusals, and what

@@ -272,6 +272,7 @@ void CanvasSceneSession::fill_focus(CanvasPointerResult& result) const {
         result.focus_visible =
             ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
     }
+    result.field = session_->focused_text_field();
 }
 
 CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32_t key,
@@ -286,6 +287,18 @@ CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32
     ui::InputRouter& router = session_->router();
     ui::FocusManager& focus = router.focus_manager();
     const ui::Node* const before = focus.focused();
+
+    // In a text field a printable key is not a key event: the character arrives through `text()`
+    // (the page's `beforeinput`), so dispatching it here would double it or click on Space. The
+    // page then does not prevent the default, which is what lets the browser produce the input.
+    const bool in_field = session_->focused_text_field().focused;
+    const bool chord = (modifiers & (static_cast<std::uint32_t>(ui::Modifier::Control) |
+                                     static_cast<std::uint32_t>(ui::Modifier::Alt) |
+                                     static_cast<std::uint32_t>(ui::Modifier::Meta))) != 0U;
+    if (in_field && !chord && key >= 0x20U && key < 0x7FU) {
+        fill_focus(result);
+        return result;
+    }
 
     // Tab at the end of the order lets go instead of wrapping. The router wraps (a native window
     // has nowhere else to go), but a canvas sits inside a page, and a wrap here is a keyboard trap.
@@ -326,7 +339,10 @@ CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32
     result.focus_moved = focus.focused() != before;
     // Consumed when the scene did something with it: it reached a focused node, or it moved focus.
     // A key with no focus and no traversal falls through to the page untouched.
-    result.handled = result.dispatched || result.focus_moved;
+    // A text field consumes an editing key only when its controller did something with it; a key it
+    // ignored (a letter with Ctrl held, Enter in a single-line field) stays the browser's.
+    result.handled =
+        (in_field ? session_->text_consumed() : result.dispatched) || result.focus_moved;
     result.changed = needs_frame();
     return result;
 }
@@ -338,7 +354,14 @@ CanvasPointerResult CanvasSceneSession::blur() {
     }
     ui::FocusManager& focus = session_->router().focus_manager();
     const bool had_focus = focus.focused() != nullptr;
+    if (session_->focused_text_field().composing) {
+        // An element that loses the keyboard mid-composition cancels it, as a browser does.
+        PreviewInput end;
+        end.kind = PreviewInput::Kind::CompositionEnd;
+        (void)session_->dispatch(end);
+    }
     focus.clear_focus();
+    session_->sync_text_fields();
     result.focus_moved = had_focus;
     result.changed = needs_frame();
     return result;
