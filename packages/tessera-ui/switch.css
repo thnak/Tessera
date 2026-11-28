@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Switch look (issue #240, ADR-047 item 5): a track and a thumb, theme tokens only. The thumb
+   sits at the start when off and the end when on (the track is a row, so it mirrors in RTL).
+   `tsw-on`/`tsw-off` carry the state, `tsw-disabled` replaces `tsw-enabled` (no rule). */
+
+.tsw {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--on-surface);
+  cursor: pointer;
+}
+
+.tsw-track {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border-radius: 10px;
+  background-color: var(--border-strong);
+}
+
+.tsw-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background-color: var(--surface-raised);
+}
+
+.tsw-on .tsw-track {
+  justify-content: flex-end;
+  background-color: var(--accent);
+}
+
+.tsw-on .tsw-thumb {
+  background-color: var(--on-accent);
+}
+
+.tsw-label {
+  margin-inline-start: var(--space-2);
+}
+
+.tsw:hover .tsw-track {
+  opacity: 0.92;
+}
+
+.tsw:active .tsw-thumb {
+  opacity: 0.8;
+}
+
+.tsw:focus-visible .tsw-track {
+  box-shadow: 0px 0px 0px 2px var(--focus-ring);
+}
+
+.tsw-disabled {
+  opacity: 0.4;
+  cursor: default;
+}

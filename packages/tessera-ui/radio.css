@@ -1,0 +1,71 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The RadioGroup and Radio look (issue #240, ADR-047 item 5): an 18 px ring with an 8 px dot when
+   selected, in a column. Theme tokens only. */
+
+.trg {
+  display: flex;
+  flex-direction: column;
+}
+
+.trg > * {
+  margin-bottom: var(--space-2);
+}
+
+.trad {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--on-surface);
+  cursor: pointer;
+}
+
+.trad-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border-strong);
+  border-radius: 9px;
+  background-color: var(--surface-raised);
+}
+
+.trad-on .trad-dot {
+  border-color: var(--accent);
+}
+
+.trad-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: var(--accent);
+}
+
+.trad-label {
+  margin-inline-start: var(--space-2);
+}
+
+.trad:hover .trad-dot {
+  opacity: 0.92;
+}
+
+.trad:active .trad-dot {
+  opacity: 0.8;
+}
+
+.trad:focus-visible .trad-dot {
+  border-color: var(--focus-ring);
+  box-shadow: 0px 0px 0px 2px var(--focus-ring);
+}
+
+.trad-disabled {
+  opacity: 0.4;
+  cursor: default;
+}

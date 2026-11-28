@@ -3935,6 +3935,14 @@ prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.dot
 prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.label
 prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.tone
 
+component packages/tessera-ui/Checkbox.tsx Checkbox
+prop packages/tessera-ui/Checkbox.tsx Checkbox.checked
+prop packages/tessera-ui/Checkbox.tsx Checkbox.children
+prop packages/tessera-ui/Checkbox.tsx Checkbox.disabled
+prop packages/tessera-ui/Checkbox.tsx Checkbox.indeterminate
+prop packages/tessera-ui/Checkbox.tsx Checkbox.label
+prop packages/tessera-ui/Checkbox.tsx Checkbox.onToggle
+
 component packages/tessera-ui/Field.tsx Field
 prop packages/tessera-ui/Field.tsx Field.children
 prop packages/tessera-ui/Field.tsx Field.defaultValue
@@ -3959,12 +3967,30 @@ prop packages/tessera-ui/Icon.tsx Icon.mirror
 prop packages/tessera-ui/Icon.tsx Icon.name
 prop packages/tessera-ui/Icon.tsx Icon.size
 
+component packages/tessera-ui/Radio.tsx Radio
+prop packages/tessera-ui/Radio.tsx Radio.children
+prop packages/tessera-ui/Radio.tsx Radio.disabled
+prop packages/tessera-ui/Radio.tsx Radio.label
+prop packages/tessera-ui/Radio.tsx Radio.onSelect
+prop packages/tessera-ui/Radio.tsx Radio.selected
+
+component packages/tessera-ui/RadioGroup.tsx RadioGroup
+prop packages/tessera-ui/RadioGroup.tsx RadioGroup.children
+prop packages/tessera-ui/RadioGroup.tsx RadioGroup.label
+
 component packages/tessera-ui/SafeArea.tsx SafeArea
 prop packages/tessera-ui/SafeArea.tsx SafeArea.children
 prop packages/tessera-ui/SafeArea.tsx SafeArea.edges
 prop packages/tessera-ui/SafeArea.tsx SafeArea.minimum
 prop packages/tessera-ui/SafeArea.tsx SafeArea.mode
 prop packages/tessera-ui/SafeArea.tsx SafeArea.sources
+
+component packages/tessera-ui/Switch.tsx Switch
+prop packages/tessera-ui/Switch.tsx Switch.checked
+prop packages/tessera-ui/Switch.tsx Switch.children
+prop packages/tessera-ui/Switch.tsx Switch.disabled
+prop packages/tessera-ui/Switch.tsx Switch.label
+prop packages/tessera-ui/Switch.tsx Switch.onToggle
 
 component packages/tessera-ui/icons/IconGlyph.tsx IconGlyph
 prop packages/tessera-ui/icons/IconGlyph.tsx IconGlyph.name
