@@ -27,4 +27,6 @@ and `wasm_ir_parity.py` refuses a sample whose imported sheet is missing (both s
 agree on the same missing-stylesheet diagnostic).
 
 Browser twins: `tools/parity/showcase.html`, `form.html`, `dash.html`, `grid.html`, `motion.html`,
-`lists.html`. Demo and Counter have no twin yet (their root is a `View`). Compare a page with its twin using `scripts/ua_audit/page.mjs` ([`ua-audit.md`](ua-audit.md), Page parity).
+`lists.html`, `demo.html`, `counter.html`. Compare a page with its twin using `scripts/ua_audit/page.mjs`
+(`--root` names the twin's root class; [`ua-audit.md`](ua-audit.md), Page parity, has the results for
+the five samples of #1018).
