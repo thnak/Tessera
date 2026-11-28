@@ -677,5 +677,61 @@ test("visible resize: a sash on the folded tree resizes the real tree and collap
   assert.deepEqual(wb.applyOperation(open, { kind: "resize", path: [1], sizes: [0.6, 0.4], visible: true }).layout.root.children[1].sizes, [0.6, 0.4], "nothing collapsed: visible and real paths agree");
 });
 
+// ---- sash snap, double-click reset and collapse (issue #589, layout spec section 4.4) -----------------------------
+
+const sash = (layout, index, position, extentPx = 1440, path = []) =>
+  wb.applyOperation(layout, { kind: "sash", path, index, position, extentPx }).layout;
+
+test("sash: a release within 12 px of the default boundary snaps to it; elsewhere it follows the pointer", () => {
+  const layout = dflt(); // visible: row[project .18, editor .41, preview .41]
+  const near = sash(layout, 0, 0.18 + 8 / 1440);
+  assert.deepEqual(near.root.sizes, [0.18, 0.82], "8 px off the default lands on it");
+  const away = sash(layout, 0, 0.3);
+  assert.deepEqual(away.root.sizes, [0.3, 0.7], "30% is nowhere near a snap point");
+  assert.deepEqual(away.collapsed, ["g-bottom"], "the panel area keeps its collapsed flag and its share");
+  const minPx = 160 / 1440;
+  const snapMin = sash(layout, 0, minPx - 6 / 1440);
+  assert.ok(Math.abs(snapMin.root.sizes[0] - minPx) < 1e-5, "within 12 px of the minimum snaps to the minimum, not below it");
+  assert.deepEqual(snapMin.collapsed, ["g-bottom"], "and does not collapse");
+  assertValid(away, "after a sash drag");
+});
+
+test("sash: dragging a group more than 24 px below its minimum collapses it; the layout JSON carries it", () => {
+  const layout = dflt();
+  const minPx = 160 / 1440;
+  const collapsed = sash(layout, 0, minPx - 30 / 1440);
+  assert.deepEqual(collapsed.collapsed, ["g-bottom", "g-project"], "Project collapses");
+  assertValid(collapsed, "collapsed by a sash");
+  assert.deepEqual(JSON.parse(wb.serializeLayout(collapsed)).collapsed, ["g-bottom", "g-project"], "stored, so a reload keeps it");
+  assert.deepEqual(collapsed.root.sizes, layout.root.sizes, "the collapsed group keeps its size");
+  const dragAcross = sash(layout, 0, 0.18 + 0.41 + 0.2); // the editor's minimum is 280 px
+  assert.ok(dragAcross.collapsed.includes("g-editor"), "dragging the sash right collapses the group after it");
+  const restored = wb.collapseGroup(collapsed, "g-project", false).layout;
+  assert.deepEqual(restored, layout, "restoring puts back the previous size");
+  const only = wb.collapseGroup(wb.collapseGroup(layout, "g-editor", true).layout, "g-preview", true).layout;
+  assert.equal(sash(only, 0, 0.01), only, "the last visible neighbours are never both collapsed");
+});
+
+test("sash: double-click resets a split to the default fractions, also across a collapsed group", () => {
+  const layout = dflt();
+  const moved = sash(sash(layout, 0, 0.3), 1, 0.5);
+  assert.notDeepEqual(moved.root.sizes, layout.root.sizes);
+  const reset = wb.applyOperation(moved, { kind: "resetSplit", path: [] }).layout;
+  assert.deepEqual(reset, layout, "visible row[project, editor, preview] returns to the stored default, g-bottom still collapsed");
+  const open = wb.collapseGroup(layout, "g-bottom", false).layout;
+  const resized = wb.applyOperation(open, { kind: "resize", path: [1], sizes: [0.4, 0.6] }).layout;
+  assert.deepEqual(wb.applyOperation(resized, { kind: "resetSplit", path: [1] }).layout, open, "an inner column resets to 0.72 / 0.28");
+  assert.equal(wb.applyOperation(layout, { kind: "resetSplit", path: [7] }).layout, layout, "an unknown path is a no-op");
+  const swapped = wb.movePanel(open, "canvas", { edge: "left", of: "root" }).layout;
+  assert.ok(wb.defaultVisibleSizes(swapped, [], wb.defaultContext).every((size) => size > 0), "a rearranged layout still has defaults");
+});
+
+test("collapsed edges: every collapsed group with a visible neighbour gets a restore handle", () => {
+  const layout = dflt();
+  assert.deepEqual(wb.collapsedEdges(layout), [{ groupId: "g-bottom", dir: "column", beside: ["g-editor", "g-preview"], edge: "end" }]);
+  const both = wb.collapseGroup(layout, "g-project", true).layout;
+  assert.deepEqual(wb.collapsedEdges(both).map((edge) => [edge.groupId, edge.edge]), [["g-bottom", "end"], ["g-project", "start"]]);
+});
+
 process.stdout.write(`workbench_layout: ${passed} passed, ${failures} failed\n`);
 process.exit(failures === 0 ? 0 : 1);

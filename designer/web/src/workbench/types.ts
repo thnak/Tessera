@@ -104,6 +104,10 @@ export type Operation =
   | { kind: "reset" }
   | { kind: "collapse"; groupId: string; collapsed: boolean }
   | { kind: "preset"; presetId: string }
+  /** A sash released at `position` (fraction of the visible split's extent): snap, collapse below `minSize`, or resize. */
+  | { kind: "sash"; path: number[]; index: number; position: number; extentPx: number }
+  /** Double-click on a sash: the visible split at `path` goes back to its default fractions. */
+  | { kind: "resetSplit"; path: number[] }
   /** Flips shell flags (`zen`, `statusBar`, `toolbar`, `activityBar`); `sideBar` is a side, not a flag. */
   | { kind: "shell"; patch: Partial<Pick<Shell, "activityBar" | "statusBar" | "toolbar" | "zen">> };
 

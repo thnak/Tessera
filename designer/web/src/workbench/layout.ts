@@ -22,6 +22,17 @@ export {
   setShell,
   splitGroup,
 } from "./ops";
+export {
+  COLLAPSE_PX,
+  SNAP_PX,
+  childMinPx,
+  collapsedEdges,
+  defaultVisibleSizes,
+  dragSash,
+  minFractionsOf,
+  resetSplit,
+  type CollapsedEdge,
+} from "./sash";
 export { migrateLayout, migrations, type Migration } from "./migrate";
 export { reconcile } from "./reconcile";
 export { PHONE_BREAKPOINT_PX, PHONE_GROUP, collapse, isPhoneWidth, phoneLayout, type PhoneView } from "./phone";
