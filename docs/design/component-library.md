@@ -43,9 +43,8 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `Press` | `button`, focusable, `pressed` class on pointer down or Enter/Space | done |
 | `Toggle` | `switch`, focusable, `aria-checked` flips on activation | done |
 | `DismissableLayer` | `dialog`, Escape closes (`display: none`); focus restore is the composer's | done |
-| `FocusScope` | `group` with `focusTrap`: Tab trapped, focus moves in, previous focus restored on hide | done |
-| `RovingFocus`, `RovingFocusVertical` | `group` with `focusGroup`: one Tab stop, arrows wrap, Home/End | done |
-| `ListNavigation` | `listbox` with a vertical `focusGroup` and `typeahead`; selection is the composer's; grid navigation is not done | done |
+| `FocusScope` | now `useFocusTrap` (#643; wrapper deleted): Tab trapped, focus moves in, previous focus restored on hide | done |
+| `RovingFocus`, `RovingFocusVertical`, `ListNavigation` | now `useListFocus` (#643; wrappers deleted): one Tab stop, arrows wrap, Home/End, `typeahead`; grid navigation is not done | done |
 | `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is unblocked (a handler reads node-local `e.x` and the width from `onSizeChange`, [common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532) but not wired into the primitive yet | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
 

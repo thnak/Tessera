@@ -299,12 +299,8 @@ public:
     // One per IR `behaviors` entry, in declaration order, attached after the tree is built and
     // detached before it is replaced. Empty for a component that calls no behavior hook, which is
     // every component today unless the experimental front end produced one.
-    //
-    // **Why the session drives them at all.** The preview is an IR evaluator: it does not run the
-    // developer's C++. A behavior is engine code, so the session can and must run it -- otherwise
-    // Studio would show a component's static result and a person would see a Button that never
-    // looks pressed. The session builds the same `behavior::Instance` the generated base does, from
-    // the same IR entry and the same registry, so the two cannot disagree about what a behavior is.
+    // The preview does not run the developer's C++, so it must run the engine behavior itself, from
+    // the same IR entry and registry as the generated base.
     [[nodiscard]] std::size_t behavior_count() const noexcept {
         return behaviors_.size();
     }
@@ -395,6 +391,10 @@ private:
     void refresh_behaviors();
     // Detaches every behavior before the tree it targets is destroyed.
     void detach_behaviors();
+    // Writes the outputs into the scope (`beh::<name>.<output>`); true when any value changed.
+    bool sync_behavior_outputs();
+    // Rebuilds (bounded) until the tree's outputs match the live behaviors; replays the pointer.
+    void settle_behavior_outputs();
     static void on_scene_event(void* context, const ui::Event& event);
     void run_handler(const std::string& handler_id, const std::vector<ir::Action>* actions,
                      std::size_t frame);
@@ -454,9 +454,7 @@ private:
     std::vector<std::unique_ptr<TextField>> text_fields_;
     bool text_consumed_ = false;
     // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
-    // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
-    // options on every recompute, and re-evaluating them per pointer move would be work for a value
-    // that did not change.
+    // evaluated args are kept alongside because `refresh` re-passes them.
     struct BehaviorSlot {
         std::string name; // the engine registry name
         ui::behavior::Instance instance;
@@ -466,6 +464,10 @@ private:
         std::vector<std::uint64_t> target_nodes;
     };
     std::vector<BehaviorSlot> behaviors_;
+    // Last pointer position, replayed after an output-driven rebuild.
+    bool has_pointer_ = false;
+    float pointer_x_ = 0.0f;
+    float pointer_y_ = 0.0f;
     // Why a behavior could not attach, in declaration order. Reported rather than swallowed: a
     // manifest entry the registry lacks is a build-tool error a person should see.
     std::vector<std::string> behavior_errors_;

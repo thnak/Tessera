@@ -384,6 +384,15 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
     }
     const ui::InputEvent event = to_input_event(input, next_timestamp_s_);
     next_timestamp_s_ += kEventStepSeconds;
+    if (input.kind == PreviewInput::Kind::PointerMove ||
+        input.kind == PreviewInput::Kind::PointerDown ||
+        input.kind == PreviewInput::Kind::PointerUp) {
+        has_pointer_ = true;
+        pointer_x_ = input.x;
+        pointer_y_ = input.y;
+    } else if (input.kind == PreviewInput::Kind::PointerCancel) {
+        has_pointer_ = false;
+    }
     const ui::InputDispatchResult result = router_.dispatch(*root_, event);
     for (const auto& slot : slots_) {
         if (!slot->reached) {
@@ -403,6 +412,7 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
         // Button look pressed in the preview.
         refresh_behaviors();
     }
+    settle_behavior_outputs();
     sync_text_fields(); // focus may have moved: show or hide the caret
     return result.dispatched;
 }

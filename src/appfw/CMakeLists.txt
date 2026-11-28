@@ -288,8 +288,42 @@ target_compile_features(tessera_appfw_permission PUBLIC cxx_std_23)
 target_link_libraries(tessera_appfw_permission
     PUBLIC tessera_appfw_core tessera_runtime)
 
+# ADR-078 (Proposed) spike: the secret store seam, its async front end and the in-memory test double.
+# No platform back end is built here; the ADR decides which ones ship and when. It needs only the
+# layer-0 executor and cancellation seams.
+add_library(tessera_appfw_secret STATIC
+    secret_store.cpp
+    secret_store_fake.cpp
+    secret_store_wincred.cpp)
+
+target_include_directories(tessera_appfw_secret PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_secret PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_secret
+    PUBLIC tessera_appfw_core tessera_runtime)
+if (WIN32)
+    target_link_libraries(tessera_appfw_secret PRIVATE advapi32)
+endif()
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
+
+    # The secret store contract suite (ADR-078 spike, issue #841): ManualIoExecutor, the fake
+    # keystore, a memory log sink for the redaction checks. No thread, no clock, no OS keystore.
+    add_executable(appfw_secret_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_secret_tests.cpp)
+    target_link_libraries(appfw_secret_tests PRIVATE tessera_appfw_secret tessera_runtime
+        tessera_diagnostics)
+    add_test(NAME appfw_secret COMMAND appfw_secret_tests)
+    if (WIN32)
+        # Real Credential Manager round trip (unique key, erased after). Windows only.
+        add_executable(appfw_secret_wincred_tests
+            ${PROJECT_SOURCE_DIR}/tests/unit/appfw_secret_wincred_tests.cpp)
+        target_link_libraries(appfw_secret_wincred_tests PRIVATE tessera_appfw_secret)
+        add_test(NAME appfw_secret_wincred COMMAND appfw_secret_wincred_tests)
+    endif()
 
     # The AF1 tests (ADR-050 section 4): deterministic, driven by `ManualClock` and the completion
     # queue, with no wall clock, no sleeps and no network.

@@ -68,6 +68,7 @@ on:
       - 'scripts/ci/preview_project_folder_ops.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_snapshots.mjs'
       - 'scripts/ci/preview_project_package.mjs'
       - 'scripts/ci/preview_mock_host.mjs'
       - 'scripts/ci/preview_mock_sandbox.mjs'
@@ -126,6 +127,7 @@ on:
       - 'scripts/ci/preview_project_folder_ops.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_snapshots.mjs'
       - 'scripts/ci/preview_project_package.mjs'
       - 'scripts/ci/preview_mock_host.mjs'
       - 'scripts/ci/preview_mock_sandbox.mjs'
@@ -340,6 +342,10 @@ jobs:
       # The recent-projects list policy (newest first, one per folder, at most ten, storage-less is empty).
       - name: Recent projects list
         run: node scripts/ci/preview_recent_projects.mjs
+
+      # Version history (#583): snapshot cap/dedupe/budget, exact restore, the line diff, throwing storage.
+      - name: Version history
+        run: node scripts/ci/preview_snapshots.mjs
 
       # The project package: zip + manifest with times, versioning, tamper refusal, plain zips still open.
       - name: Project package format

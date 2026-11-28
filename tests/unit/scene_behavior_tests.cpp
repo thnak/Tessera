@@ -20,6 +20,7 @@
 //
 // Deterministic: no device, no clock, no filesystem.
 
+#include "scene_dynamic_test_support.hpp"
 #include "scene_prepare.hpp"
 #include "scene_session.hpp"
 
@@ -64,6 +65,20 @@ inline constexpr std::string_view kPressFeedback = R"(export function Press(): N
     <View>
       <Button ref={target} automationId="7">
         {press.pressed ? "Pressed" : "Idle"}
+      </Button>
+    </View>
+  );
+}
+)";
+
+// The same, painting the hovered output, which a rebuild can show without losing the pointer.
+inline constexpr std::string_view kHoverPaint = R"(export function Hover(): Node {
+  const target = useRef<Button>(null);
+  const press = usePressFeedback(target, {});
+  return (
+    <View>
+      <Button ref={target} automationId="7">
+        {press.hovered ? "Over" : "Away"}
       </Button>
     </View>
   );
@@ -181,6 +196,44 @@ void test_press_reaches_the_behavior() {
     }
 }
 
+bool painted(const cli::PreviewSession& session, std::string_view text) {
+    const auto snapshot = tessera::ui::automation::snapshot_scene(session.root());
+    return snapshot && scene_dynamic_test::has_text(scene_dynamic_test::texts(*snapshot), text);
+}
+
+// A behavior output read in an expression reaches the tree: the live instance feeds the scope, the
+// tree is re-evaluated, and the pointer that produced the output survives the rebuild.
+void test_output_reaches_the_tree() {
+    const cli::PreparedScene scene = cli::prepare_scene(kHoverPaint, options_for("ui/Hover.tsx"));
+    if (!scene.error.empty()) {
+        expect(false, "the hover component prepares: " + scene.error);
+        return;
+    }
+    const auto session = session_for(scene);
+    if (!session || session->behavior_count() != 1) {
+        return;
+    }
+    expect(painted(*session, "Away"), "the default output paints before any input");
+    const ui::Node* target = session->find_by_automation_id(7);
+    if (target == nullptr) {
+        expect(false, "no node with automation id 7");
+        return;
+    }
+    const ui::rhi::Rect bounds = target->world_bounds();
+    cli::PreviewInput move;
+    move.kind = cli::PreviewInput::Kind::PointerMove;
+    move.x = bounds.x + bounds.width * 0.5f;
+    move.y = bounds.y + bounds.height * 0.5f;
+    session->dispatch(move);
+    expect(painted(*session, "Over"), "a pointer over the target paints the hovered output");
+    expect(session->behavior_outputs(0).size() == 3 && session->behavior_outputs(0)[1].boolean,
+           "the rebuild kept the hover the output came from");
+    move.x = 1000.0f;
+    move.y = 1000.0f;
+    session->dispatch(move);
+    expect(painted(*session, "Away"), "leaving the target paints the default again");
+}
+
 // A component with no behavior hook produces no behavior, which is what keeps every existing
 // preview unchanged.
 void test_no_behavior_means_no_instance() {
@@ -207,6 +260,7 @@ int main() {
     test_behavior_attaches();
     test_press_reaches_the_behavior();
     test_no_behavior_means_no_instance();
+    test_output_reaches_the_tree();
     if (g_failures != 0) {
         std::cerr << "scene_behavior: " << g_failures << " failure(s)\n";
         return 1;
