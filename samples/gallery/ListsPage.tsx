@@ -18,9 +18,7 @@ export function ListsPage() {
               <li><span>Nested one</span></li>
               <li>
                 <span>Nested two</span>
-                <ul>
-                  <li><span>Third level</span></li>
-                </ul>
+                <ul><li><span>Third level</span></li></ul>
               </li>
             </ul>
           </li>
@@ -55,7 +53,10 @@ export function ListsPage() {
         </ol>
       </View>
       <Text className="l-sizes">
-        Mixed sizes: H<sub>2</sub>O, x<sup>2</sup> and <small>small print</small> on one line
+        Mixed sizes: H
+        <sub>2</sub>
+        O, x
+        <sup>2</sup> and <small>small print</small> on one line
       </Text>
     </View>
   );
