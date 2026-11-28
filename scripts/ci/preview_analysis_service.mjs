@@ -7,6 +7,7 @@
 // cases run against the C++ library through the page's own engine source, so the wire shape and the
 // UTF-16 spans are checked end to end.
 
+import { readFileSync, readdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
@@ -28,8 +29,11 @@ function tesseraAnalysisEdits(edits) {
   }
   return true;
 }
-function tesseraAnalysisQuery(type, file, offset, flag) {
-  if (offset !== undefined) return JSON.stringify({ echo: [type, file, offset, flag] });
+function tesseraAnalysisQuery(type, file, offset, flag, text) {
+  if (offset !== undefined) {
+    if (project.get(file).includes('@@slow')) { const end = Date.now() + 150; while (Date.now() < end) { /* a slow answer */ } }
+    return JSON.stringify({ echo: type === 'rename' ? [type, file, offset, flag, text] : [type, file, offset, flag] });
+  }
   const files = [...project.keys()].sort((a, b) => a - b).filter((id) => file < 0 || id === file);
   const burn = [...project.values()].some((t) => t.includes('@@slow'));
   if (burn) { const end = Date.now() + 150; while (Date.now() < end) { /* a long parse */ } }
@@ -71,7 +75,7 @@ async function protocolCases(label, engine, sample) {
 
   await t('the handshake names the analysis service and its features', async () => {
     const client = make(engine);
-    assert.deepEqual(await client.start(), { name: 'analysis', protocol: 1, features: ['symbols', 'diagnostics', 'definition', 'references', 'hover'] });
+    assert.deepEqual(await client.start(), { name: 'analysis', protocol: 1, features: ['symbols', 'diagnostics', 'definition', 'references', 'hover', 'completion', 'prepareRename', 'rename'] });
     assert.equal(client.supports('diagnostics'), true);
     client.dispose();
   });
@@ -125,7 +129,7 @@ async function protocolCases(label, engine, sample) {
 
   await t('position requests validate file and offset before the engine is asked', async () => {
     const client = await started(engine, sample.files);
-    for (const type of ['definition', 'references', 'hover']) {
+    for (const type of ['definition', 'references', 'hover', 'completion', 'prepareRename', 'rename']) {
       assert.equal(await code(client.request(type, { offset: 0 })), 'TESSERA_STUDIO_MALFORMED', type + ' needs a file');
       assert.equal(await code(client.request(type, { file: sample.cleanFile })), 'TESSERA_STUDIO_MALFORMED', type + ' needs an offset');
       assert.equal(await code(client.request(type, { file: sample.cleanFile, offset: -1 })), 'TESSERA_STUDIO_MALFORMED');
@@ -141,7 +145,7 @@ async function protocolCases(label, engine, sample) {
     await client.start();
     assert.equal(await code(client.request('diagnostics')), 'TESSERA_STUDIO_NO_SNAPSHOT');
     await client.setSnapshot(sample.files);
-    assert.equal(await code(client.request('rename', {})), 'TESSERA_STUDIO_UNKNOWN_TYPE');
+    assert.equal(await code(client.request('bogus', {})), 'TESSERA_STUDIO_UNKNOWN_TYPE');
     client.dispose();
   });
 }
@@ -204,6 +208,25 @@ await test('stand-in engine: position requests reach the engine with file, offse
   const client = await started(STANDIN_ENGINE, [[0, 'x\n', 'a.tsx']]);
   assert.deepEqual(await client.request('hover', { file: 0, offset: 1 }), { echo: ['hover', 0, 1, 1] });
   assert.deepEqual(await client.request('references', { file: 0, offset: 2, includeDeclaration: false }), { echo: ['references', 0, 2, 0] });
+  client.dispose();
+});
+
+await test('stand-in engine: completion, prepareRename and rename reach the engine; rename needs a string newName', async () => {
+  const client = await started(STANDIN_ENGINE, [[0, 'x\n', 'a.tsx']]);
+  assert.deepEqual(await client.request('completion', { file: 0, offset: 1 }), { echo: ['completion', 0, 1, 1] });
+  assert.deepEqual(await client.request('prepareRename', { file: 0, offset: 0 }), { echo: ['prepareRename', 0, 0, 1] });
+  assert.deepEqual(await client.request('rename', { file: 0, offset: 0, newName: 'Tile' }), { echo: ['rename', 0, 0, 1, 'Tile'] });
+  assert.equal(await code(client.request('rename', { file: 0, offset: 0 })), 'TESSERA_STUDIO_MALFORMED');
+  assert.equal(await code(client.request('rename', { file: 0, offset: 0, newName: 3 })), 'TESSERA_STUDIO_MALFORMED');
+  client.dispose();
+});
+
+await test('latest wins: a newer completion request cancels the older one', async () => {
+  const client = await started(STANDIN_ENGINE, [[0, '@@slow\n', 'a.tsx']]);
+  const older = code(client.request('completion', { file: 0, offset: 1 }));
+  const newer = client.request('completion', { file: 0, offset: 2 });
+  assert.equal(await older, 'TESSERA_STUDIO_CANCELLED');
+  assert.deepEqual(await newer, { echo: ['completion', 0, 2, 1] });
   client.dispose();
 });
 
@@ -281,6 +304,77 @@ if (wasm) {
     assert.deepEqual(await a.request('diagnostics'), await b.request('diagnostics'));
     a.dispose();
     b.dispose();
+  });
+
+  await test('tessera_analysis.wasm: completions per context, in UTF-16 ranges', async () => {
+    const card = 'export function Card({ title, count }) { return <p>{title}</p>; }\n';
+    const css = '.card { color: red; }\n.wide { margin: 1px; }\n';
+    const app = `// ${emoji}\nimport { Card } from "./Card";\nimport styles from "./App.module.css";\nexport function App() {\n  return <Card ti className={styles.w} />;\n}\n`;
+    const client = await started(engine, [[0, app, 'App.tsx'], [1, card, 'Card.tsx'], [2, css, 'App.module.css']]);
+    const names = (r) => r.items.map((i) => i.label);
+    const attr = await client.request('completion', { file: 0, offset: app.indexOf(' ti ') + 3 });
+    assert.equal(attr.context, 'attribute');
+    assert.deepEqual(names(attr), ['title']);
+    assert.equal(app.slice(attr.from, attr.to), 'ti', 'the range is in UTF-16 units: the emoji counts twice');
+    const cls = await client.request('completion', { file: 0, offset: app.indexOf('styles.w') + 8 });
+    assert.deepEqual(names(cls), ['wide']);
+    const imp = await client.request('completion', { file: 0, offset: app.indexOf('"./Card"') + 3 });
+    assert.equal(imp.context, 'importPath');
+    assert.deepEqual(names(imp), ['./Card']);
+    const tag = await client.request('completion', { file: 0, offset: app.indexOf('<Card ti') + 1 });
+    assert.equal(tag.context, 'tag');
+    assert.deepEqual(names(tag), ['App', 'Card']);
+    client.dispose();
+  });
+
+  await test('tessera_analysis.wasm: prepareRename and rename return multi-file UTF-16 edits, or a refusal', async () => {
+    const card = 'export function Card({ title }) { return <p>{title}</p>; }\n';
+    const app = `// ${emoji}\nimport { Card } from "./Card";\nexport function App() { return <Card title="a" />; }\n`;
+    const client = await started(engine, [[0, app, 'App.tsx'], [1, card, 'Card.tsx']]);
+    const tag = app.indexOf('<Card') + 2;
+    const prep = (await client.request('prepareRename', { file: 0, offset: tag })).prepare;
+    assert.equal(prep.placeholder, 'Card');
+    assert.equal(app.slice(prep.from, prep.to), 'Card');
+    const result = await client.request('rename', { file: 0, offset: tag, newName: 'Tile' });
+    assert.equal(result.refusal, undefined);
+    assert.deepEqual([...new Set(result.edits.map((e) => e.file))], [0, 1]);
+    // The edits are valid delta edits: send them back and ask again.
+    await client.applyEdits(result.edits);
+    const moved = await client.request('definition', { file: 0, offset: tag });
+    assert.equal(moved.definitions[0].file, 1);
+    assert.equal((await client.request('diagnostics')).files.every((f) => f.diagnostics.length === 0), true);
+    const refused = await client.request('rename', { file: 0, offset: tag, newName: 'App' });
+    assert.deepEqual(refused.edits, []);
+    assert.equal(refused.refusal.code, 'TESSERA_ANALYSIS_RENAME_COLLISION');
+    const none = await client.request('prepareRename', { file: 0, offset: 1 });
+    assert.equal(none.prepare, null);
+    assert.equal(none.refusal.code, 'TESSERA_ANALYSIS_RENAME_NO_NAME');
+    client.dispose();
+  });
+
+  await test('tessera_analysis.wasm: a completion over the gallery sample stays inside the 100 ms budget', async () => {
+    const dir = new URL('../../samples/gallery/', import.meta.url);
+    const names = readdirSync(dir).filter((n) => /\.(tsx|css)$/.test(n)).sort();
+    const files = names.map((n, i) => [i, readFileSync(new URL(n, dir), 'utf8'), n]);
+    const gallery = files.findIndex((f) => f[2] === 'Gallery.tsx');
+    const text = files[gallery][1];
+    const at = text.search(/return \(?\s*<[A-Z]/);
+    assert.equal(at >= 0, true, 'the sample has a JSX component tag');
+    const caret = text.indexOf('<', at) + 1;
+    const client = await started(engine, files);
+    await client.request('completion', { file: gallery, offset: caret });
+    const times = [];
+    for (let i = 0; i < 30; i++) {
+      const began = performance.now();
+      const answer = await client.request('completion', { file: gallery, offset: caret });
+      times.push(performance.now() - began);
+      assert.equal(answer.context, 'tag');
+    }
+    times.sort((a, b) => a - b);
+    const p95 = times[Math.floor(times.length * 0.95)];
+    process.stdout.write(`completion over samples/gallery (${files.length} files): median ${times[15].toFixed(1)} ms, p95 ${p95.toFixed(1)} ms\n`);
+    assert.equal(p95 < 100, true, `p95 ${p95.toFixed(1)} ms`);
+    client.dispose();
   });
 } else {
   process.stdout.write('skip wasm cases (set TESSERA_ANALYSIS_WASM to a built tessera_analysis.js)\n');

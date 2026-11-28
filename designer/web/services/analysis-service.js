@@ -5,13 +5,13 @@
 // Like the format service it is classic-script source built around an *engine*, so one handle drives
 // it in a page (blob Worker) and in Node (worker_threads). The worker half of the protocol
 // (handshake, snapshot and delta, cancel, version checks) is the same; the requests are `symbols`,
-// `diagnostics`, `definition`, `references` and `hover`. The engine is three functions the source defines, each returning (or resolving to)
-// what the C++ library returns:
+// `diagnostics`, `definition`, `references`, `hover`, `completion`, `prepareRename` and `rename`. The engine is three functions the
+// source defines, each returning (or resolving to) what the C++ library returns:
 //   tesseraAnalysisSnapshot([{ file, path, text }])   replaces the project
 //   tesseraAnalysisEdits([{ file, offset, length, newText }])   true when every edit applied
 //   tesseraAnalysisQuery(type, file, offset, flag)   the JSON text of the result; file is -1 for every file
 //     (symbols, diagnostics); definition, references and hover pass a file, a UTF-16 offset and, for
-//     references, flag = includeDeclaration (1 or 0)
+//     references, flag = includeDeclaration (1 or 0); rename also passes the new name as a fifth argument
 // In a page the engine is the Wasm module (`wasmEngineSource`, built from src/compiler/analysis); a gate
 // may inject another. The parse runs in the worker, so typing on the page is never blocked by it.
 
@@ -21,7 +21,7 @@ let version = -1;
 let haveSnapshot = false;
 let ids = new Set();
 const cancelled = new Set();
-const POSITION = new Set(['definition', 'references', 'hover']);
+const POSITION = new Set(['definition', 'references', 'hover', 'completion', 'prepareRename', 'rename']);
 const decoder = new TextDecoder();
 const reply = (req, result, error) =>
   postMessage({ v: PROTOCOL, kind: 'response', service: req.service, type: req.type, id: req.id, version: req.version,
@@ -37,11 +37,12 @@ async function query(req) {
     if (file === undefined) return fail(req, 'TESSERA_STUDIO_MALFORMED', req.type + '.file is required');
     if (!Number.isInteger(req.payload.offset) || req.payload.offset < 0) return fail(req, 'TESSERA_STUDIO_MALFORMED', req.type + '.offset must be a UTF-16 offset');
     if (req.payload.includeDeclaration !== undefined && typeof req.payload.includeDeclaration !== 'boolean') return fail(req, 'TESSERA_STUDIO_MALFORMED', 'references.includeDeclaration must be a boolean');
+    if (req.type === 'rename' && typeof req.payload.newName !== 'string') return fail(req, 'TESSERA_STUDIO_MALFORMED', 'rename.newName must be a string');
   }
   let result;
   try {
     result = JSON.parse(position
-      ? await tesseraAnalysisQuery(req.type, file, req.payload.offset, req.payload.includeDeclaration === false ? 0 : 1)
+      ? await tesseraAnalysisQuery(req.type, file, req.payload.offset, req.payload.includeDeclaration === false ? 0 : 1, req.payload.newName)
       : await tesseraAnalysisQuery(req.type, file === undefined ? -1 : file));
   } catch (e) {
     return fail(req, 'TESSERA_ANALYSIS_ENGINE', String((e && e.message) || e));
@@ -79,7 +80,7 @@ let chain = Promise.resolve();
 addEventListener('message', ({ data: req }) => {
   if (req.type === 'cancel') { cancelled.add(req.payload.target); return; }
   if (req.type === 'capabilities') {
-    return reply(req, { name: 'analysis', protocol: PROTOCOL, features: ['symbols', 'diagnostics', 'definition', 'references', 'hover'] });
+    return reply(req, { name: 'analysis', protocol: PROTOCOL, features: ['symbols', 'diagnostics', 'definition', 'references', 'hover', 'completion', 'prepareRename', 'rename'] });
   }
   if (req.type === 'snapshot' || req.type === 'delta') {
     chain = chain.then(() => mutate(req));
@@ -135,16 +136,23 @@ async function tesseraAnalysisEdits(edits) {
   }
   return m._tessera_analysis_commit_edits() === 1;
 }
-async function tesseraAnalysisQuery(type, file, offset, flag) {
+async function tesseraAnalysisQuery(type, file, offset, flag, text) {
   const m = await tesseraLoad();
   const kind = tesseraCString(m, type);
+  let name = 0;
   let out = 0;
   try {
-    out = offset === undefined ? m._tessera_analysis_query_json(kind, file) : m._tessera_analysis_request_json(kind, file, offset, flag);
+    if (type === 'rename') {
+      name = tesseraCString(m, text);
+      out = m._tessera_analysis_rename_json(file, offset, name);
+    } else {
+      out = offset === undefined ? m._tessera_analysis_query_json(kind, file) : m._tessera_analysis_request_json(kind, file, offset, flag);
+    }
     if (!out) throw new Error('the analysis module could not answer ' + type);
     return m.UTF8ToString(out);
   } finally {
     m._free(kind);
+    if (name) m._free(name);
     if (out) m._tessera_free(out);
   }
 }`;
