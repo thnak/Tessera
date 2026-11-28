@@ -176,9 +176,28 @@ The verdict is decided on the numbers, not the printed text, and the two summary
   `tests/unit/diagnostics_overlay_tests.cpp` (CTest `diagnostics_overlay`): registration and kinds,
   the overrun rule, rebinding, and the overlay's exact budget lines.
 
-## 10. Non-goals
+## 10. Streaming dashboard sample (#184)
 
-- Line/bar/area/scatter variants, axes, ticks, legends and grids: later chart-type work (#184). V1 has
+`samples/stream_dashboard/` is the acceptance sample for the chart work: four chart panels (two series
+each, capacity 160) fed at different rates (every frame, every 2nd, 3rd and 5th), plus a work meter
+whose fill is the share of chart segments rebuilt that frame. The load is an integer function of the
+frame index (a triangle wave plus an xorshift32 noise stream), so a frame index is one picture on every
+machine. Busy frames (every 30th, all charts) trigger the shared full-redraw policy; the rest are
+partial plans through `ClippedPaintSink`.
+
+- `StreamDashboard::step()` appends, rebuilds and feeds the damage accumulator; `paint()` writes into
+  any `PaintSink`. After the rings wrap, both allocate nothing (`stream_dashboard_allocation`).
+- `tests/gpu/stream_dashboard_golden_tests.cpp` (CTest `stream_dashboard_golden`): 900 frames; the
+  damage-only repaint equals a full paint at every fifth frame; frames 40, 200 and 800 match committed
+  bit-exact baselines from the CPU rasterizer (`tests/golden/baseline/stream_dashboard/`); a modelled
+  cost recorded in `FrameBudgetRecorder` stays inside 60 Hz, and a tight budget counts overruns.
+- The `stream_dashboard` CLI times real frames on the wall clock against the budget and prints
+  p50/p99/max and the overrun count (`--enforce` fails on any). Tests never read a clock; real timings
+  are machine-dependent and reported, not golden.
+
+## 11. Non-goals
+
+- Line/bar/area/scatter variants, axes, ticks, legends and grids: later chart-type work. V1 has
   one chart type: a polyline drawn as boxes, with optional markers.
 - Decimation and downsampling: [`chart-series-v1.md`](chart-series-v1.md) section 8 leaves the policy
   open; V1 maps every stored sample.
