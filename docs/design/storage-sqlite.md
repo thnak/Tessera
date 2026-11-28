@@ -9,7 +9,8 @@ owner's answer to [open question 4](app-framework-open-questions.md#4-sqlite-ada
 
 - Off by default: `-DTESSERA_APPFW_SQLITE=ON` adds the `tessera_appfw_storage_sqlite` static library
   and its test. With the option off nothing is downloaded, compiled or linked, and no default target
-  depends on it. The `tessera.json` module switch is not parsed yet; the CMake option is the V1
+  depends on it. The `tessera.json` module switch is not parsed yet (the manifest loader reads no `dependencies`
+  block at all, so a key would be dead weight); the CMake option is the V1
   switch ([project-config-v1](../specs/project-config-v1.md), `dependencies`).
 - The engine is the pinned amalgamation 3.54.1, fetched at configure time by SHA-256 (the FreeType
   precedent) rather than committing a 9 MB generated file; an offline machine points
@@ -64,7 +65,14 @@ database whose version is newer than the newest migration is refused rather than
 - Binary size (MSVC Release, vs2026): `appfw_sql_tests.exe` is 1.56 MB against 0.50 MB for
   `appfw_storage_tests.exe`, so the module and engine add about 1.0 MB to a small static
   executable. The "about half a megabyte" estimate in the open-questions note was low for MSVC
-  with default size flags; a size-optimized or LTO build is not measured.
+  with default size flags.
+- GCC 15 / Linux (thnak-server, Release, `-Werror`): configures, builds and `appfw_sql` passes. Size
+  of `appfw_sql_tests` against `appfw_storage_tests` (both link the whole runtime): `MinSizeRel`
+  (`-Os`) 2.77 MB vs 1.93 MB (+0.85 MB, +0.74 MB stripped); `-Os` plus LTO 2.72 MB vs 1.87 MB
+  (+0.85 MB, +0.73 MB stripped). LTO barely helps because the engine is one translation unit with
+  few cross-unit calls; the engine itself is about 0.7 MB, so the 0.5 MB estimate stays low.
+- CI: `.github/workflows/appfw-sqlite.yml` builds and runs only `appfw_sql_tests` with
+  `-DTESSERA_APPFW_SQLITE=ON` on GCC, path-filtered to `src/appfw/**` and the public appfw headers.
 
 ## 6. Not in this landing
 
@@ -72,4 +80,4 @@ database whose version is newer than the newest migration is refused rather than
   VFS, not `hal::FileSystem`. Corrupt-file behaviour is tested with a real scratch file; full-disk
   and failed-rename cases would need a custom VFS.
 - Concurrent readers (additive, if measured), Wasm in-memory-only wiring and a durable browser store
-  (the open risk in the questions note), the `tessera.json` module key, the GCC/Linux run.
+  (the open risk in the questions note), the `tessera.json` module key (needs a manifest `dependencies` reader first).
