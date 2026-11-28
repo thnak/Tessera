@@ -45,7 +45,7 @@
 import { wasmModuleUrl } from "../lib/module-url";
 import type { ProjectReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
-import { acquireDevice, handOverDevice, type CanvasModule } from "./canvas-device";
+import { acquireDevice, describeLoss, destroyDevice, handOverDevice, type CanvasModule } from "./canvas-device";
 import { loadFontFor } from "./canvas-font";
 import {
   requestedViewport,
@@ -613,7 +613,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       void acquired.device.lost.then((info: GPUDeviceLostInfo) => {
         gpu = null;
         pane.showUnsupported(
-          `The WebGPU device was lost: ${info.reason || "unknown"}. Open the Canvas view again to ` +
+          `The WebGPU device was lost: ${describeLoss(info)}. Open the Canvas view again to ` +
             "reacquire it.",
         );
       });
@@ -851,7 +851,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       fold.hide();
       if (gpu !== null) {
         try {
-          gpu.device.destroy();
+          destroyDevice(gpu.device);
         } catch {
           /* an already lost device: nothing left to release */
         }
