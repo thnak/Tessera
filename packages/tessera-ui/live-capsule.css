@@ -1,0 +1,71 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The LiveCapsule look (issue #224, docs/specs/live-capsule-v1.md section 8): a pill floating in the
+   toast layer. Position, size and corner radius are written by the component itself from the window
+   metrics and the spring morph, so no rule below sets them. Theme tokens only, so the light, dark
+   and high-contrast themes restyle it; the 1 px border stays in every theme because the capsule
+   never relies on color alone to read as a surface. Part names are public API (ADR-047). */
+
+.capsule {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0px var(--space-3);
+  background-color: var(--surface-raised);
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border-strong);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.leading,
+.trailing,
+.minimal-icon {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: var(--space-3) 0px;
+}
+
+.title {
+  color: var(--on-surface);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.content {
+  flex-grow: 1;
+  color: var(--on-surface-muted);
+}
+
+.actions {
+  display: flex;
+  flex-direction: row;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height-compact);
+  padding: 0px var(--control-padding-x-compact);
+  margin-right: var(--space-2);
+  background-color: var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}

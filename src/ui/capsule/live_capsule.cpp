@@ -3,6 +3,7 @@
 #include "tessera/ui/capsule/live_capsule.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,19 @@ Node& add_part(Node& parent, std::string_view part, std::string_view label = {})
         node.set_aria("aria-label", label);
     }
     return node;
+}
+
+// The visible text of a part (the title, an action label); the accessible name stays on the part.
+void add_text(Node& parent, std::string_view text) {
+    if (text.empty()) {
+        return;
+    }
+    Node& node = parent.add_child(std::make_unique<Node>(next_part_id++));
+    node.set_element_kind("Text");
+    PaintData data;
+    data.kind = PaintKind::Text;
+    data.text = std::string(text);
+    node.set_paint_data(std::move(data));
 }
 
 void set_px(Node& node, std::string_view property, float value) {
@@ -70,7 +84,7 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
 
     if (front != nullptr && controller_.state() == CapsuleState::Expanded) {
         Node& card = add_part(content, "card");
-        add_part(card, "title", front->slots.title);
+        add_text(add_part(card, "title", front->slots.title), front->slots.title);
         Node& body = add_part(card, "content");
         if (front->slots.content) {
             front->slots.content(body);
@@ -78,6 +92,7 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
         Node& actions = add_part(card, "actions");
         for (const ActionSlot& action : front->slots.actions) {
             Node& button = add_part(actions, "action", action.label);
+            add_text(button, action.label);
             button.set_role("button");
             button.set_focusable(true);
             button.set_tab_index(0);
@@ -131,6 +146,7 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
             // The toast layer says "alert"; the capsule is a status. It is focusable and in the tab
             // order, but nothing ever focuses it on its own.
             root.set_role("status");
+            root.set_class_name("capsule");
             root.set_focusable(true);
             root.set_tab_index(0);
             root.set_inline_style("position", "absolute");
