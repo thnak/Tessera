@@ -197,6 +197,13 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
             if (focus_manager_.move_in_focus_group(root, input.key)) {
                 result.focus_moved = true;
                 focus_manager_.set_focus_visible(true);
+                // Selection follows focus in a radio group (issue #1035): an arrow key that lands
+                // on a radio selects it, as the web does. Home/End only move.
+                Node* const landed = focus_manager_.focused();
+                if (landed != nullptr && landed->role() == "radio" && input.key != key::kHome &&
+                    input.key != key::kEnd) {
+                    (void)dispatch_click(*landed, ClickSource::Keyboard, &input);
+                }
             }
         }
         return result;

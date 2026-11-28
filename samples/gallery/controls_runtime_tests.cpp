@@ -264,6 +264,18 @@ int main() {
     f.click(kLegacy);
     check(f.page.plan() == 2, "a disabled Radio never calls onSelect");
 
+    // Roving (issue #1035): arrows move focus and select; the disabled Legacy is skipped.
+    f.router.focus_manager().request_focus(&f.at(kEnterprise));
+    f.press(key::kArrowDown);
+    check(f.page.plan() == 0 && f.router.focus_manager().focused() == &f.at(kFree),
+          "ArrowDown skips the disabled Radio and wraps to Free");
+    f.press(key::kArrowDown);
+    check(f.page.plan() == 1 && f.router.focus_manager().focused() == &f.at(kTeam),
+          "ArrowDown selects the next Radio");
+    f.press(key::kArrowUp);
+    f.press(key::kArrowUp);
+    check(f.page.plan() == 2, "ArrowUp wraps back to Enterprise");
+
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

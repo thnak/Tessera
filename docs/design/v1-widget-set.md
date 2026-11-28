@@ -69,10 +69,33 @@ definition of done and the parity page from the farm plan.
 - Components: `Switch`, `Checkbox`, `Radio`, `RadioGroup` in `packages/tessera-ui/`, with
   `switch.css`, `checkbox.css` and `radio.css` (theme tokens only).
 - Contract: controlled, because a callback prop carries no payload today: the caller owns the value
-  and flips it in `onToggle` or `onSelect`. Keyboard activation is explicit (Space, and Enter for
-  Switch) because the runtime synthesizes keyboard clicks only for `button`.
+  and flips it in `onToggle` or `onSelect`. Keyboard activation is the runtime's: `ClickSynthesizer`
+  clicks a focused `switch` (Space, Enter), `checkbox` and `radio` (Space) as it does a `button`
+  (#1035), so the components carry no `onKeyDown`.
 - Gallery: the `controls` page with goldens per theme and right-to-left
   (`tests/golden/gallery/controls_*.png`), a headless interaction test through the real
   `InputRouter`, and style and lowering checks.
-- Not done: arrow-key roving between Radios (needs group state a component cannot read from its
-  siblings), the web parity twin for the page, Select.
+- Radio roving (#1035): `RadioGroup` is a `focusGroup="both"`, so its radios are one Tab stop and the
+  arrows move focus (skipping `aria-disabled` items, wrapping); `InputRouter` then clicks the radio an
+  arrow landed on, so selection follows focus (Home/End only move). No group state in a component.
+- Parity twin (#1035): `tools/parity/controls.html` against `gallery --page controls`
+  (`parity_gate.py --page controls --width 640 --height 360`): structure difference 0.10 %, pixels
+  2.83 % (lavapipe vs Chromium, Plex). Not done: Select (section 6).
+
+## 6. Select: decision note (#1035)
+
+Select stays unbuilt: its popup rides on #305, which is open. The recommendation for the owner (item 4
+of section 4) is the **listbox on the overlay host**, not the native menu: the native menu does not
+exist on Linux or in the Wasm preview, so it would fork the component per platform, while the overlay
+host is the one popup path that runs everywhere and is already goldened. What the host still lacks,
+all listed in #305, and what Select needs before code starts:
+
+1. A way to open an overlay from TSX (a generated `open_overlay` with a component as `mount`) and to
+   name the anchor, so the trigger button can place the list.
+2. The non-modal `FocusPolicy` hook: focus moves to the selected option on open and returns to the
+   trigger on close, with arrows roving the options (the `focusGroup` of #1035 already does the
+   roving and skips `aria-disabled` options) and Escape dismissing.
+3. `aria-live`/announcement support in the a11y tree builder for the selection change.
+
+The trigger is a `button` with `aria-haspopup="listbox"`; the options are `option` nodes, so the
+keyboard click synthesis added here (role-driven) extends to them with one more role.

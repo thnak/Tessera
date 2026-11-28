@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  The browser twin of samples/gallery/ControlsPage.tsx (issue #1035). The structure is the same, element for element
+  (View -> div, Text -> span, TextInput -> input, the library Button -> the div it renders), and the
+  stylesheets are the very files the engine loads: packages/tessera-ui/{switch,checkbox,radio,icon}.css and
+  samples/gallery/gallery.css. scripts/ci/chrome_parity.mjs adds the theme tokens as :root variables
+  from instrument.theme.json and the font; nothing else is styled here except the reset below.
+
+  The reset is the engine's own box model written as CSS, because the engine does not apply the
+  browser defaults: every View is a flex container laid out by Yoga (column, stretch, no shrink;
+  the box model stays the CSS default, content-box, which is what the engine implements). Without it the browser would be comparing against a different layout algorithm and
+  the diff would measure the reset, not the renderer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera parity controls</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { width: 100vw; height: 100vh; overflow: hidden; }
+  span { display: block; }
+  div, input {
+    display: flex; flex-direction: column;
+    flex-shrink: 0; position: relative; margin: 0; min-width: 0;
+    align-items: stretch; align-content: flex-start;
+    font: inherit; color: inherit; background: transparent; border: 0; outline: 0;
+  }
+  span { flex-shrink: 0; position: relative; margin: 0; min-width: 0; font: inherit; color: inherit; }
+  #root { width: 100%; height: 100%; }
+  /* the engine measures text with a stub (line height 1.2): pin the page to it so boxes compare */
+  body { line-height: 1.2; }
+</style>
+<link rel="stylesheet" href="../../packages/tessera-ui/icon.css">
+<link rel="stylesheet" href="../../packages/tessera-ui/switch.css">
+<link rel="stylesheet" href="../../packages/tessera-ui/checkbox.css">
+<link rel="stylesheet" href="../../packages/tessera-ui/radio.css">
+<link rel="stylesheet" href="../../samples/gallery/gallery.css">
+</head>
+<body>
+<div id="root">
+<div class="g-page">
+  <span class="g-title">Switch, Checkbox, Radio</span>
+  <div class="g-row">
+    <div class="tsw tsw-off tsw-enabled" role="switch" aria-checked="false" aria-label="Wi-Fi"><div class="tsw-track"><div class="tsw-thumb"></div></div><div class="tsw-label"><span>Wi-Fi</span></div></div>
+    <div class="tsw tsw-on tsw-enabled" role="switch" aria-checked="true" aria-label="Sound"><div class="tsw-track"><div class="tsw-thumb"></div></div><div class="tsw-label"><span>Sound</span></div></div>
+    <div class="tsw tsw-off tsw-disabled" role="switch" aria-checked="false" aria-label="Locked off"><div class="tsw-track"><div class="tsw-thumb"></div></div><div class="tsw-label"><span>Locked off</span></div></div>
+    <div class="tsw tsw-on tsw-disabled" role="switch" aria-checked="true" aria-label="Locked on"><div class="tsw-track"><div class="tsw-thumb"></div></div><div class="tsw-label"><span>Locked on</span></div></div>
+  </div>
+  <div class="g-row">
+    <div class="tchk tchk-off tchk-enabled" role="checkbox" aria-checked="false" aria-label="Accept terms"><div class="tchk-box"></div><div class="tchk-label"><span>Accept terms</span></div></div>
+    <div class="tchk tchk-on tchk-enabled" role="checkbox" aria-checked="true" aria-label="Newsletter"><div class="tchk-box"><div class="tchk-mark"><div class="ticon ticon-sm ticon-fixed"><div class="ticon-box"><svg class="ticon-glyph" viewBox="0 0 24 24"><path class="ticon-path" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5l10 -10"/></svg></div></div></div></div><div class="tchk-label"><span>Newsletter</span></div></div>
+    <div class="tchk tchk-mixed tchk-enabled" role="checkbox" aria-checked="mixed" aria-label="Select all"><div class="tchk-box"><div class="tchk-bar"></div></div><div class="tchk-label"><span>Select all</span></div></div>
+    <div class="tchk tchk-on tchk-disabled" role="checkbox" aria-checked="true" aria-label="Locked"><div class="tchk-box"><div class="tchk-mark"><div class="ticon ticon-sm ticon-fixed"><div class="ticon-box"><svg class="ticon-glyph" viewBox="0 0 24 24"><path class="ticon-path" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5l10 -10"/></svg></div></div></div></div><div class="tchk-label"><span>Locked</span></div></div>
+  </div>
+  <div class="trg" role="radiogroup" aria-label="Plan">
+      <div class="trad trad-off trad-enabled" role="radio" aria-checked="false" aria-label="Free"><div class="trad-dot"></div><div class="trad-label"><span>Free</span></div></div>
+      <div class="trad trad-on trad-enabled" role="radio" aria-checked="true" aria-label="Team"><div class="trad-dot"><div class="trad-mark"></div></div><div class="trad-label"><span>Team</span></div></div>
+      <div class="trad trad-off trad-enabled" role="radio" aria-checked="false" aria-label="Enterprise"><div class="trad-dot"></div><div class="trad-label"><span>Enterprise</span></div></div>
+      <div class="trad trad-off trad-disabled" role="radio" aria-checked="false" aria-label="Legacy"><div class="trad-dot"></div><div class="trad-label"><span>Legacy (disabled)</span></div></div>
+  </div>
+  <span class="g-note">Plan 1</span>
+</div>
+</div>
+</body>
+</html>
