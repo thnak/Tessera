@@ -56,6 +56,7 @@ import {
   type CanvasViewportReport,
 } from "./canvas-frame";
 import { attachCanvasKeyboard } from "./canvas-keyboard";
+import { createMotionLoop, parseTickReport, prefersReducedMotion } from "./canvas-motion";
 import { attachCanvasText, type TextReport } from "./canvas-text";
 import { sendPlatformEvent } from "./canvas-platform";
 import { sendResourceControl } from "./canvas-resource";
@@ -389,7 +390,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   // (`tessera_canvas_draw`: paint the running tree, never re-evaluate). A source that does not evaluate
   // leaves the running tree in the module, so `draw` either is not called at all (no frame owed) or
   // paints the tree that is still there.
-  function drawFrame(): void {
+  function drawFrame(frameTime?: number): void {
     framePending = false;
     if (factory === null || gpu === null || !visible) {
       return;
@@ -486,30 +487,17 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     }
     let report: CanvasFrameReport;
     try {
-      // One texture-view reference per frame: the module takes ownership and releases it, and the canvas
-      // texture it names is only valid for this frame, so it is fetched here and not cached.
-      const image = gpu.context.getCurrentTexture().createView();
-      const handles = gpu.module.WebGPU;
-      if (!handles) {
-        throw new Error("the module dropped its WebGPU handle table");
-      }
-      const viewPtr = handles.importJsTextureView(image);
-      // `_tessera_canvas_draw` takes no strings: the tree it paints is the one the apply above left in the
-      // module, which already carries the project's stylesheets. `callExport` hands the export
-      // `(...pointers, ...numbers)`.
-      report = JSON.parse(
-        callExport(gpu.module, "_tessera_canvas_draw", [], [
-          extent.width,
-          extent.height,
-          viewPtr,
-        ]),
-      ) as CanvasFrameReport;
+      lastExtent = extent;
+      report = tickAndDraw(gpu, extent, frameTime ?? performance.now());
     } catch (error) {
       pane.showFailed(String(error));
       options.onReady(true);
       return;
     }
     pane.renderReport(report);
+    // The engine's own answer to "does anything still move": an animation holds the runtime, so the next
+    // refresh owes a frame; false ends the chain and an idle canvas presents nothing (issue #603).
+    motion.keepAlive(report.animating === true);
     // The frame moved the boxes the outline was drawn for, so the outline is re-asked rather than
     // left over a node that may have moved (issue #171). A pick is a query: this costs no frame.
     picker.refresh();
@@ -518,6 +506,61 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     inspector.refresh();
     options.onReady(true);
   }
+
+  // The extent of the last full frame, so an animation frame (which skips the apply) paints the same target.
+  let lastExtent = { width: 0, height: 0 };
+  // The refresh timestamp of the last frame drawn, so an animation frame and an input-driven frame that land
+  // in one display refresh (they get the same timestamp) present once.
+  let lastFrameTime = Number.NaN;
+
+  // Advances the engine's animation clock to the page's frame timestamp and paints. The clock call comes
+  // first so the draw shows the values of THIS timestamp; `reduced` is read per frame, so a system setting
+  // change applies on the next one (issue #603).
+  function tickAndDraw(
+    ready: NonNullable<typeof gpu>,
+    extent: { width: number; height: number },
+    frameTime: number,
+  ): CanvasFrameReport {
+    lastFrameTime = frameTime;
+    const reduced = prefersReducedMotion(globalThis.matchMedia?.bind(globalThis));
+    parseTickReport(
+      callExport(ready.module, "_tessera_canvas_tick", [], [frameTime, reduced ? 1 : 0]),
+    );
+    // One texture-view reference per frame: the module takes ownership and releases it, and the canvas
+    // texture it names is only valid for this frame, so it is fetched here and not cached.
+    const image = ready.context.getCurrentTexture().createView();
+    const handles = ready.module.WebGPU;
+    if (!handles) {
+      throw new Error("the module dropped its WebGPU handle table");
+    }
+    const viewPtr = handles.importJsTextureView(image);
+    // `_tessera_canvas_draw` takes no strings: the tree it paints is the one the last apply left in the
+    // module, which already carries the project's stylesheets. `callExport` hands the export
+    // `(...pointers, ...numbers)`.
+    return JSON.parse(
+      callExport(ready.module, "_tessera_canvas_draw", [], [extent.width, extent.height, viewPtr]),
+    ) as CanvasFrameReport;
+  }
+
+  // One animation frame (issue #603): tick and draw without re-staging the project, which would copy every
+  // file into the module sixty times a second for a scene whose source did not change.
+  const motion = createMotionLoop({
+    request: (callback) => {
+      globalThis.requestAnimationFrame(callback);
+    },
+    pending: () => framePending,
+    frame: (frameTime) => {
+      if (gpu === null || !visible) {
+        return null;
+      }
+      if (frameTime === lastFrameTime) {
+        return { animating: true };
+      }
+      const report = tickAndDraw(gpu, lastExtent, frameTime);
+      pane.renderReport(report);
+      return { animating: report.animating === true };
+    },
+  });
 
   // Coalesces any number of change notifications into one frame on the next display refresh.
   function requestFrame(): void {
@@ -583,6 +626,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // re-evaluating (issue #436).
       requireExports(module, [
         "_tessera_canvas_apply",
+        "_tessera_canvas_tick",
         "_tessera_canvas_draw",
         "_tessera_canvas_set_viewport",
         "_tessera_webgpu_set_device",
