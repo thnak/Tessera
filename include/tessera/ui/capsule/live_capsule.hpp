@@ -13,6 +13,7 @@
 #include "tessera/ui/capsule/capsule_placement.hpp"
 #include "tessera/ui/capsule/capsule_state.hpp"
 #include "tessera/ui/capsule/live_capsule_host.hpp"
+#include "tessera/ui/capsule/slot_measure.hpp"
 #include "tessera/ui/overlay/overlay.hpp"
 
 #include <array>
@@ -50,6 +51,10 @@ public:
     // state changed, advances the morph by `dt` seconds and writes the box. Writes nothing when
     // nothing changed. Returns true while the morph still moves (the pacer must wake).
     bool sync(const LiveCapsuleEnv& env, float dt);
+
+    // Installs the measurer that sizes the compact slots and the expanded card from the built
+    // content (issue #997). Without one the `Slots` size hints apply. Takes effect at the next sync.
+    void set_slot_measurer(SlotMeasurer measurer);
 
     // Input. Each returns true when the state changed. `focused_node` is the node that held focus.
     bool activate(std::uint64_t focused_node);
@@ -97,6 +102,17 @@ private:
     static constexpr std::size_t kBoxProperties = 5;
     void set_px(Node& node, std::size_t slot, std::string_view property, float value);
 
+    // What the last rebuild measured; a flag says which part is valid.
+    struct Measured {
+        bool slots = false;
+        bool card = false;
+        float leading_width = 0.0f;
+        float trailing_width = 0.0f;
+        float card_width = 0.0f;
+        float card_height = 0.0f;
+    };
+    SlotMeasurer measurer_;
+    Measured measured_;
     LiveCapsuleHost& host_;
     OverlayHost& overlays_;
     OverlayHandle handle_;

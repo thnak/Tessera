@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <memory>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace tessera::ui::capsule {
 
@@ -66,6 +68,11 @@ void LiveCapsule::set_px(Node& node, std::size_t slot, std::string_view property
     node.set_inline_style(property, std::string_view(buffer.data()));
 }
 
+void LiveCapsule::set_slot_measurer(SlotMeasurer measurer) {
+    measurer_ = std::move(measurer);
+    parts_dirty_ = true;
+}
+
 void LiveCapsule::close() {
     if (handle_) {
         overlays_.close(handle_);
@@ -82,6 +89,7 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
         static_cast<void>(content.remove_child(*content.children().back()));
     }
     action_fns_.clear();
+    measured_ = {};
 
     const Activity* named = front != nullptr ? front : minimal;
     content.set_aria("aria-label", named != nullptr ? named->label : std::string_view{});
@@ -90,15 +98,18 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
 
     if (front != nullptr && controller_.state() == CapsuleState::Expanded) {
         Node& card = add_part(content, "card");
-        add_text(add_part(card, "title", front->slots.title), front->slots.title);
+        Node& title = add_part(card, "title", front->slots.title);
+        add_text(title, front->slots.title);
         Node& body = add_part(card, "content");
         if (front->slots.content) {
             front->slots.content(body);
         }
         Node& actions = add_part(card, "actions");
+        std::vector<const Node*> buttons;
         for (const ActionSlot& action : front->slots.actions) {
             Node& button = add_part(actions, "action", action.label);
             add_text(button, action.label);
+            buttons.push_back(&button);
             button.set_role("button");
             button.set_focusable(true);
             button.set_tab_index(0);
@@ -112,6 +123,20 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
                     &action_fns_.back());
             }
         }
+        if (measurer_) {
+            const SlotExtent head = measurer_(title, SlotTextRole::Body);
+            const SlotExtent middle = measurer_(body, SlotTextRole::Body);
+            float row_width = 0.0f;
+            for (const Node* button : buttons) {
+                row_width += measurer_(*button, SlotTextRole::Label).width + 2.0f * kActionPaddingX +
+                             kActionGap;
+            }
+            measured_.card_width =
+                std::max({head.width, middle.width, row_width}) + 2.0f * kCardPadding;
+            measured_.card_height = head.height + middle.height +
+                                    (buttons.empty() ? 0.0f : kActionHeight) + 2.0f * kCardPadding;
+            measured_.card = true;
+        }
     } else if (front != nullptr) {
         Node& leading = add_part(content, "leading");
         if (front->slots.leading) {
@@ -120,6 +145,16 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
         Node& trailing = add_part(content, "trailing");
         if (front->slots.trailing) {
             front->slots.trailing(trailing);
+        }
+        if (measurer_) {
+            const auto slot_width = [this](const Node& slot) {
+                return slot.children().empty()
+                           ? 0.0f
+                           : measurer_(slot, SlotTextRole::Label).width + kSlotEdgePadding;
+            };
+            measured_.leading_width = slot_width(leading);
+            measured_.trailing_width = slot_width(trailing);
+            measured_.slots = true;
         }
     }
     if (minimal != nullptr && controller_.state() != CapsuleState::Expanded) {
@@ -183,29 +218,6 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
         parts_dirty_ = true;
     }
 
-    const Activity* sized = front != nullptr ? front : minimal;
-    hal::WindowRect cutout;
-    const bool has_cutout = top_cutout(env.cutouts, env.window_width, cutout);
-    CapsuleSizeInput size_in;
-    size_in.state = controller_.state();
-    size_in.window_width = env.window_width;
-    size_in.window_height = env.window_height;
-    size_in.cutout_width = has_cutout ? cutout.width : 0.0f;
-    size_in.cutout_height = has_cutout ? cutout.height : 0.0f;
-    size_in.leading_width = sized->slots.leading_width;
-    size_in.trailing_width = sized->slots.trailing_width;
-    size_in.card_width = sized->slots.card_width;
-    size_in.card_height = sized->slots.card_height;
-    const CapsuleSize target = capsule_size(size_in);
-    if (!morph_placed_) {
-        morph_.snap(target);
-        morph_placed_ = true;
-        box_dirty_ = true;
-    } else if (target.width != target_.width || target.height != target_.height ||
-               target.corner_radius != target_.corner_radius) {
-        morph_.set_target(target);
-    }
-    target_ = target;
     if (built_state_ != controller_.state()) {
         built_state_ = controller_.state();
         parts_dirty_ = true;
@@ -217,6 +229,33 @@ bool LiveCapsule::sync(const LiveCapsuleEnv& env, float dt) {
         parts_dirty_ = false;
         box_dirty_ = true;
     }
+
+    const Activity* sized = front != nullptr ? front : minimal;
+    hal::WindowRect cutout;
+    const bool has_cutout = top_cutout(env.cutouts, env.window_width, cutout);
+    CapsuleSizeInput size_in;
+    size_in.state = controller_.state();
+    size_in.window_width = env.window_width;
+    size_in.window_height = env.window_height;
+    size_in.cutout_width = has_cutout ? cutout.width : 0.0f;
+    size_in.cutout_height = has_cutout ? cutout.height : 0.0f;
+    // Measured sizes win over the hints; a slot nobody measured (no measurer, minimal-only) keeps
+    // its hint.
+    size_in.leading_width = measured_.slots ? measured_.leading_width : sized->slots.leading_width;
+    size_in.trailing_width =
+        measured_.slots ? measured_.trailing_width : sized->slots.trailing_width;
+    size_in.card_width = measured_.card ? measured_.card_width : sized->slots.card_width;
+    size_in.card_height = measured_.card ? measured_.card_height : sized->slots.card_height;
+    const CapsuleSize target = capsule_size(size_in);
+    if (!morph_placed_) {
+        morph_.snap(target);
+        morph_placed_ = true;
+        box_dirty_ = true;
+    } else if (target.width != target_.width || target.height != target_.height ||
+               target.corner_radius != target_.corner_radius) {
+        morph_.set_target(target);
+    }
+    target_ = target;
 
     const bool moving = morph_.tick(dt);
     const CapsuleSize now = morph_.current();
