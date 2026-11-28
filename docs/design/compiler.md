@@ -168,9 +168,10 @@ tree differs from generated output. The report lists generated/skipped/warnings.
 - Codes: `TESSERA_CFG_*`, `TESSERA_JSX_*`, `TESSERA_REACT_*`, `TESSERA_IR_*`, `TESSERA_CG_*`.
 - Every diagnostic has severity, code, message, file/line/column, and optional fix.
 - Build-time errors fail the build; warnings are summarized and can be treated as errors in CI.
-- Runtime never sees compiler diagnostics; they are build artifacts.
-
-See [`error-model-v1.md`](../specs/error-model-v1.md).
+- Runtime never sees compiler diagnostics; they are build artifacts ([`error-model-v1.md`](../specs/error-model-v1.md)).
+- Editor and CLI diagnostics over a whole project: `src/compiler/analysis` (`tessera_analysis`) reports every file's parser
+  diagnostics (recovery per top-level item) and the findings that need several files (`TESSERA_ANALYSIS_IMPORT_FILE`, `_IMPORT_NAME`,
+  `_DUPLICATE_COMPONENT`) as UTF-16 spans, shared by the Wasm analysis worker and native hosts ([studio-services-v1.md](../specs/studio-services-v1.md) section 11).
 
 ## 11. C++ codegen (first slice, implemented)
 
@@ -592,7 +593,6 @@ AF5, #177) adds `ir::Component::services` and a generated `service<T>()` surface
 
 - The open questions in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in hook
   manifest format is in its section 7.1).
-- Parser error recovery for the live view (editing partially valid files; V1 fails fast).
 - Source maps to TSX: `#line` answers line granularity ([`compiler-diagnostics-v1.md`](../specs/compiler-diagnostics-v1.md) section 9, issue #78); columns, developer class: open.
 - Incremental codegen at the node level vs component level.
 - How much static analysis for effect dependencies.

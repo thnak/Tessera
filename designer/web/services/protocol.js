@@ -102,6 +102,7 @@ function payloadProblems(type, p) {
     for (const f of p.files) {
       if (!isUint(f?.file)) out.push('snapshot file id must be a non-negative integer');
       if (!(f?.bytes instanceof ArrayBuffer)) out.push('snapshot bytes must be an ArrayBuffer');
+      if (f?.path !== undefined && typeof f.path !== 'string') out.push('snapshot path must be a string');
     }
   } else if (type === 'delta') {
     if (!isUint(p.baseVersion)) out.push('delta.baseVersion must be a non-negative integer');

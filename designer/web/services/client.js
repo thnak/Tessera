@@ -24,6 +24,7 @@ export class ServiceClient {
     this.createWorker = createWorker;
     this.version = 0; // the project version: the page owns the text and bumps it on every change
     this.files = new Map(); // file id -> text (UTF-16 string)
+    this.paths = new Map(); // file id -> project path, for the files that were given one
     this.capabilities = null;
     this.nextId = 1;
     this.open = new Map(); // id -> { type, version, resolve, reject }
@@ -50,9 +51,14 @@ export class ServiceClient {
     return this.capabilities?.features.includes(feature) === true;
   }
 
-  /** Replaces every file; the buffers are transferred, the page keeps its own strings. */
+  /**
+   * Replaces every file; the buffers are transferred, the page keeps its own strings. An entry is
+   * [id, text] or [id, text, path]: a service that resolves imports (analysis) needs the path.
+   */
   async setSnapshot(files) {
-    this.files = new Map(files);
+    const entries = [...files];
+    this.files = new Map(entries.map(([id, text]) => [id, text]));
+    this.paths = new Map(entries.filter((e) => typeof e[2] === 'string').map(([id, , path]) => [id, path]));
     this.version += 1;
     return this.#sendSnapshot();
   }
@@ -96,7 +102,11 @@ export class ServiceClient {
 
   #sendSnapshot() {
     const encoder = new TextEncoder();
-    const files = [...this.files].map(([file, text]) => ({ file, bytes: encoder.encode(text).buffer }));
+    const files = [...this.files].map(([file, text]) => {
+      const entry = { file, bytes: encoder.encode(text).buffer };
+      if (this.paths.has(file)) entry.path = this.paths.get(file);
+      return entry;
+    });
     return this.#send('snapshot', { files }, files.map((f) => f.bytes));
   }
 

@@ -66,6 +66,17 @@ public:
     [[nodiscard]] const Symbol* symbol(std::string_view id) const;
     // Files in id order.
     [[nodiscard]] std::vector<FileId> files() const;
+    // The file a relative import specifier names, tried as written and with `.tsx`, `.ts`,
+    // `/index.tsx` and `/index.ts`; empty for a package specifier.
+    [[nodiscard]] std::optional<FileId> resolve_path(FileId from, std::string_view specifier) const;
+
+    // Project-wide diagnostics (#568): every file's parser diagnostics plus the findings that need
+    // several files (a relative import with no file, an imported name the file does not export,
+    // a component name declared in more than one place). Sorted by file, offset, end, code and
+    // message, so the order never depends on the order the files were given. `file` limits the
+    // answer to one file; the findings are still computed over the whole project.
+    [[nodiscard]] std::vector<Diagnostic>
+    diagnostics(std::optional<FileId> file = std::nullopt) const;
 
     [[nodiscard]] std::optional<Located> locate(FileId file, std::uint32_t offset) const;
     // Every use of a declaration, directly or through imports, plus the declaration itself when
@@ -82,7 +93,6 @@ private:
     void put_file(SourceFile file);
     void resolve_project();
     [[nodiscard]] const Symbol* exported(FileId file, std::string_view name, int depth) const;
-    [[nodiscard]] std::optional<FileId> resolve_path(FileId from, std::string_view specifier) const;
     [[nodiscard]] const Symbol* follow(const Symbol* symbol) const;
 
     std::map<FileId, Entry> entries_;

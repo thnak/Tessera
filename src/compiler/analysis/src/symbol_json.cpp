@@ -167,8 +167,47 @@ std::string symbols_to_json(const ProjectIndex& index, std::optional<FileId> fil
     return out;
 }
 
+std::string diagnostics_to_json(const ProjectIndex& index, std::optional<FileId> file) {
+    const std::vector<Diagnostic> all = index.diagnostics(file);
+    std::string out = "{\"files\":[";
+    bool first_file = true;
+    std::size_t next = 0;
+    for (const FileId id : index.files()) {
+        if (file && *file != id) {
+            continue;
+        }
+        out += first_file ? "{\"file\":" : ",{\"file\":";
+        first_file = false;
+        out += std::to_string(id) + ",\"diagnostics\":[";
+        bool first = true;
+        for (; next < all.size() && all[next].span.file == id; ++next) {
+            const Diagnostic& d = all[next];
+            out += first ? "{\"code\":" : ",{\"code\":";
+            first = false;
+            quote(out, d.code);
+            out += d.severity == DiagnosticSeverity::Error ? ",\"severity\":\"error\""
+                                                           : ",\"severity\":\"warning\"";
+            out += ",\"message\":";
+            quote(out, d.message);
+            out +=
+                ",\"from\":" + std::to_string(d.span.from) + ",\"to\":" + std::to_string(d.span.to);
+            if (d.related) {
+                out += ",\"related\":{\"file\":" + std::to_string(d.related->file) +
+                       ",\"from\":" + std::to_string(d.related->from) +
+                       ",\"to\":" + std::to_string(d.related->to) + ",\"message\":";
+                quote(out, d.related_message);
+                out += '}';
+            }
+            out += '}';
+        }
+        out += "]}";
+    }
+    out += "]}";
+    return out;
+}
+
 std::string analysis_capabilities_json() {
-    return "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\"]}";
+    return "{\"name\":\"analysis\",\"protocol\":1,\"features\":[\"symbols\",\"diagnostics\"]}";
 }
 
 } // namespace tessera::compiler::analysis

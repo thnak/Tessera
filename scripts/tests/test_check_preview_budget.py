@@ -352,6 +352,21 @@ class PreviewBudgetGateTests(unittest.TestCase):
         )
         self.assertLess(module_total, self.download)
 
+    def test_the_lazy_service_modules_are_weighed_apart_from_the_download(self) -> None:
+        # Issue #568: the format and analysis workers' modules load lazily, so they are a row of their
+        # own and never part of the first-paint total. A directory without them has no such row.
+        before = json.loads(self.run_gate("--check", "--json").stdout)["measurements"]
+        self.assertNotIn("lazy_service_modules_gzip_bytes", before)
+        for index, name in enumerate(measure.LAZY_SERVICE_FILES):
+            (self.module_dir / name).write_bytes(payload(MODULE_BYTES, 200 + index))
+        result = self.run_gate("--check", "--json")
+        measurements = json.loads(result.stdout)["measurements"]
+        expected = sum(
+            gzip_size(payload(MODULE_BYTES, 200 + index)) for index in range(len(measure.LAZY_SERVICE_FILES))
+        )
+        self.assertEqual(measurements["lazy_service_modules_gzip_bytes"], expected)
+        self.assertEqual(measurements["download_gzip_bytes"], before["download_gzip_bytes"])
+
     def test_the_total_actually_moved_when_a_module_grew(self) -> None:
         # Guard against a measurement that names a module but does not add it: growing the largest
         # module must move the enforced total, or the coverage is cosmetic.

@@ -70,6 +70,7 @@ on:
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
       - 'scripts/ci/preview_format_service.mjs'
+      - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
@@ -122,6 +123,7 @@ on:
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_studio_services.mjs'
       - 'scripts/ci/preview_format_service.mjs'
+      - 'scripts/ci/preview_analysis_service.mjs'
       - 'designer/web/services/**'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
@@ -235,6 +237,10 @@ jobs:
       - name: Build browser format module
         run: cmake --build build/wasm-webgpu --target tessera_format_wasm --parallel
 
+      # The analysis worker's module (#568, ADR-060): project-wide diagnostics and the symbol index.
+      - name: Build browser analysis module
+        run: cmake --build build/wasm-webgpu --target tessera_analysis_wasm --parallel
+
       # P2 (issue #166): the scene-preview module behind the merged page's Scene view. Same configure
       # and the same pattern; issue #392 merged the pages without merging the modules.
       - name: Build browser scene-preview module
@@ -334,6 +340,12 @@ jobs:
 
       - name: Format service (edit list over the worker protocol, ADR-061)
         run: node scripts/ci/preview_format_service.mjs
+
+      # With the Wasm module the gate also checks the C++ library end to end (UTF-16 spans, findings).
+      - name: Analysis service (diagnostics over the worker protocol, ADR-060)
+        run: node scripts/ci/preview_analysis_service.mjs
+        env:
+          TESSERA_ANALYSIS_WASM: build/wasm-webgpu/src/compiler/analysis/tessera_analysis.js
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
@@ -483,6 +495,10 @@ jobs:
           # The format worker's module is its own file: a lazy `import()` on the first Format Document.
           cp build/wasm-webgpu/tools/fmt/tessera_format.js "$site/"
           cp build/wasm-webgpu/tools/fmt/tessera_format.wasm "$site/"
+          # The analysis worker's module (#568): lazy on the first diagnostics request, weighed by
+          # lazy_service_modules_gzip_bytes together with the format module.
+          cp build/wasm-webgpu/src/compiler/analysis/tessera_analysis.js "$site/"
+          cp build/wasm-webgpu/src/compiler/analysis/tessera_analysis.wasm "$site/"
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
           printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
           # A static host resolves the directory to index.html; make the intent explicit and fail loudly
