@@ -45,12 +45,15 @@ Box size at a 400px viewport, 16px root, before and after this change.
 - `pre`, `blockquote`, `hr` (issue #541): `pre` is a block with a 1em vertical margin (its monospace face and `white-space: pre` are the alias's own defaults), `blockquote` has `margin: 1em 40px`, and `hr` is a zero-height box with a 1px dark top and light bottom edge (Chrome's `inset` rule) and a 0.5em margin. They select by the tag the alias keeps, as they have no role.
 - `Button`, `TextInput`, `TextArea`: a size, a 1px border, radius 2px, the 13.33px control font, black on a light face, and the Chrome hover and active colours for `Button`. `Button` is `align-self: flex-start`, so an inline-block button in a block parent takes its own width instead of the full row. `TextInput`/`TextArea` use `min-width`/`min-height` (border-box 176x22, 161x38, written content-box: 168x16, 153x32; the fields are content-box as in Chrome, issue #973) and stay stretchable, so a field in a flex column fills it as in a browser; the one difference is that a bare input in a block parent fills the row instead of 176px (a named exception below).
 
+- States: `Button:disabled`, `TextInput:disabled`, `TextArea:disabled` fade to Chrome's 30% face, border and text (after hover/active, so a disabled button does not react); `:focus-visible` draws Chrome's 2px #101010 ring on the three controls as a zero-blur `box-shadow` spread, since the engine has no `outline`.
+
 ## Open (not fixed, with a reason)
 
 | Gap | Why it is open |
 |---|---|
 
-| `:focus-visible` ring, `:disabled` look, placeholder and selection colours | Not measured yet; needs the per-state pixel method. |
+| Placeholder and selection colours | Not measured yet; needs the per-state pixel method and typed input in the Studio (#601). |
+| Pixel-measured per-state look against Chromium | The rules below take Chrome's UA values from its sheet, not from a pixel diff; the per-state ink measurement of #602 still has to confirm them. |
 
 ## Exceptions (impossible or deliberately different)
 
@@ -61,6 +64,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | No inline boxes: `span`, `a`, `strong`, `em`, `code` are blocks | Text flows as one block per element, so two adjacent inline elements stack. Inline formatting is a separate feature. |
 | `code`, `kbd` and `pre` are not monospace | The V1 font stack has one face; a monospace face is a font-bundling decision. |
 | Two inline-block controls side by side stack | Same inline-flow limit: a column cannot place them on one line. |
+| `outline` / `outline-offset` on the focus ring | The engine has no `outline` property; the ring is a 2px `box-shadow` spread (same pixels at `outline-offset: 0`, but it follows the radius, and an author `box-shadow` replaces it). |
 | Colour scheme | The UA colours are Chrome's light-scheme values (black on light, link `#0000ee`); a dark scheme needs `color-scheme` support. |
 | A bare `input`/`textarea` in a block parent fills the row | A browser sizes an inline-block input to 176px; here a block is a stretching column, and a fixed width would stop fields stretching in flex layouts (the gallery's form). The audit ignores `width` for these two. |
 | Text width of controls | The width of a button follows the text measurer; the harness uses the test font, so widths differ by font and are not compared. |

@@ -44,6 +44,11 @@ std::string_view ua_stylesheet_text() noexcept {
     // inherited `list-style-type` (issue #541), Chrome's `disc`/`circle`/`square` by nesting depth
     // and `decimal` for `ol`; the painter draws it for a `role="listitem"` child, matched through
     // the tag the alias keeps like `pre` below.
+    //
+    // States (issue #606): Chrome fades a disabled control to 30% of its face, border and text (the
+    // disabled rules come after hover/active so a disabled button does not react), and draws the
+    // `:focus-visible` ring as a 2px #101010 outline. The engine has no `outline`, so the ring is a
+    // zero-blur 2px `box-shadow` spread, the same pixels around the border box (outline-offset 0).
     return "View { display: block; }\n"
            "Text[role=\"heading\"] { display: block; font-weight: 700; }\n"
            "Text[aria-level=\"1\"] { font-size: 2em; margin: 0.67em 0; }\n"
@@ -71,6 +76,12 @@ std::string_view ua_stylesheet_text() noexcept {
            "background-color: #efefef; border: 1px solid #767676; border-radius: 2px; }\n"
            "Button:hover { background-color: #e5e5e5; border-color: #4f4f4f; }\n"
            "Button:active { background-color: #f5f5f5; border-color: #767676; }\n"
+           "Button:disabled { color: rgba(16, 16, 16, 0.3); "
+           "background-color: rgba(239, 239, 239, 0.3); border-color: rgba(118, 118, 118, 0.3); }\n"
+           "Button:focus-visible, TextInput:focus-visible, TextArea:focus-visible "
+           "{ box-shadow: 0 0 0 2px #101010; }\n"
+           "TextInput:disabled, TextArea:disabled { color: #545454; "
+           "background-color: rgba(239, 239, 239, 0.3); border-color: rgba(118, 118, 118, 0.3); }\n"
            "TextInput { min-width: 168px; "
            "min-height: 16px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
            "background-color: #ffffff; "
