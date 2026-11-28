@@ -42,7 +42,9 @@ target_link_libraries(tessera_appfw_core
 add_library(tessera_appfw_storage STATIC
     storage.cpp
     storage_atomic.cpp
+    storage_cache.cpp
     storage_envelope.cpp
+    storage_migration.cpp
     storage_settings.cpp
     # The in-tree `hal::FileSystem` double (issue #454). It lives in the module for the same reason
     # `net_fake.cpp` lives in `tessera_appfw_net`: it fakes the module's *seam*, so an app's own test
@@ -385,7 +387,9 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_atomic_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_cancel_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_corruption_tests.cpp
-        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_executor_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_executor_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_migration_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_storage_cache_tests.cpp)
     target_include_directories(appfw_storage_tests PRIVATE
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_storage_tests PRIVATE tessera_appfw_storage tessera_runtime)

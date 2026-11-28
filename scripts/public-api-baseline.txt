@@ -523,6 +523,17 @@ function include/tessera/appfw/storage.hpp tessera::appfw::is_valid_entry_name
 function include/tessera/appfw/storage.hpp tessera::appfw::storage_error_code_name
 function include/tessera/appfw/storage.hpp tessera::appfw::temp_path_for
 
+header include/tessera/appfw/storage_cache.hpp
+class include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheStore
+struct include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheConfig
+struct include/tessera/appfw/storage_cache.hpp tessera::appfw::CacheStats
+
+header include/tessera/appfw/storage_migration.hpp
+class include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationChain
+struct include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationResult
+enum include/tessera/appfw/storage_migration.hpp tessera::appfw::MigrationOutcome
+function include/tessera/appfw/storage_migration.hpp tessera::appfw::migration_outcome_name
+
 header include/tessera/appfw/task_scope.hpp
 class include/tessera/appfw/task_scope.hpp tessera::appfw::TaskScope
 struct include/tessera/appfw/task_scope.hpp tessera::appfw::TaskScopeConfig

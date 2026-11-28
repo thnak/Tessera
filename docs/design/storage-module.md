@@ -12,8 +12,8 @@ the test map. Code: `include/tessera/appfw/storage.hpp`, `src/appfw/storage*.cpp
 It owns named project data: **documents** (opaque payloads) and **settings** (an ordered key/value
 list in one entry). Both go through the same atomic-replace sequence and the same envelope.
 
-It does not own cache eviction, migrations, streaming or the keystore. Those are later slices of the
-same module (ADR-050 section 8 lists them); the header and section 4.1 of [`services/storage.md`](services/storage.md) name them so
+It also owns **migrations** (section 9) and the bounded **cache** class (section 10). It does not yet
+own streaming or the keystore (section 8); the header and section 4.1 of [`services/storage.md`](services/storage.md) name them so
 a caller does not assume they exist.
 
 ## 2. The seam: `IoTaskExecutor`
@@ -172,11 +172,51 @@ check, and the durable ordering), which is what the suite is for.
 
 ## 8. Open questions
 
-- **Migrations.** The version is checked and rejected, not upgraded. A migration runner needs its own
-  spec line (which versions are readable, what a failed migration leaves behind).
-- **Cache class and quota.** ADR-050 section 8 lists an evictable cache; it is not in this slice and
-  needs a policy (LRU by what clock? bounded by bytes or entries?).
-- **Keystore.** The `Durability`/`FileSystem` seam has no encryption hook yet. Adding one is a
-  `FileSystem` decorator, not a change to `Storage`, so the seam is already the right shape.
+- **Keystore.** Tracked in #841. The `Durability`/`FileSystem` seam has no encryption hook yet. Adding
+  one is a `FileSystem` decorator, not a change to `Storage`, so the seam is already the right shape.
 - **Streaming.** A write is one bounded buffer (`max_entry_bytes`). Large documents need chunked
-  writes with the same atomicity, which means writing chunks to the temp file and renaming once.
+  writes with the same atomicity: chunks to the temp file, one rename. `hal::FileSystem` has only a
+  whole-buffer `write`, so this needs an append/stream handle in the HAL and an API-shape decision
+  first; it is the one item of #411 not landed.
+
+## 9. Migrations (issue #411)
+
+`MigrationChain` (`include/tessera/appfw/storage_migration.hpp`) is pure: step `N` turns a version-`N`
+payload into version `N+1`; `run(stored, payload, target)` resolves the whole path first (so a gap is
+reported before any step runs on the data), then runs the steps in order. Outcomes are named, never
+guessed:
+
+| Outcome | Meaning | `load_migrated` result | File |
+|---|---|---|---|
+| `Current` | already at the target | value, `migrated=false` | untouched |
+| `Migrated` | steps ran | value at the new version, `migrated=true` | rewritten atomically once |
+| `FutureVersion` | stored by a newer build (a downgrade) | `FutureVersion` + diagnostic | untouched |
+| `MissingStep` | the chain has a gap at `failed_at` | `MigrationFailed` + diagnostic | untouched |
+| `StepFailed` | a step rejected its input | `MigrationFailed` + diagnostic | untouched |
+
+The chain runs inside the I/O body after the checksum passed. The write-back reuses `write_entry`
+(so it is atomic and counted); a failed rewrite is a diagnostic, not a failed load, because the caller
+already holds usable data and the next load simply migrates again. Plain `load` is unchanged: it still
+rejects a version above `format_version` as `Corrupted`. Settings entries are not migrated by this
+slice (the settings list is key/value, so a version bump there is additive by construction).
+
+## 10. The bounded cache (issue #411)
+
+`CacheStore` (`include/tessera/appfw/storage_cache.hpp`) is the evictable class. It shares the envelope
+and `atomic_replace` with `Storage`, and keeps an in-memory index (name, on-disk bytes, tick).
+
+- **Bounds.** `max_bytes` (envelope-inclusive, so it bounds disk use) and `max_entries`; a put that
+  breaks either evicts least-recently-used entries until both hold. The just-written entry is never
+  its own victim; an entry that cannot fit alone is refused at submit.
+- **Recency is a logical tick**, bumped on every put and hit, not a wall clock, so eviction order is
+  reproducible. Victim choice is a linear scan: caches are bounded and eviction is off the UI thread.
+- **Corrupt entries are deleted** by `get` (a cache entry is never the only copy) and stop counting
+  against the quota. A failed victim removal is counted (`evict_failures`), not fatal.
+- **Restart.** Ticks do not persist; `scan` rebuilds the index from the directory in name order,
+  skips `.tmp` files and enforces the bounds.
+- **Concurrency.** The index has one mutex; no file operation runs under it.
+
+Tests: `appfw_storage_migration_tests.cpp` (chain outcomes, upgrade-and-rewrite-once, future version,
+gap/rejecting step, failed rewrite) and `appfw_storage_cache_tests.cpp` (exact byte accounting, entry
+bound, multi-eviction, replacement, corrupt, remove, failed eviction, scan), all on `ManualIoExecutor`
+and the fake file system.
