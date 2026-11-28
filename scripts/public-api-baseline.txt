@@ -160,6 +160,14 @@ constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycl
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycleScriptSteps
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kNoLifecycleStep
 
+header include/tessera/appfw/link_router.hpp
+class include/tessera/appfw/link_router.hpp tessera::appfw::LinkRouter
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkDiagnostics
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkPolicy
+struct include/tessera/appfw/link_router.hpp tessera::appfw::LinkResult
+enum include/tessera/appfw/link_router.hpp tessera::appfw::LinkOutcome
+function include/tessera/appfw/link_router.hpp tessera::appfw::link_outcome_name
+
 header include/tessera/appfw/navigation_deep_link.hpp
 struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLink
 struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLinkConfig
@@ -491,6 +499,7 @@ constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellClipboar
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDragTextBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropFiles
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellUrlBytes
 constant include/tessera/appfw/shell_types.hpp tessera::appfw::kShellCapabilityCount
 
 header include/tessera/appfw/sql.hpp
@@ -3969,6 +3978,17 @@ prop packages/tessera-ui/SafeArea.tsx SafeArea.sources
 component packages/tessera-ui/icons/IconGlyph.tsx IconGlyph
 prop packages/tessera-ui/icons/IconGlyph.tsx IconGlyph.name
 
+component packages/tessera-ui/primitives/Checkbox.tsx Checkbox
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.children
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.defaultChecked
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.label
+prop packages/tessera-ui/primitives/Checkbox.tsx Checkbox.onToggle
+
+component packages/tessera-ui/primitives/Disclosure.tsx Disclosure
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.children
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.defaultOpen
+prop packages/tessera-ui/primitives/Disclosure.tsx Disclosure.summary
+
 component packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.children
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.defaultOpen
@@ -3978,6 +3998,19 @@ component packages/tessera-ui/primitives/Press.tsx Press
 prop packages/tessera-ui/primitives/Press.tsx Press.children
 prop packages/tessera-ui/primitives/Press.tsx Press.label
 prop packages/tessera-ui/primitives/Press.tsx Press.onPress
+
+component packages/tessera-ui/primitives/Progress.tsx Progress
+prop packages/tessera-ui/primitives/Progress.tsx Progress.children
+prop packages/tessera-ui/primitives/Progress.tsx Progress.label
+prop packages/tessera-ui/primitives/Progress.tsx Progress.max
+prop packages/tessera-ui/primitives/Progress.tsx Progress.min
+prop packages/tessera-ui/primitives/Progress.tsx Progress.value
+
+component packages/tessera-ui/primitives/Radio.tsx Radio
+prop packages/tessera-ui/primitives/Radio.tsx Radio.checked
+prop packages/tessera-ui/primitives/Radio.tsx Radio.children
+prop packages/tessera-ui/primitives/Radio.tsx Radio.label
+prop packages/tessera-ui/primitives/Radio.tsx Radio.onSelect
 
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children

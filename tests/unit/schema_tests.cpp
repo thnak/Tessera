@@ -77,7 +77,8 @@ void test_schema_version_and_counts() {
     // id-reference attributes `useId` exists to fill.
     // 29 with `aria-start`, `aria-reversed` and `aria-value`, the targets of `ol start`,
     // `ol reversed` and `li value` (issue #912).
-    check(schema::common_props().size() == 29, "29 common attributes");
+    // 31 with `aria-href` and `aria-for`, the targets of `a href` and `label htmlFor` (issue #542).
+    check(schema::common_props().size() == 31, "31 common attributes");
 }
 
 void test_element_rows() {
@@ -249,9 +250,9 @@ void test_aliases() {
               h1->inject[1].name == "aria-level" && h1->inject[1].value == "1",
           "h1 injects role=heading");
     const schema::AliasRow* anchor = schema::find_alias("a");
-    check(anchor != nullptr && anchor->status == schema::AliasStatus::Partial &&
+    check(anchor != nullptr && anchor->status == schema::AliasStatus::Mapped &&
               anchor->target == "Text",
-          "a is a partial alias of Text");
+          "a is a mapped alias of Text (href lowers to aria-href, issue #542)");
     // Inline emphasis aliases (issue #229): mapped to Text with injected default run styles.
     const schema::AliasRow* bold = schema::find_alias("b");
     check(bold != nullptr && bold->status == schema::AliasStatus::Mapped && bold->target == "Text",

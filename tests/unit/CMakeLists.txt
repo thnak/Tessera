@@ -3455,6 +3455,12 @@ add_executable(lowering_inline_span_tests
 target_link_libraries(lowering_inline_span_tests PRIVATE tessera_lowering)
 add_test(NAME lowering_inline_span COMMAND lowering_inline_span_tests)
 
+# `a href` and `label htmlFor` (issue #542).
+add_executable(lowering_links_labels_tests
+    lowering_links_labels_tests.cpp)
+target_link_libraries(lowering_links_labels_tests PRIVATE tessera_lowering)
+add_test(NAME lowering_links_labels COMMAND lowering_links_labels_tests)
+
 add_executable(ir_inline_span_tests
     ir_inline_span_tests.cpp
     ir_samples.cpp)

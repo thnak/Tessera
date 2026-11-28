@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Corpus fixture: `label htmlFor`. ADR-066 section 3 keeps this rejected (Q11): the association
-// becomes the Field stack's job.
+// Corpus fixture: `label htmlFor`. Supported since issue #542 (ADR-059 group B): it lowers to `aria-for`, and
+// a click on the label focuses and activates the control with that id.
 
 export function LabelledField({ id, label }: { id: string; label: string }) {
   return (

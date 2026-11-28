@@ -182,11 +182,40 @@ constexpr AliasAttr kListItemAttrs[] = {
     {"value", AliasAttrKind::Rename, "aria-value", "", {}, "a static integer"},
 };
 
+// `href` is the only attribute with behavior (issue #542): an absolute route path goes through the
+// navigation service, a URL with an allowed scheme through the shell service. `target` and `rel`
+// describe browser window and privacy behavior the engine does not have, so the values a port
+// writes everywhere are accepted and dropped; any other value is rejected.
+constexpr AliasValue kAnchorTargetValues[] = {
+    {"_self", "", false, ""},
+    {"_blank", "", false, ""},
+};
+
+constexpr AliasValue kAnchorRelValues[] = {
+    {"noopener", "", false, ""},
+    {"noreferrer", "", false, ""},
+    {"noopener noreferrer", "", false, ""},
+    {"nofollow", "", false, ""},
+    {"external", "", false, ""},
+};
+
 constexpr AliasAttr kAnchorAttrs[] = {
-    {"href", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
-    {"target", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
-    {"rel", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
-    {"download", AliasAttrKind::Reject, "", "no `href` in V1; use `onClick`", {}, ""},
+    {"href", AliasAttrKind::Rename, "aria-href", "", {}, "a static string of at most 128 bytes"},
+    {"target", AliasAttrKind::ValueMap, "",
+     "an external URL always opens through the shell service", rows(kAnchorTargetValues),
+     "must be a string literal"},
+    {"rel", AliasAttrKind::ValueMap, "", "an external URL always opens through the shell service",
+     rows(kAnchorRelValues), "must be a string literal"},
+    {"download",
+     AliasAttrKind::Reject,
+     "",
+     "no V1 meaning; use the shell service's save dialog",
+     {},
+     ""},
+};
+
+constexpr AliasAttr kLabelAttrs[] = {
+    {"htmlFor", AliasAttrKind::Rename, "aria-for", "", {}, "a static string naming a control's id"},
 };
 
 // --- tag table ------------------------------------------------------------------------------
@@ -285,8 +314,15 @@ constexpr AliasRow kAliases[] = {
         "code", "Text", AliasStatus::Mapped,
         "inline span; injects font-family: monospace (no font selection yet, so no metric change)"),
     {"p", "Text", AliasStatus::Mapped, rows(kInjectRoleParagraph), {}, {}, false, "", ""},
-    plain("label", "Text", AliasStatus::Mapped,
-          "does not focus its control; `htmlFor` is rejected [Q11]"),
+    {"label",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     rows(kLabelAttrs),
+     {},
+     false,
+     "",
+     "`htmlFor` forwards focus and activation to the control with that id"},
     {"figcaption", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     // clang-format off
     {"h1", "Text", AliasStatus::Mapped, rows(kInjectHeading[0]), {}, {}, false, "", kHeadingNote},
@@ -298,13 +334,14 @@ constexpr AliasRow kAliases[] = {
     // clang-format on
     {"a",
      "Text",
-     AliasStatus::Partial,
+     AliasStatus::Mapped,
      rows(kInjectRoleLink),
      rows(kAnchorAttrs),
      {},
      false,
      "",
-     "`href`, `target`, `rel` and `download` are rejected; use `onClick` [Q11]"},
+     "`href` is an internal route path or an external URL (shell service); `target` and `rel` "
+     "are dropped"},
     {"button",
      "Button",
      AliasStatus::Mapped,

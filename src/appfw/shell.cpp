@@ -127,6 +127,11 @@ std::expected<void, ShellError> ShellService::submit_clipboard_write(ClipboardCo
     return impl_->submit_clipboard_write(std::move(content), std::move(on_done));
 }
 
+std::expected<void, ShellError> ShellService::submit_open_url(std::string url,
+                                                              WriteCallback on_done) {
+    return impl_->submit_open_url(std::move(url), std::move(on_done));
+}
+
 std::expected<void, ShellError> ShellService::submit_open_dialog(OpenDialogSpec spec,
                                                                  DialogCallback on_done) {
     DialogRequest request;
