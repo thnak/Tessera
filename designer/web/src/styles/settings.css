@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The settings dialog (slice W8 #565). It reuses the About layer and card; these rules only add the tabs and panes. */
+
+.about.settings { width: min(860px, calc(100vw - 32px)); height: min(640px, calc(100vh - 32px)); display: flex; flex-direction: column; }
+.settings [role="tabpanel"] { flex: 1; min-height: 0; overflow: auto; }
+.settings-tabs { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }
+.settings-tabs [role="tab"] { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--text-dim); padding: 6px 10px; cursor: pointer; }
+.settings-tabs [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-fg); }
+.settings-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
+.settings-heading { margin: 16px 0 8px; font-size: 13px; font-weight: 600; }
+.settings-note { margin: 0 0 8px; color: var(--text-dim); }
+.settings-label { display: block; margin: 8px 0 4px; color: var(--text-dim); }
+.settings-json { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 12px; }
+.settings-outcome { min-height: 1.4em; margin: 4px 0 0; color: var(--text-dim); }
+.settings-outcome.is-error { color: var(--danger-fg, #c0392b); }
+.settings-fieldset { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; }
+.settings-radio { display: block; padding: 2px 0; }
+.kb-filter { flex: 1; min-width: 160px; }
+.kb-scroll { max-height: 300px; overflow: auto; border: 1px solid var(--border); }
+.kb-table { width: 100%; border-collapse: collapse; }
+.kb-table th, .kb-table td { text-align: left; padding: 4px 8px; vertical-align: top; border-bottom: 1px solid var(--border); }
+.kb-table thead th { position: sticky; top: 0; background: var(--pane-bg); }
+.kb-category { color: var(--text-dim); font-size: 11px; margin-left: 4px; }
+.kb-chord { font-family: var(--mono); font-size: 12px; }
+.kb-conflict, .kb-shared { display: block; font-size: 11px; }
+.kb-conflict { color: var(--danger-fg, #c0392b); }
+.kb-shared { color: var(--text-dim); }
+.kb-actions { white-space: nowrap; }
+.kb-editor { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.kb-input { min-width: 200px; }
+.preset-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.preset-list li { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.preset-name { flex: 1; }

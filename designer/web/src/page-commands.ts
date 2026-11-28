@@ -47,6 +47,7 @@ import type { CommandRecord, MenuTarget } from "./workbench/index.js";
 import type { Workbench as Dock } from "./dock/use-workbench";
 import type { EditRouting } from "./page-edit-routing";
 import { layoutContext, layoutHandlers, layoutProviders, useLayoutNotices, type LayoutUndo } from "./page-layout-commands";
+import { createSettingsTools, type SettingsTab, type SettingsTools } from "./page-settings";
 
 const DOCS_URL = "https://github.com/thnak/Tessera/blob/main/docs/README.md";
 const ISSUE_URL = "https://github.com/thnak/Tessera/issues/new";
@@ -107,6 +108,11 @@ export interface Workbench {
   /** Help > About (`help.about`): the dialog with the title, description, build and links. */
   aboutOpen: boolean;
   setAboutOpen: (open: boolean) => void;
+  /** The settings dialog (`view.openSettings`, `view.openKeybindings`): the open tab, or `null` when closed. */
+  settingsTab: SettingsTab | null;
+  setSettingsTab: (tab: SettingsTab | null) => void;
+  /** The keybinding overrides and layout import/export the dialog edits. */
+  settings: SettingsTools;
   buildId: string;
   /** Runs a menu or toolbar entry; an entry whose command needs arguments the entry lacks asks for them. */
   activate: (entry: { command?: string; args?: CommandArgs }) => Promise<void>;
@@ -208,6 +214,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const [aboutOpen, setAboutOpen] = useState(false);
   const setAboutRef = useRef(setAboutOpen);
   setAboutRef.current = setAboutOpen;
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
+  const setSettingsRef = useRef(setSettingsTab);
+  setSettingsRef.current = setSettingsTab;
   const picker = useButtonState(api.refs.pickToggle);
   const inspector = useButtonState(api.refs.inspectToggle);
   const phone = usePhone();
@@ -218,7 +227,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const undoRef = useRef<LayoutUndo | null>(null);
   const zenHintedRef = useRef(false);
 
-  const hostRef = useRef<{ registry: Registry; notifications: Notifications } | null>(null);
+  const hostRef = useRef<{ registry: Registry; notifications: Notifications; settings: SettingsTools } | null>(null);
   if (hostRef.current === null) {
     const platform = platformOf();
     const context = createContext(computeContext(api, layoutContext(api.dock, null)));
@@ -281,6 +290,8 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "help.docs": () => void window.open(DOCS_URL, "_blank", "noopener"),
       "help.reportIssue": () => void window.open(ISSUE_URL, "_blank", "noopener"),
       "help.about": () => setAboutRef.current(true),
+      "view.openSettings": () => setSettingsRef.current("appearance"),
+      "view.openKeybindings": () => setSettingsRef.current("keybindings"),
       "notify.show": (args) => {
         const actions = args.actionLabel && args.actionCommand ? [{ label: String(args.actionLabel), command: String(args.actionCommand) }] : [];
         return { id: notifications.notify({ message: String(args.message), severity: (args.severity as NotificationInput["severity"]) ?? "info", actions, key: args.key === undefined ? undefined : String(args.key) }) };
@@ -308,9 +319,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     if (problems.length > 0) {
       console.error("workbench: command table and handlers disagree", problems);
     }
-    hostRef.current = { registry, notifications };
+    const settings = createSettingsTools({ registry, dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef });
+    hostRef.current = { registry, notifications, settings };
   }
-  const { registry, notifications } = hostRef.current;
+  const { registry, notifications, settings } = hostRef.current;
 
   // Context keys: the page's state, plus the sessions' own toggles. Published after every render; a re-publish
   // of the same values wakes nobody (`context.set` compares).
@@ -492,6 +504,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     setCenterOpen,
     aboutOpen,
     setAboutOpen,
+    settingsTab,
+    setSettingsTab,
+    settings,
     buildId: api.buildId,
     activate,
     run,

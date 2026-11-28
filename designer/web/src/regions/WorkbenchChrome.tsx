@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent }
 import type { MenuEntry, ToolbarEntry } from "../workbench/index.js";
 import type { Workbench } from "../page-commands";
 import { AboutDialog } from "./AboutDialog";
+import { SettingsDialog } from "./SettingsDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
@@ -201,6 +202,9 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
         }}
       />
       {workbench.aboutOpen ? <AboutDialog buildId={workbench.buildId} onClose={() => workbench.setAboutOpen(false)} /> : null}
+      {workbench.settingsTab !== null ? (
+        <SettingsDialog workbench={workbench} tab={workbench.settingsTab} onTab={workbench.setSettingsTab} onClose={() => workbench.setSettingsTab(null)} />
+      ) : null}
       {workbench.palette.request !== null ? <CommandPalette key={workbench.palette.request.nonce} workbench={workbench} request={workbench.palette.request} /> : null}
       <ContextMenuHost workbench={workbench} />
       <ToastStack workbench={workbench} />
