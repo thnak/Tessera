@@ -23,13 +23,27 @@ struct ManifestMethod {
     std::string returns; // an IR type spelling or `void`
 };
 
+// A service-owned `Observable<T>` TSX may read in render through `useObservable(svc.name)`
+// (docs/specs/services-manifest-v1.md section 2). The C++ interface exposes it as
+// `tessera::appfw::Observable<T>& name()` (subscribing registers an observer, so it is not const).
+struct ManifestObservable {
+    std::string name;
+    std::string type; // an IR value type spelling (never `void`)
+};
+
 struct ManifestService {
     std::string id;   // reverse-DNS; the registry id is `service_id(id)`
     std::string name; // the TSX type name
     std::string cpp_type;
     std::string header;
     std::vector<ManifestMethod> methods;
+    std::vector<ManifestObservable> observables;
 
+    [[nodiscard]] const ManifestObservable*
+    find_observable(std::string_view member) const noexcept {
+        const auto found = std::ranges::find(observables, member, &ManifestObservable::name);
+        return found == observables.end() ? nullptr : &*found;
+    }
     [[nodiscard]] const ManifestMethod* find_method(std::string_view method) const noexcept {
         const auto found = std::ranges::find(methods, method, &ManifestMethod::name);
         return found == methods.end() ? nullptr : &*found;
