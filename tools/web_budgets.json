@@ -1,0 +1,9 @@
+{
+  "_comment": "Web app download budgets in bytes (issue #969, ADR-046 item 9). Gzip level 9 of the files a first visit fetches. first_frame_ms is the Node instantiate-to-first-frame bound, a generous regression tripwire not a performance claim. The gallery gets an entry when it has a web build.",
+  "web_smoke": {
+    "wasm_gzip": 49152,
+    "js_gzip": 8192,
+    "host_gzip": 4096,
+    "first_frame_ms": 3000
+  }
+}

@@ -62,12 +62,20 @@ returns; the browser drives the rest.
 ctest `web_input_translation`, `web_frame_scheduler`, `web_host` (C++, no browser) and
 `web_host_glue` (Node, fake DOM; skipped when Node is absent).
 
-## 6. Not done (needs emsdk or later slices)
+Under Emscripten, `samples/web_smoke` is the minimal web app (no renderer; it counts frames and
+consumed events). It is linked for `web,node`, and `scripts/ci/web_smoke.mjs` runs it under Node in the
+`wasm-build` job of `.github/workflows/webgpu.yml`: a wake requests exactly one frame, further input
+shares it, a frame runs the C++ step once and consumes the queued event, and a parked app holds no
+pending callback. The same script enforces the gzip download budgets and the Node first-frame bound in
+`tools/web_budgets.json`. `web_exports.cpp`, `library_tessera_web.js` and `tessera_web_app` compiled
+and linked on emsdk 7.0.0 on the first try.
 
-- `web_exports.cpp`, `library_tessera_web.js` and `tessera_web_app` are written but **uncompiled**:
-  the authoring machine had no emsdk. The web CI lane is their first build.
+## 6. Not done (tracked in #969's follow-ups)
+
 - The gallery does not build for the web: it links the Vulkan window driver (`tessera_app_window`). A
-  web app driver (WebGPU device, canvas surface, `WebHost` frame step) must replace it first.
-- No browser has run the page: Button page pointer/keyboard, and the zero-callback check in a real tab.
-- CI: building the gallery on every PR and publishing from `main`; download-size and first-frame budgets
-  (item 9); the hidden-textarea IME bridge, ARIA mirror, clipboard, files and persistence.
+  web app driver (WebGPU device, canvas surface, `WebHost` frame step) must replace it first; the
+  gallery then gets a budget entry.
+- No real browser has run the page (Button page pointer/keyboard, the zero-callback check in a tab);
+  Node proves the C++ side only.
+- CI: building the gallery on every PR and publishing from `main`; the hidden-textarea IME bridge, ARIA
+  mirror, clipboard, files and persistence.
