@@ -13,6 +13,23 @@ section 4.4 (semantics).
 | `Ctrl+B` / `Ctrl+J` | `view.toggleSideBar` / `view.togglePanelArea` | Show or hide the side bar or the panel area; this is also how a collapsed group is restored without a mouse |
 | Arrow keys, `Home`, `End` | (tab strip) | Move between the tabs of a group, one tab stop per strip |
 
+## Searching the project
+
+`Ctrl+Shift+F` (`view.search`) shows the Search panel, the side bar group's second tab, and focuses its query field. Results
+refresh as you type.
+
+| Key | Where | Result |
+|---|---|---|
+| `Enter` | query field | Search again now |
+| `Alt+C` / `Alt+W` / `Alt+R` | anywhere in the panel | Match Case / Match Whole Word / Use Regular Expression |
+| `Arrow` keys, `Home`, `End` | results | Move between file headings and results (one tab stop is enough; focus stays in the list) |
+| `Enter` or `Space` | a result | Open the file with the match selected; on a file heading, fold or unfold it |
+| `Ctrl+Alt+Enter` | anywhere in the panel | Replace All (when the Replace field is shown and the list is complete) |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | results (not a text field, which keeps the browser's undo) | Undo or redo the last replace, across all the files it touched; the Undo Replace and Redo buttons do the same |
+
+The status line under the fields is a polite live region: it announces the result count, a pattern problem, and what a
+replace or an undo did (including files left alone because they changed since). Locked files are not searched.
+
 ## Moving a panel
 
 Focus a panel's tab, then:
@@ -56,4 +73,5 @@ toggle commands above to restore it. A collapse by key on a separator is not ava
 `scripts/ci/workbench_layout.mjs` and `workbench_dock_core.mjs` (Node, no browser) cover the operations and
 the separator arithmetic. `scripts/ci/workbench_dock.mjs` and `workbench_commands_dock.mjs` (developer-run,
 real Chromium) cover the ARIA semantics, the F6 ring over every region, moves with focus return and the live
-message, zen not surviving a reload, presets with undo, and the mouse sash behaviors.
+message, zen not surviving a reload, presets with undo, and the mouse sash behaviors. `workbench_search.mjs` (developer-run) drives
+the Search panel above: the chord, the toggles, click to reveal, replace and its multi-file undo.

@@ -242,8 +242,8 @@ View
   Quick Open (go to file)...    *view.quickOpen         Ctrl+P
   Go to Line...                 *view.gotoLine          Ctrl+G  (also ':' in quick open)
   ------
-  Explorer / Search / Source Control   *view.explorer Ctrl+Shift+E, R:view.search Ctrl+Shift+F,
-                                R:view.sourceControl Ctrl+Shift+G   (activity bar views)
+  Explorer / Search / Source Control   *view.explorer Ctrl+Shift+E, *view.search Ctrl+Shift+F,
+                                R:view.sourceControl Ctrl+Shift+G   (side bar views; Search is the side bar group's second tab)
   Problems                      *view.problems          Ctrl+Shift+M (shows and focuses the panel; again from inside it, hides it)
   Toggle Side Bar               *view.toggleSideBar     Ctrl+B
   Toggle Panel                  *view.togglePanelArea   Ctrl+J
@@ -415,7 +415,7 @@ shows it opened with `Ctrl+J`. The dock is specified in [the layout spec](studio
 +--+----------------------------------------------------------------------------------------------+
 ```
 
-Activity bar: Explorer (live), Search and Source Control (reserved placeholders, hidden until live).
+Side bar: Project (live) and Search (live, #580) are tabs of one group; Source Control stays reserved and hidden.
 Breadcrumbs line (`ui > App.tsx > App`) is the path today and gains symbols with the analysis
 service. While dragging a panel, **drop-zone overlays** (centre = tab, four edges = split) show the
 target region before release.
@@ -456,7 +456,7 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Activity bar | icon column switching side bar views | none | W5b |
 | Side bar | Explorer, Search, Source Control, Run views | project tree only (fixed left column) | W5b |
 | Explorer | tree, new/rename/delete, context menu | tree + buttons (#439) | W2 (menu), W3 (context menu) |
-| Search (project-wide) | `Ctrl+Shift+F` | none | IDE (placeholder in W5b) |
+| Search (project-wide) | `Ctrl+Shift+F` | live (#580): the `search` panel, worker-backed ([studio-services-v1.md](studio-services-v1.md) section 15) | done |
 | Source control | `Ctrl+Shift+G`, badges | none | IDE (placeholder in W5b) |
 | Editor groups | splits, tabs, drag between groups | one editor, per-file tab strip (#431) | W5c (decision 12) |
 | Preview (italic) tabs | single click opens a replaceable preview tab, edit or double click pins | none: click opens a permanent tab | W5c |

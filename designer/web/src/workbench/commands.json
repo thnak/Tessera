@@ -355,11 +355,11 @@
       "id": "view.search",
       "title": "Search",
       "category": "View",
+      "description": "Search and replace across the project's files",
       "keybinding": {
         "default": "Mod+Shift+F"
       },
-      "note": "reserved: project search",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "view.sourceControl",

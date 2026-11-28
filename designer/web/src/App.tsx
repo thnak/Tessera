@@ -43,6 +43,7 @@ import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
 import { usePanelVisibility, useViewFromUrl } from "./page-panels";
 import { useProblems, useProblemsStore } from "./page-problems";
+import { useSearch } from "./page-search";
 import { useProjectProblems } from "./page-project-problems";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
@@ -352,6 +353,19 @@ export function App() {
   const problems = useProblems({ store: problemsStore, workbench, workspace, refs, onSelectTab });
   const scheduleProjectProblems = useProjectProblems(problemsStore, workspace);
 
+  // A replace or its undo writes buffers the editor did not type: reload the editor, then recompile as typing would.
+  const onSearchWritten = useCallback(
+    (paths: readonly string[]) => {
+      setRevision((value) => value + 1);
+      setMockRevision((value) => (paths.some((path) => /\.mock\.ts$/i.test(path)) ? value + 1 : value));
+      live.current?.schedule();
+      scheduleProjectProblems();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const search = useSearch({ workspace, reveal: problems.jump, onWritten: onSearchWritten, visible: workbench.visible.has("search") });
+
   const onEdit = useCallback(
     (text: string) => {
       // A locked file opens read-only, so this is not reached for one; the guard keeps it so.
@@ -473,6 +487,7 @@ export function App() {
           runEnabled={state.runEnabled}
           applying={state.applying}
           problems={problems}
+          search={search}
           onSelectTab={onSelectTab}
           onEdit={onEdit}
           onRestart={restartActiveView}

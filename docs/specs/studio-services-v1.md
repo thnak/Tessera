@@ -1,6 +1,6 @@
 # Studio services v1
 
-Status: proposed (V1-M4); the protocol core, its no-UI harness and the `analysis` and `format` workers are implemented
+Status: proposed (V1-M4); the protocol core, its no-UI harness and the `analysis`, `format`, `compile` and `search` workers are implemented
 (`designer/web/services/`, `scripts/ci/preview_studio_services.mjs`). Decision:
 [ADR-060](../../decisions/ADR-060-studio-services-in-web-workers.md). Related:
 [designer-protocol-v1.md](designer-protocol-v1.md) section 2.1 (transport),
@@ -350,3 +350,46 @@ section 9 (`lib/compile-client.ts`).
   killed worker; with `TESSERA_DIAGNOSTICS_WASM` the real compiler), `scripts/ci/preview_project_problems.mjs` (the page's
   clients against the worker sources: a file that is not open reaches the store, fixing it clears the row, an unavailable
   module stays quiet, a killed compile worker restarts) and `preview_problems.mjs` (grouping, sorting, merge).
+
+## 15. Search worker (`search`) and project search (#580)
+
+`designer/web/services/search-service.js` is a worker with no WebAssembly engine: its matcher is JS source text
+(`search-engine.js`, the bounded regular-expression VM `search-regex.js`) that the worker and the gate evaluate unchanged.
+The page side is `lib/search-client.ts` (generic client of section 9) and `page-search.ts`; the panel is the `search` dock
+panel (`view.search`, Ctrl+Shift+F, [studio-workbench-v1.md](studio-workbench-v1.md) section 3).
+
+- **Snapshot.** Entries carry `path`. The page sends every *editable* file (locked and view-only files are never written,
+  so never listed) with the current buffer text before each request; a newer request supersedes the older (latest wins,
+  `null` to the caller) and a killed worker is restarted from the next snapshot.
+- **Request** `search`: `{ query, caseSensitive?, wholeWord?, regex?, include?, exclude?, maxResults? }`. **Result**
+  `{ files: [{ file, path, matches: [{ offset, length, line, column, text, start, end }] }], total, truncated, searched,
+  skippedBinary, skippedLarge, longLines }`. Offsets are UTF-16 into the whole file; `line` and `column` are 1-based;
+  `text`/`start`/`end` are one trimmed, windowed line with the match inside it. `truncated` is `null` or the reason a
+  walk ended early: `results` (the cap, default 2000, hard 50000), `time` (4 s), `budget` (the shared step budget) or
+  `cancelled`. Files are visited in path order; a file over 1,000,000 characters, one with a NUL in its first 8000
+  characters, and a line over 20,000 characters are skipped and counted, not searched.
+- **Request** `replace`: the same fields plus `replacement` and `only` (null, or a list of `{ file, offset }` picks).
+  **Result** `{ edits: [{ file, offset, length, newText }], files, truncated }`: offsets into the snapshot's text, per file
+  ascending and non-overlapping, so the page applies them as one operation (`applyOriginalEdits`). A regex replacement
+  expands `$&`, `$1`..`$99` and `$$`; a plain one is literal. The page refuses to apply when a file changed while the
+  request ran, and never offers Replace All on a capped list.
+- **Matching.** Per line (a pattern cannot span lines; `^`/`$` are line anchors); case-insensitive unless
+  `caseSensitive`; `wholeWord` requires a non-word character (ASCII `\w`) beside each end of the match that is itself a
+  word character (a regex pattern is wrapped in both boundary checks); empty matches are ignored.
+- **Globs.** `include`/`exclude` are comma-separated (commas inside `{}` stay); `*` stays in a segment, `**` crosses
+  them, `?` is one character, `{a,b}` alternates. A pattern without `/` matches at any depth and a folder name also
+  excludes everything below it (`dist`, `dist/`). Globs become anchored regular expressions over the path with every other
+  character escaped.
+- **Regular expressions** are a Pike VM, never a native `RegExp`: a match costs O(text x program) whatever the pattern, so
+  `(a+)+$` cannot stall the worker. Supported: literals, `.`, `[...]`/`[^...]`, `\d \w \s \D \W \S`, `\b \B`, `^ $`,
+  groups `( )` and `(?: )`, `|`, `* + ? {n} {n,} {n,m}` with lazy forms, `\n \r \t \f \v \0 \xHH \uHHHH \u{...}`.
+  Refused with a sentence (`TESSERA_SEARCH_PATTERN`): backreferences, lookaround, named groups, a pattern over 500
+  characters, a repeat count over 1000, a program over 4000 instructions, nesting over 40. Other errors:
+  `TESSERA_SEARCH_GLOB`, `TESSERA_SEARCH_ENGINE`, the generic codes. Capabilities:
+  `{ name: "search", protocol: 1, features: ["search", "replace"] }`.
+- **Undo.** A replace (one match, one file or all) writes the workspace buffers and records one history entry spanning its
+  files (`lib/search-replace.ts`, newest 20 kept). Undo restores each file that still holds the replaced text and names the
+  files it left alone because they were edited since; Redo replays. The editor's own per-file history is untouched.
+- **Gates.** `scripts/ci/preview_search_service.mjs` (matcher, globs, bounded regex, caps, replace plan, the worker
+  protocol; no build), `scripts/ci/preview_search_client.mjs` (the client and the replace history from `dist-ssr`), both in
+  `pages.yml`; and the developer-run browser gate `scripts/ci/workbench_search.mjs` (Playwright).

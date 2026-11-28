@@ -99,6 +99,15 @@ function focusProblems(): void {
   });
 }
 
+/** Moves keyboard focus into the Search panel's query field once it has rendered, selecting what is there. */
+function focusSearch(): void {
+  requestAnimationFrame(() => {
+    const field = document.getElementById("search-query") as HTMLInputElement | null;
+    field?.focus();
+    field?.select();
+  });
+}
+
 /** Whether keyboard focus is inside the Problems panel (the second press of its chord hides it). */
 const focusInProblems = (): boolean => document.getElementById("problems-panel")?.contains(document.activeElement) === true;
 
@@ -145,6 +154,11 @@ export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandA
       }
       reveal(d, "problems");
       focusProblems();
+    },
+    // Ctrl+Shift+F: show the Search panel (the side bar group's second tab) and focus its query field.
+    "view.search": () => {
+      reveal(dock(), "search");
+      focusSearch();
     },
     "view.toggleStatusBar": () => {
       const d = dock();
