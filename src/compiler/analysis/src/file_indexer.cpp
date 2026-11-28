@@ -43,10 +43,28 @@ FileIndex index_file(FileId file, std::string_view text, bool is_source) {
         return empty;
     }
     const jsx::ModuleParseResult parsed = jsx::parse_module(text);
-    if (parsed.root == nullptr) {
-        return empty;
+    const Utf16Map map(text);
+    std::vector<Diagnostic> diagnostics;
+    for (const jsx::Diagnostic& found : parsed.diagnostics) {
+        Diagnostic out;
+        out.span =
+            Span{file, map.to_utf16(found.span.span.offset), map.to_utf16(found.span.span.end())};
+        out.severity = found.severity == jsx::Severity::Error ? DiagnosticSeverity::Error
+                                                              : DiagnosticSeverity::Warning;
+        out.code = std::string(found.code);
+        out.message = found.message;
+        if (found.related) {
+            out.related = Span{file, map.to_utf16(found.related->span.span.offset),
+                               map.to_utf16(found.related->span.span.end())};
+            out.related_message = found.related->message;
+        }
+        diagnostics.push_back(std::move(out));
     }
-    return FileIndexer(file, text).run(*parsed.root);
+    // A file the parser cannot read at all keeps its diagnostics and no symbols.
+    FileIndex out =
+        parsed.root == nullptr ? std::move(empty) : FileIndexer(file, text).run(*parsed.root);
+    out.diagnostics = std::move(diagnostics);
+    return out;
 }
 
 FileIndexer::FileIndexer(FileId file, std::string_view source)
