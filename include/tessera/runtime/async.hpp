@@ -170,6 +170,12 @@ public:
     // Runs the queued resume. Implementations drop their queued keep-alive reference here.
     virtual void resume_continuation() = 0;
 
+    // Hands back the keep-alive reference a queued node holds, so a queue that dies with resumes
+    // still pending can release them (a self-referencing queued task is otherwise a leak).
+    virtual std::shared_ptr<void> take_queued_reference() noexcept {
+        return {};
+    }
+
 private:
     friend class tessera::runtime::CompletionQueue;
     ContinuationNode* next_ = nullptr;
@@ -202,6 +208,11 @@ public:
 
     explicit CompletionQueue(std::size_t capacity = 256, WakeFn wake = nullptr,
                              void* wake_context = nullptr);
+    // Releases the keep-alive of every still-queued task resume. Those tasks never run (the queue
+    // is gone), and their queued self-reference would otherwise leak the whole frame.
+    ~CompletionQueue();
+    CompletionQueue(const CompletionQueue&) = delete;
+    CompletionQueue& operator=(const CompletionQueue&) = delete;
 
     void set_wake(WakeFn wake, void* wake_context) noexcept;
 
