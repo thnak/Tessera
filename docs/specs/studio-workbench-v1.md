@@ -459,10 +459,10 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Explorer | tree, new/rename/delete, context menu | tree + buttons (#439) | W2 (menu), W3 (context menu) |
 | Search (project-wide) | `Ctrl+Shift+F` | live (#580): the `search` panel, worker-backed ([studio-services-v1.md](studio-services-v1.md) section 15) | done |
 | Source control | `Ctrl+Shift+G`, badges | none | IDE (placeholder in W5b) |
-| Editor groups | splits, tabs, drag between groups | one editor, per-file tab strip (#431) | W5c (decision 12) |
-| Preview (italic) tabs | single click opens a replaceable preview tab, edit or double click pins | none: click opens a permanent tab | W5c |
+| Editor groups | splits, tabs, drag between groups | one editor, per-file tab strip (#431); splits and drag between groups remain (#562 follow-up) | W5c (decision 12) |
+| Preview (italic) tabs | single click opens a replaceable preview tab, edit or double click pins | live (#562): a tree single click opens the one italic preview tab, an edit or a double click (tab or tree row) pins; rules in `lib/editor-tabs.ts` | done |
 | Editor tab features | dirty dot, close, `Ctrl+W` | dirty dot, close | exists; chord W2 |
-| Breadcrumbs | path > symbol above editor | none | W5c (path), IDE (symbols) |
+| Breadcrumbs | path > symbol above editor | path line above the editor (`#editor-breadcrumbs`, #562) | symbols: IDE |
 | Panel area | bottom: Problems, Output, Terminal, Debug Console | bottom dock, collapsed by default: Problems, Diagnostics, Mock console, Call trace, Platform events | W5 |
 | Studio panel analogues | Problems = Problems (the compiler's diagnostics as a list); Output = Diagnostics (the compile report) and Mock console; Terminal = (none, no terminal in a browser); Debug Console / Call Stack = Call trace, Platform events | Diagnostics exists; others are #448 and mock-services | W5, #448 |
 | Panel maximize/restore | header button, double-click tab strip | none | W5 |
@@ -503,7 +503,7 @@ size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard
 | W4 | Layout model, panel registry, persistence, migrations (pure, no library) | W1 | JSON schema, `layout.default.json`, validator, migration table, node tests; adapter interface |
 | W5 | Dock renderer (the library adapter), panel area (collapsed by default), maximize, drop-zone overlays, sash snapping, panel host contract | W4, W0, the CodeMirror editor panel ([#517](https://github.com/thnak/Tessera/issues/517)) | #516 acceptance: drag/split/tab/resize, reload restores, canvas never remounts, hidden never draws, phone collapse |
 | W5b | Activity bar and side bar shell (Explorer live; Search and Source Control reserved), `Ctrl+B`/`Ctrl+J` | W5 | VS Code region model; side bar is a dock region holding views |
-| W5c | Editor groups, preview tabs, breadcrumbs (path) | W5, editor panel | decision 12; may move after V1 |
+| W5c | Editor groups, preview tabs, breadcrumbs (path) | W5, editor panel | preview tabs and breadcrumbs done (#562, `preview_browser_editor_tabs.mjs`); splits remain, decision 12 |
 | W6 | Rewrite `scripts/ci/preview_browser_layout.mjs` for the dock | W5 | layout spec section 4.5 |
 | W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, zen mode, layout presets, a11y audit | W5, W3 | WAI-ARIA checks in the browser script; implemented, see [`guides/studio-keyboard.md`](../guides/studio-keyboard.md) (the remaining keyboard gap is collapse by key, below) |
 | W8 | Keybindings JSON and settings UI | W3, W4 | `view.openKeybindings`, `view.openSettings` (`Ctrl+,`), JSON import/export of overrides and layout, conflict display |
