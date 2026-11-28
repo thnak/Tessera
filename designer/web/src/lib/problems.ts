@@ -78,9 +78,66 @@ export const EMPTY_SNAPSHOT: ProblemsSnapshot = Object.freeze({
   infos: 0,
 });
 
-/** The snapshot for a diagnostics array: the counts are computed from each entry's severity. */
-export function snapshotOf(diagnostics: readonly Diagnostic[]): ProblemsSnapshot {
-  const problems = toProblems(diagnostics);
+/** The rows of one file, with that file's own counts (the group header's numbers). */
+export interface ProblemGroup {
+  /** The project path; `""` for rows the compiler gave no file (listed last as "(no file)"). */
+  file: string;
+  problems: Problem[];
+  errors: number;
+  warnings: number;
+  infos: number;
+}
+
+/** File path order (rows with no file last), then line, column, code and message: stable whatever order they arrived in. */
+export function compareProblems(a: Problem, b: Problem): number {
+  if ((a.file === "") !== (b.file === "")) {
+    return a.file === "" ? 1 : -1;
+  }
+  return (
+    (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
+    a.line - b.line ||
+    a.column - b.column ||
+    (a.code < b.code ? -1 : a.code > b.code ? 1 : 0) ||
+    (a.message < b.message ? -1 : a.message > b.message ? 1 : 0)
+  );
+}
+
+/** The rows grouped by file, files in path order and each file's rows in position order. */
+export function groupByFile(problems: readonly Problem[]): ProblemGroup[] {
+  const groups: ProblemGroup[] = [];
+  for (const problem of [...problems].sort(compareProblems)) {
+    let group = groups[groups.length - 1];
+    if (group === undefined || group.file !== problem.file) {
+      group = { file: problem.file, problems: [], errors: 0, warnings: 0, infos: 0 };
+      groups.push(group);
+    }
+    group.problems.push(problem);
+    if (problem.severity === "error") {
+      group.errors += 1;
+    } else if (problem.severity === "warning") {
+      group.warnings += 1;
+    } else {
+      group.infos += 1;
+    }
+  }
+  return groups;
+}
+
+/**
+ * The compile target's rows and the project-wide rows as one list. The analysis worker reports every file, the
+ * compile reports what the analysis does not run yet (lowering), so a finding both name (same file, code and
+ * line) is listed once, as the project row. With no project rows the compile rows are returned as they came.
+ */
+export function mergeProblems(compile: readonly Problem[], project: readonly Problem[] | null): Problem[] {
+  if (project === null) {
+    return [...compile];
+  }
+  const seen = new Set(project.map((row) => `${row.file}\0${row.code}\0${row.line}`));
+  const extra = compile.filter((row) => !seen.has(`${row.file}\0${row.code}\0${row.line}`));
+  return [...project, ...extra].map((row, index) => ({ ...row, key: index }));
+}
+
+function snapshotOfRows(problems: Problem[]): ProblemsSnapshot {
   let errors = 0;
   let warnings = 0;
   let infos = 0;
@@ -94,6 +151,11 @@ export function snapshotOf(diagnostics: readonly Diagnostic[]): ProblemsSnapshot
     }
   }
   return { ran: true, problems, errors, warnings, infos };
+}
+
+/** The snapshot for a diagnostics array: the counts are computed from each entry's severity. */
+export function snapshotOf(diagnostics: readonly Diagnostic[]): ProblemsSnapshot {
+  return snapshotOfRows(toProblems(diagnostics));
 }
 
 /** `file:line:col`, or just the file (or `""`) when the compiler gave no position. */
@@ -125,8 +187,10 @@ export function summaryOf(snapshot: ProblemsSnapshot): string {
 
 export interface ProblemsStore {
   get(): ProblemsSnapshot;
-  /** Replaces the rows with a finished compile's diagnostics. */
+  /** Replaces the compile rows with a finished compile's diagnostics. */
   publish(diagnostics: readonly Diagnostic[]): void;
+  /** Replaces the project-wide rows (the analysis worker's diagnostics for every file); `null` drops them. */
+  publishProject(rows: readonly Problem[] | null): void;
   /** Back to "not run yet" (a project closed). */
   reset(): void;
   subscribe(listener: () => void): () => void;
@@ -136,6 +200,8 @@ export interface ProblemsStore {
 
 export function createProblemsStore(): ProblemsStore {
   let current: ProblemsSnapshot = EMPTY_SNAPSHOT;
+  let compile: Problem[] | null = null;
+  let project: readonly Problem[] | null = null;
   const listeners = new Set<() => void>();
   const set = (next: ProblemsSnapshot): void => {
     current = next;
@@ -143,10 +209,24 @@ export function createProblemsStore(): ProblemsStore {
       listener();
     }
   };
+  // The snapshot is "not run yet" until either source has reported once.
+  const refresh = (): void =>
+    set(compile === null && project === null ? EMPTY_SNAPSHOT : snapshotOfRows(mergeProblems(compile ?? [], project)));
   return {
     get: () => current,
-    publish: (diagnostics) => set(snapshotOf(diagnostics)),
-    reset: () => set(EMPTY_SNAPSHOT),
+    publish: (diagnostics) => {
+      compile = toProblems(diagnostics);
+      refresh();
+    },
+    publishProject: (rows) => {
+      project = rows;
+      refresh();
+    },
+    reset: () => {
+      compile = null;
+      project = null;
+      set(EMPTY_SNAPSHOT);
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);
