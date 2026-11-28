@@ -45,9 +45,12 @@ The algorithm is a documented subset of CSS Grid section 12:
 2. Content-sized tracks (`auto`, `min-content`, `max-content`, and the implicit tracks that
    auto-placement creates) take the largest max-content contribution of the items in them. An item
    spanning several tracks distributes the deficit it adds equally across the tracks it spans.
-   A `min-content` track is sized to the contribution as well: V1 has no separate min-content pass
-   for containers, so a content-sized track never shrinks below its item's unwrapped size. A text
-   leaf is measured at zero width, which does report its min-content width.
+   A `min-content` track is sized to the item's min-content width: a text leaf measured at zero
+   width reports its longest unbreakable run, and a container (without a definite width) is laid
+   out at zero width and reports how far its descendants reach, plus its right inset, capped by
+   its max-content width. A `container-type: inline-size` item contributes zero, yet is stretched
+   to its area when placed. Once the columns are known, a stretched item's height is measured
+   again at its column width, so an auto row is as tall as the text wrapped at that width.
 3. Free space then grows the non-flexible tracks up to their growth limits (`minmax()` maxima).
 4. Remaining free space is shared by the `fr` tracks in proportion to their flex factors. If the
    free space is negative, an `fr` track keeps its base size and the grid overflows.

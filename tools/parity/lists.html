@@ -10,6 +10,8 @@
   :root { --font-sans: T; }
   html, body { margin: 0; font-family: T; }
   button, input { font-family: T; line-height: 1.2; }
+  /* the engine measures text with a stub (line height 1.2): pin the page to it so boxes compare */
+  body { line-height: 1.2; }
 </style>
 <link rel="stylesheet" href="../../samples/lists/lists.css">
 </head>

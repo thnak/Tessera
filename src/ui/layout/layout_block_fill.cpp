@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "layout_length.hpp"
 #include "layout_style.hpp"
 
 #include <algorithm>
@@ -77,9 +78,17 @@ void apply_block_auto_margin_fill(YGNodeRef node, bool is_root) {
     YGNodeStyleSetWidthPercent(node, 100.0f);
 }
 
-void apply_block_child_style(YGNodeRef node) {
+void apply_block_child_style(YGNodeRef node, const style::ComputedStyle& style) {
+    // A block child is stretched, so size containment (zero width for a shrink-to-fit box) would
+    // pin a query container to nothing: it fills its parent like any block (issue #1018).
+    if (contains_inline_size(style) && has_auto_width(style)) {
+        YGNodeStyleSetWidthAuto(node);
+    }
     apply_block_auto_margin_fill(node, false);
     YGNodeStyleSetFlexShrink(node, 0.0f);
+    if (is_keyword(style.find("align-self"), kInlineAlignSelf)) {
+        YGNodeStyleSetAlignSelf(node, YGAlignFlexStart);
+    }
 }
 
 float root_auto_margin_offset(YGNodeRef root, float available_width) {

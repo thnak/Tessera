@@ -286,6 +286,38 @@ void test_a_rejected_module_sheet_reports_and_paints_nothing() {
     }
 }
 
+// A one-shot preview settles like a session: the first layout publishes the container's box, the
+// second resolves `@container` against it, so a snapshot, the page-parity harness and the Studio
+// agree on a container-driven layout (the plain style pass takes no container source).
+void test_a_container_query_applies_in_a_one_shot_preview() {
+    constexpr std::string_view source = R"tsx(import "./Preview.css";
+
+export function Column(): Node {
+  return (
+    <View>
+      <View className="holder">
+        <View className="inner" />
+      </View>
+    </View>
+  );
+}
+)tsx";
+    const std::string css = ".holder { container-type: inline-size; }\n"
+                            ".inner { height: 10px; }\n"
+                            "@container (min-width: 100px) { .inner { height: 30px; } }\n"
+                            "@container (min-width: 900px) { .inner { height: 50px; } }\n";
+    const cli::PreparedScene scene =
+        cli::prepare_scene(source, options_for(css, "ui/Preview.css", "ui/Column.tsx"));
+    expect(scene.error.empty(), "the container sheet lays out: " + scene.error);
+    const ui::Node* inner = scene.root != nullptr ? find_class(*scene.root, "inner") : nullptr;
+    expect(inner != nullptr, "the tree carries the inner box");
+    if (inner != nullptr) {
+        expect(inner->bounds().height == 30.0f,
+               "the 320px container matches min-width: 100px but not 900px, got height " +
+                   std::to_string(inner->bounds().height));
+    }
+}
+
 } // namespace
 
 void run_module_cases() {
@@ -294,6 +326,7 @@ void run_module_cases() {
     test_the_lowered_class_and_the_compiled_selector_agree();
     test_a_module_class_does_not_reach_a_global_class_of_the_same_name();
     test_a_rejected_module_sheet_reports_and_paints_nothing();
+    test_a_container_query_applies_in_a_one_shot_preview();
 }
 
 } // namespace scene_stylesheet_test

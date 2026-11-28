@@ -179,6 +179,7 @@ void GridEngine::run(const GridContentBox& content) {
     place_items();
     measure_items();
     size_axis(columns_, content.width, content.width_definite, true, justify_content_);
+    remeasure_heights_at_column_widths();
     size_axis(rows_, content.height, content.height_definite, false, align_content_);
     content_width_ = columns_.total;
     content_height_ = rows_.total;

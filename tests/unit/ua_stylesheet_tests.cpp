@@ -113,6 +113,8 @@ int main() {
 
     // Controls do not inherit `line-height` (a browser resets it to `normal`).
     ok &= value_is(compute_for("Button", ""), "line-height", "normal");
+    // The inline-block shrink is a marker the layout resolves per parent: a flex item stretches.
+    ok &= value_is(compute_for("Button", ""), "align-self", "-tessera-inline");
     ok &= value_is(compute_for("TextInput", ""), "line-height", "normal");
 
     // A paragraph has Chrome's 1em margin; a span (plain Text) does not (issue #606).

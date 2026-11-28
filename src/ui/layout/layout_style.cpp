@@ -263,7 +263,7 @@ YGAlign align_from(const std::string* value) {
 
 YGAlign align_self_from(const std::string* value) {
     const std::string keyword = value == nullptr ? std::string() : lower(trim(*value));
-    if (keyword.empty() || keyword == "auto") {
+    if (keyword.empty() || keyword == "auto" || keyword == kInlineAlignSelf) {
         return YGAlignAuto;
     }
     return align_from(value);
