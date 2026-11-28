@@ -7,6 +7,7 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/paint/layer_retention.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/text/font_features.hpp"
 
 #include <algorithm>
 #include <array>
@@ -20,29 +21,28 @@ namespace tessera::ui::paint {
 
 namespace rhi = tessera::rendering::rhi;
 
-// One resolved text run emitted by the paint pass. The paint pass applies the PaintData override >
-// computed style > default precedence and the node opacity before handing this to the sink.
+// One resolved text run from the paint pass, after PaintData override > computed style > default
+// precedence and node opacity.
 struct TextDraw {
     rhi::Rect rect;        // node border box in absolute coordinates (text is top-aligned in it)
     std::string_view text; // UTF-8; borrowed for the duration of the draw_text call
     float font_size = 16.0f;
     int font_weight = 400;
-    // Inline-span italic run style (issue #229). Sinks that cannot select an italic face ignore it;
-    // the stubbed/single-face V1 renderers paint the upright face and the flag is carried for the
-    // real text stack.
+    // Inline-span italic (issue #229): sinks without an italic face paint upright and carry the
+    // flag.
     bool italic = false;
+    // OpenType features the sink's shaper applies (docs/design/text.md section 3).
+    text::FontFeaturesId features{};
     rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f};
-    // Absolute baseline for a line box computed by the paint pass. nullopt keeps the single-line
-    // behavior (the sink top-aligns the shaped run inside `rect` using its own ascent).
+    // Absolute line-box baseline from the paint pass; nullopt top-aligns the run in `rect`.
     std::optional<float> baseline;
-    // The run may composite per-channel LCD coverage (display-aware-rendering.md section 3.4). Set
-    // by the paint pass from the node-level eligibility rule; sinks without an LCD pipeline ignore
-    // it, and false (the default) is the grayscale composite every run used before.
+    // The run may composite per-channel LCD coverage (display-aware-rendering.md section 3.4), set
+    // by the paint pass's node-level eligibility rule; sinks without an LCD pipeline ignore it.
     bool lcd = false;
 };
 
-// Clip emitted by the paint pass for a parent with `overflow` clipping. `rect` is the parent's
-// border box in absolute coordinates; the four radii are already clamped to half the smaller side.
+// Clip for a parent with `overflow` clipping. `rect` is the parent's absolute border box; the four
+// radii are already clamped to half the smaller side.
 struct RoundedClip {
     rhi::Rect rect;
     float top_left = 0.0f;

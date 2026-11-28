@@ -182,12 +182,10 @@ void test_theme_pins(const style::FontPack& pack) {
           "the pin error code name");
 }
 
-// ADR-047 item 5 asks for OpenType `tnum`. The shaper calls hb_shape with no feature list, so
-// `tnum` and `font-feature-settings` are NOT applied (gap, recorded in theme-versions-v1.md section
-// 5 and filed as an issue). For this pack it is not observable: every Plex face's default figures
-// are already tabular, so all ten digits advance alike without the feature. This test pins that
-// fact for each shipped file; a face whose default figures were proportional would fail it, which
-// is the signal to implement feature support first.
+// ADR-047 item 5 asks for tabular numbers. The shaper now applies `tnum` (font_features_tests), but
+// this pack does not depend on it: every Plex face's default figures are already tabular, so all
+// ten digits advance alike with no feature requested. This test pins that fact for each shipped
+// file.
 void test_default_digits_are_tabular(const style::FontPack& pack) {
     tessera::ui::text::TextStyle style;
     style.font_size = 100.0f;

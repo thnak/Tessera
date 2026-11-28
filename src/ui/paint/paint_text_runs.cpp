@@ -63,6 +63,7 @@ void emit_range_segments(std::string_view text, const text::TextLine& line, std:
         run.text = painted;
         run.font_size = text_style.font_size;
         run.font_weight = text_style.font_weight;
+        run.features = text_style.features;
         run.color = color;
         run.baseline = std::round(line_top + line.baseline);
         sink.draw_text(run);
@@ -117,6 +118,7 @@ void emit_ellipsized_line(const text::TextLine& line, std::string_view text,
     ellipsis.text = text::kEllipsisUtf8;
     ellipsis.font_size = text_style.font_size;
     ellipsis.font_weight = text_style.font_weight;
+    ellipsis.features = text_style.features;
     ellipsis.color = color;
     ellipsis.baseline = std::round(line_top + line.baseline);
     sink.draw_text(ellipsis);

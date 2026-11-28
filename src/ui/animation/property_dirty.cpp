@@ -25,9 +25,11 @@ bool is_layout_property(std::string_view property) {
         property == "min-height" || property == "max-width" || property == "max-height" ||
         property == "aspect-ratio" || property == "gap" || property == "row-gap" ||
         property == "column-gap" || property == "font-family" || property == "font-size" ||
-        property == "font-weight" || property == "font-style" || property == "line-height" ||
-        property == "letter-spacing" || property == "word-spacing" || property == "white-space" ||
-        property == "text-align" || property == "text-transform" || property == "writing-mode" ||
+        property == "font-weight" || property == "font-feature-settings" ||
+        property == "font-variant-ligatures" || property == "font-variant-numeric" ||
+        property == "font-style" || property == "line-height" || property == "letter-spacing" ||
+        property == "word-spacing" || property == "white-space" || property == "text-align" ||
+        property == "text-transform" || property == "writing-mode" ||
         property == "scrollbar-gutter" || property == "order") {
         return true;
     }

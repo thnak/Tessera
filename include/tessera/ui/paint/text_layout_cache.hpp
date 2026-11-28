@@ -83,6 +83,7 @@ private:
         text::TextTransform text_transform = text::TextTransform::None;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
+        text::FontFeaturesId features{};
     };
 
     struct Key {
@@ -99,6 +100,7 @@ private:
         text::TextTransform text_transform = text::TextTransform::None;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
+        text::FontFeaturesId features{};
     };
 
     struct KeyLess {
@@ -127,6 +129,10 @@ private:
             };
             if (lhs.metrics_source_id != rhs.metrics_source_id) {
                 return lhs.metrics_source_id < rhs.metrics_source_id;
+            }
+            // OpenType features change glyph choice and advances, so they isolate entries.
+            if (lhs.features != rhs.features) {
+                return lhs.features < rhs.features;
             }
             if (lhs.max_lines != rhs.max_lines) {
                 return lhs.max_lines < rhs.max_lines;

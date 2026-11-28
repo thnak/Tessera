@@ -185,6 +185,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                 draw.font_weight =
                     index < span_count ? span_style.font_weight : base_style.font_weight;
                 draw.italic = index < span_count ? span_style.italic : base_style.italic;
+                draw.features = base_style.features;
                 draw.color = index < span_count ? span_style.color : parent_color;
                 draw.baseline = std::round(line_top + line.baseline - shift);
                 if (index < span_count) {

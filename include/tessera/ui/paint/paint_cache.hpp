@@ -161,6 +161,7 @@ struct DrawTextOp {
     rhi::Color color;
     float font_size = 0.0f;
     int font_weight = 400;
+    text::FontFeaturesId features{};
     std::optional<float> baseline;
     bool lcd = false;
     std::string text; // the run's UTF-8 bytes

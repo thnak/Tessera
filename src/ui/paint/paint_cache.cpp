@@ -222,6 +222,7 @@ void replay_paint_ops(const std::vector<PaintOp>& ops,
             run.text = draw.text;
             run.font_size = draw.font_size;
             run.font_weight = draw.font_weight;
+            run.features = draw.features;
             run.color = draw.color;
             run.baseline = draw.baseline;
             run.lcd = draw.lcd;

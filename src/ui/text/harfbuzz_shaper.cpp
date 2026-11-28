@@ -3,6 +3,7 @@
 #include "tessera/ui/text/freetype_metrics.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 
+#include <array>
 #include <utility>
 
 #include <hb.h>
@@ -88,7 +89,15 @@ ShapedRun HarfBuzzShaper::shape_impl(std::string_view utf8, const TextStyle& sty
     if (direction >= 0) {
         hb_buffer_set_direction(buffer, direction == 1 ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
     }
-    hb_shape(impl_->font, buffer, nullptr, 0);
+    // Later entries of the same tag win in HarfBuzz, and FontFeatures::set already collapsed
+    // duplicates, so the list maps one to one.
+    std::array<hb_feature_t, FontFeatures::kMax> features{};
+    const FontFeatures requested = resolve_font_features(style.features);
+    for (std::size_t i = 0; i < requested.count; ++i) {
+        features[i] = hb_feature_t{requested.items[i].tag, requested.items[i].value,
+                                   HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END};
+    }
+    hb_shape(impl_->font, buffer, features.data(), requested.count);
 
     unsigned int count = 0;
     const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
