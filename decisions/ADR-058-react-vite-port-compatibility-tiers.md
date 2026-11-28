@@ -172,3 +172,5 @@ Each step is its own issue family under milestone V1-M5; none is started by this
 - Add the class column and the port-checker spec to `docs/specs/jsx-intrinsics-v1/react-compat.md`.
 - Open issues for steps 1-3 of section 5 under V1-M5; a router-in-TSX design note is the first one.
 - When accepted, update `jsx-subset-v1.md` sections 5, 6 and 9 for each typing rule as it lands.
+- A port runs `tessera fmt` once after the translation so the project starts canonical (ADR-061,
+  [`source-format-v1.md`](../docs/specs/source-format-v1.md) section 9).
