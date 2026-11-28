@@ -105,6 +105,14 @@ struct ExprEmission {
 [[nodiscard]] ExprEmission emit_initializer_expr(const ir::Expr& expr,
                                                  const ir::Component& component);
 
+// True when `expr` reads a prop of its component (a `prop::` ref anywhere in the tree). A state
+// whose initial reads a prop cannot take it in a member initializer: the owner writes the prop in
+// its apply_props() after the callee is constructed (issue #1055).
+[[nodiscard]] bool reads_prop(const ir::Expr& expr);
+
+// The seeded-once flag of a state whose initial reads a prop.
+[[nodiscard]] std::string state_seeded_name(std::string_view state_id);
+
 // Emits the body of an inline handler or preview: one line per action. `records` is the module's
 // record type table (ADR-056 decision 1, #834): a `set` of a record-typed state splits its dirty
 // bit into one per changed field. The default empty table keeps every record-free handler's bytes.

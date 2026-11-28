@@ -933,6 +933,34 @@ if (TESSERA_BUILD_TESTS)
                     tessera_services_types)
                 target_compile_features(codegen_pending_tsx_tests PRIVATE cxx_std_23)
                 add_test(NAME codegen_pending_tsx COMMAND codegen_pending_tsx_tests)
+
+                # #1055: a `useState` whose initializer reads a prop starts at the caller's value
+                # in the generated C++, through a generated parent.
+                add_executable(codegen_state_init_emit
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_state_init_emit.cpp)
+                target_include_directories(codegen_state_init_emit PRIVATE
+                    ${PROJECT_SOURCE_DIR}/tests/unit)
+                target_link_libraries(codegen_state_init_emit PRIVATE
+                    tessera_codegen tessera_lowering tessera_jsx_frontend tessera_react_rules
+                    tessera_ir tessera_ir_ids)
+                set(_tessera_state_init_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_state_init)
+                add_custom_command(
+                    OUTPUT ${_tessera_state_init_dir}/Counter.g.hpp
+                           ${_tessera_state_init_dir}/Host.g.hpp
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_state_init_dir}
+                    COMMAND codegen_state_init_emit ${_tessera_state_init_dir}
+                    DEPENDS codegen_state_init_emit
+                    VERBATIM)
+                add_executable(codegen_state_init_tests
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_state_init_tests.cpp
+                    ${_tessera_state_init_dir}/Counter.g.hpp
+                    ${_tessera_state_init_dir}/Host.g.hpp)
+                target_include_directories(codegen_state_init_tests PRIVATE
+                    ${_tessera_state_init_dir}
+                    ${_tessera_codegen_base_dev_dir}/state_init)
+                target_link_libraries(codegen_state_init_tests PRIVATE tessera_scene)
+                target_compile_features(codegen_state_init_tests PRIVATE cxx_std_23)
+                add_test(NAME codegen_state_init COMMAND codegen_state_init_tests)
             endif ()
 
             # Compile-fail checks, the same shape as the codegen_base_* cases and taking the same

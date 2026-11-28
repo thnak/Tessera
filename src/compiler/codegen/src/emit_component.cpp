@@ -167,6 +167,24 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         // the callee's build reads its prop members (docs/specs/component-model-v1.md section 3).
         writer.line("apply_props();");
     }
+    // A state whose initial reads a prop starts at the caller's value: the member initializer ran
+    // at construction, before the owner's apply_props() wrote the prop (issue #1055). Seeded once,
+    // so a rebuild never resets the state.
+    for (const ir::State& state : component.state) {
+        if (!state.initial || !reads_prop(*state.initial)) {
+            continue;
+        }
+        const ExprEmission initial = emit_initializer_expr(*state.initial, component);
+        if (!initial.error.empty()) {
+            return fail(error, initial.error);
+        }
+        writer.line("if (!" + state_seeded_name(state.id) + ") {");
+        ++writer.indent;
+        writer.line(state_seeded_name(state.id) + " = true;");
+        writer.line(member_name(state.id) + " = " + initial.text + ";");
+        --writer.indent;
+        writer.line("}");
+    }
     // Seed the form controller and resolve the Field props before any slot content is built.
     emit_form_build_calls(writer, forms);
     NodeEmitState state{component,        adapters,          dynamic_text,

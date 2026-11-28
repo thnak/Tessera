@@ -63,6 +63,10 @@ Rules:
   changed, marks that prop's bit on the child and schedules the child's own ticket; the scheduler runs
   the child later in the same flush pass (parent before child, attach order). `update()` stays public
   as a hand call that evaluates every binding of that one component.
+- **A `useState` initializer that reads a prop starts at the caller's value** (#1055): the owner
+  writes a callee's props after constructing it, so the generated `build()` seeds such a state once
+  from the props (a per-state `seeded` flag; a rebuild never resets it). A state whose initial reads
+  no prop keeps its member initializer. A later prop change does not re-seed the state.
 - Effects run on the UI thread after commit; they must not block.
 - An effect may declare a cleanup handler (IR field `cleanup`, [`ir-v1.md`](ir-v1.md) section 2; source form in [`jsx-subset-v1.md`](jsx-subset-v1.md) section 7). It runs before the effect runs again and on unmount.
 - Effect dependency arrays are exact; V1 rejects missing/extra deps.
