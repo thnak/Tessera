@@ -486,7 +486,7 @@ cannot reach zero while the scale animates, because the scale has to arrive some
 table with the scale only in the 80 B job record would save the 7,680 B (sparse) and would still write
 the job record, and it needs the shader to apply the scale to resident document-space records instead of
 reading device-space ones (which is what bought 3.84 to 1.26 ms above). A frame whose scale did not
-change writes zero already (texture cache hit). Not built.
+change writes zero already (texture cache hit). Not built. The optional direct-to-frame renderer (item 3) is likewise not built: nothing measured needs it (the 33 MB copy is inside the 3.2 ms dense figure, which is the owner's second-GPU question).
 
 Against the ThorVG baseline above on the same machine (raster 5.2 ms, upload 1.2 ms CPU side, 33 MB
 copied), the CPU cost drops by about 150x and the bytes by about 4,000x. The issue's "zero bytes
