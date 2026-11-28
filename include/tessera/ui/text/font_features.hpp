@@ -32,8 +32,8 @@ struct FontFeature {
 // so the defaulted comparisons are exact. A request past kMax is dropped silently.
 struct FontFeatures {
     // Room for a worst-case variant set (five ligature, four numeric, two caps, three east-asian,
-    // one position feature) plus a handful of raw font-feature-settings.
-    static constexpr std::size_t kMax = 24;
+    // one position feature), the alternates functions and a handful of raw font-feature-settings.
+    static constexpr std::size_t kMax = 32;
 
     std::array<FontFeature, kMax> items{};
     std::uint8_t count = 0;
@@ -49,6 +49,22 @@ struct FontFeatures {
     friend constexpr bool operator==(const FontFeatures&, const FontFeatures&) = default;
     friend constexpr auto operator<=>(const FontFeatures&, const FontFeatures&) = default;
 };
+
+// One feature request that covers only a byte range of the shaped text (the per-range hb_feature_t
+// start/end of issue #1011), for rich-text spans: `<span style="font-variant-numeric:
+// tabular-nums">` inside a paragraph. Offsets are UTF-8 bytes of the string handed to the shaper;
+// begin >= end covers nothing. HarfBuzz widens a range to the clusters it touches.
+struct FontFeatureRange {
+    std::uint32_t begin = 0;
+    std::uint32_t end = 0;
+    FontFeature feature;
+
+    friend constexpr bool operator==(const FontFeatureRange&, const FontFeatureRange&) = default;
+};
+
+// Most ranges one shaping call honours; later ones are dropped (bounded stack storage, no
+// allocation on the shape path).
+inline constexpr std::size_t kMaxFontFeatureRanges = 32;
 
 // A process-wide handle to an immutable FontFeatures list, so a TextStyle, a TextDraw and a
 // recorded paint op carry 4 bytes instead of the list (sizeof(PaintOp) is budgeted, issue #731). 0
@@ -81,6 +97,7 @@ struct FontVariantValues {
     std::string_view caps;
     std::string_view east_asian;
     std::string_view position;
+    std::string_view alternates;
     std::string_view settings;
     // True when the style's letter-spacing is not zero: optional ligatures (liga, clig, dlig, hlig)
     // start off then (CSS Text 3 section 7.3), and an explicit variant or feature setting below
@@ -101,6 +118,7 @@ bool parse_font_variant_numeric(std::string_view value, FontFeatures& out);
 bool parse_font_variant_caps(std::string_view value, FontFeatures& out);
 bool parse_font_variant_east_asian(std::string_view value, FontFeatures& out);
 bool parse_font_variant_position(std::string_view value, FontFeatures& out);
+bool parse_font_variant_alternates(std::string_view value, FontFeatures& out);
 bool parse_font_feature_settings(std::string_view value, FontFeatures& out);
 
 } // namespace tessera::ui::text

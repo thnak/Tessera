@@ -3,9 +3,11 @@
 #pragma once
 
 #include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/font_features.hpp"
 #include "tessera/ui/text/text_shaper.hpp"
 
 #include <memory>
+#include <span>
 
 namespace tessera::ui::text {
 
@@ -28,13 +30,19 @@ public:
     [[nodiscard]] ShapedRun shape_directed(std::string_view utf8, const TextStyle& style,
                                            bool right_to_left) const;
 
+    // Shapes with the style's whole-run features plus per-range requests, applied after them so a
+    // range overrides the run-wide value of the same tag inside its bytes (docs/design/text.md
+    // section 3.1). At most kMaxFontFeatureRanges ranges apply; the rest are ignored.
+    [[nodiscard]] ShapedRun shape_with_ranges(std::string_view utf8, const TextStyle& style,
+                                              std::span<const FontFeatureRange> ranges) const;
+
     [[nodiscard]] bool has_glyph(char32_t codepoint) const noexcept {
         return impl_ != nullptr && face().has_glyph(codepoint);
     }
 
 private:
-    [[nodiscard]] ShapedRun shape_impl(std::string_view utf8, const TextStyle& style,
-                                       int direction) const;
+    [[nodiscard]] ShapedRun shape_impl(std::string_view utf8, const TextStyle& style, int direction,
+                                       std::span<const FontFeatureRange> ranges = {}) const;
     [[nodiscard]] const FontFace& face() const noexcept;
 
     struct Impl;

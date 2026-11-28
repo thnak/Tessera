@@ -124,6 +124,8 @@ constexpr StyleProperty kStyleProperties[] = {
     {"font-variant-caps", StyleKind::Keyword, ""},
     {"font-variant-east-asian", StyleKind::Keyword, ""},
     {"font-variant-position", StyleKind::Keyword, ""},
+    {"font-variant-alternates", StyleKind::Keyword,
+     "normal or stylistic()/swash()/styleset() and friends"},
     {"text-align", StyleKind::Keyword, ""},
     {"text-transform", StyleKind::Keyword, ""},
     {"text-overflow", StyleKind::Keyword, ""},
@@ -235,7 +237,7 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
 // The registry of src/ui/style/property_registry.cpp (the physical table, `logical_properties.cpp`
 // and `property_registry_extra.cpp`) lists 139 longhands; the `schema_style_registry` test in that
 // module checks that this table and the registry agree name for name and kind for grammar.
-static_assert(std::size(kStyleProperties) == 153, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 154, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace

@@ -6,6 +6,7 @@
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/font_variant.hpp"
+#include "tessera/ui/style/font_variant_alternates.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/list_style.hpp"
 #include "tessera/ui/style/mask_layers.hpp"
@@ -180,6 +181,17 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                       "into the first line"});
         }
         return ok;
+    }
+    if (property == kFontVariantAlternatesProperty) {
+        if (detail::has_substitution_function(value) || parse_font_variant_alternates(value)) {
+            return true;
+        }
+        out.push_back(StyleDiagnostic{
+            StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
+            "font-variant-alternates takes normal or stylistic(), swash(), ornaments(), "
+            "annotation(), styleset(), character-variant() and historical-forms, each at most "
+            "once (docs/design/text.md section 3.1); the declaration is ignored"});
+        return false;
     }
     if (property.starts_with("font-variant-")) {
         // The five keyword groups (font_variant.hpp). An unknown or conflicting value drops the

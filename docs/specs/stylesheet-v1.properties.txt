@@ -161,6 +161,7 @@ longhand font-variant-numeric typography
 longhand font-variant-caps typography
 longhand font-variant-east-asian typography
 longhand font-variant-position typography
+longhand font-variant-alternates typography
 longhand text-align typography
 longhand text-transform typography
 longhand white-space typography

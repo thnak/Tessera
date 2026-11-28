@@ -89,15 +89,16 @@ V1 text style properties:
 - `text-align`, `text-transform`, `white-space`, `text-overflow`
 - `color`, `opacity`
 - `direction`, `writing-mode` (parsed; vertical layout is not in V1, see section 12)
-- OpenType features (#966, #998): `font-feature-settings` and the `font-variant-ligatures/-numeric/-caps/
-  -east-asian/-position` longhands. One keyword table (`style/font_variant.cpp`) owns the grammar and the
-  tags (e.g. `all-small-caps` = `smcp` + `c2sc`); the registry rejects an invalid or conflicting value whole
-  (diagnostic), and the `font-variant` shorthand expands to the five longhands (omitted groups reset to
-  `normal`, `none` = ligatures none). `font_features.cpp` merges them in CSS order into an interned
-  `TextStyle::features` (raw `font-feature-settings` win) and the shaper passes `hb_feature_t`. A non-zero
-  `letter-spacing` starts `liga/clig/dlig/hlig` off (CSS Text 3 section 7.3); an explicit setting turns them
-  back on. Features apply to the whole run (no per-range); `font_features_intern_dropped()` counts lists
-  past the 256-entry intern table.
+- OpenType features (#966, #998, #1011): `font-feature-settings`, the `font-variant-ligatures/-numeric/-caps/
+  -east-asian/-position` longhands and `font-variant-alternates` (`style/font_variant_alternates.cpp`: `swash` =
+  `swsh`+`cswh`, `styleset` = `ss01..20`, `character-variant` = `cv01..99`; a name argument is valid but
+  unresolved, `@font-feature-values` is not implemented). One keyword table (`style/font_variant.cpp`) owns the
+  grammar and tags (e.g. `all-small-caps` = `smcp` + `c2sc`); the registry rejects an invalid or conflicting value
+  whole, and the `font-variant` shorthand expands to the six longhands (omitted groups reset to `normal`).
+  `font_features.cpp` merges them in CSS order into an interned `TextStyle::features` (raw settings win) for the
+  shaper's `hb_feature_t`. Non-zero `letter-spacing` starts `liga/clig/dlig/hlig` off; an explicit setting wins. `HarfBuzzShaper::shape_with_ranges` adds per-range
+  `FontFeatureRange`s (start/end after the run-wide list); no rich-text span passes them yet. `font_features_intern_dropped()`
+  counts lists past the 256-entry table.
 
 Units resolve through the style engine: `em`/`rem`/`%`/viewport units become pixels before
 shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.

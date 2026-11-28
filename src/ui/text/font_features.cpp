@@ -2,6 +2,7 @@
 
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/font_variant.hpp"
+#include "tessera/ui/style/font_variant_alternates.hpp"
 #include "tessera/ui/text/font_features.hpp"
 
 #include <atomic>
@@ -77,6 +78,20 @@ bool parse_font_variant_east_asian(std::string_view value, FontFeatures& out) {
 
 bool parse_font_variant_position(std::string_view value, FontFeatures& out) {
     return apply_group(style::FontVariantGroup::Position, value, out);
+}
+
+bool parse_font_variant_alternates(std::string_view value, FontFeatures& out) {
+    const auto parsed = style::parse_font_variant_alternates(value);
+    if (!parsed) {
+        return false;
+    }
+    FontFeatures next = out;
+    for (const style::FontVariantAlternateSetting& setting : *parsed) {
+        next.set(font_feature_tag(setting.tag[0], setting.tag[1], setting.tag[2], setting.tag[3]),
+                 setting.value);
+    }
+    out = next;
+    return true;
 }
 
 bool parse_font_feature_settings(std::string_view value, FontFeatures& out) {
@@ -218,6 +233,9 @@ FontFeatures parse_font_features(const FontVariantValues& values) {
     apply(style::FontVariantGroup::Caps, values.caps);
     apply(style::FontVariantGroup::EastAsian, values.east_asian);
     apply(style::FontVariantGroup::Position, values.position);
+    if (!values.alternates.empty()) {
+        parse_font_variant_alternates(values.alternates, result);
+    }
     if (!values.settings.empty()) {
         parse_font_feature_settings(values.settings, result);
     }
