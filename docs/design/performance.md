@@ -584,5 +584,5 @@ intrinsics are not written (not testable on the Windows lane); aarch64 runs the 
   would have to be re-opened.
 - Which of the open V1 performance items are release blockers: #842 (a worker completion wakes the parked UI thread on Linux and Windows; the Android advisory
   lane still waits out the clamp), #697, #476 (retained draw
-  list and layer cache; `layerCacheBudgetMb` is parsed but unused) and #683 (GPU vector rasterizer, a
+  list and layer cache; `layerCacheBudgetMb` now sizes the #617 retained layers; generic promotion waits for a measurement) and #683 (GPU vector rasterizer, a
   spike with no ADR yet).
