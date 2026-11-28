@@ -329,7 +329,7 @@ void posting_never_runs_the_body_on_the_calling_thread() {
     expect(!refused_ran, "a refused submission never completes");
 }
 
-void a_real_executor_keeps_the_caller_free_while_a_query_runs() {
+[[maybe_unused]] void a_real_executor_keeps_the_caller_free_while_a_query_runs() {
     CompletionQueue queue(64);
     WorkerIoExecutor executor(queue, WorkerIoExecutor::Config{2, 2, 64});
     Database db(executor);
@@ -368,7 +368,7 @@ void a_real_executor_keeps_the_caller_free_while_a_query_runs() {
     executor.shutdown();
 }
 
-void a_file_database_persists_and_a_corrupt_file_is_a_typed_error() {
+[[maybe_unused]] void a_file_database_persists_and_a_corrupt_file_is_a_typed_error() {
     namespace fs = std::filesystem;
     const fs::path dir = fs::path(TESSERA_SQL_SCRATCH_DIR);
     fs::remove_all(dir);
@@ -412,9 +412,30 @@ void a_file_database_persists_and_a_corrupt_file_is_a_typed_error() {
     fs::remove_all(dir);
 }
 
+void memory_only_refuses_a_file_database() {
+    ManualIoExecutor executor;
+    Database db(executor);
+    OpenOptions options;
+    options.memory_only = true;
+    auto file = run<std::monostate>(executor, [&](auto done) {
+        return db.open("never-created.db", options, {}, [done](std::expected<void, SqlError> r) {
+            done(r.transform([] { return std::monostate{}; }));
+        });
+    });
+    expect(!file && file.error().code == SqlErrorCode::Unsupported, "a file path is Unsupported");
+    expect(!std::filesystem::exists("never-created.db"), "nothing was created");
+    auto memory = run<std::monostate>(executor, [&](auto done) {
+        return db.open(":memory:", options, {}, [done](std::expected<void, SqlError> r) {
+            done(r.transform([] { return std::monostate{}; }));
+        });
+    });
+    expect(memory.has_value(), "`:memory:` still opens");
+}
+
 } // namespace
 
 int main() {
+    memory_only_refuses_a_file_database();
     typed_values_round_trip_without_conversion();
     argument_errors_are_typed();
     operations_before_open_and_double_open_fail();
@@ -423,8 +444,11 @@ int main() {
     a_cancelled_token_does_nothing();
     cancelling_inside_a_transaction_interrupts_the_statement_and_rolls_back();
     posting_never_runs_the_body_on_the_calling_thread();
+#if !defined(__EMSCRIPTEN__)
+    // Wasm is in-memory only and single-threaded: no file database and no worker thread there.
     a_real_executor_keeps_the_caller_free_while_a_query_runs();
     a_file_database_persists_and_a_corrupt_file_is_a_typed_error();
+#endif
     if (g_failures != 0) {
         std::cerr << "appfw_sql: " << g_failures << " failure(s)\n";
         return 1;

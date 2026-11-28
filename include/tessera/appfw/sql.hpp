@@ -58,6 +58,7 @@ enum class SqlErrorCode : std::uint8_t {
     Busy,            // the database file is locked by another connection past the busy timeout
     Migration,       // a migration step failed (rolled back) or the file is newer than the code
     Sqlite,          // any other engine error; see `native`
+    Unsupported,     // the request needs a facility this platform lacks (a file database on Wasm)
 };
 
 [[nodiscard]] std::string_view sql_error_code_name(SqlErrorCode code) noexcept;
@@ -142,6 +143,13 @@ struct OpenOptions {
     // Ignored for `:memory:`.
     bool wal = true;
     bool foreign_keys = true;
+    // Refuse every database except `:memory:` (`Unsupported`). Always on under Emscripten, where
+    // the module is in-memory only until a durable browser store exists (issue #983); settable on
+    // native so the refusal is tested there.
+    bool memory_only = false;
+    // Name of a registered SQLite VFS to open the file with; empty is the platform default. A test
+    // seam for fault-injecting VFS shims (full disk, failed sync).
+    std::string vfs;
     // How long a locked file is retried inside the work body (never on the UI thread).
     int busy_timeout_ms = 5000;
     // Cap on rows one query may return; more is `TooLarge`.
