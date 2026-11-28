@@ -45,7 +45,7 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `DismissableLayer` | `dialog`, Escape closes (`display: none`); focus restore is the composer's | done |
 | `FocusScope` | now `useFocusTrap` (#643; wrapper deleted): Tab trapped, focus moves in, previous focus restored on hide | done |
 | `RovingFocus`, `RovingFocusVertical`, `ListNavigation` | now `useListFocus` (#643; wrappers deleted): one Tab stop, arrows wrap, Home/End, `typeahead`; grid navigation is not done | done |
-| `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is unblocked (a handler reads node-local `e.x` and the width from `onSizeChange`, [common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532) but not wired into the primitive yet | done |
+| `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag maps node-local `e.x` over the width from `onSizeChange` to a step-snapped, clamped value ([common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532, #982) | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
 
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
