@@ -3919,26 +3919,10 @@ prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.childr
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.defaultOpen
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.label
 
-component packages/tessera-ui/primitives/FocusScope.tsx FocusScope
-prop packages/tessera-ui/primitives/FocusScope.tsx FocusScope.children
-prop packages/tessera-ui/primitives/FocusScope.tsx FocusScope.label
-
-component packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation
-prop packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation.children
-prop packages/tessera-ui/primitives/ListNavigation.tsx ListNavigation.label
-
 component packages/tessera-ui/primitives/Press.tsx Press
 prop packages/tessera-ui/primitives/Press.tsx Press.children
 prop packages/tessera-ui/primitives/Press.tsx Press.label
 prop packages/tessera-ui/primitives/Press.tsx Press.onPress
-
-component packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus
-prop packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus.children
-prop packages/tessera-ui/primitives/RovingFocus.tsx RovingFocus.label
-
-component packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical
-prop packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical.children
-prop packages/tessera-ui/primitives/RovingFocusVertical.tsx RovingFocusVertical.label
 
 component packages/tessera-ui/primitives/Slider.tsx Slider
 prop packages/tessera-ui/primitives/Slider.tsx Slider.children
