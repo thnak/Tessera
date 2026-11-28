@@ -32,8 +32,8 @@ struct ThemePinSpec {
     std::string pin; // MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH
 };
 
-// `dependencies` of the project config (project-config-v1.md): what the generated CMake target adds.
-// `modules` names the opt-in framework modules the app links ("sqlite" is
+// `dependencies` of the project config (project-config-v1.md): what the generated CMake target
+// adds. `modules` names the opt-in framework modules the app links ("sqlite" is
 // `tessera_appfw_storage_sqlite`, issue #983); the build switches the matching CMake option.
 struct DependenciesSpec {
     std::vector<std::string> include_dirs; // project-relative POSIX directories

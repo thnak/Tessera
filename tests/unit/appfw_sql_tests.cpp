@@ -277,7 +277,7 @@ void a_cancelled_token_does_nothing() {
     expect(count_of(f, "t") == 0, "nothing was written");
 }
 
-void cancelling_inside_a_transaction_interrupts_the_statement_and_rolls_back() {
+[[maybe_unused]] void cancelling_inside_a_transaction_interrupts_the_statement_and_rolls_back() {
     Fixture f;
     expect(f.exec("CREATE TABLE t(a INTEGER)").has_value(), "create");
     CancellationSource source;
@@ -442,10 +442,10 @@ int main() {
     transactions_commit_or_roll_back();
     migrations_apply_in_order_and_roll_back_a_failed_step();
     a_cancelled_token_does_nothing();
-    cancelling_inside_a_transaction_interrupts_the_statement_and_rolls_back();
     posting_never_runs_the_body_on_the_calling_thread();
 #if !defined(__EMSCRIPTEN__)
     // Wasm is in-memory only and single-threaded: no file database and no worker thread there.
+    cancelling_inside_a_transaction_interrupts_the_statement_and_rolls_back();
     a_real_executor_keeps_the_caller_free_while_a_query_runs();
     a_file_database_persists_and_a_corrupt_file_is_a_typed_error();
 #endif

@@ -174,8 +174,8 @@ bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& i
 
 // Reads the optional `dependencies` object (project-config-v1.md): `includeDirs` (project-relative
 // directories), `linkLibraries`, `modules` (the closed set of opt-in framework modules) and
-// `licenseReview` (must be true when present). Unknown keys and wrong types are errors, as for every
-// closed key here; absent or null is valid.
+// `licenseReview` (must be true when present). Unknown keys and wrong types are errors, as for
+// every closed key here; absent or null is valid.
 bool read_string_list(const tessera::harness::JsonValue& object, std::string_view key,
                       std::vector<std::string>& out, std::string& why) {
     const tessera::harness::JsonValue* node = object.find(key);

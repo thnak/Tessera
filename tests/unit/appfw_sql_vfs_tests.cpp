@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 //
-// Fault-injecting VFS cases for the opt-in SQLite module (issue #983). The AF7 fake FileSystem cannot
-// reach SQLite's file I/O, which goes through its own VFS, so this registers a shim VFS over the
-// platform default and makes it fail on demand: a full disk (write), a failed sync and a failed
+// Fault-injecting VFS cases for the opt-in SQLite module (issue #983). The AF7 fake FileSystem
+// cannot reach SQLite's file I/O, which goes through its own VFS, so this registers a shim VFS over
+// the platform default and makes it fail on demand: a full disk (write), a failed sync and a failed
 // journal delete. SQLite never renames its database; deleting the rollback journal is the final
-// step of a commit and the nearest failure to a failed rename. Each case must surface a typed error,
-// leave the data consistent and leave the connection usable once the fault clears.
+// step of a commit and the nearest failure to a failed rename. Each case must surface a typed
+// error, leave the data consistent and leave the connection usable once the fault clears.
 
 #include "tessera/appfw/sql.hpp"
 #include "tessera/runtime/manual_io_executor.hpp"
 
-#include <sqlite3.h>
-
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <sqlite3.h>
 #include <string>
 #include <utility>
 
@@ -93,10 +92,24 @@ int shim_chars(sqlite3_file* f) {
 }
 
 // Version 1: no shared-memory methods, so the shim is for rollback-journal databases only.
-const sqlite3_io_methods g_methods = {1,           shim_close,  shim_read,   shim_write,
-                                      shim_truncate, shim_sync,  shim_size,   shim_lock,
-                                      shim_unlock, shim_reserved, shim_control, shim_sector,
-                                      shim_chars};
+sqlite3_io_methods make_methods() {
+    sqlite3_io_methods m{};
+    m.iVersion = 1;
+    m.xClose = shim_close;
+    m.xRead = shim_read;
+    m.xWrite = shim_write;
+    m.xTruncate = shim_truncate;
+    m.xSync = shim_sync;
+    m.xFileSize = shim_size;
+    m.xLock = shim_lock;
+    m.xUnlock = shim_unlock;
+    m.xCheckReservedLock = shim_reserved;
+    m.xFileControl = shim_control;
+    m.xSectorSize = shim_sector;
+    m.xDeviceCharacteristics = shim_chars;
+    return m;
+}
+const sqlite3_io_methods g_methods = make_methods();
 
 int shim_open(sqlite3_vfs*, const char* name, sqlite3_file* file, int flags, int* out_flags) {
     ShimFile* self = shim(file);
@@ -137,15 +150,13 @@ std::expected<T, SqlError> run(tessera::runtime::ManualIoExecutor& executor, Sta
 
 std::expected<ExecResult, SqlError> exec(tessera::runtime::ManualIoExecutor& executor, Database& db,
                                          std::string sql) {
-    return run<ExecResult>(executor, [&](auto done) {
-        return db.execute(std::move(sql), {}, {}, done);
-    });
+    return run<ExecResult>(executor,
+                           [&](auto done) { return db.execute(std::move(sql), {}, {}, done); });
 }
 
 std::int64_t row_count(tessera::runtime::ManualIoExecutor& executor, Database& db) {
-    auto rows = run<Rows>(executor, [&](auto done) {
-        return db.query("SELECT count(*) FROM kv", {}, {}, done);
-    });
+    auto rows = run<Rows>(
+        executor, [&](auto done) { return db.query("SELECT count(*) FROM kv", {}, {}, done); });
     return rows && rows->rows.size() == 1 ? rows->rows[0][0].as_int64().value_or(-1) : -1;
 }
 
@@ -173,7 +184,8 @@ void faults_are_typed_and_leave_the_database_usable() {
     if (!expect(opened.has_value(), "opens through the shim VFS")) {
         return;
     }
-    expect(exec(executor, db, "CREATE TABLE kv(k INTEGER PRIMARY KEY, v TEXT)").has_value(), "create");
+    expect(exec(executor, db, "CREATE TABLE kv(k INTEGER PRIMARY KEY, v TEXT)").has_value(),
+           "create");
     expect(exec(executor, db, "INSERT INTO kv(v) VALUES('base')").has_value(), "baseline row");
     expect(row_count(executor, db) == 1, "one baseline row");
 
@@ -200,7 +212,8 @@ void faults_are_typed_and_leave_the_database_usable() {
            "a failed journal delete (the commit's last step) is an I/O error");
     g_fault = Fault::None;
     const std::int64_t after_delete = row_count(executor, db);
-    expect(after_delete == 3 || after_delete == 4, "the table is consistent after a delete failure");
+    expect(after_delete == 3 || after_delete == 4,
+           "the table is consistent after a delete failure");
     expect(exec(executor, db, "INSERT INTO kv(v) VALUES('last')").has_value(),
            "writes work again after a delete failure");
     fs::remove_all(dir);
