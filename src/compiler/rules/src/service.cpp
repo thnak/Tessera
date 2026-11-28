@@ -14,6 +14,7 @@
 
 #include "expr_walk.hpp"
 #include "reporter.hpp"
+#include "tessera/compiler/services/builtin_services.hpp"
 
 #include <string>
 
@@ -192,6 +193,21 @@ private:
     Context& ctx_;
 };
 
+// Records one accepted `useService` binding.
+void add_service_use(Context& ctx, const jsx::Statement& statement, std::size_t index,
+                     const std::string& service, const services::ManifestService* decl) {
+    ServiceUseInfo info;
+    info.statement = index;
+    info.name = statement.names.front();
+    info.service = service;
+    info.decl = decl;
+    info.span = statement.span;
+    // The binding is a hook symbol so a statement that uses it before this one is an order
+    // error, and it has no IR expression: its only use is a method call.
+    add_symbol(ctx, info.name, SymbolKind::Service, statement.span, index);
+    ctx.out.service_uses.push_back(std::move(info));
+}
+
 } // namespace
 
 void check_services(Context& ctx) {
@@ -220,6 +236,14 @@ void check_services(Context& ctx) {
                       statement.span, std::string(shape));
             continue;
         }
+        // The shims' interfaces are always visible; a manifest entry of the same name wins.
+        const services::ManifestService* builtin = services::find_builtin_service(type.text);
+        const services::ManifestService* listed =
+            ctx.services == nullptr ? nullptr : ctx.services->find_name(type.text);
+        if (listed == nullptr && builtin != nullptr) {
+            add_service_use(ctx, statement, index, type.text, builtin);
+            continue;
+        }
         if (ctx.services == nullptr) {
             ctx.error(
                 kUnknown,
@@ -230,23 +254,14 @@ void check_services(Context& ctx) {
                 "declare the interface in `ui/services.json` (docs/specs/services-manifest-v1.md)");
             continue;
         }
-        const services::ManifestService* decl = ctx.services->find_name(type.text);
+        const services::ManifestService* decl = listed;
         if (decl == nullptr) {
             ctx.error(kUnknown,
                       "`" + type.text + "` is not a service interface listed in `ui/services.json`",
                       statement.span, "the manifest lists: " + declared_names(*ctx.services));
             continue;
         }
-        ServiceUseInfo info;
-        info.statement = index;
-        info.name = statement.names.front();
-        info.service = type.text;
-        info.decl = decl;
-        info.span = statement.span;
-        // The binding is a hook symbol so a statement that uses it before this one is an order
-        // error, and it has no IR expression: its only use is a method call.
-        add_symbol(ctx, info.name, SymbolKind::Service, statement.span, index);
-        ctx.out.service_uses.push_back(std::move(info));
+        add_service_use(ctx, statement, index, type.text, decl);
     }
 }
 
