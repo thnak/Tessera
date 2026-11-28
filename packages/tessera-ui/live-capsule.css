@@ -7,6 +7,7 @@
    never relies on color alone to read as a surface. Part names are public API (ADR-047). */
 
 .capsule {
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   align-items: center;

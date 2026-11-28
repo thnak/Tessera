@@ -187,22 +187,10 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
     Node root(1);
     root.set_element_kind("View");
     root.set_inline_style("background-color", "var(--window-background)");
-    if (cutout.rect.width > 0.0F) {
-        // The hardware cutout itself, so the image shows the capsule hugging it.
-        Node& hole = root.add_child(std::make_unique<Node>(tessera::ui::NodeId{2}));
-        hole.set_element_kind("View");
-        // The scene borrows inline-style text, so the strings live as long as the scene does.
-        owned.push_back(std::to_string(static_cast<int>(cutout.rect.x)) + "px");
-        owned.push_back(std::to_string(static_cast<int>(cutout.rect.width)) + "px");
-        owned.push_back(std::to_string(static_cast<int>(cutout.rect.height)) + "px");
-        hole.set_inline_style("position", "absolute");
-        hole.set_inline_style("left", owned[0]);
-        hole.set_inline_style("top", "0px");
-        hole.set_inline_style("width", owned[1]);
-        hole.set_inline_style("height", owned[2]);
-        hole.set_inline_style("background-color", "#000000");
-        hole.set_inline_style("border-radius", "0px 0px 12px 12px");
-    }
+    // The scene borrows inline-style text, so the strings live as long as the scene does.
+    owned.push_back(std::to_string(static_cast<int>(cutout.rect.x)) + "px");
+    owned.push_back(std::to_string(static_cast<int>(cutout.rect.width)) + "px");
+    owned.push_back(std::to_string(static_cast<int>(cutout.rect.height)) + "px");
 
     LiveCapsuleHost host;
     host.start(timer(form));
@@ -226,6 +214,25 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
         capsule = std::make_unique<LiveCapsule>(host, app.overlays());
         // Opens the overlay; it mounts at the first frame boundary.
         capsule->sync(env, 0.0F);
+        if (cutout.rect.width > 0.0F) {
+            // The hardware cutout is drawn above the capsule (the glass is in front of the screen),
+            // so the image shows the capsule hugging it rather than covering it.
+            tessera::ui::OverlaySpec hole;
+            hole.id = "cutout";
+            hole.layer = tessera::ui::OverlayLayer::Toast;
+            hole.priority = 100;
+            hole.persistent = true;
+            hole.mount = [&owned](Node& content) {
+                content.set_inline_style("position", "absolute");
+                content.set_inline_style("left", owned[0]);
+                content.set_inline_style("top", "0px");
+                content.set_inline_style("width", owned[1]);
+                content.set_inline_style("height", owned[2]);
+                content.set_inline_style("background-color", "#000000");
+                content.set_inline_style("border-radius", "0px 0px 12px 12px");
+            };
+            (void)app.overlays().open(std::move(hole));
+        }
     };
     const auto prepare = [&] {
         capsule->sync(env, 0.0F); // builds the parts and snaps the size
