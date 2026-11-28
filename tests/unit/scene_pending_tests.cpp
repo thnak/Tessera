@@ -53,16 +53,37 @@ bool has_text(const ui::Node& node, std::string_view text) {
     return false;
 }
 
-std::uint64_t button_id(const cli::PreviewSession& session) {
+// The `index`-th Button in tree order, or 0.
+std::uint64_t button_id(const cli::PreviewSession& session, std::size_t index = 0) {
     const auto snapshot = automation::snapshot_scene(session.root());
     if (snapshot) {
         for (const automation::UiSnapshotNode& node : snapshot->nodes) {
-            if (node.kind == "Button") {
+            if (node.kind == "Button" && index-- == 0) {
                 return node.ui_id;
             }
         }
     }
     return 0;
+}
+
+// The shared fixture with a second marked setter. A marked setter that assigns the value the cell
+// already holds starts no transition, so superseding one needs a *different* value: the second
+// button moves the mode to a third one, and the shared fixture (codegen_pending_tsx) stays as is.
+std::string two_button_source() {
+    std::string source = fixture::kSource;
+    const auto replace = [&source](std::string_view from, std::string_view to) {
+        const std::size_t at = source.find(from);
+        if (at != std::string::npos) {
+            source.replace(at, from.size(), to);
+        }
+    };
+    replace("\"fast\" | \"slow\"", "\"fast\" | \"slow\" | \"slower\"");
+    replace("      {isPending &&",
+            "      <Button onClick={() => startTransition(() => setMode(\"slower\"))}>\n"
+            "        <Text>Slower</Text>\n"
+            "      </Button>\n"
+            "      {isPending &&");
+    return source;
 }
 
 cli::PendingControl control(cli::PendingAction action, std::string resource = "feed") {
@@ -81,7 +102,8 @@ cli::PendingControl resolve(std::string text, std::uint64_t epoch = 0) {
 
 void run() {
     std::string error;
-    const auto module = fixture::compile(fixture::kSource, error);
+    const std::string source = two_button_source();
+    const auto module = fixture::compile(source, error);
     expect(module.has_value(), "the fixture compiles: " + error);
     if (!module) {
         return;
@@ -130,7 +152,9 @@ void run() {
     expect(shows("fast"), "the deferred value keeps the settled value while pending");
 
     // A completion for a superseded epoch is dropped and cannot clear the newer transition.
-    expect(session.click(button).found, "a second marked change supersedes the first"); // epoch 3
+    const std::uint64_t second = button_id(session, 1);
+    expect(second != 0 && second != button, "the component has a second marked setter");
+    expect(session.click(second).found, "a second marked change supersedes the first"); // epoch 3
     result = session.control_resource(resolve("stale", 2));
     expect(result.ok && !result.accepted, "a stale completion is dropped");
     expect(session.pending_report().is_pending && shows("Updating"),
@@ -141,7 +165,7 @@ void run() {
     expect(result.accepted, "the current completion lands");
     report = session.pending_report();
     expect(!report.is_pending && report.resources[0].status == "success", "the transition settles");
-    expect(shows("world") && !shows("Updating") && shows("slow"),
+    expect(shows("world") && !shows("Updating") && shows("slower"),
            "the new data, no indicator and the new deferred value show");
 
     // A failed refresh keeps the old data and clears nothing it should not.
