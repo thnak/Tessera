@@ -82,4 +82,4 @@ The facts this builds on:
 
 - Per-edge border conflict resolution (style and colour priority) and table-owned collapsed borders
   painted once; a caption outside the table border; the anonymous table wrapper for stray
-  `table-*` boxes; `rowheader`/`scope` and `rowgroup` roles. See the issue filed with this change.
+  `table-*` boxes; `rowheader`/`scope` and `rowgroup` roles. Tracked in #1049.

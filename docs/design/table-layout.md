@@ -141,6 +141,6 @@ interfaces (row and column counts and indices) are not modelled yet.
 
 ## 8. Not done
 
-Recorded in the follow-up issue: per-edge collapsed-border conflict resolution and single painting,
+Tracked in #1049: per-edge collapsed-border conflict resolution and single painting,
 a caption outside the table border, the anonymous table wrapper for stray `table-*` boxes, baseline
 alignment, `rowheader`/`scope` and `rowgroup` roles, and the AT-SPI/UIA table interfaces.

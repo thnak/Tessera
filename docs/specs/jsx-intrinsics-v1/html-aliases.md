@@ -67,7 +67,7 @@ against it.
 | `hr` | `View` | - | mapped | Void. The user-agent sheet draws a zero-height box with a dark top and light bottom 1px edge and a `0.5em` margin, as Chrome's inset rule |
 | `pre` | `Text` | `style.white-space: pre`, `style.font-family: monospace` | mapped | The user-agent sheet makes it a block with a `1em` vertical margin. Newlines come from a string expression or a span's static text |
 | `blockquote` | `View` | - | mapped | The user-agent sheet gives it `margin: 1em 40px` |
-| `table` | `View` | `role="table"` | partial | The user-agent sheet makes it `display: table` (`border-spacing: 2px`, shrink-to-fit); a table engine lays out the tree below it ([`table-layout.md`](../../design/table-layout.md), ADR-079): auto and fixed layout, `border-spacing`, `border-collapse`, captions. Named gaps (section 3.8) are tracked in the follow-up of #543 |
+| `table` | `View` | `role="table"` | partial | The user-agent sheet makes it `display: table` (`border-spacing: 2px`, shrink-to-fit); a table engine lays out the tree below it ([`table-layout.md`](../../design/table-layout.md), ADR-079): auto and fixed layout, `border-spacing`, `border-collapse`, captions. Named gaps (section 3.8) are tracked in #1049 |
 | `thead`, `tbody`, `tfoot` | `View` | - | mapped | `display: table-header-group`, `table-row-group`, `table-footer-group`; the first `thead` shows above and the first `tfoot` below every body |
 | `tr` | `View` | `role="row"` | mapped | `display: table-row` |
 | `td` | `View` | `role="cell"` | mapped | `display: table-cell`, 1px padding; `colSpan` and `rowSpan` become `aria-colspan` and `aria-rowspan` (section 3.8). Write text in a `span`, as for `li` |
