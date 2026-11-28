@@ -34,6 +34,25 @@ bool aria_hidden(const Node& node) {
     return detail::is_true(aria_value(node, "aria-hidden"));
 }
 
+// Explicit `aria-live` (off|polite|assertive; anything else is ignored) over the role's implicit
+// live behaviour.
+Live live_for(const Node& node, Role role) {
+    const std::string_view value = aria_value(node, "aria-live");
+    if (value == "polite") {
+        return Live::Polite;
+    }
+    if (value == "assertive") {
+        return Live::Assertive;
+    }
+    if (value == "off") {
+        return Live::Off;
+    }
+    if (role == Role::Alert) {
+        return Live::Assertive;
+    }
+    return role == Role::Status ? Live::Polite : Live::Off;
+}
+
 bool aria_modal(const Node& node) {
     return detail::is_true(aria_value(node, "aria-modal"));
 }
@@ -318,6 +337,7 @@ private:
         entry.role = role;
         entry.states = states_for(role, focusable, focused, disabled, node);
         entry.actions = actions_for(role, disabled, focusable, is_scrollable(node));
+        entry.live = live_for(node, role);
         // A node's position in its collection, when the caller supplied a source that knows. The
         // default stays zero for anything that is not an item, which is every node in a tree with
         // no virtualized list.

@@ -76,6 +76,15 @@ enum class Role : std::uint8_t {
 // case-insensitively. Unknown names return Role::Generic.
 [[nodiscard]] Role role_from_string(std::string_view name);
 
+// The live-region politeness a node carries (WAI-ARIA 1.2 section 6.6), resolved by the builder: an
+// explicit `aria-live` wins, else the role's implicit one (`alert` assertive, `status` polite),
+// else `Off`. The channels of the announcement queue map one to one.
+enum class Live : std::uint8_t {
+    Off,
+    Polite,
+    Assertive,
+};
+
 enum class State : std::uint32_t {
     None = 0,
     Focusable = 1U << 0,
@@ -138,6 +147,9 @@ struct A11yNode {
     Role role = Role::Generic;
     State states = State::None;
     Action actions = Action::None;
+    // The node is a live region when this is not `Off`; `collect_live_announcements` turns a change
+    // of its name or value into an announcement.
+    Live live = Live::Off;
     // Set for a node that is one item of a collection; the default is "not one".
     CollectionPosition collection{};
     std::array<char, kMaxTextBytes> name{};

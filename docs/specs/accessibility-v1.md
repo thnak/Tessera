@@ -121,9 +121,9 @@ announce(message, priority);   // polite/assertive
 ```
 
 - Errors are announced and associated with the field; summaries link to fields.
-- Busy/loading announcements are debounced; avoid announcing every progress tick.
-- Do not announce sensitive/secure text.
+- Busy/loading announcements are debounced; never announce progress ticks or secure text.
 - Localized messages use `i18n` ([`i18n-v1.md`](i18n-v1.md)); no raw internal codes.
+- Live regions: `A11yNode::live` (`aria-live`, else alert assertive, status polite); `collect_live_announcements` diffs snapshots and `AtspiBridge::publish` posts them.
 
 ## 9. Testing
 
@@ -343,7 +343,7 @@ children indices, node/child/text caps and truncation flags, automation-id looku
 and a combined scroll + focus + metadata scene.
 
 Deferred: platform bridges (UIA/AT-SPI/NSAccessibility/Android), action invocation and epochs,
-events/notifications/live regions, semantics diffing and dirty flags, ignored-wrapper hoisting,
+UIA/Android live-region events, semantics diffing and dirty flags, ignored-wrapper hoisting,
 tri-state checked, virtualized item realization, hidden-but-laid-out entries, text selection/
 caret/IME semantics, relations (`describedby`, reverse `labelledby`), localization, and
 screen-reader testing.

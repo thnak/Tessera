@@ -95,7 +95,7 @@ all listed in #305, and what Select needs before code starts:
 2. The non-modal `FocusPolicy` hook: focus moves to the selected option on open and returns to the
    trigger on close, with arrows roving the options (the `focusGroup` of #1035 already does the
    roving and skips `aria-disabled` options) and Escape dismissing.
-3. `aria-live`/announcement support in the a11y tree builder for the selection change.
+3. `aria-live` in the a11y tree builder (done, `A11yNode::live`); the selection change sets it.
 
 The trigger is a `button` with `aria-haspopup="listbox"`; the options are `option` nodes, so the
 keyboard click synthesis added here (role-driven) extends to them with one more role.

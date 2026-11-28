@@ -2014,6 +2014,7 @@ struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildOp
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::BuildStats
 struct include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::CollectionPosition
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Action
+enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Live
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::Role
 enum include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::State
 alias include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::A11yIndex
@@ -2151,6 +2152,9 @@ constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::k
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusMember
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusName
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusPath
+
+header include/tessera/ui/accessibility/live_regions.hpp
+function include/tessera/ui/accessibility/live_regions.hpp tessera::ui::a11y::collect_live_announcements
 
 header include/tessera/ui/accessibility/snapshot_provider.hpp
 class include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::SnapshotProvider
