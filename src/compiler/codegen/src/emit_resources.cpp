@@ -159,6 +159,16 @@ bool emit_resource_sources(CppWriter& writer, const ir::Component& component,
                     resource_stem(component.resources[index]) +
                     "_now = " + resource_view_member(component.resources[index]) + ".read();");
     }
+    // The mark observes first, so a boundary above the transition's read holds its content only
+    // while the transition is pending (pending-ui-v1.md section 4.3).
+    if (transition) {
+        const std::string now = resource_stem(component.resources[marked]) + "_now";
+        writer.line("if (pending_transition_.started()) {");
+        ++writer.indent;
+        writer.line("(void)pending_transition_.observe(" + now + ".loading, " + now + ".epoch);");
+        --writer.indent;
+        writer.line("}");
+    }
     for (const ir::BoundaryReads& boundary : reads.boundaries) {
         // Boundaries are numbered by the plan in the same walk order as `collect_suspense_reads`.
         const std::size_t position = static_cast<std::size_t>(&boundary - reads.boundaries.data());
@@ -167,20 +177,16 @@ bool emit_resource_sources(CppWriter& writer, const ir::Component& component,
                                    "` is missing from the dynamic plan");
         }
         const unsigned ordinal = plan.suspenses[position].ordinal;
+        if (transition && std::find(boundary.resources.begin(), boundary.resources.end(), marked) !=
+                              boundary.resources.end()) {
+            writer.line(boundary_name(ordinal) + ".set_hold(pending_transition_.pending());");
+        }
         for (std::size_t slot = 0; slot < boundary.resources.size(); ++slot) {
             const std::string now =
                 resource_stem(component.resources[boundary.resources[slot]]) + "_now";
             writer.line("(void)" + boundary_name(ordinal) + ".set_read(" + slot_text(slot) + ", " +
                         now + ".loading, " + now + ".has_data, " + now + ".epoch);");
         }
-    }
-    if (transition) {
-        const std::string now = resource_stem(component.resources[marked]) + "_now";
-        writer.line("if (pending_transition_.started()) {");
-        ++writer.indent;
-        writer.line("(void)pending_transition_.observe(" + now + ".loading, " + now + ".epoch);");
-        --writer.indent;
-        writer.line("}");
     }
     for (const SuspenseSite& site : plan.suspenses) {
         writer.line("apply_suspense_" + std::to_string(site.ordinal) + "();");

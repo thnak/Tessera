@@ -11,6 +11,7 @@
 
 #include "binding_reads.hpp"
 #include "codegen_internal.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_dirty.hpp"
 #include "emit_events.hpp"
 #include "emit_resources.hpp"
@@ -212,6 +213,11 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         // current epoch *before* it assigns, so `isPending` is true from the moment the change is
         // applied. The mark is inert without a `Suspense`/transition surface, which is the default.
         if (action.transition) {
+            // A deferred value settles on what the UI showed before the change, so it reads (and
+            // remembers) its argument while nothing is pending.
+            for (const std::string& call : deferred_accessor_calls(component)) {
+                body += "(void)" + call + ";\n";
+            }
             if (uses_resources(component)) {
                 // #656: the change starts a fetch for the new key, which the host performs and
                 // which bumps the resource epoch by exactly one; the mark waits for that epoch.

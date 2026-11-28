@@ -156,8 +156,10 @@ namespace pending {
       }
       // text binding of node::4 reads: state::query.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_4 = tessera::ui::DirtyMask<2>::of({0, 1});
-      // text binding of node::6 reads: nothing.
-      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_6 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::5 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_5 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::7 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_7 = tessera::ui::DirtyMask<2>::of({1});
       template <class Self>
       struct Thunks {
         static void event_adapter_6_onClick(void* context, const tessera::ui::Event& event) {

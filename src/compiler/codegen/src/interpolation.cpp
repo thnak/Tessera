@@ -71,6 +71,11 @@ bool collect_text(const ir::Node& node, const ir::Component& component,
         !collect_text(*node.item_template, component, records, true, ordinal, entries, error)) {
         return false;
     }
+    // A Suspense fallback is numbered right after the content subtree (ADR-067), as in the plan.
+    if (node.fallback &&
+        !collect_text(*node.fallback, component, records, in_template, ordinal, entries, error)) {
+        return false;
+    }
     return true;
 }
 
@@ -129,6 +134,10 @@ bool collect_metadata(const ir::Node& node, const ir::Component& component,
     // (the plan rejects dynamic per-item metadata); the recursion keeps ordinals aligned.
     if (node.item_template &&
         !collect_metadata(*node.item_template, component, records, true, ordinal, entries, error)) {
+        return false;
+    }
+    if (node.fallback && !collect_metadata(*node.fallback, component, records, in_template, ordinal,
+                                           entries, error)) {
         return false;
     }
     return true;

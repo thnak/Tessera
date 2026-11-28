@@ -65,6 +65,13 @@ std::string live_fallback_member(unsigned ordinal) {
 }
 
 bool has_transition(const ir::Component& component) {
+    // `useTransition` always owns a mark, even when nothing is marked yet, because `isPending` is
+    // read from it (pending-ui-v1.md section 5).
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "transition") {
+            return true;
+        }
+    }
     for (const ir::Handler& handler : component.handlers) {
         for (const ir::Action& action : handler.actions) {
             if (action.transition) {
@@ -77,12 +84,22 @@ bool has_transition(const ir::Component& component) {
 
 } // namespace
 
+bool has_transition_surface(const ir::Component& component) {
+    return has_transition(component);
+}
+
 bool uses_pending(const ir::Component& component, const DynamicPlan& plan) {
     return !plan.suspenses.empty() || has_transition(component) || uses_resources(component);
 }
 
 std::vector<std::string> pending_headers(const ir::Component& component, const DynamicPlan& plan) {
     std::vector<std::string> headers;
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "deferred_value") {
+            headers.emplace_back("tessera/ui/pending/deferred.hpp");
+            break;
+        }
+    }
     if (!uses_pending(component, plan)) {
         return headers; // no pending surface: no include, so the golden stays byte-identical
     }

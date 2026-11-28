@@ -212,8 +212,10 @@ namespace pending {
       }
       // text binding of node::4 reads: state::query (unbounded).
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_4 = tessera::ui::DirtyMask<2>::of({0, 1});
-      // text binding of node::6 reads: nothing.
-      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_6 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::5 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_5 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::7 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_7 = tessera::ui::DirtyMask<2>::of({1});
       template <class Self>
       struct Thunks {
         static void event_adapter_6_onClick(void* context, const tessera::ui::Event& event) {
@@ -370,11 +372,12 @@ namespace pending {
       using namespace ResourceFeed_detail;
       const tessera::ui::pending::ResourceState res_feed_now = res_feed_view_.read();
       const tessera::ui::pending::ResourceState res_tags_now = res_tags_view_.read();
-      (void)suspense_2_.set_read(0, res_feed_now.loading, res_feed_now.has_data, res_feed_now.epoch);
-      (void)suspense_2_.set_read(1, res_tags_now.loading, res_tags_now.has_data, res_tags_now.epoch);
       if (pending_transition_.started()) {
         (void)pending_transition_.observe(res_feed_now.loading, res_feed_now.epoch);
       }
+      suspense_2_.set_hold(pending_transition_.pending());
+      (void)suspense_2_.set_read(0, res_feed_now.loading, res_feed_now.has_data, res_feed_now.epoch);
+      (void)suspense_2_.set_read(1, res_tags_now.loading, res_tags_now.has_data, res_tags_now.epoch);
       apply_suspense_2();
     }
     template <class Self>

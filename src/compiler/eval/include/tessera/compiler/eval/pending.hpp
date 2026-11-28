@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/compiler/eval/value.hpp"
 #include "tessera/compiler/ir/action.hpp"
 #include "tessera/compiler/ir/component.hpp"
 #include "tessera/ui/pending/fake_resource.hpp"
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -75,6 +77,16 @@ public:
     resource_state(std::size_t index) const noexcept;
     // The `res::<name>.status` value of the resource with this id, when the session knows it.
     [[nodiscard]] std::optional<std::string_view> status_of(std::string_view resource_id) const;
+    // The `res::<name>.data` value of a typed resource (`Resource::type`): the scalar its view
+    // publishes, the zero value while absent. Nullopt for an unknown id or an untyped resource.
+    [[nodiscard]] std::optional<Value> data_of(std::string_view resource_id) const;
+    // `useDeferredValue` (pending-ui-v1.md section 6): the settled value of behavior `id`. While a
+    // transition is pending it keeps the last value read when nothing was; otherwise it takes
+    // `current`. The first read settles, the rule `tessera::ui::pending::DeferredScalar` runs.
+    [[nodiscard]] Value deferred(std::string_view id, const Value& current);
+    [[nodiscard]] const tessera::compiler::ir::Component* component() const noexcept {
+        return component_;
+    }
     // The resource's state after a marked change; false when the epoch was stale.
     [[nodiscard]] bool observe_transition() noexcept;
 
@@ -105,6 +117,11 @@ private:
     tessera::ui::pending::FakeResource resource_;
     tessera::ui::pending::SuspenseBoundary boundary_;
     tessera::ui::pending::TransitionMark transition_;
+    struct Settled {
+        std::string id;
+        Value value;
+    };
+    std::vector<Settled> deferred_;
 };
 
 } // namespace tessera::compiler::eval

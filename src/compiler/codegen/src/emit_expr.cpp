@@ -53,14 +53,34 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         if (expr.id.rfind("res::", 0) == 0) {
             const std::size_t dot = expr.id.find('.');
             const std::string member = dot == std::string::npos ? "" : expr.id.substr(dot + 1);
-            if (member != "status") {
-                return fail("`" + expr.id +
-                            "` is not generated yet: only `.status` of a resource is, because "
-                            "`.data` and `.error` need the service method's result type");
-            }
             std::string stem = member_name(expr.id.substr(0, dot));
             stem.pop_back();
-            return ExprEmission{"std::string(" + stem + "_status())", {}};
+            if (member == "status") {
+                return ExprEmission{"std::string(" + stem + "_status())", {}};
+            }
+            // `.data` of a typed resource (Resource::type): the scalar the view publishes, the zero
+            // value while absent. Without a type there is nothing to emit.
+            if (member == "data") {
+                for (const ir::Resource& resource : component.resources) {
+                    if (resource.id != expr.id.substr(0, dot) || resource.type.empty()) {
+                        continue;
+                    }
+                    if (resource.type == "string") {
+                        return ExprEmission{"std::string(" + stem + "_state().text)", {}};
+                    }
+                    if (resource.type == "bool") {
+                        return ExprEmission{"(" + stem + "_state().number != 0.0)", {}};
+                    }
+                    if (resource.type == "int") {
+                        return ExprEmission{
+                            "static_cast<std::int64_t>(" + stem + "_state().number)", {}};
+                    }
+                    return ExprEmission{stem + "_state().number", {}};
+                }
+            }
+            return fail("`" + expr.id +
+                        "` is not generated: `.error` has no scalar form yet, and `.data` needs "
+                        "the resource's `type` (the service method's declared return type)");
         }
         // A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>`
         // reads the generated accessor `<member><field>()`, which returns the manifest default

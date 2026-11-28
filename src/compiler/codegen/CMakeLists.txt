@@ -873,6 +873,38 @@ if (TESSERA_BUILD_TESTS)
                 target_compile_features(codegen_services_tsx_runtime_tests PRIVATE cxx_std_23)
                 add_test(NAME codegen_services_tsx_runtime
                     COMMAND codegen_services_tsx_runtime_tests)
+
+                # #656, pending UI from TSX: `useResource`, `Suspense`, `useTransition` and
+                # `useDeferredValue` compiled through the real front end into `Feed.g.hpp`, then
+                # driven next to the IR evaluator over one resource double.
+                add_executable(codegen_pending_tsx_emit
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_tsx_emit.cpp)
+                target_include_directories(codegen_pending_tsx_emit PRIVATE
+                    ${PROJECT_SOURCE_DIR}/tests/unit)
+                target_link_libraries(codegen_pending_tsx_emit PRIVATE
+                    tessera_codegen tessera_lowering tessera_jsx_frontend tessera_react_rules
+                    tessera_ir tessera_ir_ids tessera_services_types)
+                set(_tessera_pending_tsx_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_pending_tsx)
+                add_custom_command(
+                    OUTPUT ${_tessera_pending_tsx_dir}/Feed.g.hpp
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_pending_tsx_dir}
+                    COMMAND codegen_pending_tsx_emit ${_tessera_pending_tsx_dir}
+                    DEPENDS codegen_pending_tsx_emit
+                    VERBATIM)
+                add_executable(codegen_pending_tsx_tests
+                    ${PROJECT_SOURCE_DIR}/tests/unit/codegen_pending_tsx_tests.cpp
+                    ${_tessera_pending_tsx_dir}/Feed.g.hpp)
+                target_include_directories(codegen_pending_tsx_tests PRIVATE
+                    ${_tessera_pending_tsx_dir}
+                    ${_tessera_codegen_base_dev_dir}/pending_tsx
+                    ${_tessera_codegen_base_dev_dir}/services
+                    ${PROJECT_SOURCE_DIR}/tests/unit)
+                target_link_libraries(codegen_pending_tsx_tests PRIVATE
+                    tessera_scene tessera_appfw_core tessera_ir_eval tessera_lowering
+                    tessera_jsx_frontend tessera_react_rules tessera_ir tessera_ir_ids
+                    tessera_services_types)
+                target_compile_features(codegen_pending_tsx_tests PRIVATE cxx_std_23)
+                add_test(NAME codegen_pending_tsx COMMAND codegen_pending_tsx_tests)
             endif ()
 
             # Compile-fail checks, the same shape as the codegen_base_* cases and taking the same

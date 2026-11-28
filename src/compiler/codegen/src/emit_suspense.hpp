@@ -23,6 +23,9 @@
 // what keeps every committed `.g.hpp` golden byte-identical.
 namespace tessera::compiler::codegen::internal {
 
+// True when the component owns a transition mark: a marked action or a `useTransition`.
+[[nodiscard]] bool has_transition_surface(const ir::Component& component);
+
 // True when the component has a `Suspense` node or a transition-marked action.
 [[nodiscard]] bool uses_pending(const ir::Component& component, const DynamicPlan& plan);
 

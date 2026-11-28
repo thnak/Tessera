@@ -217,6 +217,9 @@ std::string_view declared_ir_type(const ir::Component& component, std::string_vi
         if (resource.id + ".status" == id) {
             return "string";
         }
+        if (!resource.type.empty() && resource.id + ".data" == id) {
+            return resource.type;
+        }
     }
     // A behavior output (ADR-064 item 7): `beh::<name>.<field>` is printable when the manifest
     // declares the field's type, which is what makes `<Text>{press.pressed}</Text>` work.
