@@ -4,12 +4,15 @@
 // docs/specs/studio-services-v1.md with no UI, under plain Node. The worker is built around an engine.
 // With no native formatter the engine is a small JS stand-in (protocol behaviour only); when
 // TESSERA_FMT_BIN names a built `tessera_fmt`, the same cases also run against the real C++ printer
-// through `--edits-json`, so the wire shape and the UTF-16 offsets are checked end to end.
+// through `--edits-json`, and when TESSERA_FMT_WASM names a built `tessera_format.js` they run against the
+// Wasm module through the page's own engine source, so the wire shape and the UTF-16 offsets are checked
+// end to end.
 
+import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
 import { ServiceClient } from '../../designer/web/services/client.js';
-import { formatServiceSource } from '../../designer/web/services/format-service.js';
+import { formatServiceSource, wasmEngineSource } from '../../designer/web/services/format-service.js';
 import { toSequentialEdits } from '../../designer/web/services/protocol.js';
 import { assert, finish, test } from './mock_test_support.mjs';
 
@@ -165,27 +168,33 @@ await test('a crashed engine is an error response, and the worker keeps answerin
 });
 
 const bin = process.env.TESSERA_FMT_BIN;
-if (bin) {
-  const emoji = '\u{1F600}';
-  await commonCases('native tessera_fmt', nativeEngine(bin), {
-    messy: `const a=  'x';\n`,
-    formatted: `const a = "x";\n`,
-    prefix: `const  z=1;\n`,
-    prefixFormatted: `const z = 1;\nconst a = "x";\n`,
-    refused: 'const = ;\n',
-  });
+const wasm = process.env.TESSERA_FMT_WASM;
+const realDoc = {
+  messy: `const a=  'x';\n`,
+  formatted: `const a = "x";\n`,
+  prefix: `const  z=1;\n`,
+  prefixFormatted: `const z = 1;\nconst a = "x";\n`,
+  refused: 'const = ;\n',
+};
+const emoji = '\u{1F600}';
 
-  await test('native tessera_fmt: offsets are UTF-16 units, so an astral character before the edit counts twice', async () => {
+async function realCases(label, engine) {
+  await commonCases(label, engine, realDoc);
+  await test(`${label}: offsets are UTF-16 units, so an astral character before the edit counts twice`, async () => {
     const text = `// ${emoji}\nconst a='x';\n`;
-    const client = await started(nativeEngine(bin), text);
+    const client = await started(engine, text);
     const result = await client.request('format', { file: 1 });
     assert.equal(apply(text, result.edits), `// ${emoji}\nconst a = "x";\n`);
     assert.ok(result.edits.every((e) => e.offset >= text.indexOf('const')), 'nothing before the change is touched');
     assert.ok(result.edits.length <= 3, 'a minimal list, not the whole file');
     client.dispose();
   });
-} else {
-  process.stdout.write('skip native tessera_fmt cases (set TESSERA_FMT_BIN to a built tessera_fmt)\n');
 }
+
+if (bin) await realCases('native tessera_fmt', nativeEngine(bin));
+else process.stdout.write('skip native tessera_fmt cases (set TESSERA_FMT_BIN to a built tessera_fmt)\n');
+// The page's engine: tessera_format.wasm through the page's own wasmEngineSource.
+if (wasm) await realCases('tessera_format.wasm', wasmEngineSource(pathToFileURL(wasm).href));
+else process.stdout.write('skip wasm cases (set TESSERA_FMT_WASM to a built tessera_format.js)\n');
 
 finish('preview_format_service');

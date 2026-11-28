@@ -176,6 +176,9 @@ std::string format_edits_json(FileKind kind, std::string_view text, const Format
   changes, and a text change while the worker was busy drops the answer. A refused file leaves the text
   untouched and the failure toast names `path:line:column code message`. Only `.tsx` is formatted until
   slice 3.
+- **Size:** `tessera_format.wasm` is 374 KB raw, 144 KB gzip-9 (plus a 3 KB loader), loaded lazily on the
+  first format and not on the first-paint path, so `download_gzip_bytes` does not weigh it; a lazy-module
+  entry in `tests/golden/perf/preview_budget.json` (like the mock transpiler's) is not added yet.
 - **Format on save:** on by default (ADR-061 question 3). `file.save` formats the open `.tsx` file first;
   a refusal or a worker failure never blocks the save. The setting is the local preference
   `tessera.studio.formatOnSave` (`off` disables it; `designer/web/src/lib/format-prefs.ts`). A settings
