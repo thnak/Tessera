@@ -3839,12 +3839,21 @@ prop packages/tessera-ui/Form.tsx Form.initial
 prop packages/tessera-ui/Form.tsx Form.onSubmit
 prop packages/tessera-ui/Form.tsx Form.validate
 
+component packages/tessera-ui/Icon.tsx Icon
+prop packages/tessera-ui/Icon.tsx Icon.label
+prop packages/tessera-ui/Icon.tsx Icon.mirror
+prop packages/tessera-ui/Icon.tsx Icon.name
+prop packages/tessera-ui/Icon.tsx Icon.size
+
 component packages/tessera-ui/SafeArea.tsx SafeArea
 prop packages/tessera-ui/SafeArea.tsx SafeArea.children
 prop packages/tessera-ui/SafeArea.tsx SafeArea.edges
 prop packages/tessera-ui/SafeArea.tsx SafeArea.minimum
 prop packages/tessera-ui/SafeArea.tsx SafeArea.mode
 prop packages/tessera-ui/SafeArea.tsx SafeArea.sources
+
+component packages/tessera-ui/icons/IconGlyph.g.tsx IconGlyph
+prop packages/tessera-ui/icons/IconGlyph.g.tsx IconGlyph.name
 
 component packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer
 prop packages/tessera-ui/primitives/DismissableLayer.tsx DismissableLayer.children

@@ -380,35 +380,6 @@ void test_rejections() {
     }
 }
 
-// `currentColor` is a tint (issue #530): the document paints white, the payload says to tint with
-// the node's `color`, and a literal color on the same node is refused (a tint colors the whole
-// document).
-void test_current_color() {
-    ir::IrModule module = make_vector_module();
-    explicit_node(module).props["fill"] = ir::make_literal(std::string("currentColor"));
-    explicit_node(module).props["stroke"] = ir::make_literal(std::string("none"));
-    const auto result = generate(module);
-    check(result.has_value(), "a `currentColor` Path generates: " + first_error(result));
-    if (result) {
-        const codegen::GeneratedFile* source = find_file(*result, "VectorIcon.g.hpp");
-        check(source != nullptr &&
-                  contains(source->text, "paint_node_2.vector.tint_current_color = true;"),
-              "the payload tints with the node color");
-        check(source != nullptr &&
-                  !contains(source->text, "paint_node_3.vector.tint_current_color"),
-              "a literal-color Path does not tint");
-        const codegen::GeneratedFile* assets = find_file(*result, "vicon_vector_assets.hpp");
-        check(assets != nullptr && !contains(assets->text, "currentColor"),
-              "the document carries white, not the keyword");
-    }
-    ir::IrModule mixed = make_vector_module();
-    explicit_node(mixed).props["fill"] = ir::make_literal(std::string("CURRENTCOLOR"));
-    explicit_node(mixed).props["stroke"] = ir::make_literal(std::string("#102030"));
-    const auto refused = generate(mixed);
-    check(!refused.has_value() && contains(first_error(refused), "mixes `currentColor`"),
-          "currentColor mixed with a literal color is refused");
-}
-
 #ifdef TESSERA_VECTOR_SAMPLE
 
 namespace ui = tessera::ui;
@@ -498,7 +469,6 @@ int main(int argc, char** argv) {
     test_regeneration_is_byte_identical();
     test_goldens(false);
     test_rejections();
-    test_current_color();
 #ifdef TESSERA_VECTOR_SAMPLE
     test_runtime_payload();
 #endif

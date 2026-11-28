@@ -2014,6 +2014,12 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_vector_payload COMMAND codegen_vector_payload_tests)
 
+    # Issue #530: `currentColor` on a `Path` is a tint (white document, tint_current_color).
+    add_executable(codegen_vector_tint_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/codegen_vector_tint_tests.cpp)
+    target_link_libraries(codegen_vector_tint_tests PRIVATE tessera_codegen)
+    add_test(NAME codegen_vector_tint COMMAND codegen_vector_tint_tests)
+
     # The developer class (tests/unit/codegen_base/fixtures/VectorIcon.hpp) over the committed base.
     if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.g.hpp)
         target_compile_definitions(codegen_vector_payload_tests PRIVATE

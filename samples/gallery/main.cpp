@@ -16,8 +16,7 @@
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
 //                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
-//                      swatch (every colour token of the theme, issue #280) or icons (the Icon
-//                      component, issue #530)
+//                      swatch (every colour token of the theme, issue #280) or icons (#530)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -107,7 +106,6 @@ std::optional<std::string> read_file(const char* path) {
 // `tessera-ui`), the gallery sheet, and the theme asset blob. Built once from the repository files.
 struct Resources {
     style::PreparedStyleSheet library_sheet;
-    style::PreparedStyleSheet icon_sheet;
     style::PreparedStyleSheet safe_area_sheet;
     style::PreparedStyleSheet gallery_sheet;
     style::PreparedStyleSheet form_sheet;
@@ -126,8 +124,8 @@ std::optional<Resources> load_resources() {
     const auto dash_css = read_file(TESSERA_GALLERY_DASH_CSS);
     const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !icon_css || !safe_area_css || !gallery_css || !form_css || !dash_css || !swatch_css ||
-        !theme_json) {
+    if (!button_css || !icon_css || !safe_area_css || !gallery_css || !form_css || !dash_css ||
+        !swatch_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -137,8 +135,8 @@ std::optional<Resources> load_resources() {
         return std::nullopt;
     }
     Resources resources;
-    resources.library_sheet = style::prepare_stylesheet(*button_css);
-    resources.icon_sheet = style::prepare_stylesheet(*icon_css);
+    // The library sheet is the Button and the Icon look (one `tessera-ui` layer).
+    resources.library_sheet = style::prepare_stylesheet(*button_css + "\n" + *icon_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
     auto form_module = gallery::load_form_module(*form_css);
@@ -156,7 +154,6 @@ std::optional<Resources> load_resources() {
 style::CompiledStyleSheet make_sheet(const Resources& resources) {
     const std::vector<style::StylesheetSource> sources{
         {"button.css", &resources.library_sheet, style::Origin::Author, true},
-        {"icon.css", &resources.icon_sheet, style::Origin::Author, true},
         {"safe-area.css", &resources.safe_area_sheet, style::Origin::Author, true},
         {"gallery.css", &resources.gallery_sheet, style::Origin::Author, false},
         {"form.module.css", &resources.form_sheet, style::Origin::Author, false},
@@ -332,7 +329,6 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     options.height = static_cast<std::uint32_t>(args.height);
     options.font_path = args.font;
     options.scheduler = &scene.scheduler;
-    // The embedded vector assets the Icon page's `Path` nodes name (generated with the pages).
     const tessera::ui::assets::AssetBundle vector_bundle = gallery::gen::vector_assets::bundle();
     options.vector_assets = &vector_bundle;
     options.configure_host = [&](tessera::app::AppHost& host) { configure(host, resources, args); };
