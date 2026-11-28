@@ -28,6 +28,18 @@ target_link_libraries(jsx_type_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_type COMMAND jsx_type_tests)
 
+# Symbol and span index (issue #570, ADR-060).
+add_executable(analysis_index_tests
+    analysis_index_tests.cpp)
+
+target_link_libraries(analysis_index_tests PRIVATE tessera_analysis)
+
+target_compile_definitions(analysis_index_tests PRIVATE
+    TESSERA_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
+    TESSERA_CORPUS_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/corpus")
+
+add_test(NAME analysis_index COMMAND analysis_index_tests)
+
 add_executable(jsx_module_tests
     jsx_module_tests.cpp)
 
