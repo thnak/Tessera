@@ -56,6 +56,18 @@ struct PixelText {
     return nullptr;
 }
 
+[[nodiscard]] inline Node* first_focusable(Node& node) {
+    for (const auto& child : node.children()) {
+        if (child->focusable()) {
+            return child.get();
+        }
+        if (Node* found = first_focusable(*child)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace overlay_detail
 
 struct OverlayHost::Entry {
@@ -69,7 +81,9 @@ struct OverlayHost::Entry {
     Node* content = nullptr; // owned by the wrapper
     overlay_detail::PixelText left;
     overlay_detail::PixelText top;
-    bool placed = false; // the content has a computed position
+    bool placed = false;        // the content has a computed position
+    bool focus_pending = false; // OverlayFocus::Content waits for the first layout
+    NodeId restore_id = 0;      // the focus target to return to on close, 0 when none
 };
 
 } // namespace tessera::ui

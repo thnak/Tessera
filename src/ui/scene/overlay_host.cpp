@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "overlay_entry.hpp"
+#include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <algorithm>
@@ -221,16 +222,7 @@ void OverlayHost::mount_entry(Entry& entry) {
     wrapper->add_child(std::move(content));
 
     // Mounted before anything is attached: a throwing callback leaves the scene untouched.
-    try {
-        if (entry.spec.mount) {
-            entry.spec.mount(*content_ptr);
-        }
-    } catch (const std::exception&) {
-        ++failed_;
-        entry.closing = true;
-        return;
-    } catch (...) {
-        ++failed_;
+    if (!run_mount(entry, *content_ptr)) {
         entry.closing = true;
         return;
     }
@@ -251,9 +243,83 @@ void OverlayHost::mount_entry(Entry& entry) {
     entry.wrapper = wrapper_ptr;
     entry.content = content_ptr;
     entry.state = Entry::State::Open;
+    if (entry.spec.focus == OverlayFocus::Content && layer == OverlayLayer::Overlay &&
+        focus_ != nullptr) {
+        entry.focus_pending = true;
+    }
+}
+
+bool OverlayHost::run_mount(Entry& entry, Node& content) {
+    std::string message;
+    try {
+        if (entry.spec.mount) {
+            entry.spec.mount(content);
+        }
+        return true;
+    } catch (const std::exception& error) {
+        message = std::string("mount threw: ") + error.what();
+    } catch (...) {
+        message = "mount threw a non-standard exception";
+    }
+    ++failed_;
+    last_failure_ = message;
+    // The report is part of the failure path: it must not escape either.
+    try {
+        if (entry.spec.on_failure) {
+            entry.spec.on_failure(OverlayHandle{entry.sequence}, message);
+        }
+    } catch (...) {
+    }
+    if (!entry.spec.fallback) {
+        return false;
+    }
+    while (!content.children().empty()) {
+        static_cast<void>(content.remove_child(*content.children().back()));
+    }
+    try {
+        entry.spec.fallback(content);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OverlayHost::apply_focus() {
+    if (focus_ == nullptr) {
+        return false;
+    }
+    bool moved = false;
+    for (const auto& entry : entries_) {
+        if (!entry->focus_pending) {
+            continue;
+        }
+        entry->focus_pending = false;
+        if (entry->closing || entry->content == nullptr) {
+            continue;
+        }
+        Node* target = overlay_detail::first_focusable(*entry->content);
+        if (target == nullptr) {
+            continue;
+        }
+        const Node* previous = focus_->focused();
+        const NodeId previous_id = previous != nullptr ? previous->id() : 0;
+        if (focus_->request_focus(target)) {
+            entry->restore_id = previous_id;
+            moved = true;
+        }
+    }
+    return moved;
 }
 
 void OverlayHost::unmount_entry(Entry& entry) {
+    // Focus inside the content must be released before the nodes go; it returns to the previous
+    // target only when it was still inside, so a user who moved on is not pulled back.
+    NodeId restore = 0;
+    if (focus_ != nullptr && entry.content != nullptr && focus_->focused() != nullptr &&
+        overlay_detail::within(entry.content, focus_->focused())) {
+        restore = entry.restore_id;
+        focus_->clear_focus();
+    }
     if (entry.wrapper != nullptr) {
         if (Node* parent = entry.wrapper->parent()) {
             static_cast<void>(parent->remove_child(*entry.wrapper));
@@ -261,6 +327,12 @@ void OverlayHost::unmount_entry(Entry& entry) {
     }
     entry.wrapper = nullptr;
     entry.content = nullptr;
+    entry.focus_pending = false;
+    if (restore != 0 && focus_ != nullptr) {
+        if (Node* node = overlay_detail::find_node(root_, restore)) {
+            focus_->request_focus(node);
+        }
+    }
 }
 
 bool OverlayHost::flush() {

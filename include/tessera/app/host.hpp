@@ -188,6 +188,9 @@ public:
     // apply at the start of the next begin_frame(); prefer open_overlay()/close_overlay(), which
     // also wake an idle loop for that frame.
     [[nodiscard]] ui::OverlayHost& overlays();
+    // Lends the window's focus manager (borrowed; must outlive the host) so overlays that ask for
+    // initial focus and restore (OverlayFocus::Content) can reach it. Without one they do nothing.
+    void attach_focus_manager(ui::FocusManager& focus);
     ui::OverlayHandle open_overlay(ui::OverlaySpec spec);
     bool close_overlay(ui::OverlayHandle handle);
     // The overlay side of the input path: Escape dismisses the topmost dismissible overlay and is

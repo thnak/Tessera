@@ -160,6 +160,8 @@ struct AppHost::Impl {
     SafeAreaState safe_area;
     // Created by AppHost::overlays(); destroyed before the scene root it borrows.
     std::unique_ptr<ui::OverlayHost> overlay_host;
+    // The window's focus manager, lent to the overlay host (OverlayFocus::Content); may be null.
+    ui::FocusManager* focus_manager = nullptr;
     // An Escape press the overlays consumed; its release is swallowed too.
     bool escape_swallowed = false;
     BackHandler back_handler = nullptr;

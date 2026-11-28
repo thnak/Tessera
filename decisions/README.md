@@ -88,6 +88,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-077](ADR-077-tessera-cli-design-time.md) | One `tessera` command for design time: verbs over the existing drivers, a native `watch` loop with the devtools hot-reload rules, optional windowed preview, MCP gaps closed through the verbs, no second engine | Proposed |
 | [ADR-078](ADR-078-secret-storage-platform-keystore.md) | Secret storage: an async `SecretStore` over a blocking per-platform keystore seam (Credential Manager, Secret Service over the in-tree D-Bus code with no libsecret, Keychain, Android Keystore), no insecure fallback, Wasm reports unavailable, secrets never reach logs, a named in-memory fake; threat model excludes same-user malware (#841) | Proposed |
 | [ADR-079](ADR-079-html-table-layout-engine.md) | HTML tables as a carrier (`View` with injected roles and `display: table*` from the user-agent sheet) laid out by a `TableEngine` behind the grid seam; spans via `aria-colspan`/`aria-rowspan` on `LayoutInput`; collapsed borders overlap; no new node kind (#543, ADR-059 group D) | Accepted |
+| [ADR-080](ADR-080-conditional-instance-keeps-state.md) | A conditional component instance keeps its state across toggles (keep-alive branch slots, elements and instances alike); `key` resets; destroy-on-false listed as the owner-gated alternative (#283) | Proposed |
 | [ADR-076](ADR-076-per-fragment-gradients.md) | Per-fragment gradients: one quad per gradient layer, stops in the frame storage buffer, RHI 1.20 capability with a banded fallback, premultiplied interpolation (#617) | Accepted |
 
 ## Dependency overview
@@ -150,6 +151,7 @@ ADR-070 frame arena (accepted) ── memory-model-v1 sections 2/3/9, #701 measu
 ADR-071 GPU compute tile rasterizer (accepted with conditions) ── ADR-057 vector paths exit, ADR-004, ADR-068 storage buffers, ADR-049 RHI versioning
 ADR-072 RHI copy buffer to texture ── ADR-071 compute rasterizer handoff, ADR-049 RHI versioning, ADR-003 thin RHI
 ADR-078 secret storage (proposed) ── security.md sections 6/11, ADR-012 static linking (no libsecret), ADR-021 async runtime, ADR-050 services, ADR-052 net tokens, #403 redaction gate
+ADR-080 conditional instance keeps state (proposed) ── element-transitions-v1 section 3.2, compiler-node-state section 2, ADR-036 React-like model, ADR-058 ports
 ADR-076 per-fragment gradients ── ADR-068 storage buffer, ADR-049 RHI versioning
 ADR-073 window presets (proposed) ── project-config-v1 window block, designer-studio-v1 skins and presets, responsive window-is-media-context, ADR-045 skins
 ADR-075 server data in TSX (proposed) ── ADR-058 class B shims, ADR-052 net stacks, async-data-v1 resources, ADR-067 useResource, ADR-050 services
