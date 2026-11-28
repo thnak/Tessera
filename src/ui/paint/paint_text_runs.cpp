@@ -153,23 +153,26 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
     if (line.end <= line.begin) {
         return;
     }
+    // The first-line box (a list marker, TextStyle::first_line_indent) is part of `line.width` but
+    // holds no glyphs: they start after it and have the rest of the room.
+    const float glyph_x = line_x + line.indent;
     if (text_style.text_overflow == text::TextOverflow::Ellipsis && line.width > available_width) {
         // Paint-side only: the fit reuses the metrics seam and the section 6.2 views, so layout,
         // line boxes, baselines and the measure cache stay exactly what `clip` produces.
-        const text::PaintedEllipsis fit =
-            text::fit_ellipsis_prefix(text, line.begin, line.end, text_style.white_space,
-                                      available_width, text_style, &run_advance, &source);
-        emit_ellipsized_line(line, text, fit, text_style, source, line_x, line_top, color, sink,
+        const text::PaintedEllipsis fit = text::fit_ellipsis_prefix(
+            text, line.begin, line.end, text_style.white_space,
+            std::max(0.0f, available_width - line.indent), text_style, &run_advance, &source);
+        emit_ellipsized_line(line, text, fit, text_style, source, glyph_x, line_top, color, sink,
                              stats);
         return;
     }
     if (line.visual_runs.empty()) {
-        float x = line_x;
-        emit_range_segments(text, line, line.begin, line.end, true, line.width, text_style, source,
-                            x, line_top, color, sink, stats);
+        float x = glyph_x;
+        emit_range_segments(text, line, line.begin, line.end, true, line.width - line.indent,
+                            text_style, source, x, line_top, color, sink, stats);
         return;
     }
-    float x = line_x;
+    float x = glyph_x;
     for (const text::BidiVisualRun& visual_run : line.visual_runs) {
         if (visual_run.end <= visual_run.begin) {
             continue;

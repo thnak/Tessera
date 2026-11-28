@@ -12,6 +12,11 @@ set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_gallery_button ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
 set(_gallery_safe_area ${PROJECT_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
 set(_gallery_icon ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Icon.tsx)
+set(_gallery_controls
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Switch.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Checkbox.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Radio.tsx
+    ${PROJECT_SOURCE_DIR}/packages/tessera-ui/RadioGroup.tsx)
 set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.tsx)
 # The codegen CLI as a command. In an Emscripten build it is the Node tool (NODERAWFS, see the
 # compiler's CMakeLists), so it runs through node: the emsdk's (`EMSDK_NODE`, which emsdk_env.sh
@@ -37,7 +42,14 @@ set(_gallery_outputs
     ${_gallery_gen}/Icon.g.hpp ${_gallery_gen}/Icon.hpp ${_gallery_gen}/Icon.cpp
     ${_gallery_gen}/IconGlyph.g.hpp ${_gallery_gen}/IconGlyph.hpp ${_gallery_gen}/IconGlyph.cpp
     ${_gallery_gen}/IconsPage.g.hpp ${_gallery_gen}/IconsPage.hpp ${_gallery_gen}/IconsPage.cpp
-    ${_gallery_gen}/ListsPage.g.hpp ${_gallery_gen}/ListsPage.hpp ${_gallery_gen}/ListsPage.cpp)
+    ${_gallery_gen}/ListsPage.g.hpp ${_gallery_gen}/ListsPage.hpp ${_gallery_gen}/ListsPage.cpp
+    ${_gallery_gen}/ControlsPage.g.hpp ${_gallery_gen}/ControlsPage.hpp
+    ${_gallery_gen}/ControlsPage.cpp
+    ${_gallery_gen}/Switch.g.hpp ${_gallery_gen}/Switch.hpp ${_gallery_gen}/Switch.cpp
+    ${_gallery_gen}/Checkbox.g.hpp ${_gallery_gen}/Checkbox.hpp ${_gallery_gen}/Checkbox.cpp
+    ${_gallery_gen}/Radio.g.hpp ${_gallery_gen}/Radio.hpp ${_gallery_gen}/Radio.cpp
+    ${_gallery_gen}/RadioGroup.g.hpp ${_gallery_gen}/RadioGroup.hpp
+    ${_gallery_gen}/RadioGroup.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -54,6 +66,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_icon_glyph} ${_gallery_gen}/src/icons/IconGlyph.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/IconsPage.tsx ${_gallery_gen}/src/IconsPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ListsPage.tsx ${_gallery_gen}/src/ListsPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_controls} ${_gallery_gen}/src
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${_gallery_gen}/src/ControlsPage.tsx
     COMMAND ${_gallery_codegen} --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
@@ -61,8 +75,10 @@ add_custom_command(
             ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
             ${_gallery_gen}/src/SwatchPage.tsx ${_gallery_gen}/src/Icon.tsx
             ${_gallery_gen}/src/icons/IconGlyph.tsx ${_gallery_gen}/src/IconsPage.tsx
-            ${_gallery_gen}/src/ListsPage.tsx
-    DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
+            ${_gallery_gen}/src/ListsPage.tsx ${_gallery_gen}/src/ControlsPage.tsx
+            ${_gallery_gen}/src/Switch.tsx ${_gallery_gen}/src/Checkbox.tsx
+            ${_gallery_gen}/src/Radio.tsx ${_gallery_gen}/src/RadioGroup.tsx
+    DEPENDS tessera_codegen_cli ${_gallery_controls} ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_icon} ${_gallery_icon_glyph}
@@ -79,6 +95,9 @@ if (EMSCRIPTEN)
     set(_gallery_web_files
         button.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css
         icon.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css
+        switch.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/switch.css
+        checkbox.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/checkbox.css
+        radio.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/radio.css
         safe-area.css=${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css
         gallery.css=${CMAKE_CURRENT_SOURCE_DIR}/gallery.css
         form.module.css=${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
@@ -101,6 +120,9 @@ if (EMSCRIPTEN)
         TESSERA_GALLERY_SAFE_AREA_CSS="/gallery/safe-area.css"
         TESSERA_GALLERY_BUTTON_CSS="/gallery/button.css"
         TESSERA_GALLERY_ICON_CSS="/gallery/icon.css"
+        TESSERA_GALLERY_SWITCH_CSS="/gallery/switch.css"
+        TESSERA_GALLERY_CHECKBOX_CSS="/gallery/checkbox.css"
+        TESSERA_GALLERY_RADIO_CSS="/gallery/radio.css"
         TESSERA_GALLERY_CSS="/gallery/gallery.css"
         TESSERA_GALLERY_FORM_CSS="/gallery/form.module.css"
         TESSERA_GALLERY_DASH_CSS="/gallery/dash.css"
@@ -140,6 +162,9 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf"
     TESSERA_GALLERY_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css"
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
+    TESSERA_GALLERY_SWITCH_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/switch.css"
+    TESSERA_GALLERY_CHECKBOX_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/checkbox.css"
+    TESSERA_GALLERY_RADIO_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/radio.css"
     TESSERA_GALLERY_ICON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/icon.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
@@ -169,6 +194,15 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR} ${_gallery_gen})
     target_compile_features(gallery_page_table_tests PRIVATE cxx_std_23)
     add_test(NAME gallery_page_table COMMAND gallery_page_table_tests)
+
+    # Headless interaction of Switch, Checkbox and Radio through the generated controls page (issue
+    # #240): keyboard and pointer through the real InputRouter, no GPU.
+    add_executable(gallery_controls_runtime_tests controls_runtime_tests.cpp ${_gallery_outputs})
+    target_link_libraries(gallery_controls_runtime_tests PRIVATE tessera_scene tessera_text_edit
+        tessera_animation)
+    target_include_directories(gallery_controls_runtime_tests PRIVATE ${_gallery_gen})
+    target_compile_features(gallery_controls_runtime_tests PRIVATE cxx_std_23)
+    add_test(NAME gallery_controls_runtime COMMAND gallery_controls_runtime_tests)
 
     # Smoke: one capture on any Vulkan device. No device: the tool prints its documented skip line.
     add_test(NAME gallery_capture
@@ -220,6 +254,14 @@ if (TESSERA_BUILD_TESTS)
         list(APPEND _gallery_cases
             "lists_${_theme}|--page lists --theme instrument-${_theme} --width 760 --height 540")
     endforeach ()
+    # The input controls page (issue #240): Switch, Checkbox and RadioGroup in every state, per theme,
+    # plus the right-to-left mirror on the light theme.
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "controls_${_theme}|--page controls --theme instrument-${_theme_id} --width 640 --height 360")
+    endforeach ()
+    list(APPEND _gallery_cases "controls_rtl|--page controls --rtl --width 640 --height 360")
     foreach (_device notch gesture keyboard fold)
         foreach (_theme light dark)
             list(APPEND _gallery_cases

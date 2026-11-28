@@ -58,7 +58,8 @@ void test_grammar() {
     expect(!style::parse_list_style_type("\"-\""), "a string marker is not drawable");
     expect(!style::parse_list_style_type(""), "empty");
     expect(style::is_supported_list_style_position("outside"), "outside");
-    expect(!style::is_supported_list_style_position("inside"), "inside is rejected");
+    expect(style::is_supported_list_style_position("inside"), "inside");
+    expect(!style::is_supported_list_style_position("outer"), "an unknown position is rejected");
 
     expect(style::list_marker_text(ListStyleType::Decimal, 12) == "12. ", "decimal");
     expect(style::list_marker_text(ListStyleType::LowerAlpha, 1) == "a. ", "alpha one");
@@ -162,11 +163,28 @@ void test_cascade() {
         expect(value_of(compute(bare, node), "list-style-position") == "outside",
                "the initial position is outside");
     }
+    {
+        const Sheets sheets("Text { list-style: square inside }", false);
+        expect(sheets.authored.diagnostics.empty(), "inside is a valid position");
+        Tree tree;
+        tree.root.tag = "Root";
+        style::StyleNode& node = tree.add(tree.root, "Text", "");
+        const style::ComputedStyle computed = compute(sheets, node);
+        expect(value_of(computed, "list-style-type") == "square", "the type beside inside");
+        expect(value_of(computed, "list-style-position") == "inside", "the shorthand sets inside");
+    }
+    {
+        const Sheets sheets("Text { list-style-position: inside }", false);
+        expect(sheets.authored.diagnostics.empty(), "the longhand accepts inside");
+    }
     // Rejected forms: the declaration is dropped and the diagnostic names the reason.
     const char* rejected[] = {
-        "Text { list-style-position: inside }", "Text { list-style-type: georgian }",
-        "Text { list-style: url(a.png) }",      "Text { list-style: inside }",
-        "Text { list-style: disc square }",     "Text { list-style: outside outside }",
+        "Text { list-style-position: sideways }",
+        "Text { list-style-type: georgian }",
+        "Text { list-style: url(a.png) }",
+        "Text { list-style: inside outside }",
+        "Text { list-style: disc square }",
+        "Text { list-style: outside outside }",
         "Text { list-style: bogus }",
     };
     for (const char* source : rejected) {
@@ -193,8 +211,8 @@ void test_supports() {
     style::StyleNode& view = tree.add(tree.root, "View", "");
     expect(value_of(compute(sheets, text), "list-style-type") == "decimal",
            "@supports accepts decimal and rejects georgian");
-    expect(value_of(compute(sheets, text), "list-style-position") == "outside",
-           "@supports rejects inside");
+    expect(value_of(compute(sheets, text), "list-style-position") == "inside",
+           "@supports accepts inside");
     expect(value_of(compute(sheets, view), "list-style-type") == "lower-roman",
            "@supports understands the shorthand");
 }
@@ -202,11 +220,12 @@ void test_supports() {
 void test_invalidation_domain() {
     using tessera::ui::Dirty;
     for (const char* property : {"list-style-type", "list-style-position"}) {
-        expect(!tessera::ui::animation::is_layout_property(property),
-               std::string(property) + " is not a layout property");
+        // An inside marker is a first-line box of the item's first Text, so a change reflows it.
+        expect(tessera::ui::animation::is_layout_property(property),
+               std::string(property) + " is a layout property");
         expect(tessera::ui::animation::dirty_for_property(property) ==
-                   (Dirty::Paint | Dirty::Render),
-               std::string(property) + " dirties paint and render only");
+                   (Dirty::Layout | Dirty::Paint | Dirty::Render),
+               std::string(property) + " dirties layout, paint and render");
     }
 }
 

@@ -1,0 +1,64 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Checkbox look (issue #240, ADR-047 item 5): an 18 px box with a check icon (the Icon takes the
+   text color, so `color` on the box tints it) or a bar for the mixed state. Theme tokens only. */
+
+.tchk {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--on-surface);
+  cursor: pointer;
+}
+
+.tchk-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-raised);
+}
+
+.tchk-on .tchk-box,
+.tchk-mixed .tchk-box {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tchk-bar {
+  width: 8px;
+  height: 2px;
+  background-color: var(--on-accent);
+}
+
+.tchk-label {
+  margin-inline-start: var(--space-2);
+}
+
+.tchk:hover .tchk-box {
+  opacity: 0.92;
+}
+
+.tchk:active .tchk-box {
+  opacity: 0.8;
+}
+
+.tchk:focus-visible .tchk-box {
+  border-color: var(--focus-ring);
+  box-shadow: 0px 0px 0px 2px var(--focus-ring);
+}
+
+.tchk-disabled {
+  opacity: 0.4;
+  cursor: default;
+}

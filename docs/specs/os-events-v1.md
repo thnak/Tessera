@@ -171,17 +171,9 @@ events (`src/platform/windows/window_display_win.*`, `window_display_messages_wi
 takes one metrics snapshot at the tick boundary, follows a refresh change through the pacer's
 rate-change path, and re-reads the topology once per tick when an event says it is stale.
 
-The synthetic injector is `tessera/hal/synthetic_events.hpp`
-(`SyntheticEventInjector` plus the named `make_*_script()` fixtures: resize/DPI storm, display
-hotplug, scale change, refresh change). It records normalized events with a simulated clock and a
-counter sequence, coalesces by the same rule, and never calls a platform API.
+The synthetic injector is `tessera/hal/synthetic_events.hpp` (`SyntheticEventInjector`, `make_*_script()` fixtures): simulated clock, counter sequence, same coalescing, no platform API.
 
-Evidence: `tests/unit/os_event_tests.cpp` (ctest `os_event`: fallbacks and assumption flags, reason
-merging, the taxonomy counts/order/coalescing/wake rules, staleness, the total window-path mapping
-and coalescing) and `tests/unit/harness/os_event_display_tests.cpp` (ctest `os_event_display`: the
-four scripts, the recorded fallbacks, "unknown event is ignored", a deterministic replay, and the
-fake-window `poll_events` seam). Both are OS-free, so they run identically on the Windows and Linux
-gating lanes.
+Evidence: `tests/unit/os_event_tests.cpp` (ctest `os_event`) and `tests/unit/harness/os_event_display_tests.cpp` (ctest `os_event_display`: scripts, fallbacks, replay, the fake-window `poll_events` seam); both OS-free.
 
 ### 2.2 OS appearance settings: color scheme and reduced motion (issue #187)
 
@@ -251,6 +243,10 @@ kind) and leaves everything else at its initializer. A hot resume never reads th
 Named fixtures: `make_back_pop_back_exit_script`, `make_home_resume_script`,
 `make_power_cycle_script`, `make_process_death_script`. Evidence: `tests/unit/system_buttons_tests.cpp`
 (ctest `system_buttons`).
+
+### 2.4 Notification events
+
+`NotificationActivated` (id, action id, link; `cold_start` set by the service) and `NotificationDelivered` (id) ride this path ([`notifications-v1.md`](notifications-v1.md) section 6); push token/payload events are reserved.
 
 ## 3. Event ordering and delivery
 

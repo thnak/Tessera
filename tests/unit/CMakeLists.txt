@@ -85,6 +85,13 @@ target_link_libraries(jsx_type_forms_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_type_forms COMMAND jsx_type_forms_tests)
 
+add_executable(jsx_type_forms_lowering_tests
+    jsx_type_forms_lowering_tests.cpp)
+
+target_link_libraries(jsx_type_forms_lowering_tests PRIVATE tessera_lowering)
+
+add_test(NAME jsx_type_forms_lowering COMMAND jsx_type_forms_lowering_tests)
+
 # ADR-066 item 1: the React spellings a port uses (arrow components, `import React`, `useId`, the
 # safe `useMemo`/`useCallback` forms, `??`/`?.`). Split from jsx_module_tests when that file reached
 # the 500-line hard limit.
@@ -468,6 +475,11 @@ add_executable(layout_gate_tests
 target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME layout_gate COMMAND layout_gate_tests)
+
+# list-style-position: inside through the host: layout reserves the marker's box, paint draws into it.
+add_executable(list_inside_host_tests list_inside_host_tests.cpp)
+target_link_libraries(list_inside_host_tests PRIVATE tessera_app tessera_runtime)
+add_test(NAME list_inside_host COMMAND list_inside_host_tests)
 
 # The retained layout input's reuse (src/app/layout_input_reuse.hpp): a text change the layout pass
 # never saw must not survive into the next pass.
@@ -3471,6 +3483,10 @@ add_executable(list_style_tests
 target_link_libraries(list_style_tests PRIVATE tessera_paint tessera_scene tessera_style tessera_animation)
 add_test(NAME list_style COMMAND list_style_tests)
 
+add_executable(list_style_inside_tests list_style_inside_tests.cpp)
+target_link_libraries(list_style_inside_tests PRIVATE tessera_paint tessera_scene tessera_style tessera_text)
+add_test(NAME list_style_inside COMMAND list_style_inside_tests)
+
 add_executable(a11y_span_tests
     a11y_span_tests.cpp)
 target_link_libraries(a11y_span_tests PRIVATE tessera_accessibility)
@@ -3547,6 +3563,16 @@ target_compile_definitions(library_capsule_status_tests PRIVATE
     TESSERA_CAPSULE_STATUS_TSX="${PROJECT_SOURCE_DIR}/packages/tessera-ui/CapsuleStatus.tsx"
     TESSERA_CAPSULE_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/live-capsule.css")
 add_test(NAME library_capsule_status COMMAND library_capsule_status_tests)
+
+# Issue #240: the Switch, Checkbox and Radio stylesheets compile, read only theme tokens and name no
+# color literal.
+add_executable(library_controls_style_tests
+    library_controls_style_tests.cpp)
+target_link_libraries(library_controls_style_tests PRIVATE tessera_style)
+target_compile_definitions(library_controls_style_tests PRIVATE
+    TESSERA_LIBRARY_DIR="${PROJECT_SOURCE_DIR}/packages/tessera-ui"
+    TESSERA_INSTRUMENT_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+add_test(NAME library_controls_style COMMAND library_controls_style_tests)
 
 # Issue #530: the Icon stylesheet compiles, names no color, and flips only a directional icon.
 add_executable(library_icon_style_tests

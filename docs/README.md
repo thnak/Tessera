@@ -177,11 +177,10 @@ This page is the map and reading order for the framework.
   validation, submit/focus/reset
 - [`specs/navigation-v1.md`](specs/navigation-v1.md) — route table, back stack, guards, modal
   routes, deep-link/startup integration
-- [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/
-  focus/draft restoration
+- [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/focus/draft restoration
 - [`specs/platform-shell-v1.md`](specs/platform-shell-v1.md) — clipboard, drag/drop, context
   menus, file dialogs, menu bar/tray; [`specs/permissions-v1.md`](specs/permissions-v1.md) — the
-  permission state model, request flow and `tessera.json` declaration
+  permission state model and declaration; [`specs/notifications-v1.md`](specs/notifications-v1.md) — local notifications, consent, activation
 - [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU catalogs, formatting, RTL, pseudo-localization
 - [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
   announcements/platform bridges/tests
@@ -245,7 +244,7 @@ This page is the map and reading order for the framework.
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
 - [`design/layout-observation.md`](design/layout-observation.md) — size observation, read model, settle rounds, container queries (ADR-041)
-- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/inline-size-runs.md`](design/inline-size-runs.md) for `sub`/`sup`/`small` size runs; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`; [`design/list-style.md`](design/list-style.md) for `list-style` and the `ul`/`ol` markers
+- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/inline-size-runs.md`](design/inline-size-runs.md) for `sub`/`sup`/`small` size runs; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`; [`design/list-style.md`](design/list-style.md) and [`design/list-style-inside.md`](design/list-style-inside.md) for `list-style` and the `ul`/`ol` markers
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
   locale subset, build cost, go/no-go
 - [`design/animation.md`](design/animation.md) — transitions, keyframes, springs, fixed-step
@@ -348,8 +347,7 @@ This page is the map and reading order for the framework.
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
 - [`design/build-and-packaging.md`](design/build-and-packaging.md) — CMake, static linking,
   assets, notices, SBOM (software bill of materials), release
-- [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives, data grid, packaging, roadmap
-- [`design/library-farm-plan.md`](design/library-farm-plan.md) — library and chart build order, the Chrome-parity gate, blocking decisions
+- [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives, data grid, packaging, roadmap; [`library-farm-plan.md`](design/library-farm-plan.md) build order and parity gate; [`v1-widget-set.md`](design/v1-widget-set.md) V1 widget set decision note (#527)
 - [`design/media-and-export.md`](design/media-and-export.md) — video/audio seams, printing, PDF,
   image/vector export
 
