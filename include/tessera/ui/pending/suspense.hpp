@@ -61,7 +61,24 @@ public:
         for (SuspenseRead& read : reads_) {
             read = SuspenseRead{};
         }
+        phase_ = SuspensePhase::Content;
+        hold_ = false;
         return count_;
+    }
+
+    // A transition that started a read this boundary covers is pending (pending-ui-v1.md section
+    // 4.3): the boundary keeps the subtree it is showing instead of entering its fallback. The
+    // hold applies only to the content subtree that was live when the transition began; a boundary
+    // already in its fallback stays there, because that is the old UI. Setting it before the reads
+    // are published (as `pending_sync` does) is what makes the first suspending frame keep the
+    // content. Releasing the hold re-evaluates the rule, so a read still suspending then shows the
+    // fallback.
+    constexpr void set_hold(bool held) noexcept {
+        hold_ = held;
+        settle();
+    }
+    [[nodiscard]] constexpr bool held() const noexcept {
+        return hold_;
     }
 
     // Records the state of one read. An unregistered slot is a recoverable error, never a silent
@@ -76,6 +93,7 @@ public:
         reads_[slot].loading = loading;
         reads_[slot].has_data = has_data;
         reads_[slot].epoch = epoch;
+        settle();
         return {};
     }
 
@@ -94,7 +112,7 @@ public:
     }
 
     [[nodiscard]] constexpr SuspensePhase phase() const noexcept {
-        return suspends() ? SuspensePhase::Fallback : SuspensePhase::Content;
+        return phase_;
     }
     [[nodiscard]] constexpr bool fallback_live() const noexcept {
         return phase() == SuspensePhase::Fallback;
@@ -104,8 +122,20 @@ public:
     }
 
 private:
+    // The rule, applied after every change: no suspending read means the content; a suspending read
+    // means the fallback unless a transition holds the content that is live.
+    constexpr void settle() noexcept {
+        if (!suspends()) {
+            phase_ = SuspensePhase::Content;
+        } else if (!(hold_ && phase_ == SuspensePhase::Content)) {
+            phase_ = SuspensePhase::Fallback;
+        }
+    }
+
     SuspenseRead reads_[kMaxReads]{};
     std::size_t count_ = 0;
+    SuspensePhase phase_ = SuspensePhase::Content;
+    bool hold_ = false;
 };
 
 } // namespace tessera::ui::pending

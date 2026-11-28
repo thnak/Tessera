@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 namespace tessera::ui::pending {
 
@@ -15,6 +16,12 @@ struct ResourceState {
     bool loading = false;
     bool has_data = false;
     bool failed = false;
+    // The published scalar of a typed resource (`Resource::type`, pending-ui-v1.md section 3.4):
+    // `number` for an int, float or bool, `text` for a string. A source that has no data, or no
+    // scalar of that kind, leaves them at the zero value, which is what an absent `.data` reads.
+    // `text` is a view the source keeps alive until its next publish; nothing here allocates.
+    double number = 0.0;
+    std::string_view text{};
 
     // The `res::<name>.status` value (async-data-v1.md section 1, lower case). `Stale` is never
     // produced (pending-ui-v1.md section 12, question 1, resolved: the epoch is what is read).

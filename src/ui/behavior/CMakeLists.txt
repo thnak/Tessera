@@ -3,6 +3,7 @@
 add_library(tessera_behavior STATIC
     announce.cpp
     clipboard_copy.cpp
+    deferred_value.cpp
     focus_trap.cpp
     hotkeys.cpp
     instance.cpp
@@ -11,7 +12,8 @@ add_library(tessera_behavior STATIC
     press_feedback.cpp
     registry.cpp
     roving_focus.cpp
-    scroll_lock.cpp)
+    scroll_lock.cpp
+    transition.cpp)
 
 target_include_directories(tessera_behavior PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -74,6 +76,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/announce_tests.cpp)
     target_link_libraries(announce_tests PRIVATE tessera_behavior tessera_accessibility)
     add_test(NAME announce COMMAND announce_tests)
+
+    add_executable(pending_behavior_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/pending_behavior_tests.cpp)
+    target_link_libraries(pending_behavior_tests PRIVATE tessera_behavior)
+    add_test(NAME pending_behavior COMMAND pending_behavior_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)
