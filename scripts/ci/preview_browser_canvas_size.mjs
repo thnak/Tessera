@@ -93,13 +93,50 @@ function startServer() {
 }
 
 let failures = 0;
+let skipped = 0;
+/** Lines of the attempt in progress; a section discards them when the runner lost the device under it. */
+let pending = [];
 function check(name, ok, detail) {
   // The detail is printed on a failure: on a pass it is the observation, which is noise unless the
   // number is the point, and `--shot` covers that.
-  process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? `  -- ${detail}` : ''}\n`);
-  if (!ok) {
-    failures += 1;
+  pending.push({ ok, line: `${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? `  -- ${detail}` : ''}\n` });
+}
+
+/**
+ * A device the runner took back: the pane then reads `unsupported` with the "device was lost" sentence
+ * (`views/canvas-session.ts`). The same test as `preview_browser_canvas_handover.mjs`.
+ */
+function lostDevice(state) {
+  return state.unsupported === true && /device was lost/i.test(state.body ?? '');
+}
+
+/**
+ * Runs one browser section, retrying when the runner lost its WebGPU device during it.
+ *
+ * **Why this exists (#958).** These checks were written on the belief that sizing "runs with no device".
+ * It does not: once the device is lost the session drops its `gpu` handle and `onEnvironmentChange`
+ * returns early, so a viewport change is (correctly) not applied and the canvas stays 320x240. Hosted
+ * SwiftShader runners lose the device intermittently (see the handover check), which turned a runner
+ * condition into seven red checks. A section whose page lost the device is therefore retried, and
+ * reported as SKIP, never as a pass, if it loses it on every attempt. A section that kept its device
+ * is judged normally, so a real regression still fails.
+ */
+async function section(name, run) {
+  const attempts = 3;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    pending = [];
+    const lost = await run();
+    if (!lost) {
+      for (const entry of pending) {
+        process.stdout.write(entry.line);
+        if (!entry.ok) failures += 1;
+      }
+      return;
+    }
+    process.stdout.write(`     ${name}, attempt ${attempt}: the runner lost the WebGPU device; ${attempt < attempts ? 'retrying' : 'giving up'}\n`);
   }
+  skipped += 1;
+  process.stdout.write(`SKIP ${name}  -- this runner lost the WebGPU device on every attempt\n`);
 }
 
 async function settles(expression, page, timeout = 20000, argument = undefined) {
@@ -206,9 +243,9 @@ const browser = await chromium.launch({ args: GPU_ARGS });
 try {
   // --- #598: the backing store follows the viewport ------------------------------------------------
   //
-  // Run with no device: this half is about WHICH code sets `canvas.width`, and `sizeToDevicePixels`
-  // runs before the module is ever asked for a frame. A browser without WebGPU therefore still proves
-  // it, which is what makes this check portable to a runner that cannot keep a device.
+  // This half needs a live device: a lost device clears the session's `gpu` and a viewport change is then
+  // not applied (see `section`, #958), so a run that lost it is retried or skipped loudly.
+  await section('the viewport sizing checks (#598)', async () => {
   const sizingContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const sizingPage = await openCanvas(sizingContext, base);
 
@@ -256,13 +293,17 @@ try {
     Math.abs(resized.width - expectedWidth) <= 1,
     `css ${resized.cssWidth} x DPR ${dpr} = ${expectedWidth}, canvas.width = ${resized.width}`,
   );
+  const lostSizing = lostDevice(await readCanvas(sizingPage));
   await sizingContext.close();
+  return lostSizing;
+  });
 
   // --- DPR 2 geometry: the store and the box both double ------------------------------------------
   //
   // The PAINT at DPR 2 is `scene_frame_parity.py`'s `dpr` case (lavapipe): a presented WebGPU frame
   // cannot be read back in headless Chromium, so the assertion here stops at the two numbers the
   // page owns - the backing store and the CSS box - which is where #598 and #599 both started.
+  await section('the DPR and drag-resize checks (#598, #599, #690)', async () => {
   const scaledContext = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   const scaledPage = await openCanvas(scaledContext, base);
 
@@ -372,12 +413,20 @@ try {
     await scaledPage.screenshot({ path: shot, fullPage: false });
     process.stdout.write(`shot: ${shot}\n`);
   }
+  const lostScaled = lostDevice(await readCanvas(scaledPage));
   await scaledContext.close();
+  return lostScaled;
+  });
 } finally {
   await browser.close();
   server.close();
 }
 
-const verdict = failures > 0 ? `${failures} check(s) failed` : 'all checks passed';
+const verdict =
+  failures > 0
+    ? `${failures} check(s) failed`
+    : skipped > 0
+      ? `passed with ${skipped} skipped section(s) -- a check this runner could not exercise is not a pass`
+      : 'all checks passed';
 process.stdout.write(`\ncanvas size: ${verdict}\n`);
 process.exit(failures === 0 ? 0 : 1);
