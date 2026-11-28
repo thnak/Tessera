@@ -45,6 +45,7 @@ on:
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
+      - 'scripts/ci/preview_search_client.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -103,6 +104,7 @@ on:
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
+      - 'scripts/ci/preview_search_client.mjs'
       - 'scripts/ci/preview_project_problems.mjs'
       - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
@@ -316,6 +318,10 @@ jobs:
       # opening the URL (or the developer-run `preview_browser_check.mjs`). The scripts say so themselves.
       - name: Problems model (severity counts, filter, store, no browser)
         run: node scripts/ci/preview_problems.mjs
+
+      # The page side of project search (#580): the client around the worker and the multi-file replace history.
+      - name: Project search client and replace history
+        run: node scripts/ci/preview_search_client.mjs
 
       # #575, #569: the page's analysis and compile clients over the real worker sources (stand-in engines):
       # a file that is not open reaches the Problems store, fixing it clears the row, an unavailable module is

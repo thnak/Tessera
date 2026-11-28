@@ -18,6 +18,7 @@ import type { ProjectIo } from "./page-project-io";
 import type { PlatformControls } from "./page-platform";
 import type { ResourceControls } from "./page-resources";
 import type { ProblemsHandle } from "./page-problems";
+import type { SearchHandle } from "./page-search";
 import type { PageRefs } from "./page-state";
 import type { Workspace } from "./page-workspace";
 import type { Skin } from "./views/skins";
@@ -30,6 +31,7 @@ import { CanvasPanel, DiagnosticsPanel, ScenePanel } from "./regions/PreviewPane
 import { ProblemsPanel } from "./regions/ProblemsPanel";
 import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
+import { SearchPanel } from "./regions/SearchPanel";
 
 export interface WorkbenchSurfaceProps {
   workbench: Workbench;
@@ -38,6 +40,8 @@ export interface WorkbenchSurfaceProps {
   refs: PageRefs;
   /** The Problems store and its click-to-jump. */
   problems: ProblemsHandle;
+  /** The project search and replace state (#580). */
+  search: SearchHandle;
   activeText: string;
   revision: number;
   runEnabled: boolean;
@@ -82,6 +86,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         toolbar={<ProjectBar io={projectIo} />}
       />
     ),
+    search: <SearchPanel search={props.search} visible={props.workbench.visible.has("search")} />,
     editor: (
       <CodeRegion
         open={workspace.state.open}
