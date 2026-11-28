@@ -255,9 +255,10 @@ test("movePanel: to an edge makes a new group; the source group disappears when 
   const single = wb.movePanel(dflt(), "editor", { edge: "right", of: "g-editor" });
   assert.equal(single.layout.root.type, "split", "splitting a group around its only panel is a no-op");
   assert.deepEqual(single.change, { opened: [], closed: [], shown: [], hidden: [] });
-  // The side bar group holds Project and Search; both leave before the group is gone.
+  // The side bar group holds Project, Search and History; all three leave before the group is gone.
   const searchOut = wb.movePanel(dflt(), "search", { edge: "bottom", of: "g-editor" });
-  const emptied = wb.movePanel(searchOut.layout, "project", { edge: "bottom", of: "g-editor" });
+  const historyOut = wb.movePanel(searchOut.layout, "history", { edge: "bottom", of: "g-editor" });
+  const emptied = wb.movePanel(historyOut.layout, "project", { edge: "bottom", of: "g-editor" });
   assert.equal(wb.findGroup(emptied.layout, "g-project"), null);
   assertValid(emptied.layout, "project moved out of its group");
 });
@@ -372,7 +373,7 @@ test("phone collapse: Editor, Canvas, Scene, Diagnostics first; the rest in read
   const layout = dflt();
   const before = clone(layout);
   const phone = wb.collapse(layout);
-  assert.deepEqual(phone.panels, ["editor", "canvas", "scene", "diagnostics", "project", "search", "problems", "mock-console", "call-trace", "platform-events"]);
+  assert.deepEqual(phone.panels, ["editor", "canvas", "scene", "diagnostics", "project", "search", "history", "problems", "mock-console", "call-trace", "platform-events"]);
   assert.equal(phone.active, "editor");
   assert.equal(wb.collapse(layout, "scene").active, "scene");
   assert.equal(wb.collapse(layout, "ghost").active, "editor");
@@ -587,7 +588,7 @@ test("keyboard moves: Down joins the panel area (and opens it), Right and Left m
   assert.deepEqual(wb.directionTarget(layout, "diagnostics", "right"), { edge: "right", of: "root" });
   assert.deepEqual(wb.directionTarget(layout, "scene", "left"), { edge: "left", of: "root" });
   assert.equal(wb.directionTarget(layout, "diagnostics", "bottom"), null, "already in the panel area");
-  assert.equal(wb.directionTarget(wb.closePanel(layout, "search").layout, "project", "left"), null, "a lone panel already at that edge");
+  assert.equal(wb.directionTarget(wb.closePanel(wb.closePanel(layout, "search").layout, "history").layout, "project", "left"), null, "a lone panel already at that edge");
   assert.equal(wb.directionTarget(layout, "ghost", "right"), null);
   const down = wb.movePanel(layout, "canvas", wb.directionTarget(layout, "canvas", "bottom"));
   assert.deepEqual(down.layout.collapsed, [], "moving into the collapsed panel area opens it");
