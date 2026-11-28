@@ -80,6 +80,17 @@ public:
     // owns the iteration); a callback may schedule or cancel freely.
     std::size_t fire_due(double now_seconds);
 
+    // Pause/resume the whole queue (the `Suspended` policy, issue #453). While paused `fire_due`
+    // fires nothing and `next_deadline_seconds` reports `kNoDeadline`, so a parked loop does not
+    // wake for a timer it may not run. Timers keep their deadlines: on resume anything overdue
+    // fires on the next `fire_due` (a periodic timer coalesces to one fire, as after any long gap).
+    void set_paused(bool paused) noexcept {
+        paused_ = paused;
+    }
+    [[nodiscard]] bool paused() const noexcept {
+        return paused_;
+    }
+
     // Earliest active deadline, or `kNoDeadline` when nothing is scheduled: what the loop joins
     // with the pacer deadline so a host parks for the nearer of the two.
     [[nodiscard]] double next_deadline_seconds() const noexcept;
@@ -117,6 +128,7 @@ private:
     // Guards the iteration: a callback that calls `fire_due` would otherwise mutate the slot it is
     // being invoked from.
     bool firing_ = false;
+    bool paused_ = false;
 };
 
 } // namespace tessera::runtime
