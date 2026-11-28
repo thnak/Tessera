@@ -28,7 +28,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchGpuBrowser } from './browser_gpu.mjs';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 const MIME = {
@@ -47,10 +47,6 @@ const args = process.argv.slice(2);
 const shotIndex = args.indexOf('--shot');
 const shot = shotIndex >= 0 ? args[shotIndex + 1] : null;
 const site = resolve(args.find((value, index) => index === 0 && value !== '--shot') ?? 'build/pages');
-
-// The flags that give headless Chromium a WebGPU device on a host with no GPU. `--no-sandbox` is what
-// a containerised runner needs (unprivileged user namespaces are off on Ubuntu 23.10+).
-const GPU_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--no-sandbox'];
 
 // The project the canvas previews. The studio starts with no project open (#391: nothing is bundled),
 // so the gate opens one through the page's own Open Zip route; `tessera.json` naming an entry is what
@@ -212,7 +208,7 @@ function drawCount(text) {
 }
 
 const { server, base } = await startServer();
-const browser = await chromium.launch({ args: GPU_ARGS });
+const browser = await launchGpuBrowser();
 
 /**
  * Whether this browser can hand out a device **right now**, asked in a page of its own.
