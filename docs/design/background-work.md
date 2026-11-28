@@ -1,6 +1,6 @@
 # Background work: `TaskScope`, the timer wake source and the background policy
 
-Status: implemented (AF2, issue #174; policy slice issue #453). ADR-050 section 5 is the decision; this note records the shape
+Status: implemented (AF2, issue #174; policy slice issue #453; job contract groundwork issue #1043). ADR-050 section 5 is the decision; this note records the shape
 that landed, the two mechanisms it reuses from layer 0, and the concurrency rules a caller has to
 respect.
 
@@ -225,3 +225,30 @@ Owner-gated, so this note records the intended shape without committing it:
 
 No ADR: the V1 decision is the status quo of ADR-050 section 5, and the deferral changes no accepted
 interface. The follow-up issue tracks the OS-job design for when a mobile back end is scheduled.
+
+### 6.1 Contract groundwork that landed (issue #1043)
+
+The OS-free half of section 6 is implemented so a mobile back end later only fills the seam.
+Nothing below needs a platform API, and none of it changes the V1 decision.
+
+| Piece | Where | Notes |
+|---|---|---|
+| `BackgroundJob`, `JobConstraints`, `JobContext`, `JobResult` | `include/tessera/appfw/background_job.hpp` | `start(JobContext&)` spawns into `context.scope()` and returns; the work ends with `context.finish(result)` (first call wins) |
+| `JobScheduler` | same header | the only OS seam: `schedule(id, constraints)` and `cancel(id)`; both are requests |
+| `FakeJobScheduler` | `background_job_fake.hpp` | plays the OS in tests: device network/charging state, a delay, and `wake(id)` that reports why a wake did not happen |
+| `HeadlessJobHost` | `background_job_host.hpp` | the headless `Application` entry: launches the declared services (no window), runs one job, closes its scope, stops the services |
+
+Host phases are `Starting -> Running -> Closing -> Stopping -> Done`. The budget is the OS budget
+minus `budget_margin_seconds` and is charged from `begin`, so service start-up counts against it. A
+budget that the margin consumes launches nothing. At the budget, or when the OS expiration handler
+calls `request_stop()`, the registered checkpoint runs once, then the scope is cancelled and closed
+with the section 2 deadline rules (`close_grace_seconds`); a child that never drains is reported
+through `scope_timed_out()` and the services still stop. Outcomes: `Success`, `RetryRequested`,
+`Failed`, `BudgetExpired`, `Stopped`, `NotStarted` (unknown id, required service failed, or `start`
+refused). The host never drains the completion queue; the caller's loop does, as for `RuntimeLoop`.
+
+Still needs an OS (tracked in the follow-up on #1043): the WorkManager and `BGTaskScheduler`
+`JobScheduler` implementations, the process entry that maps an OS wake to `begin(id, budget)`, and
+the iOS expiration handler calling `request_stop()`. A declared-subset-of-services start (the
+section 6 "Entry" row) is also open: the host currently starts whatever the prepared runner holds,
+so the entry point builds a smaller runner for a job wake.

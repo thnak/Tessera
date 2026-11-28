@@ -192,9 +192,45 @@ void held_activations_are_bounded() {
     expect(f.service->held_activations() == 4, "the oldest are dropped past the bound");
 }
 
+void fake_delivery_paths() {
+    NotifFixture f;
+    f.grant();
+    // An immediate notification is shown at once and is never tracked as pending.
+    expect(f.service->schedule(make_request("now")).ok(), "immediate posts");
+    expect(f.backend.shown().size() == 1 && f.service->pending().empty(), "shown, not pending");
+    // Re-posting a shown id replaces it rather than duplicating it.
+    auto updated = make_request("now");
+    updated.body = "newer";
+    expect(f.service->schedule(updated).ok(), "re-post");
+    expect(f.backend.shown().size() == 1 && f.backend.shown()[0].body == "newer",
+           "a shown id is replaced in place");
+
+    // A platform refusal surfaces as a value and leaves no pending state behind.
+    f.backend.set_refuse_posts(true);
+    const auto refused = f.service->schedule(make_request("later", 900));
+    expect(refused.status == appfw::NotificationStatus::Unsupported && f.service->pending().empty(),
+           "a refused post is Unsupported and not tracked");
+    f.backend.set_refuse_posts(false);
+
+    // Firing is by id only; an unknown id reports false and changes nothing.
+    expect(f.service->schedule(make_request("a", 100)).ok() &&
+               f.service->schedule(make_request("b", 200)).ok(),
+           "two armed");
+    expect(!f.backend.fire("missing") && f.backend.armed().size() == 2, "unknown id is a no-op");
+    expect(f.backend.fire("b") && f.backend.armed().size() == 1, "fire moves one to shown");
+
+    expect(f.service->set_badge(7) == appfw::NotificationStatus::Scheduled &&
+               f.backend.badge() == 7,
+           "a badge reaches the back end");
+    f.service->cancel_all();
+    expect(f.backend.armed().empty() && f.backend.shown().empty() && f.service->pending().empty(),
+           "cancel_all clears armed, shown and pending");
+}
+
 } // namespace
 
 int main() {
+    fake_delivery_paths();
     schedule_then_cancel();
     deduplication_and_validation();
     denied_permission_returns_a_value();
