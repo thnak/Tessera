@@ -80,4 +80,4 @@ database whose version is newer than the newest migration is refused rather than
   VFS, not `hal::FileSystem`. Corrupt-file behaviour is tested with a real scratch file; full-disk
   and failed-rename cases would need a custom VFS.
 - Concurrent readers (additive, if measured), Wasm in-memory-only wiring and a durable browser store
-  (the open risk in the questions note), the `tessera.json` module key (needs a manifest `dependencies` reader first).
+  (the open risk in the questions note), the CMake wiring from the `tessera.json` `dependencies.modules` key (the loader reads and validates it since #983).

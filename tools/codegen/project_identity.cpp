@@ -172,6 +172,94 @@ bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& i
     return true;
 }
 
+// Reads the optional `dependencies` object (project-config-v1.md): `includeDirs` (project-relative
+// directories), `linkLibraries`, `modules` (the closed set of opt-in framework modules) and
+// `licenseReview` (must be true when present). Unknown keys and wrong types are errors, as for every
+// closed key here; absent or null is valid.
+bool read_string_list(const tessera::harness::JsonValue& object, std::string_view key,
+                      std::vector<std::string>& out, std::string& why) {
+    const tessera::harness::JsonValue* node = object.find(key);
+    if (node == nullptr || node->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Array* entries = node->as_array();
+    if (entries == nullptr) {
+        why = "`dependencies." + std::string(key) + "` must be an array of strings";
+        return false;
+    }
+    for (const tessera::harness::JsonValue& entry : *entries) {
+        const std::optional<std::string_view> text = entry.as_string();
+        if (!text || text->empty()) {
+            why = "every `dependencies." + std::string(key) + "` entry must be a non-empty string";
+            return false;
+        }
+        out.emplace_back(*text);
+    }
+    return true;
+}
+
+bool is_project_relative(std::string& path) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    const bool absolute = path.front() == '/' || (path.size() > 1 && path[1] == ':');
+    const bool escapes = path == ".." || path.starts_with("../") ||
+                         path.find("/../") != std::string::npos || path.ends_with("/..");
+    return !absolute && !escapes;
+}
+
+bool read_dependencies(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                       std::string& why) {
+    const tessera::harness::JsonValue* node = config.find("dependencies");
+    if (node == nullptr || node->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Object* members = node->as_object();
+    if (members == nullptr) {
+        why = "`dependencies` must be an object";
+        return false;
+    }
+    for (const tessera::harness::JsonValue::Member& member : *members) {
+        if (member.first != "includeDirs" && member.first != "linkLibraries" &&
+            member.first != "modules" && member.first != "licenseReview") {
+            why = "`dependencies." + member.first + "` is not a dependencies field";
+            return false;
+        }
+    }
+    DependenciesSpec& spec = identity.dependencies;
+    if (!read_string_list(*node, "includeDirs", spec.include_dirs, why) ||
+        !read_string_list(*node, "linkLibraries", spec.link_libraries, why)) {
+        return false;
+    }
+    for (std::string& dir : spec.include_dirs) {
+        if (!is_project_relative(dir)) {
+            why = "`dependencies.includeDirs` entry `" + dir +
+                  "` must be a project-relative directory";
+            return false;
+        }
+    }
+    std::vector<std::string> modules;
+    if (!read_string_list(*node, "modules", modules, why)) {
+        return false;
+    }
+    for (std::string& module : modules) {
+        if (module != "sqlite") {
+            why = "`dependencies.modules` entry `" + module + "` is not a module: sqlite";
+            return false;
+        }
+        if (std::find(spec.modules.begin(), spec.modules.end(), module) == spec.modules.end()) {
+            spec.modules.push_back(std::move(module));
+        }
+    }
+    if (const tessera::harness::JsonValue* review = node->find("licenseReview");
+        review != nullptr && !review->is_null()) {
+        const std::optional<bool> value = review->as_bool();
+        if (!value || !*value) {
+            why = "`dependencies.licenseReview` must be true (ADR-013)";
+            return false;
+        }
+    }
+    return true;
+}
+
 // Reads the optional `assets.<key>` path (`theme`, `fontPack`): a non-empty project-relative file
 // name (no absolute path, drive letter or `..` escape). Returns false and sets `why` on a malformed
 // entry; an absent `assets`/`assets.<key>` is valid and leaves `out` empty.
@@ -314,6 +402,10 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     std::string package_error;
     if (!read_packages(*parsed, identity, package_error)) {
         return fail(package_error);
+    }
+    std::string dependencies_error;
+    if (!read_dependencies(*parsed, identity, dependencies_error)) {
+        return fail(dependencies_error);
     }
     std::string permission_error;
     if (!read_permissions(*parsed, identity, permission_error)) {
