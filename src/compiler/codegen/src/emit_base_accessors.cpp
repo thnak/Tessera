@@ -14,6 +14,7 @@
 #include "emit_base_accessors.hpp"
 #include "emit_behaviors.hpp"
 #include "emit_events.hpp"
+#include "emit_observables.hpp"
 #include "emit_props.hpp"
 #include "emit_services.hpp"
 
@@ -316,7 +317,16 @@ bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
     if (!emit_behavior_accessors(writer, component, error)) {
         return false;
     }
-    return emit_service_accessors(writer, component, error);
+    if (!emit_service_accessors(writer, component, error)) {
+        return false;
+    }
+    // ADR-050 open question 6: the `obs_<name>_value()` accessors of `useObservable` reads.
+    for (const ir::Observable& observable : component.observables) {
+        if (!claim(observable_accessor_name(observable))) {
+            return false;
+        }
+    }
+    return emit_observable_accessors(writer, component, module, error);
 }
 
 } // namespace tessera::compiler::codegen::internal

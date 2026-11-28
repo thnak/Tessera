@@ -100,7 +100,7 @@ bool is_hook_symbol(SymbolKind kind) {
            // before its declaration is an order error like any other hook.
            kind == SymbolKind::Service || kind == SymbolKind::TransitionPending ||
            kind == SymbolKind::TransitionStart || kind == SymbolKind::Resource ||
-           kind == SymbolKind::DeferredValue;
+           kind == SymbolKind::DeferredValue || kind == SymbolKind::Observable;
 }
 
 void check_nesting(Context& ctx) {

@@ -4,6 +4,7 @@
 
 #include "validate_internal.hpp"
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <string_view>
@@ -180,6 +181,28 @@ void ComponentChecker::check_declarations() {
         scope.declared_types.emplace(resource.id + ".status", "string");
         if (!resource.type.empty()) {
             scope.declared_types.emplace(resource.id + ".data", resource.type);
+        }
+    }
+    // ADR-050 open question 6: an observable read is an `obs::<name>` id typed like its value, so a
+    // dotted read into a record is member-checked like any record cell. It must name a service the
+    // component declares and carry a type and a member, which codegen cannot guess.
+    for (const auto& observable : component.observables) {
+        declare(observable.id, "obs::", observable.source);
+        validate_span(context, observable.source, "observable `" + observable.id + "`");
+        validate_type(context, observable.type, observable.source);
+        scope.declared_types.emplace(observable.id, observable.type);
+        if (observable.member.empty()) {
+            context.report("TESSERA_IR_MALFORMED",
+                           "observable `" + observable.id + "` has no member", observable.source);
+        }
+        const bool declared_service =
+            std::any_of(component.services.begin(), component.services.end(),
+                        [&](const auto& service) { return service.id == observable.service; });
+        if (!declared_service) {
+            context.report("TESSERA_IR_UNRESOLVED",
+                           "observable `" + observable.id + "` reads service `" +
+                               observable.service + "`, which the component does not declare",
+                           observable.source);
         }
     }
     for (const auto& ref : component.refs) {

@@ -273,8 +273,10 @@ void check_service_calls(Context& ctx) {
     const auto& body = ctx.item.body;
     for (std::size_t index = 0; index < body.size(); ++index) {
         const jsx::Statement& statement = body[index];
-        if (!statement.init || callee_name(*statement.init) == "useService") {
-            continue;
+        if (!statement.init || callee_name(*statement.init) == "useService" ||
+            is_observable_call(*statement.init)) {
+            continue; // `useObservable(nav.route)` names a member as a value; observable.cpp checks
+                      // it
         }
         scanner.scan(*statement.init, false);
     }

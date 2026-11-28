@@ -8,6 +8,7 @@
 #include "tessera/compiler/rules/context_info.hpp"
 #include "tessera/compiler/rules/effect_info.hpp"
 #include "tessera/compiler/rules/environment_info.hpp"
+#include "tessera/compiler/rules/observable_info.hpp"
 #include "tessera/compiler/rules/reducer_info.hpp"
 #include "tessera/compiler/rules/resource_info.hpp"
 #include "tessera/compiler/rules/service_info.hpp"
@@ -44,6 +45,9 @@ struct ComponentAnalysis {
     // ADR-067 item 1 (issue #656): `useResource` calls in their accepted form, in body order. A
     // rejected one is a diagnostic and contributes no entry.
     std::vector<ResourceInfo> resources;
+    // ADR-050 open question 6: `useObservable(svc.member)` statements in their accepted form, in
+    // body order. A rejected one is a diagnostic and contributes no entry.
+    std::vector<ObservableInfo> observables;
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

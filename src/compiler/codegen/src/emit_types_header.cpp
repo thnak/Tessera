@@ -143,6 +143,12 @@ bool uses_record_types(const ir::Component& component, const ir::IrModule& modul
             }
         }
     }
+    // A `useObservable` of a record type names the aggregate in its cached pointer and accessor.
+    for (const ir::Observable& observable : component.observables) {
+        if (find_record_type(module, innermost_record_name(observable.type)) != nullptr) {
+            return true;
+        }
+    }
     return false;
 }
 
