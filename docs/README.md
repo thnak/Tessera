@@ -198,7 +198,7 @@ This page is the map and reading order for the framework.
   trust boundaries, compiler resource limits (two confirmed stack overflows), IO, and
   update/crash findings, plus what was not reviewed
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and comparison rules
-- [`specs/services-manifest-v1.md`](specs/services-manifest-v1.md) — `ui/services.json`: the service interfaces TSX may name and the methods it may call (draft, #177)
+- [`specs/services-manifest-v1.md`](specs/services-manifest-v1.md) — `ui/services.json`: the service interfaces TSX may name and the methods it may call (draft, #177); shim packages (ADR-058 class B): [`specs/router-shim-v1.md`](specs/router-shim-v1.md), [`specs/store-i18n-shims-v1.md`](specs/store-i18n-shims-v1.md)
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
   interface
 - [`specs/versioning-v1.md`](specs/versioning-v1.md) — SemVer (semantic versioning), schema/IR/manifest versions,
@@ -333,7 +333,7 @@ This page is the map and reading order for the framework.
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch)
 - [`design/observable.md`](design/observable.md) — `Observable<T>`: coalescing over
   `UpdateScheduler` (one notification per flush), the `const T&` delivery model, unsubscribe
-  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4)
+  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
 - [`design/background-work.md`](design/background-work.md) — `TaskScope`'s structured cancellation
   (bounded children, deadline-bounded `close()`, cancellation while a child is suspended) and the
   layer-0 timer wake source (`TimerQueue` ordering, coalescing, and the pacer/timer park join)

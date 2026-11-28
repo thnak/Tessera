@@ -30,6 +30,13 @@ The repository's own library package, `packages/tessera-ui/`, carries this manif
 configure `tessera-ui` is not version-checked; a project that configures the package, and declares
 a `version`, gets the check against the manifest in its own root.
 
+## Shim packages
+
+A class B shim of [ADR-058](../../decisions/ADR-058-react-vite-port-compatibility-tiers.md) is an ordinary
+package with this manifest plus an `index.d.ts` of typings, named by the npm specifier it replaces:
+`packages/react-router-dom/tessera-package.json` is `{ "name": "react-router-dom", "version": "0.1.0" }`.
+Specs: [`router-shim-v1.md`](router-shim-v1.md), [`store-i18n-shims-v1.md`](store-i18n-shims-v1.md).
+
 ## Requirement
 
 `packages[].version` in `tessera.json` is optional:
