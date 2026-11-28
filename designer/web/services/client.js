@@ -95,6 +95,30 @@ export class ServiceClient {
     return caps;
   }
 
+  /**
+   * Restarts the worker when it died (a crash, or a kill): the next request then rebuilds from the page's
+   * own text, so a killed worker costs one cold start and no page error. A no-op while the worker is up.
+   */
+  async recover() {
+    if (this.worker === null || this.failure !== null) {
+      await this.restart();
+      return true;
+    }
+    return false;
+  }
+
+  /** Runs `fn` (a snapshot and a request) on a live worker; if the worker died under it, restarts and runs it once more. */
+  async withRecovery(fn) {
+    await this.recover();
+    try {
+      return await fn();
+    } catch (error) {
+      if (this.failure === null) throw error;
+      await this.restart();
+      return fn();
+    }
+  }
+
   dispose() {
     this.worker?.terminate();
     this.#rejectAll(new ServiceError(ERROR_CODES.cancelled, 'client disposed'));

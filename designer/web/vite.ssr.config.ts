@@ -38,6 +38,13 @@ export default defineConfig({
         "sample-folder": "src/lib/sample-folder.ts",
         // The Problems model (severity counts, filter, store), so `scripts/ci/preview_problems.mjs` tests what ships.
         problems: "src/lib/problems.ts",
+        // The project-wide Problems source (#575): the analysis entries and the answer's rows,
+        // so `scripts/ci/preview_project_problems.mjs` drives what the page ships against the worker protocol.
+        "project-problems": "src/lib/project-problems.ts",
+        // The page-side clients of the compile and analysis workers (#569, #575), so the gates drive the code the
+        // page ships (restart after a killed worker, unavailable engine) with an injected worker handle.
+        "compile-client": "src/lib/compile-client.ts",
+        "analysis-client": "src/lib/analysis-client.ts",
         // The skin manifest's rules, so `scripts/ci/preview_skins.mjs` tests the validator the page
         // ships rather than a copy of it. `skin-load.ts` is here too: the gate drives the real loader
         // against a stub `fetch`, which is what proves a missing manifest is a rejection and not a

@@ -173,7 +173,7 @@ a **childless leaf React renders once** and a *session* fills:
 
 | Session | Owns |
 |---|---|
-| `views/diagnostics-session.ts` + `views/diagnostics-render.ts` | the `tessera_diagnostics` module instance, the compile path, the list |
+| `views/diagnostics-session.ts` + `views/diagnostics-render.ts` | the compile through the `compile` worker (`lib/compile-client.ts`, #569; the page calls no Wasm export for it), the list; project-wide Problems rows come from the `analysis` worker (`lib/analysis-client.ts`, `page-project-problems.ts`, #575) |
 | `views/scene-session.ts` + `views/scene-render.ts` + `views/scene-input.ts` | the `tessera_scene_preview` instance, the snapshot and the click script |
 | `views/canvas-session.ts` + `views/canvas-device.ts` + `views/canvas-pane.ts` | the `tessera_canvas` instance, the WebGPU device, the canvas surface and its frames |
 

@@ -133,6 +133,63 @@ await test("bare `number`: the compiler's TESSERA_JSX_TYPE_NUMBER entry becomes 
   assert.deepEqual([row.file, row.line, row.column, row.offset, row.length], ["ui/Counter.tsx", 2, 38, 65, 6]);
 });
 
+const row = (file, line, column, code, severity = "error", message = "m") => ({ key: 0, severity, code, message, file, line, column, offset: 0, length: 1 });
+
+await test("grouping: files in path order, rows in position order, rows with no file last, counts per file", () => {
+  const rows = [
+    row("ui/b.tsx", 4, 1, "X"),
+    row("", 0, 0, "NOFILE", "info"),
+    row("ui/a.tsx", 9, 2, "Y", "warning"),
+    row("ui/a.tsx", 2, 7, "Z"),
+    row("ui/a.tsx", 2, 3, "Z"),
+  ];
+  const groups = problems.groupByFile(rows);
+  assert.deepEqual(groups.map((group) => group.file), ["ui/a.tsx", "ui/b.tsx", ""]);
+  assert.deepEqual(groups[0].problems.map((entry) => [entry.line, entry.column]), [[2, 3], [2, 7], [9, 2]]);
+  assert.deepEqual([groups[0].errors, groups[0].warnings, groups[0].infos], [2, 1, 0]);
+  assert.deepEqual([groups[2].errors, groups[2].infos], [0, 1]);
+  assert.deepEqual(problems.groupByFile([]), []);
+  assert.deepEqual(problems.groupByFile([...rows].reverse()).map((group) => group.file), ["ui/a.tsx", "ui/b.tsx", ""], "input order does not matter");
+});
+
+await test("sorting: same position is ordered by code then message, so the list never jumps between runs", () => {
+  const a = row("f", 1, 1, "B", "error", "x");
+  const b = row("f", 1, 1, "A", "error", "z");
+  const c = row("f", 1, 1, "A", "error", "y");
+  assert.deepEqual([a, b, c].sort(problems.compareProblems).map((entry) => entry.message), ["y", "z", "x"]);
+});
+
+await test("merge: a finding the compile and the project both name is listed once; compile-only findings stay", () => {
+  const project = [row("ui/a.tsx", 2, 3, "TESSERA_JSX_X"), row("ui/b.tsx", 1, 1, "TESSERA_ANALYSIS_IMPORT_FILE")];
+  const compile = [row("ui/a.tsx", 2, 5, "TESSERA_JSX_X"), row("ui/a.tsx", 8, 1, "TESSERA_IR_LOWER")];
+  const merged = problems.mergeProblems(compile, project);
+  assert.deepEqual(merged.map((entry) => entry.code), ["TESSERA_JSX_X", "TESSERA_ANALYSIS_IMPORT_FILE", "TESSERA_IR_LOWER"]);
+  assert.deepEqual(merged.map((entry) => entry.key), [0, 1, 2], "keys are unique after a merge");
+  assert.deepEqual(problems.mergeProblems(compile, null).map((entry) => entry.code), ["TESSERA_JSX_X", "TESSERA_IR_LOWER"]);
+});
+
+await test("store: project rows reach the counts and a republish replaces them (fixing a file clears its row)", () => {
+  const store = problems.createProblemsStore();
+  let calls = 0;
+  store.subscribe(() => {
+    calls += 1;
+  });
+  store.publishProject([row("ui/Other.tsx", 1, 1, "TESSERA_JSX_X"), row("ui/Other.tsx", 3, 1, "TESSERA_W", "warning")]);
+  assert.equal(store.get().ran, true, "the project rows alone are a finished run");
+  assert.deepEqual([store.get().errors, store.get().warnings], [1, 1]);
+  store.publish([{ severity: "error", code: "TESSERA_IR_LOWER", message: "m", span: span("ui/Home.tsx", 2, 2, 5) }]);
+  assert.equal(store.get().errors, 2, "compile rows add to the project rows");
+  store.publishProject([row("ui/Other.tsx", 3, 1, "TESSERA_W", "warning")]);
+  assert.deepEqual([store.get().errors, store.get().warnings], [1, 1]);
+  assert.equal(store.get().problems.some((entry) => entry.code === "TESSERA_JSX_X"), false);
+  store.publishProject(null);
+  assert.equal(store.get().problems.length, 1, "dropping the project rows leaves the compile rows");
+  assert.equal(calls, 4);
+  store.reset();
+  assert.equal(store.get().ran, false);
+  assert.equal(store.get().problems.length, 0, "a closed project clears both sources");
+});
+
 process.stdout.write(failures === 0 ? "\nproblems model: all passed\n" : `\nproblems model: ${failures} failed\n`);
 if (failures > 0) {
   process.exitCode = 1;

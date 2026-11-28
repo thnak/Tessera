@@ -640,8 +640,16 @@ if (!requireBuilt()) {
     }
     // A dynamic import, not a static one: a top-level `import ... from "tessera_x.js"` would download the
     // module at first paint, which is the laziness the merge and the conversion both have to keep.
+    // Diagnostics is loaded by the `compile` worker (#569): the page names the module and the worker's engine
+    // source does the `import()`, so for it the check is that the worker engine is built around that name.
     for (const name of names) {
-      if (!new RegExp(`import\\([^)]*${name.replace(/\./g, "\\.")}`).test(bundle)) {
+      if (name === "tessera_diagnostics.js") {
+        // The bundle is minified, so the worker's engine text is matched by shape: a template `import(${JSON.stringify(x)})`
+        // beside the compile client (`name: "compile"`) that names the module.
+        if (!/import\(\$\{JSON\.stringify\(\w+\)\}\)/.test(bundle) || !/name:\s*"compile"/.test(bundle)) {
+          problems.push(`${name} is not loaded by the compile worker's dynamic import()`);
+        }
+      } else if (!new RegExp(`import\\([^)]*${name.replace(/\./g, "\\.")}`).test(bundle)) {
         problems.push(`${name} is not loaded through a dynamic import()`);
       }
     }

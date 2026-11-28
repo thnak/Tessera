@@ -45,6 +45,8 @@ on:
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
+      - 'scripts/ci/preview_project_problems.mjs'
+      - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_live_edit_wiring.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
@@ -100,6 +102,8 @@ on:
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
       - 'scripts/ci/preview_problems.mjs'
+      - 'scripts/ci/preview_project_problems.mjs'
+      - 'scripts/ci/preview_compile_service.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_live_edit_wiring.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
@@ -311,6 +315,12 @@ jobs:
       - name: Problems model (severity counts, filter, store, no browser)
         run: node scripts/ci/preview_problems.mjs
 
+      # #575, #569: the page's analysis and compile clients over the real worker sources (stand-in engines):
+      # a file that is not open reaches the Problems store, fixing it clears the row, an unavailable module is
+      # quiet, and a killed compile worker restarts from the next snapshot.
+      - name: Project-wide Problems (analysis and compile clients, no browser)
+        run: node scripts/ci/preview_project_problems.mjs
+
       # The project load and save, against an in-memory folder handle: a folder and its zip are the same
       # project, every limit refuses before a byte is read, a locked file is never read, and Save notices a
       # file that changed on disk. The browser half is `preview_browser_project_io.mjs`, run by hand.
@@ -346,6 +356,13 @@ jobs:
         run: node scripts/ci/preview_format_service.mjs
 
       # With the Wasm module the gate also checks the C++ library end to end (UTF-16 spans, findings).
+      # The compile worker is the diagnostics view's engine (#569); with the Wasm module the gate also runs the
+      # real compiler through the page's engine source.
+      - name: Compile service (diagnostics view over the worker protocol, ADR-060)
+        run: node scripts/ci/preview_compile_service.mjs
+        env:
+          TESSERA_DIAGNOSTICS_WASM: build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js
+
       - name: Analysis service (diagnostics over the worker protocol, ADR-060)
         run: node scripts/ci/preview_analysis_service.mjs
         env:

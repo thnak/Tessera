@@ -103,6 +103,7 @@ the handshake and sends a `snapshot` of the current text; open requests are reje
 |---|---|
 | `viewer` | Wraps the viewer protocol of [designer-protocol-v1.md](designer-protocol-v1.md); not yet moved behind this envelope |
 | `analysis` | `symbols` (section 10, #570), `diagnostics` (section 11, #568), `definition`, `references` and `hover` (section 12, #571, #572); completions and rename are the analysis issues that follow |
+| `compile` | Feature `diagnostics` (section 13, #569): the studio's compile-and-diagnose view |
 | `format` | Feature `format`: request `{ file, kind?, printWidth?, indentWidth? }` (`kind` 0 tsx, 1 css, 2 tessera.json), result `{ file, changed, edits: [TextEdit], diagnostics, skipped }` (`skipped`: broken `.tsx` regions left as written, source-format-v1 section 14). The edits are the minimal list of [source-format-v1.md](source-format-v1.md) section 11, in the coordinates of the snapshot version answered. A refusal is a result (no edits, the diagnostics say why), not an error. Errors: `TESSERA_FMT_NO_FILE` (id not in the snapshot), `TESSERA_FMT_ENGINE` (the module failed) |
 | `mock` | The mock worker of ADR-055 keeps its own handle; it adopts the envelope when it is next changed |
 
@@ -260,3 +261,30 @@ the page's version is dropped by the client (`TESSERA_STUDIO_STALE`), so a hover
   engine and, with `TESSERA_ANALYSIS_WASM`, the same requests against the C++ library). The editor wiring (F12,
   Shift+F12, tooltip, the `go.*` commands gated on `service.analysis.ready`) and its Playwright cases are separate studio
   work.
+
+## 13. Compile worker (`compile`) and the Problems panel (#569, #575)
+
+The diagnostics view no longer calls Wasm from the page: `designer/web/services/compile-service.js` runs the existing
+`tessera_diagnostics` module in its own worker, loaded lazily on the first request, behind the generic client of
+section 9 (`lib/compile-client.ts`).
+
+- **Snapshot.** Entries carry `path`; a path ending `.css` is staged as a stylesheet, anything else as a source. The
+  page sends the whole project each time (`setSnapshot`), so a restarted worker needs nothing else.
+- **Request** `diagnostics`: `{ entry?: string | null, servicesManifest?: string | null }`. **Result**
+  `{ document }`, the JSON document `tessera_diagnostics_json` writes ([compiler-diagnostics-v1.md](compiler-diagnostics-v1.md)),
+  unchanged, so the list, the editor underlines and the Problems store render exactly what they did before. Errors:
+  `TESSERA_COMPILE_ENGINE` (the module failed or is missing: the pane shows "Preview unavailable in this build"), plus the
+  generic codes. Capabilities: `{ name: "compile", protocol: 1, features: ["diagnostics"] }`.
+- **Restart.** `ServiceClient.withRecovery` restarts a worker that died (its `failure` is set) and repeats the snapshot and
+  the request once, so a killed worker costs one cold start and never a page error. The scene and canvas views still call
+  their modules directly; moving them is separate work.
+- **Problems panel.** The panel lists project-wide rows: the `analysis` worker's `diagnostics` for every file (section 11,
+  sent by `page-project-problems.ts`, 300 ms after an edit or a change of the file set) merged with the compile rows (a
+  finding both name, same file, code and line, is listed once; lowering findings only the compile reports stay). Rows are
+  grouped by file in path order, then line, column, code and message (`groupByFile`), headed by the file and its count; a
+  click opens the file and selects the span (the analysis offsets are UTF-16, what the editor reveals). A site without
+  `tessera_analysis.wasm` keeps the compile rows alone.
+- **Gates.** `scripts/ci/preview_compile_service.mjs` (protocol, staging, latest wins, stale drop, off-thread compile, a
+  killed worker; with `TESSERA_DIAGNOSTICS_WASM` the real compiler), `scripts/ci/preview_project_problems.mjs` (the page's
+  clients against the worker sources: a file that is not open reaches the store, fixing it clears the row, an unavailable
+  module stays quiet, a killed compile worker restarts) and `preview_problems.mjs` (grouping, sorting, merge).
