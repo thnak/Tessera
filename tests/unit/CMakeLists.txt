@@ -1048,6 +1048,17 @@ target_include_directories(x11_input_translation_xi2_tests PRIVATE
 
 add_test(NAME x11_xi2_translation COMMAND x11_input_translation_xi2_tests)
 
+# IME spot mapping and change tracking (issue #55): header-only and Xlib-free.
+add_executable(x11_ime_spot_tests
+    x11_ime_spot_tests.cpp)
+
+target_link_libraries(x11_ime_spot_tests PRIVATE tessera_hal_metrics)
+
+target_include_directories(x11_ime_spot_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/linux)
+
+add_test(NAME x11_ime_spot COMMAND x11_ime_spot_tests)
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 

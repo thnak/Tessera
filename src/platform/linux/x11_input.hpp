@@ -25,7 +25,8 @@ struct ImeCommitGate {
 // queue's single producer is the UI thread. Text comes from the window's X input context when it
 // has one (Xutf8LookupString: dead keys, compose sequences and text committed by an input method
 // such as ibus or fcitx), and from the keysym of the pressed key otherwise (ASCII, Latin-1, keypad
-// digits, Unicode keysyms). Pre-edit display and candidate windows are not drawn yet.
+// digits, Unicode keysyms). Pre-edit comes from the XI2 pump (x11_xi2_ime.cpp); candidate placement
+// is Window::set_text_input_rect.
 class X11InputTranslator {
 public:
     void set_queue(ui::InputQueue* queue) {
