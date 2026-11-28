@@ -14,6 +14,7 @@
 
 #include "ControlsPage.hpp"
 #include "DashPage.hpp"
+#include "DisplayPage.hpp"
 #include "FormPage.hpp"
 #include "Gallery.hpp"
 #include "IconsPage.hpp"
@@ -62,9 +63,9 @@ template<typename Page> struct Scene {
 // below is instantiated at the call site. `gallery_page_table_tests` walks both and fails if a name
 // here has no branch there, or the reverse - which is the drift a second list would otherwise
 // invite.
-inline constexpr std::array<std::string_view, 11> kPageNames{
-    "buttons", "safe-area", "form",   "dash", "swatch",  "icons",
-    "lists",   "controls",  "tables", "tags", "settings"};
+inline constexpr std::array<std::string_view, 12> kPageNames{
+    "buttons", "safe-area", "form",   "dash", "swatch",  "icons", "lists",
+    "controls",  "tables", "tags", "settings", "display"};
 
 // Whether `name` is a page. `--page`'s validation is this and nothing else, so an unknown page and
 // a known one are answered by the same list.
@@ -110,6 +111,8 @@ template<typename Visitor> [[nodiscard]] bool visit_page(std::string_view name, 
         visit(std::type_identity<TagsPage>{});
     } else if (name == "settings") {
         visit(std::type_identity<SettingsPage>{});
+    } else if (name == "display") {
+        visit(std::type_identity<DisplayPage>{});
     } else {
         return false;
     }

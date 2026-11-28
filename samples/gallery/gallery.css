@@ -31,6 +31,16 @@
   margin-inline-end: var(--space-3);
 }
 
+.g-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.g-skeleton-lines > * {
+  margin-bottom: var(--space-2);
+}
+
 .g-note {
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
