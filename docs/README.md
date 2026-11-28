@@ -332,7 +332,7 @@ This page is the map and reading order for the framework.
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch)
 - [`design/observable.md`](design/observable.md) — `Observable<T>`: coalescing over
   `UpdateScheduler` (one notification per flush), the `const T&` delivery model, unsubscribe
-  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
+  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4); TSX render read: [`observable-render-read.md`](design/observable-render-read.md); shims: [`router-shim.md`](design/router-shim.md), [`store-i18n-shims.md`](design/store-i18n-shims.md)
 - [`design/background-work.md`](design/background-work.md) — `TaskScope`'s structured cancellation
   (bounded children, deadline-bounded `close()`, cancellation while a child is suspended) and the
   layer-0 timer wake source (`TimerQueue` ordering, coalescing, and the pacer/timer park join)

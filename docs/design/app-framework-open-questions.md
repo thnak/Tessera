@@ -323,6 +323,10 @@ export function Header() {
   `collectAsState()` and Flutter's `ValueListenableBuilder` in being an explicit opt-in.
   (a) stays available and is still right for derived values computed in C++.
 
+**Implemented** in [`observable-render-read.md`](observable-render-read.md); the C++ accessor is
+`Observable<T>& name()` (non-const, since subscribing registers an observer), and one dirty bit per
+observable replaces the per-field bits this section does not need.
+
 **Rules.** `useObservable` follows the rules of hooks; its argument must be a direct member access
 on a `useService` result (no variables, no conditionals); the returned value is read-only in TSX;
 writes go through service methods from handlers or effects. `useObservable` becomes an entry in the

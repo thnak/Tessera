@@ -159,8 +159,8 @@ its subscriptions in `unmount()` rather than leaving them to the window's teardo
   release. The observable carries the version (`version()`) this needs; the trace itself belongs
   with the devtools slice and its diagnostics registry.
 - **No `Computed<T>` / derived values.** Deferred by ADR-050 section 6.
-- **No TSX surface.** `useObservable(svc.member)` is AF5 codegen work (open question 6's answer);
-  this slice is the C++ contract the lowering will call into.
+- **TSX surface.** `useObservable(svc.member)` is the compiler's read of this contract; see
+  [`observable-render-read.md`](observable-render-read.md).
 - **No service wiring.** No service owns an observable yet; nav, data and permissions adopt it in
   their own slices.
 
