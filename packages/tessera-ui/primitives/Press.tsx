@@ -11,11 +11,7 @@
 
 import { Children, KeyEvent, useState } from "tessera";
 
-export type PressProps = {
-  label: string;
-  onPress: () => void;
-  children: Children;
-};
+export type PressProps = { label: string; onPress: () => void; children: Children };
 
 export function Press({ label, onPress, children }: PressProps) {
   const [pressed, setPressed] = useState<boolean>(false);

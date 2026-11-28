@@ -7,11 +7,7 @@
 
 import { Children, useState } from "tessera";
 
-export type ToggleProps = {
-  label: string;
-  defaultChecked?: boolean;
-  children: Children;
-};
+export type ToggleProps = { label: string; defaultChecked?: boolean; children: Children };
 
 export function Toggle({ label, defaultChecked = false, children }: ToggleProps) {
   const [checked, setChecked] = useState<boolean>(defaultChecked);

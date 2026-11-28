@@ -8,11 +8,7 @@
 
 import { Children, KeyEvent, useState } from "tessera";
 
-export type DismissableLayerProps = {
-  label: string;
-  defaultOpen?: boolean;
-  children: Children;
-};
+export type DismissableLayerProps = { label: string; defaultOpen?: boolean; children: Children };
 
 export function DismissableLayer({ label, defaultOpen = true, children }: DismissableLayerProps) {
   const [open, setOpen] = useState<boolean>(defaultOpen);
