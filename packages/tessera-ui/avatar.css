@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Avatar look (issue #240, ADR-047 item 5): initials in a circle, three sizes. The radius is
+   half the side plus the border. Theme tokens only. */
+
+.tav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border);
+  font-family: var(--font-sans);
+  color: var(--on-surface);
+  background-color: var(--surface-sunken);
+}
+
+.tav-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 13px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.tav-md {
+  width: 32px;
+  height: 32px;
+  border-radius: 17px;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.tav-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 25px;
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+}

@@ -32,6 +32,18 @@ std::optional<Resources> load_resources() {
     const auto range_css = read_file(TESSERA_GALLERY_RANGE_CSS);
     const auto progress_css = read_file(TESSERA_GALLERY_PROGRESS_CSS);
     const auto disclosure_css = read_file(TESSERA_GALLERY_DISCLOSURE_CSS);
+    // The display components (Badge, Divider, Card, Avatar, Skeleton, Spinner; issue #240) sit in
+    // one directory, so one define names them all.
+    std::string display_css;
+    for (const char* name : {"badge", "divider", "card", "avatar", "skeleton", "spinner"}) {
+        const auto sheet =
+            read_file((std::string(TESSERA_GALLERY_DISPLAY_CSS_DIR) + "/" + name + ".css").c_str());
+        if (!sheet) {
+            std::cerr << "gallery: cannot read the " << name << " library CSS\n";
+            return std::nullopt;
+        }
+        display_css += "\n" + *sheet;
+    }
     const auto safe_area_css = read_file(TESSERA_GALLERY_SAFE_AREA_CSS);
     const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
     const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
@@ -53,10 +65,11 @@ std::optional<Resources> load_resources() {
     }
     Resources resources;
     // The library sheet is the Button, Icon, Switch, Checkbox, Radio, Range, ProgressBar/Meter and
-    // Details looks (one `tessera-ui` layer).
-    resources.library_sheet = style::prepare_stylesheet(
-        *button_css + "\n" + *icon_css + "\n" + *switch_css + "\n" + *checkbox_css + "\n" +
-        *radio_css + "\n" + *range_css + "\n" + *progress_css + "\n" + *disclosure_css);
+    // Details looks, plus the display components (one `tessera-ui` layer).
+    resources.library_sheet =
+        style::prepare_stylesheet(*button_css + "\n" + *icon_css + "\n" + *switch_css + "\n" +
+                                  *checkbox_css + "\n" + *radio_css + "\n" + *range_css + "\n" +
+                                  *progress_css + "\n" + *disclosure_css + display_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
     auto form_module = gallery::load_form_module(*form_css);

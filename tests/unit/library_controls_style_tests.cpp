@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// The Switch, Checkbox and Radio looks (issue #240): each stylesheet compiles with no diagnostics,
+// The Switch, Checkbox, Radio and display (Badge, Divider, Card, Avatar, Skeleton, Spinner) looks
+// (issue #240): each stylesheet compiles with no diagnostics,
 // reads only tokens every Instrument theme defines, names no color literal (so every theme and the
 // high-contrast theme restyle it), and has a rule for every class its component sets.
 
@@ -85,6 +86,12 @@ int main() {
          {".tprg-track", ".tprg-fill", ".tprg-rest", ".tmtr-track", ".tmtr-fill", ".tmtr-good",
           ".tmtr-warn", ".tmtr-bad"},
          4},
+        {"badge.css", {".tbdg ", ".tbdg-accent", ".tbdg-success", ".tbdg-warning", ".tbdg-danger"}},
+        {"divider.css", {".tdiv ", ".tdiv-horizontal", ".tdiv-vertical"}, 3},
+        {"card.css", {".tcard ", ".tcard-flat", ".tcard-title", ".tcard-body"}},
+        {"avatar.css", {".tav ", ".tav-sm", ".tav-md", ".tav-lg"}},
+        {"skeleton.css", {".tsk ", ".tsk-text", ".tsk-rect", ".tsk-circle"}, 2},
+        {"spinner.css", {".tspn ", ".tspn-sm", ".tspn-md"}, 1},
         {"disclosure.css",
          {".tdet ", ".tdet-summary", ".tdet-open .tdet-summary", ".tdet-body",
           ".tdet-summary:focus-visible"}},

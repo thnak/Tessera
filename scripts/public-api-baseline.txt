@@ -3991,6 +3991,15 @@ enum include/tessera/ui/virtual/virtual_range.hpp tessera::ui::virtualization::F
 enum include/tessera/ui/virtual/virtual_range.hpp tessera::ui::virtualization::ScrollAlignment
 enum include/tessera/ui/virtual/virtual_range.hpp tessera::ui::virtualization::VirtualRangeError
 
+component packages/tessera-ui/Avatar.tsx Avatar
+prop packages/tessera-ui/Avatar.tsx Avatar.initials
+prop packages/tessera-ui/Avatar.tsx Avatar.label
+prop packages/tessera-ui/Avatar.tsx Avatar.size
+
+component packages/tessera-ui/Badge.tsx Badge
+prop packages/tessera-ui/Badge.tsx Badge.label
+prop packages/tessera-ui/Badge.tsx Badge.tone
+
 component packages/tessera-ui/Button.tsx Button
 prop packages/tessera-ui/Button.tsx Button.children
 prop packages/tessera-ui/Button.tsx Button.disabled
@@ -4004,6 +4013,11 @@ prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.dot
 prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.label
 prop packages/tessera-ui/CapsuleStatus.tsx CapsuleStatus.tone
 
+component packages/tessera-ui/Card.tsx Card
+prop packages/tessera-ui/Card.tsx Card.children
+prop packages/tessera-ui/Card.tsx Card.title
+prop packages/tessera-ui/Card.tsx Card.variant
+
 component packages/tessera-ui/Checkbox.tsx Checkbox
 prop packages/tessera-ui/Checkbox.tsx Checkbox.checked
 prop packages/tessera-ui/Checkbox.tsx Checkbox.children
@@ -4016,6 +4030,9 @@ component packages/tessera-ui/Details.tsx Details
 prop packages/tessera-ui/Details.tsx Details.children
 prop packages/tessera-ui/Details.tsx Details.defaultOpen
 prop packages/tessera-ui/Details.tsx Details.summary
+
+component packages/tessera-ui/Divider.tsx Divider
+prop packages/tessera-ui/Divider.tsx Divider.orientation
 
 component packages/tessera-ui/Field.tsx Field
 prop packages/tessera-ui/Field.tsx Field.children
@@ -4079,6 +4096,13 @@ prop packages/tessera-ui/SafeArea.tsx SafeArea.edges
 prop packages/tessera-ui/SafeArea.tsx SafeArea.minimum
 prop packages/tessera-ui/SafeArea.tsx SafeArea.mode
 prop packages/tessera-ui/SafeArea.tsx SafeArea.sources
+
+component packages/tessera-ui/Skeleton.tsx Skeleton
+prop packages/tessera-ui/Skeleton.tsx Skeleton.shape
+
+component packages/tessera-ui/Spinner.tsx Spinner
+prop packages/tessera-ui/Spinner.tsx Spinner.label
+prop packages/tessera-ui/Spinner.tsx Spinner.size
 
 component packages/tessera-ui/Switch.tsx Switch
 prop packages/tessera-ui/Switch.tsx Switch.checked

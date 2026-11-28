@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Divider look (issue #240, ADR-047 item 5): a one-border-width rule. The component host sizes
+   to its content, so the horizontal rule is the width of the parent (100%) and the vertical one a
+   compact control height. Theme tokens only. */
+
+.tdiv {
+  flex-shrink: 0;
+  background-color: var(--border);
+}
+
+.tdiv-horizontal {
+  width: 100%;
+  height: var(--border-width);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.tdiv-vertical {
+  width: var(--border-width);
+  height: var(--control-height-compact);
+  margin-inline: var(--space-2);
+}

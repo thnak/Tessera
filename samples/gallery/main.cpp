@@ -18,7 +18,8 @@
 //   --page P           buttons (default), safe-area, form, dash (the parity pages, tools/parity) or
 //                      swatch (every colour token of the theme, issue #280) icons (#530) lists
 //                      (#1006), controls (Switch, Checkbox, Radio; #240), tables (#543) or
-//                      tags (input checkbox/radio/range, progress, meter, details; #1041)
+//                      tags (input checkbox/radio/range, progress, meter, details; #1041) or
+//                      display (Badge, Divider, Card, Avatar, Skeleton, Spinner; #240)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -283,7 +284,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
            "               [--page "
-           "buttons|safe-area|form|dash|swatch|icons|lists|controls|tables|tags] "
+           "buttons|safe-area|form|dash|swatch|icons|lists|controls|tables|tags|display] "
            "[--device "
            "none|notch|gesture|keyboard|fold]\n"
            "               [--click CLASS[:N]] [--advance-ms N]\n"
