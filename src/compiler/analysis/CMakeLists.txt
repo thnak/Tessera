@@ -5,11 +5,14 @@
 # completions and rename. Portable C++ only (no OS, thread or filesystem calls), so the same
 # library links into the native hosts and the Wasm analysis worker.
 add_library(tessera_analysis STATIC
+    src/completion.cpp
+    src/css_scan.cpp
     src/diagnostics.cpp
     src/file_indexer.cpp
     src/file_indexer_expr.cpp
     src/language.cpp
     src/project_index.cpp
+    src/rename.cpp
     src/symbol_json.cpp
     src/utf16_map.cpp)
 
@@ -41,6 +44,6 @@ else ()
         -sEXPORT_NAME=createTesseraAnalysis
         -sENVIRONMENT=web,worker,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_analysis_reset","_tessera_analysis_set_file","_tessera_analysis_commit_snapshot","_tessera_analysis_edit","_tessera_analysis_commit_edits","_tessera_analysis_query_json","_tessera_analysis_request_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_analysis_reset","_tessera_analysis_set_file","_tessera_analysis_commit_snapshot","_tessera_analysis_edit","_tessera_analysis_commit_edits","_tessera_analysis_query_json","_tessera_analysis_request_json","_tessera_analysis_rename_json","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()

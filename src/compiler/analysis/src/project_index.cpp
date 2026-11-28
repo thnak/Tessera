@@ -122,6 +122,14 @@ std::optional<std::string_view> ProjectIndex::text(FileId file) const {
     return std::string_view(it->second.source.text);
 }
 
+std::optional<std::string_view> ProjectIndex::path(FileId file) const {
+    const auto it = entries_.find(file);
+    if (it == entries_.end()) {
+        return std::nullopt;
+    }
+    return std::string_view(it->second.source.path);
+}
+
 const Symbol* ProjectIndex::symbol(std::string_view id) const {
     const auto it = by_id_.find(std::string(id));
     if (it == by_id_.end()) {
