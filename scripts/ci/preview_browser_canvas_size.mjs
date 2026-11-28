@@ -283,6 +283,11 @@ try {
     return true;
   }
 
+  // The pane writes `#stat-dpr` when the frame that applies the new ratio is drawn, while the backing
+  // store is resized synchronously by the toolbar handler. `nextFrame` can return on a frame that was
+  // already in flight for the preset, so the ratio the pane reports is awaited itself: reading it
+  // early gave "DPR 1" next to a 1536px store on a slower runner.
+  await settles(() => (document.getElementById('stat-dpr')?.textContent ?? '').trim() === '2', scaledPage, 15000);
   const doubled = await readCanvas(scaledPage);
   check(
     'a DPR change doubles the backing store (#598, #599)',
