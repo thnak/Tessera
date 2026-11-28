@@ -29,7 +29,7 @@ add_custom_command(
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
             --out ${_parity_dir} --namespace parity_sample ${_parity_sample_dir}/Counter.tsx
     DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx
-            ${_parity_sample_dir}/tessera.json
+            ${_parity_sample_dir}/tessera.json ${_parity_sample_dir}/counter.css
     COMMENT "Generating the preview-parity sample base"
     VERBATIM)
 

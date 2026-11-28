@@ -4,7 +4,7 @@
   "source": {
     "module": "tessera_diagnostics_wasm, the P1 page module (src/compiler/codegen/CMakeLists.txt); the same bytes the Pages lane assembles into build/pages. Its two files (the loader and the wasm) are measured from the module directory, not from dist/: they are linked engine artifacts copied next to the page, never bundled",
     "page": "the built page, designer/web/dist/ (issue #422, ADR-054 decision 6). The measurement walks that directory rather than naming files: Vite emits content-hashed assets (assets/index-<hash>.js, assets/index-<hash>.css) that a fixed list cannot name, and walking the directory keeps the rule the old PAGE_FILES list existed for -- an asset that ships is an asset that is weighed -- true by construction. The tree is index.html (the mount point), the hashed JS and CSS chunks (React 19 chrome plus the three view sessions), the two pre-merge redirect stubs, redirect.js and the files Vite copies from designer/web/public/ (no sample manifest: the Studio opens samples from a clone of the repository). The three Wasm loaders are not in the bundle: they are lazy import()s the Pages lane copies next to the page, and only tessera_diagnostics is weighed because it is the one on the first-paint path",
-    "sample": "samples/parity-demo/Counter.tsx",
+    "sample": "samples/parity-demo/Counter.tsx (its counter.css is staged beside it by the probe, issue #607)",
     "probe": "scripts/ci/preview_budget_probe.mjs",
     "runtime": "the module runs in the Emscripten Node host ($EMSDK_NODE in CI); a browser host cannot be measured in this lane"
   },

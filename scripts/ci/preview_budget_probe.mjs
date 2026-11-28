@@ -31,7 +31,7 @@
 // Nothing here writes a file, touches the network or reads the clock more than `performance.now()`.
 
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // The calibration workload. Iterations and the exact arithmetic are part of the measurement's
@@ -114,6 +114,12 @@ async function main() {
   // The measurement is a project of one: the page stages its files and names the entry, and a one-file
   // project is the smallest honest instance of that. The path is the entry the span file reports.
   const file = "ui/App.tsx";
+  // Side-effect CSS imports of the sample (`import "./x.css";`), read from the sample's directory and
+  // staged under the entry's project directory; a missing sheet is a loud failure, not a skipped file.
+  const sheets = [];
+  for (const match of source.matchAll(/^\s*import\s+"\.\/([^"]+\.css)"\s*;/gm)) {
+    sheets.push([`ui/${match[1]}`, readFileSync(join(dirname(resolve(options.sourcePath)), match[1]), "utf8")]);
+  }
 
   // A bare relative path is not a valid ESM specifier on any platform and an absolute one is only a
   // valid specifier as a file URL on Windows, so normalize here and let the caller pass what a shell
@@ -146,6 +152,12 @@ async function main() {
     withString(file, (filePtr) =>
       withString(source, (textPtr) => module._tessera_project_add_source(filePtr, textPtr)),
     );
+    // The sample imports its own sheet (issue #607): stage it beside the entry, as the page does.
+    for (const [sheetPath, sheetText] of sheets) {
+      withString(sheetPath, (pathPtr) =>
+        withString(sheetText, (textPtr) => module._tessera_project_add_stylesheet(pathPtr, textPtr)),
+      );
+    }
     withString(file, (filePtr) => module._tessera_project_set_entry(filePtr));
     const result = module._tessera_diagnostics_json();
     if (!result) {
