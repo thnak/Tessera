@@ -16,22 +16,42 @@ so an AI agent or a CI job can diff screenshots. Production apps carry no JavaSc
 
 ## Status
 
-**Pre-alpha.** Not usable to build an app yet; the pieces below are landing in the order set by
-the [V1 milestones](AGENTS.md#big-steps-group-work-dont-micro-step).
+**Pre-alpha.** Milestones M1 (core runtime) and M2 (compiler and animation) are feature complete on `main`;
+what is left in them is split into small follow-up issues. Work now moves through M3 to M7 (see the
+[V1 milestones](AGENTS.md#big-steps-group-work-dont-micro-step)).
 
 | Area | State on `main` |
 |---|---|
-| Renderer | Done: thin RHI (render hardware interface), null and Vulkan 1.3 backends, batched 2D (solid, SDF, textured quads, clip and transform stacks), lavapipe and CPU pixel goldens. WebGPU backend: first slice, unbuilt on the host |
-| Runtime | Done: fixed-step loop, frame pacing, power-aware idle (a static screen makes no presents), dirty rendering and damage rects, async executors and tasks, adaptive quality, structured diagnostics |
-| UI engine | Done: scene graph and W3C-style events, stylesheet engine (layers, media, `@supports`, `var()`), Yoga flexbox, text stack (FreeType, HarfBuzz, SheenBidi), transitions, keyframes and springs, virtualized lists |
+| Renderer | Thin RHI (render hardware interface), null, Vulkan 1.3 and WebGPU backends, batched 2D (solid, SDF, textured quads, gradients, shadows, masks, GPU path fill and stroke, clip and transform stacks), lavapipe (Mesa software Vulkan) and CPU pixel goldens |
+| Runtime | Fixed-step loop, frame pacing, power-aware idle (a static screen makes no presents), dirty rendering and damage rects, async executors, adaptive quality, structured diagnostics, SQLite storage and secret-store spikes |
+| UI engine | Scene graph and W3C-style events, stylesheet engine (layers, media, `@supports`, `var()`), Yoga flexbox, text stack (FreeType, HarfBuzz, SheenBidi, weight-selected IBM Plex faces), icons, transitions, keyframes and springs, virtualized lists, LiveCapsule, pending UI (`Suspense`, `useResource`, `useTransition`, `useDeferredValue`) |
 | Windowing | Win32 and X11 windows and swapchains, device-loss recovery. UIA and AT-SPI bridges exist but are not yet installed in a host. Wayland not yet |
-| Compiler | TSX front end, IR, C++ codegen with a generated `Base<Self>` plus a developer class (ADR-040), forms, lists, animated values. Migration of the remaining codegen test families is in progress |
-| Design time | Specified, not built. `designer/web` and `designer/native` are placeholders |
-| Samples | `click-demo`, `compiler-demo`, `parity-demo`; the `hello` and `dashboard` samples are empty |
+| Compiler | TSX front end, IR, C++ codegen with a generated `Base<Self>` plus a developer class (ADR-040), forms, lists, animated values, resources, `tessera fmt`, an analysis library (symbols, diagnostics, definition, references, hover, completion, rename) |
+| Design time | The same engine in Wasm and WebGPU, plus the Studio in `designer/web`: multi-file projects, a canvas preview with input, text editing and animation, a compile worker with a Problems panel, cross-file search and replace, formatting, version-history modules. Several editor wirings are still open (#984, #988, #583) |
+| Samples | `click-demo`, `compiler-demo`, `parity-demo`, `gallery` (the component gallery behind the images below) and `showcase` |
 
 The per-item checklist with evidence paths is in [AGENTS.md](AGENTS.md); the history of what landed is in
 [`docs/architecture/implementation-log.md`](docs/architecture/implementation-log.md). Terms are defined in the
 [glossary](docs/reference/glossary.md).
+
+## What it looks like
+
+Every image below is a committed **golden**: a reference frame rendered by the engine's own renderer
+on Mesa lavapipe (a software Vulkan driver, so it is the same pixels on any machine) and compared pixel
+for pixel in CI. They are the `gallery` sample in three themes and a right-to-left layout, the icon set, and a
+`LiveCapsule`. See [golden tests](docs/specs/golden-tests-v1.md).
+
+| Light | Dark | High contrast |
+|---|---|---|
+| ![Buttons, light theme](tests/golden/gallery/light_none.png) | ![Buttons, dark theme](tests/golden/gallery/dark_none.png) | ![Buttons, high contrast](tests/golden/gallery/high_contrast_none.png) |
+
+| Right to left | Icons | LiveCapsule |
+|---|---|---|
+| ![Buttons, right-to-left layout](tests/golden/gallery/rtl.png) | ![Icon component](tests/golden/gallery/icons_light.png) | ![LiveCapsule, expanded](tests/golden/baseline/live_capsule/expanded_notch_dark.png) |
+
+The form page (`tests/golden/gallery/form_plan_mid.png`), safe-area variants (fold, keyboard, notch,
+gesture bar) and the CPU raster set under `tests/golden/baseline/cpu_wide/` (borders, gradients, shadows,
+masks) are in the same tree.
 
 ## What V1 will ship
 
@@ -85,18 +105,20 @@ What a developer will use, and where each piece stands.
 ## Design time
 
 The designer runs the **real C++ engine** in a browser through Emscripten and WebGPU. It is not an emulator
-and not a second renderer ([design](docs/design/designer.md)). What V1 promises, in build order
-(issues #164 to #171):
+and not a second renderer ([design](docs/design/designer.md)). What exists today, in `designer/web`:
 
-1. The compiler in Wasm, and a diagnostics-only page on GitHub Pages.
+1. The compiler, analysis and formatter in Wasm, behind a worker services protocol
+   ([studio-services](docs/specs/studio-services-v1.md)): diagnostics, symbols, definition, references,
+   hover, completion, rename, format, search.
 2. An IR evaluator in the browser, so hooks and handlers run without a native build.
-3. A WebGPU canvas preview with browser input; component state survives edits.
-4. Theme, DPR and viewport toggles. To try a sample, clone the repo, then open `samples/<name>` in the studio.
-5. Size and latency budgets enforced in CI.
-6. Studio slices: a picker overlay, a style inspector that writes a `source.patch`, and device skins.
+3. A WebGPU canvas preview with browser input, text editing, animation and pending-UI resources;
+   component state survives edits.
+4. A multi-file Studio: project folders, a Problems panel, cross-file search and replace.
 
-Acceptance: the same screen previews in a browser and matches native output within the golden tolerance.
-Native hot reload, the in-app error overlay and `tessera-mcp` complete the loop for agents.
+Still to come: editor wiring for the analysis features, version-history UI, theme and asset editors, device
+skins, and size and latency budgets in CI. Acceptance: the same screen previews in a browser and matches
+native output within the golden tolerance. Native hot reload, the in-app error overlay and `tessera-mcp`
+complete the loop for agents.
 
 Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build/test, code style, documentation rules, and the PR checklist.
 
@@ -191,7 +213,7 @@ Tessera/
 │   └── runtime/          C++ support runtime for generated code
 ├── designer/             web (Wasm viewer) + native (IPC host)
 ├── tests/                unit, integration, golden, fixtures, benchmarks
-├── samples/              click-demo, compiler-demo, parity-demo (hello, dashboard are empty)
+├── samples/              click-demo, compiler-demo, parity-demo, gallery, showcase
 ├── tools/                shaders, font, build tooling
 ├── third_party/          vendored dependencies
 ├── cmake/                CMake helpers
@@ -270,7 +292,7 @@ Tools and demos:
 ## Next
 
 Open work is tracked as GitHub issues grouped by the eight V1 milestones, and in the checklist in
-[AGENTS.md](AGENTS.md). Decisions are in [`decisions/`](decisions/README.md) (ADR-001 to ADR-053).
+[AGENTS.md](AGENTS.md). Decisions are in [`decisions/`](decisions/README.md) (ADR-001 to ADR-078).
 
 ## License
 
