@@ -278,7 +278,7 @@
       "services": [
         "format"
       ],
-      "note": "format service (ADR-061); .tsx only until slice 3",
+      "note": "format service (ADR-061); .tsx, .css and tessera.json",
       "status": "live"
     },
     {
@@ -1044,6 +1044,14 @@
       "category": "Edit",
       "enabled": "project.open",
       "note": "undoes the last multi-file rename as one step; offered by the rename notification",
+      "status": "live"
+    },
+    {
+      "id": "edit.toggleFormatOnSave",
+      "title": "Format on Save",
+      "category": "Edit",
+      "description": "Format the open file when it is saved (tessera.studio.formatOnSave)",
+      "checked": "editor.formatOnSave",
       "status": "live"
     }
   ]

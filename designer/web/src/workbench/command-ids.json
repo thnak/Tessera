@@ -73,5 +73,6 @@
   "notify.toggleCenter",
   "notify.clearAll",
   "notify.toggleDoNotDisturb",
-  "edit.undoRename"
+  "edit.undoRename",
+  "edit.toggleFormatOnSave"
 ]

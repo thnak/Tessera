@@ -44,7 +44,7 @@ exists, in the same order, with new ids appended there in the same change.
   `arg.<name>`, so `device.setViewport` is `device.viewport == arg.value` and one command renders a whole
   radio group.
 - Added context keys: `tree.focus`, `project.multiComponent`, `device.profile|skin|viewport|dpr|fold|keepState`,
-  `ui.theme`, `run.picker|inspector|enabled|component`, `notify.dnd|unread|any`. They exist so toggles and radios read page state.
+  `ui.theme`, `run.picker|inspector|enabled|component`, `notify.dnd|unread|any`, `editor.formatOnSave`. They exist so toggles and radios read page state.
 - `args` properties may carry `x-provider`, naming a page-registered choice provider (`recent`, `skins`,
   `profiles`, `viewports`, `dprs`, `components`) so the palette can offer choices for an argument.
 - Worker-service readiness disables a command only when the page publishes `service.<name>.ready` as

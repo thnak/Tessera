@@ -36,6 +36,7 @@ import {
 } from "./workbench/index.js";
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
+import { formatOnSave, setFormatOnSave } from "./lib/format-prefs";
 import { EDITOR_COMMANDS, editorFacts, formatBeforeSave } from "./editor/editor-target";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
@@ -235,6 +236,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     };
     publishNotify();
     notifications.subscribe(publishNotify);
+    context.set({ "editor.formatOnSave": formatOnSave() });
     const a = () => apiRef.current;
     const handlers: Record<string, (args: CommandArgs) => unknown> = {
       "file.openFolder": () => a().io.openFolder(),
@@ -286,6 +288,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       },
       "notify.clearAll": () => notifications.clearHistory(),
       "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
+      "edit.toggleFormatOnSave": () => {
+        setFormatOnSave(!formatOnSave());
+        context.set({ "editor.formatOnSave": formatOnSave() });
+      },
       ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef, zenHinted: zenHintedRef }),
       ...EDITOR_COMMANDS,
       // Undo and Redo go to the history the focus targets (override stack or text history), not always the editor.

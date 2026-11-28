@@ -9,7 +9,9 @@ add_library(tessera_source_format STATIC
     build_comments.cpp
     build_jsx.cpp
     css_format.cpp
+    css_verify.cpp
     json_format.cpp
+    json_parse.cpp
     doc.cpp
     edits.cpp
     format.cpp
