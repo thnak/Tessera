@@ -18,7 +18,8 @@ set(_gallery_outputs
     ${_gallery_gen}/SafeAreaPage.g.hpp ${_gallery_gen}/SafeAreaPage.hpp
     ${_gallery_gen}/SafeAreaPage.cpp
     ${_gallery_gen}/FormPage.g.hpp ${_gallery_gen}/FormPage.hpp ${_gallery_gen}/FormPage.cpp
-    ${_gallery_gen}/DashPage.g.hpp ${_gallery_gen}/DashPage.hpp ${_gallery_gen}/DashPage.cpp)
+    ${_gallery_gen}/DashPage.g.hpp ${_gallery_gen}/DashPage.hpp ${_gallery_gen}/DashPage.cpp
+    ${_gallery_gen}/SwatchPage.g.hpp ${_gallery_gen}/SwatchPage.hpp ${_gallery_gen}/SwatchPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -29,14 +30,17 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${_gallery_gen}/src/FormPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css ${_gallery_gen}/src/form.module.css
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx ${_gallery_gen}/src/DashPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_gen}/src/SwatchPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
             ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
             ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
+            ${_gallery_gen}/src/SwatchPage.tsx
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
+            ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
     COMMENT "Generating the gallery page"
     VERBATIM)
@@ -60,7 +64,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
     TESSERA_GALLERY_DASH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/dash.css"
-    TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+    TESSERA_GALLERY_SWATCH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/swatch.css"    TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
 
 if (TESSERA_BUILD_TESTS)
@@ -113,6 +117,15 @@ if (TESSERA_BUILD_TESTS)
     # SafeArea (issue #223): one screen per scripted device, in the light and dark themes. The
     # window size is the device's: a notched phone, a gesture-navigation phone, a tablet-width
     # window with a keyboard, and a book-mode foldable.
+    # The token swatch page (issue #280): every colour token of each theme, painted with the font
+    # pack's Plex Sans (the opt-in pack, not the Noto test fixture the other cases use).
+    set(_gallery_plex_sans
+        "${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf")
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "swatch_${_theme}|--page swatch --theme instrument-${_theme_id} --width 560 --height 360 --font ${_gallery_plex_sans}")
+    endforeach ()
     foreach (_device notch gesture keyboard fold)
         foreach (_theme light dark)
             list(APPEND _gallery_cases

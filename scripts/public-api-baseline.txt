@@ -3281,6 +3281,17 @@ constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kColorFun
 constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kMaxFilterFunctions
 constant include/tessera/ui/style/filter_value.hpp tessera::ui::style::kMaxFilterOps
 
+header include/tessera/ui/style/font_pack.hpp
+struct include/tessera/ui/style/font_pack.hpp tessera::ui::style::FontPack
+struct include/tessera/ui/style/font_pack.hpp tessera::ui::style::FontPackError
+struct include/tessera/ui/style/font_pack.hpp tessera::ui::style::FontPackFile
+struct include/tessera/ui/style/font_pack.hpp tessera::ui::style::ThemeFontPin
+enum include/tessera/ui/style/font_pack.hpp tessera::ui::style::FontPackErrorCode
+function include/tessera/ui/style/font_pack.hpp tessera::ui::style::check_theme_font_pins
+function include/tessera/ui/style/font_pack.hpp tessera::ui::style::font_pack_error_code_name
+function include/tessera/ui/style/font_pack.hpp tessera::ui::style::parse_font_pack
+function include/tessera/ui/style/font_pack.hpp tessera::ui::style::read_theme_font_pins
+
 header include/tessera/ui/style/gradient.hpp
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::ConicGradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientStopValue

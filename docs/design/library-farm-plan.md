@@ -63,7 +63,9 @@ Four items, all of which otherwise collide across every later phase:
    exits non-zero above the structure threshold, so the farm can run it without reading a guide.
 4. **The bundled font pack (#280).** The fixtures hold one weight (`NotoSans-Regular.ttf`), so
    `font-weight` is parsed and carried but **bold is not compared** (the parity guide says so
-   outright). Every component with a bold label is unverifiable until the pack lands.
+   outright). The pack (Plex Sans 400/600/700, Mono 400/700) now exists in
+   `packages/tessera-fonts/ibm-plex/`; switching the parity fixtures and the chrome-parity harness to it
+   is the remaining step before bold labels are verifiable.
 
 ### Phase 1 — text and layout (14)
 

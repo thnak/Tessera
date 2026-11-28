@@ -334,6 +334,8 @@ Gap-closure decisions:
 - Video on Linux: GStreamer is LGPL, which conflicts with static linking ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 - DataGrid editing/grouping/pivot.
 - Bundled font pack: decided 2026-11-14 as an opt-in pack of IBM Plex Sans and IBM Plex Mono with its
-  own version pinned by the theme version; delivery is issue #280.
+  own version pinned by the theme version; delivered by issue #280
+  ([`theme-versions-v1.md`](../specs/theme-versions-v1.md) section 5). `tnum` is not applied by the
+  shaper (#966); Plex figures are tabular by default.
 - Token rename migration tooling.
 - 3D component wrappers.

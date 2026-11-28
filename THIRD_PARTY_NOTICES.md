@@ -109,6 +109,20 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: 2020 - 2026 ThorVG Project
 - Upstream: https://github.com/thorvg/thorvg (v1.1.3)
 
+### IBM Plex Sans and IBM Plex Mono (opt-in font pack)
+
+- Files: `packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-{Regular,SemiBold,Bold}.ttf`,
+  `packages/tessera-fonts/ibm-plex/fonts/IBMPlexMono-{Regular,Bold}.ttf`,
+  `packages/tessera-fonts/ibm-plex/OFL.txt`; the manifest `font-pack.json` pins each file by SHA-256
+- Used by: apps that opt into the bundled font pack (issue #280); the gallery token swatch goldens. They
+  are app assets, never linked into `tessera-ui` or the engine, and an app that does not opt in ships none
+- License: SIL Open Font License 1.1 (OFL-1.1), with Reserved Font Name "Plex". The license text is kept
+  beside the fonts; the files are unmodified upstream TTFs (no renamed or modified family), and they are not
+  sold on their own
+- Copyright: Copyright (c) 2017 IBM Corp. All rights reserved.
+- Upstream: https://github.com/IBM/plex (`packages/plex-sans`, `packages/plex-mono`, `fonts/complete/ttf`,
+  fetched 2026-11-28)
+
 ### IBM Plex Sans (preview font)
 
 - Files: `designer/web/public/fonts/IBMPlexSans-Latin.ttf`, `designer/web/public/fonts/OFL.txt`
