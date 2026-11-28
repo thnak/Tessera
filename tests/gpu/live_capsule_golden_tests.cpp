@@ -234,6 +234,9 @@ void run_case(Form form, const Cutout& cutout, const Theme& theme) {
                 (void)capsule->sync(env, kFrame);
             }
         }
+        // The capture destroys its AppHost before this scope ends, so the capsule must not close
+        // its overlay on a dead host. The frames still to come paint what is already mounted.
+        capsule->abandon();
     };
 
     auto frame = capture_scene_frame(CompareMode::Golden, root, *css, options, prepare);

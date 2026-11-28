@@ -59,6 +59,13 @@ public:
         return controller_.take_focus_return();
     }
 
+    // Forgets the overlay without closing it, for a capsule whose OverlayHost is torn down before
+    // it (the destructor would otherwise close a handle on a dead host). After this the component
+    // no longer touches the host and must not be synced again.
+    void abandon() noexcept {
+        handle_ = {};
+    }
+
     [[nodiscard]] CapsuleState state() const noexcept {
         return controller_.state();
     }

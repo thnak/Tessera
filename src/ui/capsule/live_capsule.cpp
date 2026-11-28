@@ -57,6 +57,7 @@ LiveCapsule::LiveCapsule(LiveCapsuleHost& host, OverlayHost& overlays)
       overlays_(overlays) {}
 
 LiveCapsule::~LiveCapsule() {
+    // `abandon` leaves no handle, so this closes nothing and never touches the host.
     close();
 }
 
