@@ -134,9 +134,12 @@ AppHost: placement, focus, parts, in-place update, idle).
 Also landed: the `Status` role in the accessibility tree (`Role::Status`; AT-SPI status bar, UIA Text),
 so the capsule node appears in the snapshot named from the front activity.
 
+Also landed (#968): `LiveCapsulePoster` (`live_capsule_poster`) posts `start/update/end` from any thread
+through the completion queue (bounded, returns false when full, applied at the UI-thread drain);
+ctest `live_capsule_poster`; rotation, fold and unfold placement tests in `live_capsule_component`.
+
 Not yet: goldens (notch, punch-hole, none; three themes; mid-transition); a content-hash measured
-slot size (slots carry size hints today); posting `start/update/end` from other threads; the
-`tessera-ui` surface.
+slot size (slots carry size hints today); the `tessera-ui` surface.
 
 ## 10. Decisions
 

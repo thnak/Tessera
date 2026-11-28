@@ -7,12 +7,14 @@ add_library(tessera_capsule STATIC
     capsule_placement.cpp
     capsule_state.cpp
     live_capsule.cpp
-    live_capsule_host.cpp)
+    live_capsule_host.cpp
+    live_capsule_poster.cpp)
 
 target_include_directories(tessera_capsule PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_capsule PUBLIC tessera_animation tessera_scene tessera_accessibility)
+target_link_libraries(tessera_capsule PUBLIC tessera_animation tessera_scene tessera_accessibility
+    tessera_runtime)
 
 target_compile_features(tessera_capsule PUBLIC cxx_std_23)
 
@@ -25,6 +27,12 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/live_capsule_tests.cpp)
     target_link_libraries(live_capsule_tests PRIVATE tessera_capsule)
     add_test(NAME live_capsule COMMAND live_capsule_tests)
+
+    # Cross-thread start/update/end through the completion queue (issue #968).
+    add_executable(live_capsule_poster_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/live_capsule_poster_tests.cpp)
+    target_link_libraries(live_capsule_poster_tests PRIVATE tessera_capsule)
+    add_test(NAME live_capsule_poster COMMAND live_capsule_poster_tests)
 
     # The component in a real AppHost: semantics, focus, parts, in-place update, idle.
     add_executable(live_capsule_component_tests
