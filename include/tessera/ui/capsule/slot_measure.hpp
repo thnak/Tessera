@@ -38,6 +38,8 @@ inline constexpr float kCardPadding = 12.0f;
 inline constexpr float kActionPaddingX = 8.0f;
 inline constexpr float kActionHeight = 24.0f;
 inline constexpr float kActionGap = 8.0f;
+// The capsule's own 1 px border (--border-width) on each side, inside its border-box.
+inline constexpr float kCapsuleBorder = 1.0f;
 
 // Natural extent of a subtree: a Text node is measured on one line, a node with an inline px
 // `width`/`height` takes it, and any other node is a row of its children (widths sum, heights

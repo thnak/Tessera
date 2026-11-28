@@ -131,10 +131,11 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
                 row_width += measurer_(*button, SlotTextRole::Label).width +
                              2.0f * kActionPaddingX + kActionGap;
             }
-            measured_.card_width =
-                std::max({head.width, middle.width, row_width}) + 2.0f * kCardPadding;
+            measured_.card_width = std::max({head.width, middle.width, row_width}) +
+                                   2.0f * (kCardPadding + kCapsuleBorder);
             measured_.card_height = head.height + middle.height +
-                                    (buttons.empty() ? 0.0f : kActionHeight) + 2.0f * kCardPadding;
+                                    (buttons.empty() ? 0.0f : kActionHeight) +
+                                    2.0f * (kCardPadding + kCapsuleBorder);
             measured_.card = true;
         }
     } else if (front != nullptr) {
@@ -148,9 +149,9 @@ void LiveCapsule::rebuild(Node& content, const Activity* front, const Activity* 
         }
         if (measurer_) {
             const auto slot_width = [this](const Node& slot) {
-                return slot.children().empty()
-                           ? 0.0f
-                           : measurer_(slot, SlotTextRole::Label).width + kSlotEdgePadding;
+                return slot.children().empty() ? 0.0f
+                                               : measurer_(slot, SlotTextRole::Label).width +
+                                                     kSlotEdgePadding + kCapsuleBorder;
             };
             measured_.leading_width = slot_width(leading);
             measured_.trailing_width = slot_width(trailing);

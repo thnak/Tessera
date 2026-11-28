@@ -151,7 +151,7 @@ style text, so temporaries dangled), and has `abandon()` for a host torn down be
 
 Measured slot sizes (#997): `LiveCapsule::set_slot_measurer` installs a `SlotMeasurer`
 (`slot_measure.hpp`); after each rebuild the component measures the built leading and trailing slots
-(plus 12 px edge padding each) and the expanded card (title, content, actions, 12 px padding) and
+(plus 12 px edge padding and the 1 px border each) and the expanded card (title, content, actions, 12 px padding and the border) and
 sizes the capsule from that. `make_intrinsic_slot_measurer` is the stock one: a Text node on one
 line, an inline px `width`/`height`, otherwise a row of children; builder-content padding and margins
 are not counted. The `Slots` size hints are now only the fallback when no measurer is installed. The

@@ -242,10 +242,10 @@ void test_measured_slot_sizes() {
         settle(f, capsule, notch_env());
         return capsule.rect().width;
     };
-    // cutout 60 + twice the wider slot: trailing is 22 + 12, leading only 14 + 12.
-    expect(std::abs(compact_width(true, "0:42") - 128.0f) < 0.5f,
+    // cutout 60 + twice the wider slot: trailing is 22 + 12 + 1 border, leading only 14 + 12 + 1.
+    expect(std::abs(compact_width(true, "0:42") - 130.0f) < 0.5f,
            "compact width is the measured slots plus the cutout");
-    expect(std::abs(compact_width(true, "0:42:17") - 161.0f) < 0.5f,
+    expect(std::abs(compact_width(true, "0:42:17") - 163.0f) < 0.5f,
            "a longer trailing text widens the capsule");
     expect(std::abs(compact_width(false, "0:42") - 240.0f) < 0.5f,
            "without a measurer the hints apply");
@@ -260,9 +260,9 @@ void test_measured_slot_sizes() {
     capsule.activate(0);
     settle(f, capsule, env);
     // "Timer" 5 * 7 = 35 and two actions: (Pause 5*5.5 + 16 + 8) + (Stop 4*5.5 + 16 + 8) = 97.5.
-    expect(std::abs(capsule.rect().width - (97.5f + 24.0f)) < 0.5f,
+    expect(std::abs(capsule.rect().width - (97.5f + 26.0f)) < 0.5f,
            "the expanded card is sized from its title, content and actions");
-    expect(std::abs(capsule.rect().height - (20.0f + 24.0f + 24.0f)) < 0.5f,
+    expect(std::abs(capsule.rect().height - (20.0f + 24.0f + 26.0f)) < 0.5f,
            "the card height is title plus actions plus padding");
 }
 
