@@ -314,7 +314,9 @@ try {
         run.page,
       );
       const restarted = await run.state();
-      if (!redrew && lostDevice(restarted)) {
+      // `redrew` alone cannot gate this: `#canvas-status` keeps the first frame's "drew N draw call" text
+      // until the pane replaces it, so the wait can succeed on a stale value while the device is already gone.
+      if (lostDevice(restarted)) {
         // The device was fine for the first frame and was taken away before the restart drew: the same
         // runner condition the attempt loop above retries, arriving one step later. It is said out loud,
         // and only for the pane's own "device was lost" sentence: any other unsupported state still fails.
