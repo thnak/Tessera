@@ -16,6 +16,7 @@
 #include "emit_events.hpp"
 #include "emit_resources.hpp"
 #include "emit_types_header.hpp"
+#include "tessera/compiler/ir/suspense_reads.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -230,6 +231,9 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
             } else {
                 body += "pending_transition_.begin(pending_resource_.epoch());\n";
             }
+            // `isPending` changed: the bindings that read it (and a resource's status) refresh in
+            // the apply_state() this handler ends with.
+            body += "dirty_.set(" + dirty_bit_name(std::string(kPendingCell)) + ");\n";
         }
         // A record-typed state cell splits into one bit per read leaf path (ADR-056 decision 1,
         // #834): a `set` of `{...state, name: x}` writes only the changed field's bit, and a
@@ -254,6 +258,18 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         // ADR-056: a handler's write marks the cell dirty even when the value is unchanged, so the
         // apply_state() it ends with re-evaluates (a controlled input snaps back this way).
         body += "dirty_.set(kBit_" + member_name(target) + ");\n";
+        // A resource keyed by this cell: bind the new key now (a `ResourceProvider` starts the
+        // fetch), so the update this handler ends with already sees the loading state.
+        if (const std::optional<std::size_t> keyed = ir::resource_keyed_by(component, target)) {
+            if (action.transition) {
+                // The new key is a new store entry with its own epoch: the mark follows it.
+                body += "if (sync_resource_keys()) {\n";
+                body += "pending_transition_.begin(" +
+                        resource_view_member(component.resources[*keyed]) + ".read().epoch);\n";
+                body += "}\n";
+            }
+            body += "pending_sync();\n";
+        }
         return true;
     }
     if (action.kind == ir::ActionKind::AnimSet && target.rfind(kAnimPrefix, 0) == 0) {

@@ -36,6 +36,7 @@
 // goldens byte-identical (AGENTS.md: a golden moves only for a real change).
 
 #include "emit_base_accessors.hpp"
+#include "emit_resources.hpp"
 #include "emit_services.hpp"
 
 #include <algorithm>
@@ -199,6 +200,11 @@ bool emit_service_accessors(CppWriter& writer, const ir::Component& component,
     for (std::size_t i = 0; i < component.services.size(); ++i) {
         const char* const separator = i + 1 == component.services.size() ? "};" : ",";
         writer.line("        &context.get<" + component.services[i].type + ">()" + separator);
+    }
+    if (uses_resources(component)) {
+        // A resource whose service is a `ResourceProvider` binds its view as soon as the service is
+        // known (pending-ui-v1.md section 10.2).
+        writer.line("    pending_sync();");
     }
     writer.line("}");
     writer.line("// ADR-050 section 3.1 item 3: resolve at mount, then run the ordinary mount().");

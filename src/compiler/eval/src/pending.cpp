@@ -125,6 +125,18 @@ std::optional<std::string_view> PendingSession::status_of(std::string_view resou
     return std::nullopt;
 }
 
+std::optional<std::string_view> PendingSession::error_of(std::string_view resource_id) const {
+    if (component_ == nullptr) {
+        return std::nullopt;
+    }
+    for (std::size_t index = 0; index < component_->resources.size(); ++index) {
+        if (component_->resources[index].id == resource_id) {
+            return views_[index].read().error;
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<Value> PendingSession::data_of(std::string_view resource_id) const {
     if (component_ == nullptr) {
         return std::nullopt;

@@ -222,6 +222,25 @@ void ReadCollector::add_bits(std::string_view id) {
     }
 }
 
+bool has_pending_cell(const ir::Component& component) {
+    if (!component.resources.empty()) {
+        return true;
+    }
+    for (const ir::Behavior& behavior : component.behaviors) {
+        if (behavior.behavior == "transition" || behavior.behavior == "deferred_value") {
+            return true;
+        }
+    }
+    for (const ir::Handler& handler : component.handlers) {
+        for (const ir::Action& action : handler.actions) {
+            if (action.transition) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::vector<std::string> declared_cells(const ir::Component& component,
                                         std::span<const ir::RecordType> records) {
     std::vector<std::string> cells;
@@ -242,6 +261,9 @@ std::vector<std::string> declared_cells(const ir::Component& component,
     for (const ir::Environment& env : component.environment) {
         add(env.id, env.type);
     }
+    if (has_pending_cell(component)) {
+        cells.emplace_back(kPendingCell);
+    }
     std::sort(cells.begin(), cells.end());
     cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
     return cells;
@@ -254,6 +276,11 @@ void ReadCollector::add_ref_id(const std::string& id) {
     }
     if (starts_with(base, "ref::")) {
         return; // a node ref is assigned once at mount, never a reactive input
+    }
+    if (starts_with(base, "res::") && has_pending_cell(component_)) {
+        // A resource read changes when the model publishes a new state (pending-ui-v1.md 6.1).
+        cells_.emplace_back(kPendingCell);
+        return;
     }
     const bool namespace_cell = starts_with(base, "state::") || starts_with(base, "prop::") ||
                                 starts_with(base, "anim::") || starts_with(base, "env::");
