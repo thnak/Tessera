@@ -54,6 +54,7 @@ export function ProjectTree({
   dirty,
   stale = [],
   onSelect,
+  onPin,
   onToggleDir,
   toolbar,
 }: {
@@ -64,6 +65,8 @@ export function ProjectTree({
   /** Generated files whose source is newer (advisory; see `generated-staleness.js`). */
   stale?: readonly string[];
   onSelect: (row: TreeRow) => void;
+  /** A double click on a file row pins its preview tab (#562). */
+  onPin?: (path: string) => void;
   onToggleDir: (path: string) => void;
   /** The load/save controls, drawn between the header and the tree. */
   toolbar?: ReactNode;
@@ -180,6 +183,7 @@ export function ProjectTree({
               tabIndex={isSelected ? 0 : -1}
               style={{ paddingLeft: `${8 + row.depth * 14}px` }}
               onClick={() => (row.dir ? onToggleDir(row.path) : onSelect(row))}
+              onDoubleClick={() => (row.dir ? undefined : onPin?.(row.path))}
             >
               <span className="tree-glyph" aria-hidden="true">
                 {row.dir ? (row.expanded ? "\u25be" : "\u25b8") : "\u00b7"}
