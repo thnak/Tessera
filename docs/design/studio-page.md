@@ -173,7 +173,7 @@ a **childless leaf React renders once** and a *session* fills:
 
 | Session | Owns |
 |---|---|
-| `views/diagnostics-session.ts` + `views/diagnostics-render.ts` | the compile through the `compile` worker (`lib/compile-client.ts`, #569; the page calls no Wasm export for it), the list; project-wide Problems rows come from the `analysis` worker (`lib/analysis-client.ts`, `page-project-problems.ts`, #575); project search and replace (#580, `view.search`) is `page-search.ts` over the `search` worker (`lib/search-client.ts`, `lib/search-replace.ts`), drawn by `regions/SearchPanel.tsx` |
+| `views/diagnostics-session.ts` + `views/diagnostics-render.ts` | the compile through the `compile` worker (`lib/compile-client.ts`, #569; the page calls no Wasm export for it), the list; project-wide Problems rows come from the `analysis` worker (`lib/analysis-client.ts`, `page-project-problems.ts`, #575); project search and replace (#580, `view.search`) is `page-search.ts` over the `search` worker (`lib/search-client.ts`, `lib/search-replace.ts`), drawn by `regions/SearchPanel.tsx`; asset inspection, reference scan and rename/replace plans (#581) are the pure `asset-info.js` (Node gate `preview_asset_info.mjs`; the panel and byte loading are not built yet) |
 | `views/scene-session.ts` + `views/scene-render.ts` + `views/scene-input.ts` | the `tessera_scene_preview` instance, the snapshot and the click script |
 | `views/canvas-session.ts` + `views/canvas-device.ts` + `views/canvas-pane.ts` | the `tessera_canvas` instance, the WebGPU device, the canvas surface and its frames |
 
