@@ -12,6 +12,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <string_view>
+#include <utility>
 
 namespace tessera::ui {
 
@@ -163,6 +166,16 @@ public:
         return focus_manager_;
     }
 
+    // What activating a link does (issue #542). A click that reaches the default phase on a node
+    // with role `link` and an `aria-href` (the lowering of `a href`) calls this with the node and
+    // its target; the app wires it to `appfw::LinkRouter::open`, which keeps the scene free of the
+    // navigation and shell services. A click a handler stopped never reaches it. Like the
+    // accelerators, the handler is app state and survives `reset()`.
+    using LinkHandler = std::function<void(Node& link, std::string_view href)>;
+    void set_link_handler(LinkHandler handler) {
+        link_handler_ = std::move(handler);
+    }
+
     // Application-level keyboard accelerators. The registry is owned by the router and survives
     // `reset()` (bindings are app state, not scene interaction state).
     [[nodiscard]] KeyBindingRegistry& accelerators() {
@@ -195,6 +208,9 @@ private:
     void synthesize_pointer_click(Node& root, const InputEvent& input);
     void synthesize_key_click(const InputEvent& input, bool consumed);
     bool dispatch_click(Node& target, ClickSource source, const InputEvent* input);
+    // The click's default action (input_dispatch_click.cpp): follow a link, or forward a label's
+    // click to its control (`label htmlFor`).
+    void run_click_default_action(Node& target);
 
     Node* root_ = nullptr;
     Node* hovered_ = nullptr;
@@ -207,6 +223,10 @@ private:
     FocusManager focus_manager_;
     KeyBindingRegistry accelerators_;
     ClickSynthesizer clicks_;
+    LinkHandler link_handler_;
+    // Set while a label's forwarded click runs, so a label that names itself, or a control whose
+    // click bubbles to its own label, cannot loop.
+    bool in_default_action_ = false;
 };
 
 } // namespace tessera::ui

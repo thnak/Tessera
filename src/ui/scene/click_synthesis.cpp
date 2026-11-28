@@ -103,7 +103,7 @@ Node* ClickSynthesizer::common_ancestor(Node* a, Node* b) {
 }
 
 bool ClickSynthesizer::keyboard_activatable(const Node& node) {
-    return node.element_kind() == "Button" || node.role() == "button";
+    return node.element_kind() == "Button" || node.role() == "button" || node.role() == "link";
 }
 
 bool ClickSynthesizer::key(InputEventType type, KeyCode key_code, bool repeat, Modifier modifiers,
@@ -121,7 +121,8 @@ bool ClickSynthesizer::key(InputEventType type, KeyCode key_code, bool repeat, M
         if (key_code == key::kEnter) {
             return !repeat;
         }
-        if (key_code == key::kSpace) {
+        // Enter follows a link, Space does not (as in a browser); a button takes both.
+        if (key_code == key::kSpace && focused->role() != "link") {
             space_armed_id_ = focused->id();
         }
         return false;

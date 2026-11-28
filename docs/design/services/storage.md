@@ -84,7 +84,10 @@ the target keeps its old content. `StorageDiagnostics` counts `aborted_writes` a
 `temp_files_removed` separately, because "the write was abandoned" and "the temp file is gone" are
 two claims and the test asserts both.
 
-**What this slice does not do.** No migrations (the format version is checked, not upgraded), no
-cache class or quota eviction, no keystore/encryption, and no streaming for large documents (a write
-is one bounded buffer, capped by `StorageConfig::max_entry_bytes`). Each of those is a later slice of
-the same module; the header names them so a caller does not assume they exist.
+**Migrations and the cache (issue #411).** `Storage::load_migrated` upgrades older documents with a
+pure `MigrationChain` and names a newer version (`FutureVersion`); `CacheStore` is the bounded LRU
+cache class. Both are specified in [`storage-module.md`](../storage-module.md) sections 9 and 10.
+
+**What is still not done.** No keystore/encryption (issue #841) and no streaming for large documents
+(a write is one bounded buffer, capped by `StorageConfig::max_entry_bytes`; needs an API-shape decision
+first). The header names them so a caller does not assume they exist.

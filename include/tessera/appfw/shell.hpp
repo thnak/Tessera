@@ -124,6 +124,15 @@ public:
     [[nodiscard]] runtime::Task<std::expected<void, ShellError>>
     write_clipboard(ClipboardContent content);
 
+    // --- external URLs ----------------------------------------------------------------------
+
+    // Hands `url` to the system handler (`ShellCapability::OpenUrl`). Refused before anything
+    // starts when the capability is missing, the URL is empty or longer than `kMaxShellUrlBytes`,
+    // or the back end has no handler; in that case `on_done` is never invoked. Which schemes a
+    // caller may open is its own policy (`LinkRouter`), not the service's.
+    [[nodiscard]] std::expected<void, ShellError> submit_open_url(std::string url,
+                                                                  WriteCallback on_done);
+
     // --- dialogs (section 5) ----------------------------------------------------------------
 
     [[nodiscard]] std::expected<void, ShellError> submit_open_dialog(OpenDialogSpec spec,

@@ -47,6 +47,10 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `RovingFocus`, `RovingFocusVertical`, `ListNavigation` | now `useListFocus` (#643; wrappers deleted): one Tab stop, arrows wrap, Home/End, `typeahead`; grid navigation is not done | done |
 | `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag maps node-local `e.x` over the width from `onSizeChange` to a step-snapped, clamped value ([common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md), #532, #982) | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
+| `Checkbox` | `checkbox`, focusable, `aria-checked` flips on activation, payload-free `onToggle` tells the caller (#544) | done |
+| `Radio` | `radio`, focusable, `aria-checked` is the group's `checked` prop, `onSelect` fires only when unchecked; the group owns the value and a `focusGroup` parent owns the arrows (#544) | done |
+| `Progress` | `progressbar` with the caller's `aria-valuenow/min/max` (value clamped), not focusable; the children slot draws the fill; serves `progress` and `meter` (#544) | done |
+| `Disclosure` | `details`/`summary`: a focusable `button` summary with `aria-expanded`, content `display: none` while closed (#544) | done |
 
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
 (variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
