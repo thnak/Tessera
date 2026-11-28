@@ -3011,7 +3011,7 @@
     {
       "kind": "keyword",
       "name": "list-style-position",
-      "note": "outside only"
+      "note": "outside or inside"
     },
     {
       "kind": "keyword",

@@ -13,10 +13,10 @@ the shorthand and the painter.
 | Property | Accepted | Rejected (declaration dropped, diagnostic reported) |
 |---|---|---|
 | `list-style-type` | `none`, `disc`, `circle`, `square`, `decimal`, `lower-alpha` (`lower-latin`), `upper-alpha` (`upper-latin`), `lower-roman`, `upper-roman` | every other counter style (`georgian`, `cjk-*`, `decimal-leading-zero`), a quoted string, `symbols()` |
-| `list-style-position` | `outside` | `inside` |
+| `list-style-position` | `outside`, `inside` ([`list-style-inside.md`](list-style-inside.md)) | any other word |
 
 `list-style` is `<type> || <position>` or `none`. It expands to the two longhands and resets the omitted
-one to its initial value; `url()` (`list-style-image`), `inside`, a repeated component or an unknown one
+one to its initial value; `url()` (`list-style-image`), a repeated component or an unknown one
 drops the whole shorthand, never half of it. Rejected values are the ones the engine cannot draw
 faithfully; they are reported, not approximated.
 
@@ -53,9 +53,9 @@ and a change marks paint dirty only (`paint_list_marker.cpp`).
 
 ## 3. Limits
 
-- `list-style-position: inside` and `list-style-image` are rejected: flowing a marker into the first
-  line needs inline layout the engine does not have.
-- `sub`/`sup`/`small` inside a `Text` shrink through size runs ([`inline-size-runs.md`](inline-size-runs.md)); the first-line marker box that `inside` needs is the part still missing (section 3 there).
+- `list-style-image` is rejected: it needs an image drawn into the first-line box. `inside` is a
+  first-line box of the item's first Text ([`list-style-inside.md`](list-style-inside.md)).
+- `sub`/`sup`/`small` inside a `Text` shrink through size runs ([`inline-size-runs.md`](inline-size-runs.md)).
 - No `::marker` pseudo-element, no `counter()`, no `@counter-style`; `display: list-item` does not exist.
 - Right-to-left lists draw the marker on the left; the logical (start-side) placement is not modelled.
 

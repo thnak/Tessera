@@ -54,7 +54,8 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
                        style.text_transform,
                        max_lines,
                        source.id(),
-                       style.features};
+                       style.features,
+                       style.first_line_indent};
 
     if (!enabled()) {
         ++counters_.misses;
@@ -76,7 +77,7 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
             view.letter_spacing,    view.word_spacing,   view.line_height,
             view.font_weight,       view.italic,         view.wrap,
             view.white_space,       view.text_transform, view.max_lines,
-            view.metrics_source_id, view.features};
+            view.metrics_source_id, view.features,       view.first_line_indent};
     const std::size_t bytes = entry_bytes(key, layout);
     if (bytes > config_.max_bytes) {
         // The entry alone exceeds the byte budget: return it through scratch instead of breaking

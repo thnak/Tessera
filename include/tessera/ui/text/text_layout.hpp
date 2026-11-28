@@ -19,6 +19,9 @@ struct TextLine {
     // are excluded from both ends; a line's slice may contain the original inner separators).
     std::size_t begin = 0;
     std::size_t end = 0;
+    // Inline-start box before the first glyph (TextStyle::first_line_indent), included in `width`.
+    // Paint starts the glyphs this far from the line origin; zero on every line but the first.
+    float indent = 0.0f;
     // Visual (left-to-right) bidi runs. Empty means logical order is visual order (pure LTR/even
     // text), which keeps the existing paint path byte-identical.
     std::vector<BidiVisualRun> visual_runs;

@@ -253,9 +253,16 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
         return total;
     };
 
+    // The first-line box belongs to the first line of the text only: a hard newline starts a
+    // paragraph without one. `lead()` is read while the line is still open, so an empty result
+    // means "this is the first line".
+    const float first_indent = style.first_line_indent > 0.0f ? style.first_line_indent : 0.0f;
+    const auto lead = [&]() { return result.lines.empty() ? first_indent : 0.0f; };
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, baseline, begin, end, {}});
-        result.width = std::max(result.width, width);
+        const float indent = lead();
+        result.lines.push_back(
+            TextLine{width + indent, line_height, baseline, begin, end, indent, {}});
+        result.width = std::max(result.width, width + indent);
     };
 
     if (!constraints.wrap || !white_space_wraps(style.white_space) ||
@@ -305,7 +312,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                     gap = measure_run(text.substr(line_end, segment.core_begin - line_end));
                 }
             }
-            if (has_line && current + gap + width <= max_width) {
+            if (has_line && current + gap + width + lead() <= max_width) {
                 current += gap + width;
                 line_end = segment.core_end;
                 continue;
@@ -319,6 +326,8 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                 while (chunk_begin < segment.core_end) {
                     const std::string_view remaining =
                         text.substr(chunk_begin, segment.core_end - chunk_begin);
+                    // Room on the line this chunk opens: the first line gives up the marker box.
+                    const float budget = std::max(0.1f, max_width - lead());
                     std::size_t best = 1;
                     std::size_t low = 1;
                     std::size_t high = codepoint_count(remaining);
@@ -326,7 +335,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                         const std::size_t middle = low + (high - low) / 2;
                         const float prefix =
                             measure_run(remaining.substr(0, byte_offset(remaining, middle)));
-                        if (prefix <= max_width) {
+                        if (prefix <= budget) {
                             best = middle;
                             low = middle + 1;
                         } else if (middle == 1) {

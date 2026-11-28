@@ -31,7 +31,10 @@ bool is_layout_property(std::string_view property) {
         property == "font-variant-position" || property == "font-style" ||
         property == "line-height" || property == "letter-spacing" || property == "word-spacing" ||
         property == "white-space" || property == "text-align" || property == "text-transform" ||
-        property == "writing-mode" || property == "scrollbar-gutter" || property == "order") {
+        property == "writing-mode" || property == "scrollbar-gutter" || property == "order" ||
+        // An `inside` marker is a first-line box of the item's first Text, so its position and
+        // type (the counter's width) feed that Text's wrap (docs/design/list-style-inside.md).
+        property == "list-style-position" || property == "list-style-type") {
         return true;
     }
     return starts_with(property, "margin-") || starts_with(property, "padding-") ||

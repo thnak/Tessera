@@ -135,7 +135,7 @@ constexpr StyleProperty kStyleProperties[] = {
     {"vertical-align", StyleKind::Length, "baseline, sub, super or a length"},
     {"list-style-type", StyleKind::Keyword,
      "none, disc, circle, square, decimal, lower/upper-alpha, lower/upper-roman"},
-    {"list-style-position", StyleKind::Keyword, "outside only"},
+    {"list-style-position", StyleKind::Keyword, "outside or inside"},
     {"white-space", StyleKind::Keyword, ""},
 
     // Interaction and layout direction.

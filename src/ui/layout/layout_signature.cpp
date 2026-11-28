@@ -132,6 +132,7 @@ void LayoutSignatureBuilder::enter(const LayoutInput& input) noexcept {
     // instead of reusing a stale fit fact.
     hasher.word(kTextWrap | (input.text_wrap ? 0x100U : 0U));
     hasher.word(0x5A000000U | input.text_runs.value);
+    hasher.word(0x5B000000U | input.text_indent_q);
     // Open the node: its running state starts from its own fields and takes each child's signature
     // as the children finish.
     ++depth_;

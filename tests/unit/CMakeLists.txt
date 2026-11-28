@@ -469,6 +469,11 @@ target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME layout_gate COMMAND layout_gate_tests)
 
+# list-style-position: inside through the host: layout reserves the marker's box, paint draws into it.
+add_executable(list_inside_host_tests list_inside_host_tests.cpp)
+target_link_libraries(list_inside_host_tests PRIVATE tessera_app tessera_runtime)
+add_test(NAME list_inside_host COMMAND list_inside_host_tests)
+
 # The retained layout input's reuse (src/app/layout_input_reuse.hpp): a text change the layout pass
 # never saw must not survive into the next pass.
 add_executable(layout_input_reuse_tests
@@ -3460,6 +3465,10 @@ add_executable(list_style_tests
     list_style_tests.cpp)
 target_link_libraries(list_style_tests PRIVATE tessera_paint tessera_scene tessera_style tessera_animation)
 add_test(NAME list_style COMMAND list_style_tests)
+
+add_executable(list_style_inside_tests list_style_inside_tests.cpp)
+target_link_libraries(list_style_inside_tests PRIVATE tessera_paint tessera_scene tessera_style tessera_text)
+add_test(NAME list_style_inside COMMAND list_style_inside_tests)
 
 add_executable(a11y_span_tests
     a11y_span_tests.cpp)

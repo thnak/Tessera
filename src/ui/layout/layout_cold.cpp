@@ -100,6 +100,7 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
     if ((!input.text.empty() || sizes_to_content) && input.children.empty()) {
         text::TextStyle measured = text::text_style_from(input.style);
         measured.size_runs = input.text_runs;
+        measured.first_line_indent = input.text_indent_px();
         measure_contexts.push_back(
             std::make_unique<MeasureContext>(MeasureContext{&input, measured, &cache}));
         YGNodeSetContext(node, measure_contexts.back().get());
