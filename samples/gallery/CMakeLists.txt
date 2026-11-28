@@ -24,6 +24,10 @@ set(_gallery_tags
     ${PROJECT_SOURCE_DIR}/packages/tessera-ui/Details.tsx)
 set(_gallery_primitives ${PROJECT_SOURCE_DIR}/packages/tessera-ui/primitives/Progress.tsx)
 set(_gallery_icon_glyph ${PROJECT_SOURCE_DIR}/packages/tessera-ui/icons/IconGlyph.tsx)
+# The Settings starter template lives in samples/settings (issues #240, #527) and builds only on the
+# library components above; the gallery runs it as `--page settings`.
+set(_gallery_settings_page ${PROJECT_SOURCE_DIR}/samples/settings/SettingsPage.tsx)
+set(_gallery_settings_css ${PROJECT_SOURCE_DIR}/samples/settings/settings.css)
 # The codegen CLI as a command. In an Emscripten build it is the Node tool (NODERAWFS, see the
 # compiler's CMakeLists), so it runs through node: the emsdk's (`EMSDK_NODE`, which emsdk_env.sh
 # exports and CI sets) or the one on the PATH.
@@ -63,7 +67,9 @@ set(_gallery_outputs
     ${_gallery_gen}/Meter.g.hpp ${_gallery_gen}/Meter.hpp ${_gallery_gen}/Meter.cpp
     ${_gallery_gen}/Details.g.hpp ${_gallery_gen}/Details.hpp ${_gallery_gen}/Details.cpp
     ${_gallery_gen}/Progress.g.hpp ${_gallery_gen}/Progress.hpp ${_gallery_gen}/Progress.cpp
-    ${_gallery_gen}/TablesPage.g.hpp ${_gallery_gen}/TablesPage.hpp ${_gallery_gen}/TablesPage.cpp)
+    ${_gallery_gen}/TablesPage.g.hpp ${_gallery_gen}/TablesPage.hpp ${_gallery_gen}/TablesPage.cpp
+    ${_gallery_gen}/SettingsPage.g.hpp ${_gallery_gen}/SettingsPage.hpp
+    ${_gallery_gen}/SettingsPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -84,6 +90,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${_gallery_gen}/src/ControlsPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/TablesPage.tsx ${_gallery_gen}/src/TablesPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_tags} ${_gallery_gen}/src
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_settings_page} ${_gallery_gen}/src/SettingsPage.tsx
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src/primitives
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_gallery_primitives} ${_gallery_gen}/src/primitives
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_gen}/src/TagsPage.tsx
@@ -100,7 +107,8 @@ add_custom_command(
             ${_gallery_gen}/src/TagsPage.tsx ${_gallery_gen}/src/Range.tsx
             ${_gallery_gen}/src/ProgressBar.tsx ${_gallery_gen}/src/Meter.tsx
             ${_gallery_gen}/src/Details.tsx ${_gallery_gen}/src/primitives/Progress.tsx
-    DEPENDS tessera_codegen_cli ${_gallery_controls} ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_tags} ${_gallery_primitives} ${_gallery_button} ${_gallery_safe_area}
+            ${_gallery_gen}/src/SettingsPage.tsx
+    DEPENDS tessera_codegen_cli ${_gallery_settings_page} ${_gallery_controls} ${CMAKE_CURRENT_SOURCE_DIR}/ControlsPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/TagsPage.tsx ${_gallery_tags} ${_gallery_primitives} ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/SwatchPage.tsx ${_gallery_icon} ${_gallery_icon_glyph}
@@ -131,6 +139,7 @@ if (EMSCRIPTEN)
         swatch.css=${CMAKE_CURRENT_SOURCE_DIR}/swatch.css
         lists.css=${CMAKE_CURRENT_SOURCE_DIR}/lists.css
         tables.css=${CMAKE_CURRENT_SOURCE_DIR}/tables.css
+        settings.css=${_gallery_settings_css}
         instrument.theme.json=${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json
         IBMPlexSans-Regular.ttf=${PROJECT_SOURCE_DIR}/packages/tessera-fonts/ibm-plex/fonts/IBMPlexSans-Regular.ttf)
     add_executable(gallery_web web_main.cpp resources.cpp form_module.cpp ${_gallery_outputs})
@@ -159,6 +168,7 @@ if (EMSCRIPTEN)
         TESSERA_GALLERY_SWATCH_CSS="/gallery/swatch.css"
         TESSERA_GALLERY_LISTS_CSS="/gallery/lists.css"
         TESSERA_GALLERY_TABLES_CSS="/gallery/tables.css"
+        TESSERA_GALLERY_SETTINGS_CSS="/gallery/settings.css"
         TESSERA_GALLERY_THEME="/gallery/instrument.theme.json")
     target_compile_features(gallery_web PRIVATE cxx_std_23)
     tessera_web_app(gallery_web)
@@ -206,6 +216,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_SWATCH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/swatch.css"
     TESSERA_GALLERY_LISTS_CSS="${CMAKE_CURRENT_SOURCE_DIR}/lists.css"
     TESSERA_GALLERY_TABLES_CSS="${CMAKE_CURRENT_SOURCE_DIR}/tables.css"
+    TESSERA_GALLERY_SETTINGS_CSS="${_gallery_settings_css}"
     TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
 
@@ -247,6 +258,16 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(gallery_tags_runtime_tests PRIVATE ${_gallery_gen})
     target_compile_features(gallery_tags_runtime_tests PRIVATE cxx_std_23)
     add_test(NAME gallery_tags_runtime COMMAND gallery_tags_runtime_tests)
+
+    # The Settings starter template (issues #240, #527): the generated page, keyboard and pointer
+    # through the real InputRouter, no GPU. Building it is also the codegen compile test: the
+    # page and every library component it uses go through the CLI and the C++ compiler.
+    add_executable(gallery_settings_runtime_tests settings_runtime_tests.cpp ${_gallery_outputs})
+    target_link_libraries(gallery_settings_runtime_tests PRIVATE tessera_scene tessera_text_edit
+        tessera_animation tessera_layout)
+    target_include_directories(gallery_settings_runtime_tests PRIVATE ${_gallery_gen})
+    target_compile_features(gallery_settings_runtime_tests PRIVATE cxx_std_23)
+    add_test(NAME gallery_settings_runtime COMMAND gallery_settings_runtime_tests)
 
     # Smoke: one capture on any Vulkan device. No device: the tool prints its documented skip line.
     add_test(NAME gallery_capture
@@ -304,6 +325,18 @@ if (TESSERA_BUILD_TESTS)
         list(APPEND _gallery_cases
             "tables_${_theme}|--page tables --theme instrument-${_theme} --width 760 --height 540")
     endforeach ()
+
+    # The Settings starter template (issues #240, #527): per theme, plus compact, text scale 150 and
+    # the right-to-left mirror on the light theme, and the screen after a toggle and a Save click.
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        list(APPEND _gallery_cases
+            "settings_${_theme}|--page settings --theme instrument-${_theme_id} --width 480 --height 640")
+    endforeach ()
+    list(APPEND _gallery_cases
+        "settings_compact|--page settings --density compact --width 480 --height 640"
+        "settings_scale_150|--page settings --text-scale 150 --width 560 --height 720"
+        "settings_rtl|--page settings --rtl --width 480 --height 640")
 
     # The input controls page (issue #240): Switch, Checkbox and RadioGroup in every state, per theme,
     # plus the right-to-left mirror on the light theme.

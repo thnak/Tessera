@@ -1,0 +1,78 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Settings starter template (issues #240 and #527). Theme tokens only, so the light, dark and
+   high-contrast themes, both densities, the text scales and right-to-left all restyle it. */
+
+.s-page {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+}
+
+.s-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6);
+  background-color: var(--surface-raised);
+  border-width: var(--border-width);
+  border-style: solid;
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.s-head {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-4);
+}
+
+.s-title {
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+}
+
+.s-sub,
+.s-note {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.s-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-3);
+}
+
+.s-heading {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-2);
+}
+
+.s-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.s-rule {
+  height: var(--border-width);
+  background-color: var(--border);
+  margin-bottom: var(--space-3);
+}
+
+.s-foot {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-top: var(--space-4);
+}
+
+.s-spacer {
+  flex-grow: 1;
+}

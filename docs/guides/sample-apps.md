@@ -7,7 +7,7 @@ To try a sample in the hosted studio: clone the repo, then open `samples/<name>`
 
 ## 1. Template set
 
-`samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `settings`, `3d-viewer` and `chat` have no directory yet. These six names are planned samples under `samples/`. They are not `tessera new` templates: the generator defines only the templates `blank` and `dashboard` ([project-generator.md, CLI reference](project-generator.md#cli-reference-v1)), and no document defines a generator template for the other names.
+`samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `3d-viewer` and `chat` have no directory yet; `settings` exists as [`samples/settings`](../../samples/settings/README.md) (the stage 1 Settings starter, a gallery page built on library components, #240). These six names are planned samples under `samples/`. They are not `tessera new` templates: the generator defines only the templates `blank` and `dashboard` ([project-generator.md, CLI reference](project-generator.md#cli-reference-v1)), and no document defines a generator template for the other names.
 
 | Sample | Proves |
 |---|---|

@@ -39,10 +39,11 @@ std::optional<Resources> load_resources() {
     const auto swatch_css = read_file(TESSERA_GALLERY_SWATCH_CSS);
     const auto lists_css = read_file(TESSERA_GALLERY_LISTS_CSS);
     const auto tables_css = read_file(TESSERA_GALLERY_TABLES_CSS);
+    const auto settings_css = read_file(TESSERA_GALLERY_SETTINGS_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
     if (!button_css || !icon_css || !switch_css || !checkbox_css || !radio_css || !range_css ||
         !progress_css || !disclosure_css || !safe_area_css || !gallery_css || !form_css ||
-        !dash_css || !swatch_css || !lists_css || !tables_css || !theme_json) {
+        !dash_css || !swatch_css || !lists_css || !tables_css || !settings_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -69,6 +70,7 @@ std::optional<Resources> load_resources() {
     resources.swatch_sheet = style::prepare_stylesheet(*swatch_css);
     resources.lists_sheet = style::prepare_stylesheet(*lists_css);
     resources.tables_sheet = style::prepare_stylesheet(*tables_css);
+    resources.settings_sheet = style::prepare_stylesheet(*settings_css);
     resources.theme_blob = style::serialize_theme_asset(*theme);
     return resources;
 }
@@ -83,6 +85,7 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
         {"swatch.css", &resources.swatch_sheet, style::Origin::Author, false},
         {"lists.css", &resources.lists_sheet, style::Origin::Author, false},
         {"tables.css", &resources.tables_sheet, style::Origin::Author, false},
+        {"settings.css", &resources.settings_sheet, style::Origin::Author, false},
     };
     return style::CompiledStyleSheet(sources);
 }
