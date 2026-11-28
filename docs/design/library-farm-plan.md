@@ -93,9 +93,9 @@ The hardest phase and the one where parity pays most. These need caret and selec
 rings, disabled and error states, and `::part()` styling. Known engine-side risks to resolve here
 rather than work around:
 
-- `Slider`'s pointer drag is unblocked (#532): a pointer handler reads node-local `e.x` and the width
+- `Slider`'s pointer drag is wired (#532, #982): a pointer handler reads node-local `e.x` and the width
   from `onSizeChange` ([common-and-events section 3.1](../specs/jsx-intrinsics-v1/common-and-events.md)).
-  Wiring it into the primitive is a phase 3 item.
+  The styled Slider (phase 3) only adds parts and CSS.
 - `TextInput` single-line centring and the `text-align` single-line fast path are both recent fixes
   with open follow-ups; the parity page is the regression test for them.
 
@@ -191,7 +191,7 @@ parity page.
 | # | Decision | Blocks |
 |---|---|---|
 | 5 | The concrete V1 widget set (#527) | every phase |
-| 6 | `Slider` pointer drag: decided, node-local `e.x` plus `onSizeChange` width (#532) | none |
+| 6 | `Slider` pointer drag: done in the primitive (#532, #982) | none |
 
 ### The ThorVG exit triggers (ADR-057 decision 3)
 

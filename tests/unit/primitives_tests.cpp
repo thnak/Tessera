@@ -235,10 +235,49 @@ std::int64_t slide(const ir::Component& slider, std::int64_t start, const char* 
     scope["prop::max"] = eval::Value::of_int(100);
     scope["prop::step"] = eval::Value::of_int(5);
     eval::Evaluator evaluator;
-    for (const ir::Handler& handler : slider.handlers) {
-        check(evaluator.run(handler.actions, scope).has_value(), "the slider handler runs");
-    }
+    // The key handler is the last of the five (size, down, move, up, key).
+    check(evaluator.run(slider.handlers.back().actions, scope).has_value(),
+          "the slider handler runs");
     return *scope["state::value"].as_int();
+}
+
+// Runs handler `index` (0 size, 1 down, 2 move, 3 up) on a 200 px track and returns the
+// scope so the caller reads `state::value` and `state::dragging`.
+eval::Scope drag(const ir::Component& slider, std::size_t index, double x, bool dragging,
+                 double width = 200.0) {
+    eval::Scope scope;
+    scope["state::value"] = eval::Value::of_int(50);
+    scope["state::width"] = eval::Value::of_float(width);
+    scope["state::dragging"] = eval::Value::of_bool(dragging);
+    scope["e.x"] = eval::Value::of_float(x);
+    scope["e.width"] = eval::Value::of_float(width);
+    scope["prop::min"] = eval::Value::of_int(0);
+    scope["prop::max"] = eval::Value::of_int(100);
+    scope["prop::step"] = eval::Value::of_int(5);
+    eval::Evaluator evaluator;
+    check(evaluator.run(slider.handlers[index].actions, scope).has_value(),
+          "the slider pointer handler runs");
+    return scope;
+}
+
+void test_slider_drag(const ir::Component& slider) {
+    check(*drag(slider, 0, 0.0, false, 320.0)["state::width"].as_float() == 320.0,
+          "onSizeChange stores the track width");
+    auto down = drag(slider, 1, 100.0, false);
+    check(*down["state::value"].as_int() == 50, "a press at mid-track picks the middle");
+    check(*down["state::dragging"].as_bool(), "a press starts the drag");
+    check(*drag(slider, 1, 51.0, false)["state::value"].as_int() == 25,
+          "the fraction snaps to the step");
+    check(*drag(slider, 2, 150.0, true)["state::value"].as_int() == 75, "a move while dragging");
+    check(*drag(slider, 2, -40.0, true)["state::value"].as_int() == 0,
+          "a captured move left of the box clamps to min");
+    check(*drag(slider, 2, 500.0, true)["state::value"].as_int() == 100,
+          "a captured move past the width clamps to max");
+    check(*drag(slider, 2, 150.0, false)["state::value"].as_int() == 50,
+          "a move without a press changes nothing");
+    check(*drag(slider, 1, 150.0, false, 0.0)["state::value"].as_int() == 50,
+          "a zero width (before the first layout) changes nothing");
+    check(!*drag(slider, 3, 0.0, true)["state::dragging"].as_bool(), "release ends the drag");
 }
 
 void test_slider() {
@@ -251,9 +290,10 @@ void test_slider() {
     for (const char* name : {"aria-valuenow", "aria-valuemin", "aria-valuemax"}) {
         check(root.props.count(name) == 1, std::string(name) + " is exposed");
     }
-    check(slider.component->handlers.size() == 1, "one key handler");
-    if (slider.component->handlers.size() == 1) {
+    check(slider.component->handlers.size() == 5, "size, three pointer and one key handler");
+    if (slider.component->handlers.size() == 5) {
         const ir::Component& component = *slider.component;
+        test_slider_drag(component);
         check(slide(component, 50, "ArrowRight") == 55, "ArrowRight adds a step");
         check(slide(component, 50, "ArrowUp") == 55, "ArrowUp adds a step");
         check(slide(component, 50, "ArrowLeft") == 45, "ArrowLeft subtracts a step");
