@@ -6,6 +6,11 @@
     "instrument-dark": "1.0.0",
     "instrument-high-contrast": "1.0.0"
   },
+  "fontPacks": {
+    "instrument-light": { "id": "ibm-plex", "version": "1.0.0" },
+    "instrument-dark": { "id": "ibm-plex", "version": "1.0.0" },
+    "instrument-high-contrast": { "id": "ibm-plex", "version": "1.0.0" }
+  },
   "themes": {
     "instrument-light": {
       "--surface": "#ffffff",

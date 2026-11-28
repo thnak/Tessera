@@ -122,6 +122,20 @@ meaning.
   high-contrast themes; mid-transition frames under the manual clock.
 - Power: an idle activity records zero presents over N ticks.
 
+## 9a. Implementation status (issue #224)
+
+Landed (C++ first; the `tessera-ui` surface is #305): `include/tessera/ui/capsule/` and
+`src/ui/capsule/` with placement (`capsule_placement`), sizes and the state controller
+(`capsule_state`), the spring/cross-fade morph (`capsule_morph`), the `LiveCapsuleHost` queue with
+announcements and timeouts (`live_capsule_host`), and the `LiveCapsule` component in the `toast`
+layer (`live_capsule`). Tests: ctest `live_capsule` (unit) and `live_capsule_component` (headless
+AppHost: placement, focus, parts, in-place update, idle).
+
+Not yet: goldens (notch, punch-hole, none; three themes; mid-transition); a `Status` role in the
+accessibility tree (the node carries role `status` and `aria-live: polite`, but the tree maps it to
+generic); a content-hash measured slot size (slots carry size hints today); posting `start/update/end`
+from other threads; the `tessera-ui` surface.
+
 ## 10. Decisions
 
 Decided by the owner on 2026-11-13:

@@ -86,7 +86,7 @@ This page is the map and reading order for the framework.
 - [`specs/stylesheet-property-status-v1.md`](specs/stylesheet-property-status-v1.md) — per registered longhand: applied / parsed only, with the consumer and proving test
 - [`specs/component-parts-v1.md`](specs/component-parts-v1.md) — `::part(name)`: the `part` attribute, cross-boundary matching, specificity, `@supports selector()`; behavior hooks: [`specs/behavior-hooks-v1.md`](specs/behavior-hooks-v1.md), [`specs/use-focus-trap-v1.md`](specs/use-focus-trap-v1.md), [`specs/use-list-focus-v1.md`](specs/use-list-focus-v1.md), [`specs/use-press-feedback-v1.md`](specs/use-press-feedback-v1.md), [`specs/use-media-query-v1.md`](specs/use-media-query-v1.md), [`specs/use-scroll-lock-v1.md`](specs/use-scroll-lock-v1.md), [`specs/use-hotkeys-v1.md`](specs/use-hotkeys-v1.md), [`specs/use-clipboard-v1.md`](specs/use-clipboard-v1.md), [`specs/use-overflow-v1.md`](specs/use-overflow-v1.md), [`specs/use-interactive-role-v1.md`](specs/use-interactive-role-v1.md), [`specs/use-announce-v1.md`](specs/use-announce-v1.md), [`specs/use-merged-refs-v1.md`](specs/use-merged-refs-v1.md); custom hooks: [`specs/custom-hooks-v1.md`](specs/custom-hooks-v1.md); component specs: [`template`](specs/components/_template.md), [`Button`](specs/components/Button.md) (ADR-064)
 - [`specs/compiled-stylesheet-v1.md`](specs/compiled-stylesheet-v1.md) — precompiled stylesheet blob format (prepare/resolve split, ADR-048)
-- [`specs/theme-versions-v1.md`](specs/theme-versions-v1.md) — theme versions, `assets.themePins` and `TESSERA_THEME_VERSION_PIN` (ADR-047)
+- [`specs/theme-versions-v1.md`](specs/theme-versions-v1.md) — theme versions, `assets.themePins` and `TESSERA_THEME_VERSION_PIN`, and the opt-in font pack a theme pins (ADR-047)
 - [`specs/theme-generation-v1.md`](specs/theme-generation-v1.md) — deriving an Instrument token set
   from one seed color in OKLCH, with enforced WCAG 2.2 AA contrast (ADR-047); theme source: [`specs/theme-source-v1.md`](specs/theme-source-v1.md) — role tokens that build to plain CSS custom properties in `@layer` (spike #662)
 - [`specs/diagnostics-config-v1.md`](specs/diagnostics-config-v1.md) — logging, tracing,
@@ -137,7 +137,7 @@ This page is the map and reading order for the framework.
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
   edges/sources/minimum (proposed, stage 1)
 - [`specs/live-capsule-v1.md`](specs/live-capsule-v1.md) — LiveCapsule: placement around the
-  cutout, states, activity queue, focus, accessibility, power (proposed, stage 2)
+  cutout, states, activity queue, focus, accessibility, power (stage 2, C++ core in)
 - [`specs/media-components-v1.md`](specs/media-components-v1.md) — Video and AudioPlayer: props,
   events, lifecycle, power, errors, parts, tests (proposed, stage 5)
 - [`specs/map-view-v1.md`](specs/map-view-v1.md) — MapView: tile source, camera, markers, network
@@ -277,7 +277,7 @@ This page is the map and reading order for the framework.
   order, retry state machine, cleanup seam, not-caught list, test map
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline; hooks as engine behaviors: [`design/behavior-hooks.md`](design/behavior-hooks.md)
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
-  design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
+  design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate); [`design/web-target.md`](design/web-target.md) — the web target HAL (#290: DOM input, rAF policy, host page)
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431): React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
 - [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session

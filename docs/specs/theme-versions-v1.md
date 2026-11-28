@@ -48,6 +48,38 @@ stored.
   unsatisfied pin exits 1 with `TESSERA_THEME_VERSION_PIN`, a malformed pin exits 1.
 - `tests/unit/instrument_theme_tests.cpp`: the shipped Instrument theme is version `1.0.0` in all
   three themes and satisfies pin `1`.
+- `tests/unit/font_pack_tests.cpp`: section 5 (manifest, hashes, license text, exact pins, tabular figures).
 - Implementation: `include/tessera/ui/style/theme_asset.hpp` (`is_theme_version`,
   `theme_version_satisfies_pin`, `check_theme_pins`), `src/ui/style/theme_asset.cpp`,
   `tools/codegen/project_identity.cpp`, `tools/codegen/regenerate.cpp`.
+
+## 5. Bundled font pack and its pin
+
+The opt-in font pack (ADR-047 item 4, issue #280) is a directory with a manifest, not part of
+`tessera-ui`: an app that does not opt in carries no Plex bytes and supplies its own fonts.
+`packages/tessera-fonts/ibm-plex/` holds Plex Sans (400, 600, 700) and Plex Mono (400, 700) as static
+TTFs and the license text (`OFL.txt`, OFL-1.1, Reserved Font Name "Plex"; entries in
+[`dependencies.md`](dependencies.md) and `THIRD_PARTY_NOTICES.md`).
+
+- `font-pack.json`: `schemaVersion` 1, `id` (`[a-z][a-z0-9-]*`), `version` (`MAJOR.MINOR.PATCH`, the
+  pack's own, independent of any theme or component version), and `fonts`: each with a relative
+  `file`, `family`, `weight`, `style`, lowercase-hex `sha256` and `bytes`. A malformed manifest, a
+  path outside the pack or a repeated file is `TESSERA_FONT_PACK_MANIFEST`. A font changes only with a new
+  pack version and new hashes.
+- The theme asset has an optional top-level `fontPacks` object: theme id to `{ "id", "version" }`. The
+  theme parser ignores it and the blob does not carry it, like a pin it is a build-time check.
+- **The pin is exact**, not a range: a pinned theme never changes look, so the pack version a theme names
+  must equal the pack's version. A pin naming an unknown theme, an unversioned theme, another pack id or
+  another version is `TESSERA_FONT_PACK_PIN`, naming the theme and both versions. Taking a new pack
+  version is therefore a deliberate theme edit (and a theme version bump with reviewed goldens, section 1).
+- Implementation: `include/tessera/ui/style/font_pack.hpp` (`parse_font_pack`, `read_theme_font_pins`,
+  `check_theme_font_pins`), `src/ui/style/font_pack.cpp`. Wiring the check into
+  `tools/codegen` (as `assets.themePins` is) is not done yet.
+- **Tabular numbers (ADR-047 item 5): a gap in the text stack, not in the pack.** The shaper passes no
+  OpenType feature list, so `tnum` and `font-feature-settings` are not applied
+  ([#966](https://github.com/thnak/Tessera/issues/966) asks the owner how to proceed). Every shipped
+  Plex face has tabular default figures, which `font_pack_tests` pins per file, so Instrument values
+  align today.
+- Goldens: the `swatch` gallery page (`samples/gallery/SwatchPage.tsx`) paints every colour token of
+  a theme with Plex Sans Regular from the pack; `gallery_golden_swatch_{light,dark,high_contrast}` compare
+  it with `tests/golden/gallery/swatch_*.png`, lavapipe only.

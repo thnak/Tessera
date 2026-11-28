@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "ibm-plex",
+  "version": "1.0.0",
+  "license": "OFL-1.1",
+  "license_file": "OFL.txt",
+  "upstream": "https://github.com/IBM/plex (packages/plex-sans and plex-mono, complete/ttf, fetched 2026-11-28)",
+  "fonts": [
+    { "file": "fonts/IBMPlexSans-Regular.ttf", "family": "IBM Plex Sans", "weight": 400, "style": "normal", "sha256": "b47ebd72b5ce53b60f909033ff84d6fc12358cc147e2981f8c321ad3f36246b6", "bytes": 207768 },
+    { "file": "fonts/IBMPlexSans-SemiBold.ttf", "family": "IBM Plex Sans", "weight": 600, "style": "normal", "sha256": "c51119b25f4a296da2b66edf3201b9aa1735091ed7efc1fca0313346f3851a4d", "bytes": 209768 },
+    { "file": "fonts/IBMPlexSans-Bold.ttf", "family": "IBM Plex Sans", "weight": 700, "style": "normal", "sha256": "22f59d358e8b9b9fb38ac6ee26a7ea7263ffa1c89a9056c101acff5add91f5d6", "bytes": 207396 },
+    { "file": "fonts/IBMPlexMono-Regular.ttf", "family": "IBM Plex Mono", "weight": 400, "style": "normal", "sha256": "7c6fbddca4b700be918f5f6183d9bd4464fa427fe435f0b480d77fe2bb8c5a43", "bytes": 173052 },
+    { "file": "fonts/IBMPlexMono-Bold.ttf", "family": "IBM Plex Mono", "weight": 700, "style": "normal", "sha256": "74e5eedcfa4596497d34e19023cabdabd3a8c852b903007a5654a59591a72ffb", "bytes": 175096 }
+  ]
+}

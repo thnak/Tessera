@@ -42,5 +42,9 @@ is a partial repaint and is unchanged (0.13 ms).
 
 ## Not done
 
-Slice 2, layer textures (`layerCacheBudgetMb`, still Reserved). It is only worth building if a measurement
-shows rasterization, not emission, as the bottleneck; the retained list removes the emission cost first.
+Generic layer promotion (slice 2 and the deterministic promote criteria of the issue). The retained layer
+cache of [#617](gpu/offscreen-layers-retention.md) already exists for masked, filtered and isolated-opacity
+groups, and `layerCacheBudgetMb` now sizes it (`window_retained_layer_bytes`; `0` also zeroes the entry
+count). Promoting arbitrary expensive subtrees is only worth building if a measurement shows rasterization,
+not emission, as the bottleneck: the retained list removes the emission cost, and the 12 000-node full paint
+is 5.7 ms with viewport culling ([performance.md](performance.md)).

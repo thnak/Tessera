@@ -277,6 +277,11 @@ bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOp
     renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
     renderer_config.max_offscreen_bytes = window_offscreen_max_bytes(options.runtime);
     renderer_config.cull_draws = options.runtime.cull_draws;
+    // `layerCacheBudgetMb` bounds the retained layers (issue #476); 0 disables them.
+    renderer_config.max_retained_bytes = window_retained_layer_bytes(options.runtime);
+    if (renderer_config.max_retained_bytes == 0) {
+        renderer_config.max_retained_layers = 0;
+    }
 
     renderer_ = std::make_unique<rendering::gpu::Batched2DRenderer>(
         *device_, *pipeline_, *white_, renderer_config,

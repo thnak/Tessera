@@ -211,6 +211,8 @@ add_subdirectory(src/hal/filesystem)
 add_subdirectory(src/hal/surface)
 add_subdirectory(src/runtime)
 add_subdirectory(src/ui/input)
+# The browser HAL (ADR-046, issue #290): pure translation/scheduling everywhere, exports Emscripten only.
+add_subdirectory(src/platform/web)
 add_subdirectory(src/ui/scene)
 add_subdirectory(src/ui/behavior)
 add_subdirectory(src/ui/style)
@@ -227,6 +229,7 @@ add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
 # Window size classes (issue #692): the compact/medium/expanded buckets `useBreakpoint()` returns.
 add_subdirectory(src/ui/responsive)
+add_subdirectory(src/ui/capsule)
 # The dev-mode compiler-error overlay (issue #78): a consumer of the `compiler-diagnostics-v1`
 # document that renders into the app's existing OverlayHost. Dev-only (`TESSERA_ENABLE_DEVTOOLS`
 # will gate the app-side mount); the library itself builds unconditionally so its tests always run.

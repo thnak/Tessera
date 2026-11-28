@@ -32,6 +32,13 @@ std::uint64_t window_offscreen_max_bytes(const RuntimeConfig& runtime) noexcept 
     return static_cast<std::uint64_t>(mb) * kMib;
 }
 
+std::uint64_t window_retained_layer_bytes(const RuntimeConfig& runtime) noexcept {
+    constexpr std::uint64_t kMib = 1024ull * 1024ull;
+    const std::uint32_t mb =
+        runtime.layer_cache_budget_mb > 4096u ? 4096u : runtime.layer_cache_budget_mb;
+    return static_cast<std::uint64_t>(mb) * kMib;
+}
+
 WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime) {
     WindowPausePolicy policy;
     // The one key describes an invisible window, not one particular lifecycle event: both the

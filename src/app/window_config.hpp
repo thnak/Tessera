@@ -44,6 +44,10 @@ struct WindowPausePolicy {
 // a 0 can never reach the pool, where it would mean "no cap".
 [[nodiscard]] std::uint64_t window_offscreen_max_bytes(const RuntimeConfig& runtime) noexcept;
 
+// The byte budget of the retained layer cache (`layerCacheBudgetMb`, issue #476). 0 turns the cache
+// off: the renderer reads a 0 byte cap as "no cap", so the caller must also zero the entry count.
+[[nodiscard]] std::uint64_t window_retained_layer_bytes(const RuntimeConfig& runtime) noexcept;
+
 // The occluded/minimized pause policy for one window. Only `pauseWhenOccluded` is wired in this
 // slice; the remaining lifecycle keys stay unwired.
 [[nodiscard]] WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime);
