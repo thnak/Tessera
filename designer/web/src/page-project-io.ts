@@ -627,25 +627,45 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     return current.state.files.find((file) => file.path === current.state.selected) ?? null;
   }, []);
 
+  /** The selected directory's path, or `null` when the selection is a file (or nothing). */
+  const folderSelected = useCallback((): string | null => {
+    const current = workspaceRef.current;
+    const row = current.rows.find((candidate) => candidate.path === current.state.selected);
+    return row !== undefined && row.dir ? row.path : null;
+  }, []);
+
   const renameFile = useCallback(() => {
     const file = selectedFile();
-    if (file === null || !file.editable) {
-      say({ note: "Select an editable file to rename." });
+    const dir = file === null ? folderSelected() : null;
+    if (dir === null && (file === null || !file.editable)) {
+      say({ note: "Select an editable file or a folder to rename." });
       return;
     }
+    const from = dir ?? (file as { path: string }).path;
     const answer = globalThis.prompt?.(
       "New path. Imports in other files are not rewritten; fix them yourself.",
-      file.path,
+      from,
     );
-    if (answer === null || answer === undefined || answer.trim() === "" || answer.trim() === file.path) {
+    if (answer === null || answer === undefined || answer.trim() === "" || answer.trim() === from) {
       return;
     }
-    const refusal = workspaceRef.current.renameFile(file.path, answer.trim());
+    const refusal =
+      dir === null ? workspaceRef.current.renameFile(from, answer.trim()) : workspaceRef.current.renameDir(from, answer.trim());
     say({ note: refusal ?? `renamed to ${answer.trim()}; imports in other files were not rewritten` });
-  }, [say, selectedFile]);
+  }, [say, selectedFile, folderSelected]);
 
   const deleteFile = useCallback(() => {
     const file = selectedFile();
+    const dir = file === null ? folderSelected() : null;
+    if (dir !== null) {
+      const where = root.current === null ? "from the project" : "from the project and, at Save, from the folder";
+      if (!(globalThis.confirm?.(`Delete folder ${dir} and every file in it ${where}?`) ?? false)) {
+        return;
+      }
+      const refusal = workspaceRef.current.deleteDir(dir);
+      say({ note: refusal ?? `deleted folder ${dir}${root.current === null ? "" : "; the folder keeps its files until you Save"}` });
+      return;
+    }
     if (file === null || !file.editable) {
       say({ note: "Select an editable file to delete." });
       return;
@@ -656,7 +676,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     }
     workspaceRef.current.deleteFile(file.path);
     say({ note: `deleted ${file.path}${root.current === null ? "" : "; the folder keeps it until you Save"}` });
-  }, [say, selectedFile]);
+  }, [say, selectedFile, folderSelected]);
 
   // No file watcher exists, so a change made by another editor is noticed when the tab regains focus.
   useEffect(() => {
